@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 const PROFILES = [
-  { name: "António", initials: "A", email: "info+antonio@floresabeirario.pt", color: "#C4A882" },
-  { name: "MJ", initials: "MJ", email: "info+mj@floresabeirario.pt", color: "#8B7355" },
-  { name: "Ana", initials: "An", email: "info+ana@floresabeirario.pt", color: "#B8A99A" },
+  { name: "António", initials: "A", email: "info+antonio@floresabeirario.pt", color: "#C4A882", photo: "/userphotos/antonio.webp" },
+  { name: "MJ", initials: "MJ", email: "info+mj@floresabeirario.pt", color: "#8B7355", photo: "/userphotos/mj.webp" },
+  { name: "Ana", initials: "An", email: "info+ana@floresabeirario.pt", color: "#B8A99A", photo: "/userphotos/ana.webp" },
 ];
 
 type Profile = typeof PROFILES[number];
@@ -75,11 +76,13 @@ export default function LoginPage() {
                 onClick={() => handleSelectProfile(profile)}
                 className="flex flex-col items-center gap-3 group"
               >
-                <div
-                  className="w-24 h-24 rounded-xl flex items-center justify-center text-white text-2xl font-semibold shadow-sm transition-all duration-150 group-hover:scale-105 group-hover:shadow-md"
-                  style={{ backgroundColor: profile.color }}
-                >
-                  {profile.initials}
+                <div className="w-24 h-24 rounded-xl overflow-hidden shadow-sm transition-all duration-150 group-hover:scale-105 group-hover:shadow-md relative">
+                  <Image
+                    src={profile.photo}
+                    alt={profile.name}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
                 <span className="text-sm text-[#8B7355] group-hover:text-[#3D2B1F] transition-colors">
                   {profile.name}
@@ -100,11 +103,13 @@ export default function LoginPage() {
           </button>
 
           <div className="flex flex-col items-center gap-3">
-            <div
-              className="w-20 h-20 rounded-xl flex items-center justify-center text-white text-xl font-semibold shadow-sm"
-              style={{ backgroundColor: selected.color }}
-            >
-              {selected.initials}
+            <div className="w-20 h-20 rounded-xl overflow-hidden shadow-sm relative">
+              <Image
+                src={selected.photo}
+                alt={selected.name}
+                fill
+                className="object-cover"
+              />
             </div>
             <span className="font-medium text-[#3D2B1F]">{selected.name}</span>
           </div>
