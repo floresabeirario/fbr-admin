@@ -5,11 +5,11 @@
 
 ---
 
-## Fase actual: FASE 1 — Fundação (em curso)
+## Fase actual: FASE 2 — Preservação de Flores
 
 ### Fases do projecto
-- [ ] **Fase 1** — Fundação: Supabase ligado, Google OAuth, layout/navegação ← **EM CURSO**
-- [ ] **Fase 2** — Preservação de Flores: tabela, workbench, estados, orçamento
+- [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
+- [ ] **Fase 2** — Preservação de Flores: tabela, workbench, estados, orçamento ← **A SEGUIR**
 - [ ] **Fase 3** — Vale-Presente + Status + Voucher sites
 - [ ] **Fase 4** — Dashboard + Tarefas + Métricas
 - [ ] **Fase 5** — Formulários públicos + Parcerias
@@ -18,55 +18,36 @@
 ---
 
 ## O que está feito
-- [x] Projecto Next.js criado com shadcn/ui
-- [x] Fontes da marca: Tan Memories em `public/fonts/`, Google Sans via next/font
+- [x] Projecto Next.js com shadcn/ui
+- [x] Fontes da marca: Tan Memories + Google Sans
 - [x] CLAUDE.md com spec completa da plataforma
-- [x] Plano por fases definido
-- [x] Supabase ligado ao projecto (`src/lib/supabase/client.ts` + `src/lib/supabase/server.ts`)
-- [x] `.env.local` com credenciais Supabase (URL + anon key)
-- [x] `src/proxy.ts` — protecção de rotas (redireciona para /login se não autenticado)
-- [x] `src/app/login/page.tsx` — página de login com botão Google OAuth (design FBR)
-- [x] `src/app/auth/callback/route.ts` — callback OAuth
-- [x] `src/app/(admin)/layout.tsx` — layout com sidebar colapsável (todas as 10 abas)
-- [x] `src/app/(admin)/page.tsx` — dashboard (mostra nome do utilizador)
-- [x] Páginas placeholder para todas as abas (preservacao, vale-presente, status, parcerias, financas, entregas-recolhas, ecossistema, healthchecks, ideias)
-- [x] Build limpo sem erros
+- [x] Supabase ligado (`src/lib/supabase/client.ts` + `src/lib/supabase/server.ts`)
+- [x] `.env.local` + variáveis no Vercel
+- [x] `src/proxy.ts` — protecção de rotas
+- [x] Login estilo Netflix com fotos (António, MJ, Ana) — `src/app/login/page.tsx`
+  - Fotos em `public/userphotos/`
+  - Emails: info+antonio / info+mj / info+ana @floresabeirario.pt
+  - António e MJ = admin | Ana = viewer (permissões a implementar na Fase 2)
+- [x] 3 utilizadores criados no Supabase (email + password)
+- [x] `src/app/(admin)/layout.tsx` — sidebar colapsável com 10 abas
+- [x] Dashboard + páginas placeholder para todas as abas
+- [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
-- A aguardar que a Maria configure o Google OAuth no Supabase (instruções abaixo)
+- Nada. Fase 1 concluída, pronta para iniciar Fase 2.
 
 ## Próximo passo CONCRETO
-**Fase 1 — Passo 2:** Configurar Google OAuth no Supabase.
+**Fase 2 — Preservação de Flores**
 
-### Instruções para a Maria:
+Ordem de trabalho:
+1. Criar o schema da base de dados no Supabase (tabela `orders` com todos os campos)
+2. Criar a vista de tabela na aba Preservação de Flores
+3. Criar o workbench (painel de detalhe de cada encomenda)
+4. Implementar grupos automáticos (Pré-reservas, Reservas, etc.)
+5. Implementar lógica de estados e orçamento automático
 
-**Parte A — Google Cloud Console**
-1. Vai a console.cloud.google.com e cria um projecto novo chamado "fbr-admin"
-2. No menu lateral: APIs & Services → OAuth consent screen
-   - User Type: External → Create
-   - App name: "FBR Admin", User support email: info@floresabeirario.pt
-   - Developer contact: info@floresabeirario.pt → Save and Continue (nas outras secções clica só "Save and Continue")
-3. APIs & Services → Credentials → Create Credentials → OAuth client ID
-   - Application type: Web application
-   - Name: "FBR Admin"
-   - Authorized redirect URIs: adicionar `https://jfwxntcyhylmjahxoeyr.supabase.co/auth/v1/callback`
-   - Create → copiar o **Client ID** e **Client Secret**
-
-**Parte B — Supabase**
-4. No painel Supabase → Authentication → Providers → Google → Enable
-5. Colar o Client ID e Client Secret
-6. Save
-
-**Parte C — Testar**
-7. Correr `npm run dev` no terminal do VS Code
-8. Abrir http://localhost:3000 — deve redirigir para /login
-9. Clicar "Continuar com Google" e fazer login com info@floresabeirario.pt
-
-Depois de funcionar, o próximo passo é começar a **Fase 2 — Preservação de Flores**.
-
-## Decisões pendentes / perguntas em aberto
-- Nenhuma de momento.
+Para iniciar: dizer "vamos continuar" e eu começo imediatamente com o schema da BD.
 
 ## Notas de sessão
-- **2026-05-02 (sessão 1):** Leitura do PDF da spec completa. Plano por fases definido. CLAUDE.md actualizado com spec.
-- **2026-05-02 (sessão 2):** Supabase criado. Fase 1 quase completa — falta apenas configurar Google OAuth no Supabase/Google Cloud Console (instruções acima). Build limpo e funcional.
+- **2026-05-02 (sessão 1):** Leitura do PDF spec. Plano por fases definido.
+- **2026-05-02 (sessão 2):** Fase 1 completa. Login Netflix com fotos a funcionar no Vercel. Mudámos de Google OAuth para email+password com subendereços Gmail. Deploy Vercel configurado com env vars.
