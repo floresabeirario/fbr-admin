@@ -34,20 +34,22 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
-- Nada. Fase 1 concluída, pronta para iniciar Fase 2.
+- Fase 2 iniciada. Schema BD criado, página de tabela funcional.
 
 ## Próximo passo CONCRETO
-**Fase 2 — Preservação de Flores**
+**Fase 2 — Passo crítico: executar a migração SQL no Supabase**
 
-Ordem de trabalho:
-1. Criar o schema da base de dados no Supabase (tabela `orders` com todos os campos)
-2. Criar a vista de tabela na aba Preservação de Flores
-3. Criar o workbench (painel de detalhe de cada encomenda)
-4. Implementar grupos automáticos (Pré-reservas, Reservas, etc.)
-5. Implementar lógica de estados e orçamento automático
-
-Para iniciar: dizer "vamos continuar" e eu começo imediatamente com o schema da BD.
+1. **OBRIGATÓRIO:** Abrir o Supabase Dashboard → SQL Editor → New query
+   → Copiar e executar o ficheiro `supabase/migrations/001_create_orders.sql`
+2. Após migração: testar criar uma encomenda pela página
+3. Construir o **Workbench** (painel lateral de detalhe de cada encomenda)
+   - Todos os campos da encomenda editáveis inline
+   - Upload de foto das flores
+   - Link para pasta Drive (manual por agora)
+4. Implementar mudança de estado (dropdown inline na tabela)
+5. Orçamento automático (ligado à tabela de preços em Finanças — Fase 6, por agora campo manual)
 
 ## Notas de sessão
 - **2026-05-02 (sessão 1):** Leitura do PDF spec. Plano por fases definido.
 - **2026-05-02 (sessão 2):** Fase 1 completa. Login Netflix com fotos a funcionar no Vercel. Mudámos de Google OAuth para email+password com subendereços Gmail. Deploy Vercel configurado com env vars.
+- **2026-05-02 (sessão 3):** Fase 2 iniciada. Criados: `supabase/migrations/001_create_orders.sql`, `src/types/database.ts`, `src/lib/supabase/orders.ts`, `src/app/(admin)/preservacao/page.tsx` (tabela com grupos), `nova-encomenda-sheet.tsx` (formulário inicial). Build OK.
