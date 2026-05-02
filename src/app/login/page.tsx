@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -22,7 +23,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selected) return;
     setLoading(true);
@@ -56,96 +57,45 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: "linear-gradient(145deg, #0D0804 0%, #1A0F08 35%, #251508 65%, #1A0F08 100%)" }}
-    >
-      {/* Glow decorativo central */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        aria-hidden="true"
-      >
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(196,168,130,0.12) 0%, transparent 65%)" }}
-        />
-        <div
-          className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(196,168,130,0.06) 0%, transparent 70%)" }}
-        />
-        <div
-          className="absolute -bottom-32 -left-32 w-[400px] h-[400px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(196,168,130,0.05) 0%, transparent 70%)" }}
-        />
+    <div className="min-h-screen bg-[#F2F1EE] dark:bg-black flex flex-col">
+      {/* Header */}
+      <div className="flex justify-end p-4">
+        <ThemeToggle />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-10 w-full px-6">
+      {/* Content */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
         {/* Brand */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="text-center mb-8">
           <h1
-            className="text-5xl md:text-6xl tracking-wide"
-            style={{
-              fontFamily: "TanMemories",
-              fontStyle: "italic",
-              color: "rgba(255,255,255,0.92)",
-              textShadow: "0 2px 40px rgba(196,168,130,0.3)",
-            }}
+            className="text-[40px] leading-tight text-[#3D2B1F] dark:text-[#E8D5B5]"
+            style={{ fontFamily: "TanMemories", fontStyle: "italic" }}
           >
             Flores à Beira Rio
           </h1>
-          <div className="flex items-center gap-4">
-            <div className="h-px w-14" style={{ background: "linear-gradient(to right, transparent, rgba(196,168,130,0.5))" }} />
-            <span className="text-[10px] tracking-[0.25em] uppercase" style={{ color: "rgba(196,168,130,0.6)" }}>
-              Plataforma Interna
-            </span>
-            <div className="h-px w-14" style={{ background: "linear-gradient(to left, transparent, rgba(196,168,130,0.5))" }} />
-          </div>
+          <p className="mt-2 text-[10px] tracking-[0.22em] uppercase text-[#B8A08A] dark:text-[#6B6B6B]">
+            Plataforma Interna
+          </p>
         </div>
 
         {/* Card */}
-        <div
-          className="w-full max-w-sm rounded-3xl border p-8"
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            backdropFilter: "blur(24px)",
-            borderColor: "rgba(255,255,255,0.08)",
-            boxShadow: "0 25px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)",
-          }}
-        >
+        <div className="w-full max-w-[360px] bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.07)] dark:shadow-[0_2px_30px_rgba(0,0,0,0.5)]">
           {!selected ? (
-            /* Selecção de perfil */
-            <div className="flex flex-col items-center gap-7">
-              <p className="text-sm tracking-wide" style={{ color: "rgba(255,255,255,0.45)" }}>
+            <div className="p-8 flex flex-col items-center gap-6">
+              <p className="text-[13px] text-[#8B8B8B] dark:text-[#8E8E93]">
                 Quem está a entrar?
               </p>
-              <div className="flex gap-7 justify-center">
+              <div className="flex gap-8 justify-center">
                 {PROFILES.map((profile) => (
                   <button
                     key={profile.name}
                     onClick={() => handleSelectProfile(profile)}
-                    className="flex flex-col items-center gap-3 group outline-none"
+                    className="flex flex-col items-center gap-2.5 group outline-none"
                   >
-                    <div
-                      className="w-20 h-20 rounded-2xl overflow-hidden relative transition-all duration-200 group-hover:scale-105"
-                      style={{
-                        boxShadow: "0 0 0 2px rgba(255,255,255,0.08)",
-                        transition: "box-shadow 0.2s, transform 0.2s",
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 0 2px rgba(196,168,130,0.6), 0 8px 24px rgba(0,0,0,0.4)";
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 0 2px rgba(255,255,255,0.08)";
-                      }}
-                    >
+                    <div className="w-[72px] h-[72px] rounded-full overflow-hidden relative ring-2 ring-transparent group-hover:ring-[#C4A882] group-focus-visible:ring-[#C4A882] transition-all duration-150">
                       <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
                     </div>
-                    <span
-                      className="text-sm font-medium transition-colors duration-150"
-                      style={{ color: "rgba(255,255,255,0.45)" }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLSpanElement).style.color = "rgba(255,255,255,0.9)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLSpanElement).style.color = "rgba(255,255,255,0.45)"; }}
-                    >
+                    <span className="text-[13px] font-medium text-[#3D2B1F]/50 dark:text-white/50 group-hover:text-[#3D2B1F] dark:group-hover:text-white transition-colors">
                       {profile.name}
                     </span>
                   </button>
@@ -153,27 +103,20 @@ export default function LoginPage() {
               </div>
             </div>
           ) : (
-            /* Formulário de password */
-            <div className="flex flex-col gap-6">
+            <div className="p-8 flex flex-col gap-5">
               <button
                 onClick={handleBack}
-                className="flex items-center gap-1.5 text-xs transition-colors w-fit outline-none"
-                style={{ color: "rgba(255,255,255,0.35)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.65)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.35)"; }}
+                className="flex items-center gap-1.5 text-[12px] text-[#3D2B1F]/35 dark:text-white/35 hover:text-[#3D2B1F] dark:hover:text-white transition-colors w-fit outline-none"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Mudar perfil
               </button>
 
-              <div className="flex flex-col items-center gap-3">
-                <div
-                  className="w-[72px] h-[72px] rounded-2xl overflow-hidden relative"
-                  style={{ boxShadow: "0 0 0 2px rgba(196,168,130,0.45), 0 8px 24px rgba(0,0,0,0.4)" }}
-                >
+              <div className="flex flex-col items-center gap-2 py-1">
+                <div className="w-16 h-16 rounded-full overflow-hidden relative ring-2 ring-[#C4A882]/50">
                   <Image src={selected.photo} alt={selected.name} fill className="object-cover" />
                 </div>
-                <span className="font-medium text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
+                <span className="text-[14px] font-medium text-[#1C1C1E] dark:text-white">
                   {selected.name}
                 </span>
               </div>
@@ -187,56 +130,30 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoFocus
                     required
-                    className="w-full rounded-xl px-4 py-3 text-sm pr-10 outline-none transition-all"
-                    style={{
-                      background: "rgba(255,255,255,0.07)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      color: "rgba(255,255,255,0.9)",
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.border = "1px solid rgba(196,168,130,0.5)";
-                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(196,168,130,0.1)";
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.border = "1px solid rgba(255,255,255,0.1)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
+                    className="w-full rounded-xl px-4 py-3 text-[15px] pr-11 bg-[#F2F2F7] dark:bg-[#2C2C2E] text-[#1C1C1E] dark:text-white placeholder:text-[#8E8E93] outline-none focus:ring-2 focus:ring-[#C4A882]/50 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors outline-none"
-                    style={{ color: "rgba(255,255,255,0.3)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.6)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.3)"; }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] hover:text-[#3D2B1F] dark:hover:text-white transition-colors outline-none"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
 
                 {error && (
-                  <div
-                    className="text-xs text-center py-2 px-3 rounded-xl"
-                    style={{ background: "rgba(239,68,68,0.12)", color: "rgba(252,165,165,0.9)", border: "1px solid rgba(239,68,68,0.2)" }}
-                  >
+                  <p className="text-[12px] text-center text-red-500 dark:text-red-400">
                     {error}
-                  </div>
+                  </p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading || !password}
-                  className="w-full rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2 mt-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl py-3 text-[15px] font-semibold flex items-center justify-center gap-2 mt-1 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     background: "linear-gradient(135deg, #D4B896 0%, #C4A882 50%, #B8956A 100%)",
                     color: "#1A0F08",
-                    boxShadow: "0 4px 20px rgba(196,168,130,0.3)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!loading && password) (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 28px rgba(196,168,130,0.5)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 20px rgba(196,168,130,0.3)";
                   }}
                 >
                   {loading ? (

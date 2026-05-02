@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -46,23 +47,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen bg-[#FAF8F5]">
+    <div className="flex min-h-screen bg-[#FAF8F5] dark:bg-[#0D0D0D]">
       {/* Sidebar */}
       <aside
         className={cn(
-          "flex flex-col bg-white border-r border-[#E8E0D5] transition-all duration-200 shrink-0",
+          "flex flex-col bg-white dark:bg-[#141414] border-r border-[#E8E0D5] dark:border-[#2C2C2E] transition-all duration-200 shrink-0",
           collapsed ? "w-16" : "w-56"
         )}
       >
         {/* Logo */}
-        <div className={cn("flex items-center h-14 px-4 border-b border-[#E8E0D5] shrink-0", collapsed && "justify-center")}>
+        <div className={cn("flex items-center h-14 px-4 border-b border-[#E8E0D5] dark:border-[#2C2C2E] shrink-0", collapsed && "justify-center")}>
           {!collapsed && (
-            <span className="font-['TanMemories'] text-lg text-[#3D2B1F] truncate">
+            <span className="font-['TanMemories'] text-lg text-[#3D2B1F] dark:text-[#E8D5B5] truncate">
               FBR Admin
             </span>
           )}
           {collapsed && (
-            <span className="font-['TanMemories'] text-lg text-[#3D2B1F]">F</span>
+            <span className="font-['TanMemories'] text-lg text-[#3D2B1F] dark:text-[#E8D5B5]">F</span>
           )}
         </div>
 
@@ -77,8 +78,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
                   active
-                    ? "bg-[#F0EAE0] text-[#3D2B1F]"
-                    : "text-[#8B7355] hover:bg-[#FAF8F5] hover:text-[#3D2B1F]"
+                    ? "bg-[#F0EAE0] dark:bg-[#2C2C2E] text-[#3D2B1F] dark:text-[#E8D5B5]"
+                    : "text-[#8B7355] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5]"
                 )}
                 title={collapsed ? label : undefined}
               >
@@ -90,11 +91,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         {/* Bottom */}
-        <div className="p-2 border-t border-[#E8E0D5] flex flex-col gap-0.5">
+        <div className="p-2 border-t border-[#E8E0D5] dark:border-[#2C2C2E] flex flex-col gap-0.5">
           <button
             onClick={handleLogout}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium text-[#8B7355] hover:bg-[#FAF8F5] hover:text-[#3D2B1F] transition-colors w-full",
+              "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium text-[#8B7355] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5] transition-colors w-full",
               collapsed && "justify-center"
             )}
             title={collapsed ? "Sair" : undefined}
@@ -103,13 +104,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {!collapsed && <span>Sair</span>}
           </button>
 
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center justify-center rounded-lg p-2 text-[#B8A99A] hover:bg-[#FAF8F5] hover:text-[#3D2B1F] transition-colors w-full"
-            title={collapsed ? "Expandir" : "Recolher"}
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
+          <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between px-0.5")}>
+            {!collapsed && <ThemeToggle />}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="flex items-center justify-center rounded-lg p-2 text-[#B8A99A] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5] transition-colors"
+              title={collapsed ? "Expandir" : "Recolher"}
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {collapsed && <ThemeToggle className="mx-auto" />}
         </div>
       </aside>
 

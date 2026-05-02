@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Google_Sans } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { Providers } from "@/components/providers";
 import "./globals.css";
 
 const googleSans = Google_Sans({
@@ -26,12 +27,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt" className={`${googleSans.variable} h-full`}>
+    <html lang="pt" className={`${googleSans.variable} h-full`} suppressHydrationWarning>
       <body className="min-h-full font-[var(--font-google-sans)] antialiased">
-        <TooltipProvider>
-          {children}
-          <Toaster />
-        </TooltipProvider>
+        <Providers>
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
+        </Providers>
       </body>
     </html>
   );
