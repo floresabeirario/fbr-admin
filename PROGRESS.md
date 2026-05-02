@@ -34,7 +34,7 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
-- Fase 2 em curso. Tabela de encomendas a funcionar no Vercel.
+- Fase 2 em curso. Tabela de encomendas + formulário "Nova Encomenda" a funcionar no Vercel.
 
 ## Próximo passo CONCRETO
 **Fase 2 — Construir o Workbench**
@@ -51,3 +51,4 @@
 - **2026-05-02 (sessão 1):** Leitura do PDF spec. Plano por fases definido.
 - **2026-05-02 (sessão 2):** Fase 1 completa. Login Netflix com fotos a funcionar no Vercel. Mudámos de Google OAuth para email+password com subendereços Gmail. Deploy Vercel configurado com env vars.
 - **2026-05-02 (sessão 3):** Fase 2 iniciada. Schema BD criado e migrado no Supabase. Tabela de encomendas com grupos colapsáveis a funcionar. Formulário "Nova Encomenda" funcional. Corrigido 403 (mudança para Server Component + Server Actions). Deploy OK.
+- **2026-05-03 (sessão 4):** Corrigido erro 500 no formulário "Nova Encomenda". Causa: role `authenticated` sem EXECUTE em `generate_order_id()` e sem INSERT em `audit_log`. Fix em `003_fix_permissions.sql` (executado no Supabase SQL Editor). Criação de encomendas a funcionar no Vercel.

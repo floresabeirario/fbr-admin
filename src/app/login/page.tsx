@@ -58,18 +58,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#F2F1EE] dark:bg-black flex flex-col">
-      {/* Header */}
       <div className="flex justify-end p-4">
         <ThemeToggle />
       </div>
 
-      {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
         {/* Brand */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-10">
           <h1
             className="text-[40px] leading-tight text-[#3D2B1F] dark:text-[#E8D5B5]"
-            style={{ fontFamily: "TanMemories", fontStyle: "italic" }}
+            style={{ fontFamily: "TanMemories" }}
           >
             Flores à Beira Rio
           </h1>
@@ -78,31 +76,32 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Card */}
-        <div className="w-full max-w-[360px] bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.07)] dark:shadow-[0_2px_30px_rgba(0,0,0,0.5)]">
-          {!selected ? (
-            <div className="p-8 flex flex-col items-center gap-6">
-              <p className="text-[13px] text-[#8B8B8B] dark:text-[#8E8E93]">
-                Quem está a entrar?
-              </p>
-              <div className="flex gap-8 justify-center">
-                {PROFILES.map((profile) => (
-                  <button
-                    key={profile.name}
-                    onClick={() => handleSelectProfile(profile)}
-                    className="flex flex-col items-center gap-2.5 group outline-none"
-                  >
-                    <div className="w-[72px] h-[72px] rounded-full overflow-hidden relative ring-2 ring-transparent group-hover:ring-[#C4A882] group-focus-visible:ring-[#C4A882] transition-all duration-150">
-                      <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
-                    </div>
-                    <span className="text-[13px] font-medium text-[#3D2B1F]/50 dark:text-white/50 group-hover:text-[#3D2B1F] dark:group-hover:text-white transition-colors">
-                      {profile.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
+        {!selected ? (
+          /* Perfis — sem caixa */
+          <div className="flex flex-col items-center gap-6">
+            <p className="text-[13px] text-[#8B8B8B] dark:text-[#8E8E93]">
+              Quem está a entrar?
+            </p>
+            <div className="flex gap-8 justify-center">
+              {PROFILES.map((profile) => (
+                <button
+                  key={profile.name}
+                  onClick={() => handleSelectProfile(profile)}
+                  className="flex flex-col items-center gap-2.5 group outline-none"
+                >
+                  <div className="w-[72px] h-[72px] rounded-full overflow-hidden relative ring-2 ring-transparent group-hover:ring-[#C4A882] group-focus-visible:ring-[#C4A882] transition-all duration-150">
+                    <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
+                  </div>
+                  <span className="text-[13px] font-medium text-[#3D2B1F]/50 dark:text-white/50 group-hover:text-[#3D2B1F] dark:group-hover:text-white transition-colors">
+                    {profile.name}
+                  </span>
+                </button>
+              ))}
             </div>
-          ) : (
+          </div>
+        ) : (
+          /* Card com password */
+          <div className="w-full max-w-[360px] bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.07)] dark:shadow-[0_2px_30px_rgba(0,0,0,0.5)]">
             <div className="p-8 flex flex-col gap-5">
               <button
                 onClick={handleBack}
@@ -167,8 +166,8 @@ export default function LoginPage() {
                 </button>
               </form>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
