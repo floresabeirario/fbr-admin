@@ -183,19 +183,22 @@ ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 -- Admins têm acesso total
 CREATE POLICY "admins_all" ON orders FOR ALL
   USING (
-    (SELECT email FROM auth.users WHERE id = auth.uid())
-    IN ('info+antonio@floresabeirario.pt', 'info+mj@floresabeirario.pt')
+    auth.jwt() ->> 'email' IN (
+      'info+antonio@floresabeirario.pt',
+      'info+mj@floresabeirario.pt'
+    )
   )
   WITH CHECK (
-    (SELECT email FROM auth.users WHERE id = auth.uid())
-    IN ('info+antonio@floresabeirario.pt', 'info+mj@floresabeirario.pt')
+    auth.jwt() ->> 'email' IN (
+      'info+antonio@floresabeirario.pt',
+      'info+mj@floresabeirario.pt'
+    )
   );
 
 -- Viewer (Ana) só pode ler
 CREATE POLICY "viewer_select" ON orders FOR SELECT
   USING (
-    (SELECT email FROM auth.users WHERE id = auth.uid())
-    = 'info+ana@floresabeirario.pt'
+    auth.jwt() ->> 'email' = 'info+ana@floresabeirario.pt'
   );
 
 -- ============================================================
@@ -219,8 +222,10 @@ ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "admins_read_audit" ON audit_log FOR SELECT
   USING (
-    (SELECT email FROM auth.users WHERE id = auth.uid())
-    IN ('info+antonio@floresabeirario.pt', 'info+mj@floresabeirario.pt')
+    auth.jwt() ->> 'email' IN (
+      'info+antonio@floresabeirario.pt',
+      'info+mj@floresabeirario.pt'
+    )
   );
 
 -- Trigger de audit em orders
