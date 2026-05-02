@@ -177,7 +177,6 @@ interface GroupSectionProps {
 function GroupSection({
   title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, alert = false,
 }: GroupSectionProps) {
-  if (orders.length === 0) return null;
   return (
     <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
       <button
@@ -194,7 +193,12 @@ function GroupSection({
           {orders.length}
         </span>
       </button>
-      {!isCollapsed && (
+      {!isCollapsed && orders.length === 0 && (
+        <p className="border-t border-[#F0EAE0] px-4 py-3 text-xs text-[#B8A99A] italic">
+          Nenhuma encomenda neste grupo.
+        </p>
+      )}
+      {!isCollapsed && orders.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -325,37 +329,15 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
       <div className="flex-1 overflow-auto p-6">
         {activeView === "tabela" && (
           <div className="space-y-3">
-            {grouped.sem_resposta.length > 0 && (
-              <GroupSection
-                title="Sem resposta"
-                orders={grouped.sem_resposta}
-                colorClass="text-red-600"
-                isCollapsed={collapsedGroups.has("sem_resposta")}
-                onToggle={() => toggleGroup("sem_resposta")}
-                onOpenOrder={openOrder}
-                alert
-              />
-            )}
-            <GroupSection title="Pré-reservas"        orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} />
-            <GroupSection title="Reservas"            orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} />
+            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} alert />
+            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} />
+            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} />
             <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} />
-            <GroupSection title="Finalização"         orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} />
-            <GroupSection title="Concluídos"          orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} />
-            <GroupSection title="Cancelamentos"       orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} />
+            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} />
+            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} />
+            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} />
 
-            {initialOrders.length === 0 && (
-              <div className="rounded-xl border border-dashed border-[#E8E0D5] bg-white p-12 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#F0EAE0]">
-                  <Clock className="h-5 w-5 text-[#C4A882]" />
-                </div>
-                <p className="text-sm font-medium text-[#3D2B1F]">Nenhuma encomenda ainda</p>
-                <p className="mt-1 text-xs text-[#8B7355]">
-                  Cria a primeira encomenda com o botão acima.
-                </p>
-              </div>
-            )}
-
-            {initialOrders.length > 0 && filteredOrders.length === 0 && (
+            {filteredOrders.length === 0 && initialOrders.length > 0 && (
               <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">
                 <p className="text-sm text-[#8B7355]">
                   Nenhum resultado para <strong>"{search}"</strong>
