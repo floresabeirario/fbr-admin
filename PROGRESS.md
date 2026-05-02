@@ -34,22 +34,20 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
-- Fase 2 iniciada. Schema BD criado, página de tabela funcional.
+- Fase 2 em curso. Tabela de encomendas a funcionar no Vercel.
 
 ## Próximo passo CONCRETO
-**Fase 2 — Passo crítico: executar a migração SQL no Supabase**
+**Fase 2 — Construir o Workbench**
 
-1. **OBRIGATÓRIO:** Abrir o Supabase Dashboard → SQL Editor → New query
-   → Copiar e executar o ficheiro `supabase/migrations/001_create_orders.sql`
-2. Após migração: testar criar uma encomenda pela página
-3. Construir o **Workbench** (painel lateral de detalhe de cada encomenda)
-   - Todos os campos da encomenda editáveis inline
+1. Construir o **Workbench** (painel lateral/página de detalhe de cada encomenda)
+   - Abrir ao clicar numa linha da tabela
+   - Todos os campos da encomenda editáveis inline (com auto-save)
    - Upload de foto das flores
    - Link para pasta Drive (manual por agora)
-4. Implementar mudança de estado (dropdown inline na tabela)
-5. Orçamento automático (ligado à tabela de preços em Finanças — Fase 6, por agora campo manual)
+2. Mudança de estado inline na tabela (dropdown directo na coluna Estado)
+3. Marcar encomenda como "contactada" (botão rápido nas pré-reservas)
 
 ## Notas de sessão
 - **2026-05-02 (sessão 1):** Leitura do PDF spec. Plano por fases definido.
 - **2026-05-02 (sessão 2):** Fase 1 completa. Login Netflix com fotos a funcionar no Vercel. Mudámos de Google OAuth para email+password com subendereços Gmail. Deploy Vercel configurado com env vars.
-- **2026-05-02 (sessão 3):** Fase 2 iniciada. Criados: `supabase/migrations/001_create_orders.sql`, `src/types/database.ts`, `src/lib/supabase/orders.ts`, `src/app/(admin)/preservacao/page.tsx` (tabela com grupos), `nova-encomenda-sheet.tsx` (formulário inicial). Build OK.
+- **2026-05-02 (sessão 3):** Fase 2 iniciada. Schema BD criado e migrado no Supabase. Tabela de encomendas com grupos colapsáveis a funcionar. Formulário "Nova Encomenda" funcional. Corrigido 403 (mudança para Server Component + Server Actions). Deploy OK.
