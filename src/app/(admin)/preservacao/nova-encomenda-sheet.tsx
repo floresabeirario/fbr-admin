@@ -19,13 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createOrder } from "@/lib/supabase/orders";
-import type { Order, OrderInsert } from "@/types/database";
+import { createOrderAction } from "./actions";
+import type { OrderInsert } from "@/types/database";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (order: Order) => void;
+  onSuccess: () => void;
 }
 
 const INITIAL_FORM: OrderInsert = {
@@ -85,9 +85,9 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
         flower_type: form.flower_type?.trim() || null,
         additional_notes: form.additional_notes?.trim() || null,
       };
-      const order = await createOrder(payload);
+      await createOrderAction(payload);
       setForm(INITIAL_FORM);
-      onSuccess(order);
+      onSuccess();
     } catch (err) {
       console.error(err);
       setFieldErrors({ _root: "Erro ao guardar. Tenta novamente." });
