@@ -26,6 +26,7 @@ import {
   EVENT_TYPE_LABELS,
 } from "@/types/database";
 import NovaEncomendaSheet from "./nova-encomenda-sheet";
+import WorkbenchSheet from "./workbench-sheet";
 
 // ── Formatação ────────────────────────────────────────────────
 
@@ -240,6 +241,8 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
   const [activeView, setActiveView] = useState<ViewType>("tabela");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
 
   const filteredOrders = search.trim()
     ? initialOrders.filter(
@@ -262,8 +265,8 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
   }
 
   function openOrder(order: Order) {
-    // TODO: abrir workbench
-    console.log("Abrir workbench:", order.order_id);
+    setSelectedOrder(order);
+    setWorkbenchOpen(true);
   }
 
   const totalActive = initialOrders.filter(
@@ -363,6 +366,12 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
           setSheetOpen(false);
           router.refresh();
         }}
+      />
+
+      <WorkbenchSheet
+        order={selectedOrder}
+        open={workbenchOpen}
+        onOpenChange={setWorkbenchOpen}
       />
     </div>
   );
