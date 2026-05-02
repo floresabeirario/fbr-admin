@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -18,9 +19,15 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+
+const PROFILES = [
+  { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
+  { name: "MJ", email: "info+mj@floresabeirario.pt", photo: "/userphotos/mj.webp" },
+  { name: "Ana", email: "info+ana@floresabeirario.pt", photo: "/userphotos/ana.webp" },
+];
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -39,6 +46,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [profile, setProfile] = useState<{ name: string; photo: string } | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) {
+        const match = PROFILES.find(p => p.email === data.user!.email);
+        if (match) setProfile(match);
+      }
+    });
+  }, []);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -92,6 +110,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Bottom */}
         <div className="p-2 border-t border-[#E8E0D5] dark:border-[#2C2C2E] flex flex-col gap-0.5">
+          {profile && (
+            <div className={cn("flex items-center gap-2.5 px-2 py-1.5 rounded-lg", collapsed && "justify-center")}>
+              <div className="w-7 h-7 rounded-full overflow-hidden relative shrink-0">
+                <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
+              </div>
+              {!collapsed && (
+                <span className="text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] truncate">{profile.name}</span>
+              )}
+            </div>
+          )}
           <button
             onClick={handleLogout}
             className={cn(
