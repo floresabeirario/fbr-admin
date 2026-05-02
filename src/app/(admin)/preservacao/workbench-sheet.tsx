@@ -121,7 +121,7 @@ export default function WorkbenchSheet({ order, open, onOpenChange }: Props) {
   const router = useRouter();
   const [local, setLocal] = useState<Order | null>(order);
   const pendingRef = useRef<OrderUpdate>({});
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
 
   useEffect(() => {
