@@ -99,7 +99,7 @@ function InlineStatusSelect({
         onPointerDown={(e) => e.stopPropagation()}
         className={`h-7 text-xs font-medium border rounded-full px-2.5 max-w-[200px] ${colorClass} hover:brightness-95 transition`}
       >
-        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue />}
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue labels={STATUS_LABELS} />}
       </SelectTrigger>
       <SelectContent onClick={(e) => e.stopPropagation()} className="max-h-80">
         {(Object.keys(STATUS_LABELS) as Array<OrderStatus>).map((s) => (

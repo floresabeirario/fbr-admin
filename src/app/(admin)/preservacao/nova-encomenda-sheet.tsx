@@ -20,7 +20,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createOrderAction } from "./actions";
-import type { OrderInsert } from "@/types/database";
+import {
+  type OrderInsert,
+  CONTACT_PREFERENCE_LABELS,
+  EVENT_TYPE_LABELS,
+  FLOWER_DELIVERY_METHOD_LABELS,
+  FRAME_DELIVERY_METHOD_LABELS,
+  FRAME_SIZE_LABELS,
+  FRAME_BACKGROUND_LABELS,
+  HOW_FOUND_FBR_LABELS,
+} from "@/types/database";
 
 interface Props {
   open: boolean;
@@ -130,7 +139,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                 onValueChange={(v) => set("contact_preference", v as "whatsapp" | "email")}
               >
                 <SelectTrigger className={inputClass(fieldErrors.contact_preference)}>
-                  <SelectValue placeholder="Seleccionar..." />
+                  <SelectValue placeholder="Seleccionar..." labels={CONTACT_PREFERENCE_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="whatsapp">WhatsApp</SelectItem>
@@ -168,7 +177,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                   onValueChange={(v) => set("event_type", v as OrderInsert["event_type"])}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue placeholder="Seleccionar..." labels={EVENT_TYPE_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="casamento">Casamento</SelectItem>
@@ -218,7 +227,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue placeholder="Seleccionar..." labels={FLOWER_DELIVERY_METHOD_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="maos">Em mãos</SelectItem>
@@ -236,7 +245,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue placeholder="Seleccionar..." labels={FRAME_DELIVERY_METHOD_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="maos">Em mãos</SelectItem>
@@ -254,7 +263,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                   onValueChange={(v) => set("frame_size", v as OrderInsert["frame_size"])}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue placeholder="Seleccionar..." labels={FRAME_SIZE_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="30x40">30×40</SelectItem>
@@ -271,7 +280,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                   onValueChange={(v) => set("frame_background", v as OrderInsert["frame_background"])}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar..." />
+                    <SelectValue placeholder="Seleccionar..." labels={FRAME_BACKGROUND_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="transparente">Transparente</SelectItem>
@@ -302,7 +311,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
               onValueChange={(v) => set("how_found_fbr", v as OrderInsert["how_found_fbr"])}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar..." />
+                <SelectValue placeholder="Seleccionar..." labels={HOW_FOUND_FBR_LABELS} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="instagram">Instagram</SelectItem>

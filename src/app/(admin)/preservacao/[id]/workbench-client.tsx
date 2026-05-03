@@ -73,6 +73,17 @@ import {
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
+  CONTACT_PREFERENCE_LABELS,
+  FLOWER_DELIVERY_METHOD_LABELS,
+  FRAME_DELIVERY_METHOD_LABELS,
+  FRAME_BACKGROUND_LABELS,
+  FRAME_SIZE_LABELS,
+  YES_NO_INFO_LABELS,
+  HOW_FOUND_FBR_LABELS,
+  PARTNER_COMMISSION_STATUS_LABELS,
+  COUPON_STATUS_LABELS,
+  CLIENT_FEEDBACK_STATUS_LABELS,
+  SIM_NAO_LABELS,
 } from "@/types/database";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -408,7 +419,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               onValueChange={(v) => onStatusChange(v as Order["status"])}
             >
               <SelectTrigger className={`h-8 text-xs font-semibold border-2 ${STATUS_COLORS[local.status] ?? ""}`}>
-                <SelectValue />
+                <SelectValue labels={STATUS_LABELS} />
               </SelectTrigger>
               <SelectContent>
                 {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map((s) => (
@@ -652,7 +663,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Contacto preferido">
                     <Select value={local.contact_preference ?? ""} onValueChange={(v) => update("contact_preference", v as Order["contact_preference"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={CONTACT_PREFERENCE_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="whatsapp">WhatsApp</SelectItem>
                         <SelectItem value="email">Email</SelectItem>
@@ -673,7 +684,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 <Grid2>
                   <Field label="Tipo de evento">
                     <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
                       <SelectContent>
                         {(Object.keys(EVENT_TYPE_LABELS) as Array<keyof typeof EVENT_TYPE_LABELS>).map((t) => (
                           <SelectItem key={t} value={t}>{EVENT_TYPE_LABELS[t]}</SelectItem>
@@ -708,7 +719,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Tamanho da moldura">
                     <Select value={local.frame_size ?? ""} onValueChange={(v) => update("frame_size", v as Order["frame_size"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FRAME_SIZE_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="30x40">30×40</SelectItem>
                         <SelectItem value="40x50">40×50</SelectItem>
@@ -720,7 +731,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Fundo do quadro">
                     <Select value={local.frame_background ?? ""} onValueChange={(v) => update("frame_background", v as Order["frame_background"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FRAME_BACKGROUND_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="transparente">Transparente</SelectItem>
                         <SelectItem value="preto">Preto</SelectItem>
@@ -741,7 +752,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   <div className="grid grid-cols-3 gap-3 items-end">
                     <Field label="Como envia">
                       <Select value={local.flower_delivery_method ?? ""} onValueChange={(v) => update("flower_delivery_method", v as Order["flower_delivery_method"])}>
-                        <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FLOWER_DELIVERY_METHOD_LABELS} /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="maos">Em mãos</SelectItem>
                           <SelectItem value="ctt">CTT</SelectItem>
@@ -767,7 +778,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   <div className="grid grid-cols-3 gap-3 items-end">
                     <Field label="Como recebe">
                       <Select value={local.frame_delivery_method ?? ""} onValueChange={(v) => update("frame_delivery_method", v as Order["frame_delivery_method"])}>
-                        <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FRAME_DELIVERY_METHOD_LABELS} /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="maos">Em mãos</SelectItem>
                           <SelectItem value="ctt">CTT</SelectItem>
@@ -909,7 +920,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 <Grid2>
                   <Field label="Como conheceu a FBR" span2={local.how_found_fbr !== "vale_presente"}>
                     <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => update("how_found_fbr", v as Order["how_found_fbr"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={HOW_FOUND_FBR_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="instagram">Instagram</SelectItem>
                         <SelectItem value="facebook">Facebook</SelectItem>
@@ -962,7 +973,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   <Field label="Pagamento">
                     <Select value={local.payment_status} onValueChange={(v) => onPaymentStatusChange(v as PaymentStatus)}>
                       <SelectTrigger className={`${sel} font-medium ${PAYMENT_COLORS[local.payment_status] ?? ""}`}>
-                        <SelectValue />
+                        <SelectValue labels={PAYMENT_STATUS_LABELS} />
                       </SelectTrigger>
                       <SelectContent>
                         {(Object.keys(PAYMENT_STATUS_LABELS) as Array<keyof typeof PAYMENT_STATUS_LABELS>).map((s) => (
@@ -976,7 +987,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       value={local.needs_invoice ? "sim" : "nao"}
                       onValueChange={(v) => update("needs_invoice", v === "sim")}
                     >
-                      <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue labels={SIM_NAO_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="sim">Sim</SelectItem>
                         <SelectItem value="nao">Não</SelectItem>
@@ -1036,7 +1047,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Estado da comissão">
                     <Select value={local.partner_commission_status} onValueChange={(v) => update("partner_commission_status", v as Order["partner_commission_status"])}>
-                      <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="na">N/A</SelectItem>
                         <SelectItem value="parceiro_informado">Parceiro informado</SelectItem>
@@ -1057,7 +1068,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Feedback do cliente">
                     <Select value={local.client_feedback_status} onValueChange={(v) => update("client_feedback_status", v as Order["client_feedback_status"])}>
-                      <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue labels={CLIENT_FEEDBACK_STATUS_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="na">N/A</SelectItem>
                         <SelectItem value="deu_feedback">Deu feedback</SelectItem>
@@ -1094,7 +1105,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Estado">
                     <Select value={local.coupon_status} onValueChange={(v) => update("coupon_status", v as Order["coupon_status"])} disabled={!local.coupon_code}>
-                      <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                      <SelectTrigger className={sel}><SelectValue labels={COUPON_STATUS_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="na">N/A</SelectItem>
                         <SelectItem value="nao_utilizado">Não utilizado</SelectItem>
@@ -1175,7 +1186,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 value={dialogNeedsInvoice ? "sim" : "nao"}
                 onValueChange={(v) => setDialogNeedsInvoice(v === "sim")}
               >
-                <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                <SelectTrigger className={sel}><SelectValue labels={SIM_NAO_LABELS} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sim">Sim</SelectItem>
                   <SelectItem value="nao">Não</SelectItem>
@@ -1346,7 +1357,7 @@ function ExtraPieceRow({
       <div className="col-span-3">
         <Label className="text-xs font-medium text-[#8B7355]">{label}</Label>
         <Select value={value ?? ""} onValueChange={(v) => onValue((v || null) as "sim" | "nao" | "mais_info" | null)}>
-          <SelectTrigger className={sel + " mt-1.5"}><SelectValue placeholder="—" /></SelectTrigger>
+          <SelectTrigger className={sel + " mt-1.5"}><SelectValue placeholder="—" labels={YES_NO_INFO_LABELS} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="sim">Sim</SelectItem>
             <SelectItem value="nao">Não</SelectItem>

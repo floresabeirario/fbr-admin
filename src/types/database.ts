@@ -265,6 +265,91 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   outro: "Outro",
 };
 
+export const CONTACT_PREFERENCE_LABELS: Record<ContactPreference, string> = {
+  whatsapp: "WhatsApp",
+  email: "Email",
+};
+
+export const FLOWER_DELIVERY_METHOD_LABELS: Record<FlowerDeliveryMethod, string> = {
+  maos: "Em mãos",
+  ctt: "CTT",
+  recolha_evento: "Recolha no evento",
+  nao_sei: "Não sei",
+};
+
+export const FRAME_DELIVERY_METHOD_LABELS: Record<FrameDeliveryMethod, string> = {
+  maos: "Em mãos",
+  ctt: "CTT",
+  nao_sei: "Não sei",
+};
+
+export const FRAME_BACKGROUND_LABELS: Record<FrameBackground, string> = {
+  transparente: "Transparente",
+  preto: "Preto",
+  branco: "Branco",
+  fotografia: "Fotografia",
+  cor: "Cor",
+  voces_a_escolher: "Vocês a escolher",
+  nao_sei: "Não sei",
+};
+
+export const FRAME_SIZE_LABELS: Record<FrameSize, string> = {
+  "30x40": "30×40",
+  "40x50": "40×50",
+  "50x70": "50×70",
+  voces_a_escolher: "Vocês a escolher",
+  nao_sei: "Não sei",
+};
+
+export const YES_NO_INFO_LABELS: Record<YesNoInfo, string> = {
+  sim: "Sim",
+  nao: "Não",
+  mais_info: "Mais info",
+};
+
+export const HOW_FOUND_FBR_LABELS: Record<HowFoundFBR, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  casamentos_pt: "casamentos.pt",
+  google: "Google",
+  vale_presente: "Vale-Presente",
+  florista: "Florista",
+  recomendacao: "Recomendação",
+  outro: "Outro",
+};
+
+export const PARTNER_COMMISSION_STATUS_LABELS: Record<PartnerCommissionStatus, string> = {
+  na: "N/A",
+  parceiro_informado: "Parceiro informado",
+  a_aguardar: "A aguardar",
+  paga: "Paga",
+  a_aguardar_resposta: "A aguardar resposta",
+  nao_aceita: "Não aceita",
+};
+
+export const COUPON_STATUS_LABELS: Record<CouponStatus, string> = {
+  utilizado: "Utilizado",
+  nao_utilizado: "Não utilizado",
+  na: "N/A",
+};
+
+export const CLIENT_FEEDBACK_STATUS_LABELS: Record<ClientFeedbackStatus, string> = {
+  deu_feedback: "Deu feedback",
+  ja_pedido: "Já pedido",
+  nao_disse_nada: "Não disse nada",
+  na: "N/A",
+};
+
+export const FORM_LANGUAGE_LABELS: Record<FormLanguage, string> = {
+  pt: "🇵🇹 Português",
+  en: "🇬🇧 English",
+};
+
+export const SIM_NAO_LABELS: Record<"sim" | "nao", string> = {
+  sim: "Sim",
+  nao: "Não",
+};
+
 // Tipo para o audit log
 export interface AuditLog {
   id: string;
