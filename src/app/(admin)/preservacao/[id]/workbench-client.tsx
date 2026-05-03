@@ -149,6 +149,24 @@ const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
   cancelado:              Ban,
 };
 
+const STATUS_ITEM_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
+  entrega_flores_agendar: "text-amber-700",
+  entrega_agendada:       "text-blue-700",
+  flores_enviadas:        "text-blue-700",
+  flores_recebidas:       "text-blue-700",
+  flores_na_prensa:       "text-purple-700",
+  reconstrucao_botanica:  "text-purple-700",
+  a_compor_design:        "text-purple-700",
+  a_aguardar_aprovacao:   "text-purple-700",
+  a_ser_emoldurado:       "text-orange-700",
+  emoldurado:             "text-orange-700",
+  a_ser_fotografado:      "text-orange-700",
+  quadro_pronto:          "text-orange-700",
+  quadro_enviado:         "text-orange-700",
+  quadro_recebido:        "text-green-700",
+  cancelado:              "text-gray-500",
+};
+
 const PAYMENT_COLORS: Record<string, string> = {
   "100_pago":      "text-green-700 bg-green-50 border-green-200",
   "70_pago":       "text-yellow-700 bg-yellow-50 border-yellow-200",
@@ -468,8 +486,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map((s) => {
                   const Icon = STATUS_ICONS[s];
                   return (
-                    <SelectItem key={s} value={s} className="text-xs">
-                      <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                    <SelectItem key={s} value={s} className={`text-xs font-medium ${STATUS_ITEM_COLORS[s]}`}>
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
                       {STATUS_LABELS[s]}
                     </SelectItem>
                   );

@@ -112,6 +112,24 @@ const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
   cancelado:              Ban,
 };
 
+const STATUS_ITEM_COLORS: Record<OrderStatus, string> = {
+  entrega_flores_agendar: "text-amber-700",
+  entrega_agendada:       "text-blue-700",
+  flores_enviadas:        "text-blue-700",
+  flores_recebidas:       "text-blue-700",
+  flores_na_prensa:       "text-purple-700",
+  reconstrucao_botanica:  "text-purple-700",
+  a_compor_design:        "text-purple-700",
+  a_aguardar_aprovacao:   "text-purple-700",
+  a_ser_emoldurado:       "text-orange-700",
+  emoldurado:             "text-orange-700",
+  a_ser_fotografado:      "text-orange-700",
+  quadro_pronto:          "text-orange-700",
+  quadro_enviado:         "text-orange-700",
+  quadro_recebido:        "text-green-700",
+  cancelado:              "text-gray-500",
+};
+
 const PAYMENT_COLORS: Record<string, string> = {
   "100_pago":      "bg-green-50 text-green-700 border-green-200",
   "70_pago":       "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -158,8 +176,8 @@ function InlineStatusSelect({
         {(Object.keys(STATUS_LABELS) as Array<OrderStatus>).map((s) => {
           const Icon = STATUS_ICONS[s];
           return (
-            <SelectItem key={s} value={s} className="text-xs">
-              <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+            <SelectItem key={s} value={s} className={`text-xs font-medium ${STATUS_ITEM_COLORS[s]}`}>
+              <Icon className="h-3.5 w-3.5 shrink-0" />
               {STATUS_LABELS[s]}
             </SelectItem>
           );
