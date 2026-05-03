@@ -18,6 +18,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
   Loader2,
   Check,
@@ -35,6 +43,7 @@ import {
   Link2,
   Paperclip,
   Heart,
+  Receipt,
 } from "lucide-react";
 import { updateOrderAction } from "../actions";
 import type {
@@ -42,6 +51,7 @@ import type {
   OrderUpdate,
   ExtrasInFrame,
   InspirationItem,
+  PaymentStatus,
 } from "@/types/database";
 import {
   STATUS_LABELS,
@@ -183,6 +193,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [copied, setCopied] = useState(false);
 
+  // Diálogo de mudança de pagamento (alerta para comprovativo + NIF)
+  const [paymentDialog, setPaymentDialog] = useState<null | { newStatus: PaymentStatus }>(null);
+  const [dialogNeedsInvoice, setDialogNeedsInvoice] = useState(false);
+  const [dialogNif, setDialogNif] = useState("");
+
   useEffect(() => {
     setLocal(order);
     pendingRef.current = {};
@@ -211,6 +226,32 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     setSaveState("idle");
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(flush, 900);
+  }
+
+  // Intercepção da mudança de pagamento: se entra num estado pago, abre diálogo
+  function onPaymentStatusChange(newStatus: PaymentStatus) {
+    if (newStatus === local.payment_status) return;
+    if (newStatus === "100_pago" || newStatus === "70_pago" || newStatus === "30_pago") {
+      setDialogNeedsInvoice(local.needs_invoice);
+      setDialogNif(local.nif ?? "");
+      setPaymentDialog({ newStatus });
+    } else {
+      update("payment_status", newStatus);
+    }
+  }
+
+  function confirmPaymentDialog() {
+    if (!paymentDialog) return;
+    const updates: OrderUpdate = { payment_status: paymentDialog.newStatus };
+    if (dialogNeedsInvoice !== local.needs_invoice) updates.needs_invoice = dialogNeedsInvoice;
+    if (dialogNeedsInvoice && dialogNif.trim() !== (local.nif ?? "").trim()) {
+      updates.nif = dialogNif.trim() || null;
+    }
+    setLocal((prev) => ({ ...prev, ...updates }));
+    pendingRef.current = { ...pendingRef.current, ...updates };
+    clearTimeout(timerRef.current);
+    setPaymentDialog(null);
+    flush();
   }
 
   const daysUntilEvent = local.event_date
@@ -869,7 +910,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                     </div>
                   </Field>
                   <Field label="Pagamento">
-                    <Select value={local.payment_status} onValueChange={(v) => update("payment_status", v as Order["payment_status"])}>
+                    <Select value={local.payment_status} onValueChange={(v) => onPaymentStatusChange(v as PaymentStatus)}>
                       <SelectTrigger className={`${sel} font-medium ${PAYMENT_COLORS[local.payment_status] ?? ""}`}>
                         <SelectValue />
                       </SelectTrigger>
@@ -1019,6 +1060,92 @@ export default function WorkbenchClient({ order }: { order: Order }) {
           </div>
         </div>
       </div>
+
+      {/* ── Diálogo de mudança de pagamento ──────────────────── */}
+      <Dialog open={!!paymentDialog} onOpenChange={(open) => !open && setPaymentDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+              <Receipt className="h-4 w-4 text-[#C4A882]" />
+              Pagamento atualizado
+            </DialogTitle>
+            <DialogDescription className="text-[#8B7355]">
+              Vais marcar este pagamento como{" "}
+              <strong className="text-[#3D2B1F]">
+                {paymentDialog ? PAYMENT_STATUS_LABELS[paymentDialog.newStatus] : ""}
+              </strong>
+              . Antes de confirmar, vê estas duas coisas:
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Lembrete: comprovativo na Drive */}
+            <div className="rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] px-3 py-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <Paperclip className="h-4 w-4 text-[#C4A882] mt-0.5 shrink-0" />
+                <div className="flex-1 text-sm text-[#3D2B1F]">
+                  <p className="font-medium">Anexa o comprovativo à pasta Drive</p>
+                  <p className="text-xs text-[#8B7355] mt-0.5">
+                    Guarda o screenshot/PDF da transferência na pasta desta encomenda.
+                  </p>
+                </div>
+              </div>
+              {local.drive_folder_url ? (
+                <a
+                  href={local.drive_folder_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-6 inline-flex items-center gap-1 text-xs font-medium text-[#3D2B1F] hover:underline"
+                >
+                  <FolderOpen className="h-3 w-3" />
+                  Abrir pasta Drive
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+              ) : (
+                <p className="ml-6 text-[11px] text-amber-700 italic">
+                  Esta encomenda ainda não tem pasta Drive associada.
+                </p>
+              )}
+            </div>
+
+            {/* NIF / Fatura */}
+            <div className="space-y-2">
+              <CheckRow
+                label="O cliente pediu fatura com NIF"
+                checked={dialogNeedsInvoice}
+                onChange={setDialogNeedsInvoice}
+              />
+              {dialogNeedsInvoice && (
+                <div className="ml-6">
+                  <Label className="text-xs font-medium text-[#8B7355]">NIF</Label>
+                  <Input
+                    className={inp + " mt-1"}
+                    value={dialogNif}
+                    onChange={(e) => setDialogNif(e.target.value)}
+                    placeholder="9 dígitos"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => setPaymentDialog(null)}
+              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmPaymentDialog}
+              className="h-9 px-4 rounded-lg bg-[#3D2B1F] text-sm text-white font-medium hover:bg-[#2C1F15] transition-colors"
+            >
+              Confirmar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

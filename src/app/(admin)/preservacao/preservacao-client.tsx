@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -13,19 +13,29 @@ import {
   CalendarDays,
   Rows3,
   AlertTriangle,
-  Clock,
   ExternalLink,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { groupOrders } from "@/lib/supabase/orders";
 import {
   type Order,
+  type OrderStatus,
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
 } from "@/types/database";
 import NovaEncomendaSheet from "./nova-encomenda-sheet";
+import { updateOrderAction } from "./actions";
 
 // ── Formatação ────────────────────────────────────────────────
 
@@ -71,15 +81,33 @@ const PAYMENT_COLORS: Record<string, string> = {
   "100_por_pagar": "bg-red-50 text-red-700 border-red-200",
 };
 
-function StatusBadge({ status }: { status: string }) {
+function InlineStatusSelect({
+  value,
+  onChange,
+  busy,
+}: {
+  value: OrderStatus;
+  onChange: (s: OrderStatus) => void;
+  busy: boolean;
+}) {
+  const colorClass = STATUS_COLORS[value] ?? "bg-gray-50 text-gray-500 border-gray-200";
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-        STATUS_COLORS[status] ?? "bg-gray-50 text-gray-500 border-gray-200"
-      }`}
-    >
-      {STATUS_LABELS[status as keyof typeof STATUS_LABELS] ?? status}
-    </span>
+    <Select value={value} onValueChange={(v) => onChange(v as OrderStatus)} disabled={busy}>
+      <SelectTrigger
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={`h-7 text-xs font-medium border rounded-full px-2.5 max-w-[200px] ${colorClass} hover:brightness-95 transition`}
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue />}
+      </SelectTrigger>
+      <SelectContent onClick={(e) => e.stopPropagation()} className="max-h-80">
+        {(Object.keys(STATUS_LABELS) as Array<OrderStatus>).map((s) => (
+          <SelectItem key={s} value={s} className="text-xs">
+            {STATUS_LABELS[s]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -98,12 +126,47 @@ function PaymentBadge({ status }: { status: string }) {
 // ── Linha da tabela ───────────────────────────────────────────
 
 function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null);
+  const [optimisticContacted, setOptimisticContacted] = useState<boolean | null>(null);
+
+  const currentStatus = optimisticStatus ?? order.status;
+  const currentContacted = optimisticContacted ?? order.contacted;
+
   const daysUntilEvent =
     order.event_date
       ? differenceInDays(parseISO(order.event_date), new Date())
       : null;
   const urgentEvent =
     daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
+
+  const isPreReserva = currentStatus === "entrega_flores_agendar";
+
+  function changeStatus(newStatus: OrderStatus) {
+    if (newStatus === currentStatus) return;
+    setOptimisticStatus(newStatus);
+    startTransition(async () => {
+      try {
+        await updateOrderAction(order.id, { status: newStatus });
+        router.refresh();
+      } catch {
+        setOptimisticStatus(null);
+      }
+    });
+  }
+
+  function markContacted() {
+    setOptimisticContacted(true);
+    startTransition(async () => {
+      try {
+        await updateOrderAction(order.id, { contacted: true });
+        router.refresh();
+      } catch {
+        setOptimisticContacted(null);
+      }
+    });
+  }
 
   return (
     <tr
@@ -117,7 +180,15 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void 
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col">
-          <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
+            {currentContacted && isPreReserva && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                <Check className="h-2.5 w-2.5" />
+                Contactada
+              </span>
+            )}
+          </div>
           {order.email && (
             <span className="text-xs text-[#8B7355] truncate max-w-[180px]">{order.email}</span>
           )}
@@ -140,8 +211,8 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void 
           )}
         </div>
       </td>
-      <td className="px-4 py-3">
-        <StatusBadge status={order.status} />
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <InlineStatusSelect value={currentStatus} onChange={changeStatus} busy={isPending && optimisticStatus !== null} />
       </td>
       <td className="px-4 py-3 text-right">
         <span className="text-sm text-[#3D2B1F]">{formatEuro(order.budget)}</span>
@@ -150,13 +221,26 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void 
         <PaymentBadge status={order.payment_status} />
       </td>
       <td className="px-4 py-3 text-right">
-        <button
-          className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
-          onClick={(e) => { e.stopPropagation(); onOpen(order); }}
-          title="Abrir workbench"
-        >
-          <ExternalLink className="h-4 w-4" />
-        </button>
+        <div className="flex items-center justify-end gap-2">
+          {isPreReserva && !currentContacted && (
+            <button
+              onClick={(e) => { e.stopPropagation(); markContacted(); }}
+              disabled={isPending}
+              className="inline-flex items-center gap-1 rounded-full border border-[#E8E0D5] bg-white px-2 py-1 text-[11px] font-medium text-[#3D2B1F] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] disabled:opacity-50 transition-colors"
+              title="Marcar como contactada"
+            >
+              {isPending && optimisticContacted ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              Marcar contactada
+            </button>
+          )}
+          <button
+            className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
+            onClick={(e) => { e.stopPropagation(); onOpen(order); }}
+            title="Abrir workbench"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        </div>
       </td>
     </tr>
   );
