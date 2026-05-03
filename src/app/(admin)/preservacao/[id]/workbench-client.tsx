@@ -26,6 +26,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   ArrowLeft,
   Loader2,
   Check,
@@ -44,6 +49,17 @@ import {
   Paperclip,
   Heart,
   Receipt,
+  User,
+  Calendar,
+  Flower2,
+  Layers,
+  Boxes,
+  StickyNote,
+  Wallet,
+  Handshake,
+  Package,
+  Ticket,
+  Pencil,
 } from "lucide-react";
 import { updateOrderAction } from "../actions";
 import type {
@@ -99,7 +115,28 @@ const PAYMENT_COLORS: Record<string, string> = {
   "100_por_pagar": "text-red-700 bg-red-50 border-red-200",
 };
 
-// Lista predefinida de extras que costumam aparecer no quadro
+// Paleta de acentos por secção — discreta, só na borda esquerda + cor do ícone
+type Accent =
+  | "rose" | "amber" | "emerald" | "orange" | "indigo"
+  | "pink" | "slate" | "green" | "sky" | "purple"
+  | "yellow" | "violet" | "blue";
+
+const ACCENTS: Record<Accent, { border: string; icon: string; bgSoft: string }> = {
+  rose:    { border: "border-l-rose-300",    icon: "text-rose-500",    bgSoft: "bg-rose-50/50" },
+  amber:   { border: "border-l-amber-300",   icon: "text-amber-500",   bgSoft: "bg-amber-50/50" },
+  emerald: { border: "border-l-emerald-300", icon: "text-emerald-500", bgSoft: "bg-emerald-50/50" },
+  orange:  { border: "border-l-orange-300",  icon: "text-orange-500",  bgSoft: "bg-orange-50/50" },
+  indigo:  { border: "border-l-indigo-300",  icon: "text-indigo-500",  bgSoft: "bg-indigo-50/50" },
+  pink:    { border: "border-l-pink-300",    icon: "text-pink-500",    bgSoft: "bg-pink-50/50" },
+  slate:   { border: "border-l-slate-300",   icon: "text-slate-500",   bgSoft: "bg-slate-50/50" },
+  green:   { border: "border-l-green-300",   icon: "text-green-600",   bgSoft: "bg-green-50/50" },
+  sky:     { border: "border-l-sky-300",     icon: "text-sky-500",     bgSoft: "bg-sky-50/50" },
+  purple:  { border: "border-l-purple-300",  icon: "text-purple-500",  bgSoft: "bg-purple-50/50" },
+  yellow:  { border: "border-l-yellow-400",  icon: "text-yellow-600",  bgSoft: "bg-yellow-50/50" },
+  violet:  { border: "border-l-violet-300",  icon: "text-violet-500",  bgSoft: "bg-violet-50/50" },
+  blue:    { border: "border-l-blue-300",    icon: "text-blue-500",    bgSoft: "bg-blue-50/50" },
+};
+
 const EXTRA_OPTIONS = [
   "Convite",
   "Foto",
@@ -116,22 +153,25 @@ const EXTRA_OPTIONS = [
 function Card({
   title,
   icon,
+  accent,
   action,
   children,
   badge,
 }: {
   title: string;
   icon?: React.ReactNode;
+  accent?: Accent;
   action?: React.ReactNode;
   children: React.ReactNode;
   badge?: React.ReactNode;
 }) {
+  const a = accent ? ACCENTS[accent] : null;
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
-      <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-[#F0EAE0]">
+    <div className={`rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""}`}>
+      <div className={`flex items-center justify-between gap-2 px-5 py-3 border-b border-[#F0EAE0] ${a ? a.bgSoft : ""}`}>
         <div className="flex items-center gap-2">
-          {icon && <span className="text-[#B8A99A]">{icon}</span>}
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#B8A99A]">{title}</p>
+          {icon && <span className={a?.icon ?? "text-[#B8A99A]"}>{icon}</span>}
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8B7355]">{title}</p>
           {badge}
         </div>
         {action}
@@ -198,6 +238,10 @@ export default function WorkbenchClient({ order }: { order: Order }) {
   const [dialogNeedsInvoice, setDialogNeedsInvoice] = useState(false);
   const [dialogNif, setDialogNif] = useState("");
 
+  // Edição rápida do URL da pasta Drive (popover no hero)
+  const [driveUrlDraft, setDriveUrlDraft] = useState("");
+  const [drivePopoverOpen, setDrivePopoverOpen] = useState(false);
+
   useEffect(() => {
     setLocal(order);
     pendingRef.current = {};
@@ -228,7 +272,6 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     timerRef.current = setTimeout(flush, 900);
   }
 
-  // Intercepção da mudança de pagamento: se entra num estado pago, abre diálogo
   function onPaymentStatusChange(newStatus: PaymentStatus) {
     if (newStatus === local.payment_status) return;
     if (newStatus === "100_pago" || newStatus === "70_pago" || newStatus === "30_pago") {
@@ -254,16 +297,19 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     flush();
   }
 
+  function saveDriveUrl() {
+    update("drive_folder_url", driveUrlDraft.trim() || null);
+    setDrivePopoverOpen(false);
+  }
+
   const daysUntilEvent = local.event_date
     ? differenceInDays(parseISO(local.event_date), new Date())
     : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
   const isWedding = local.event_type === "casamento";
 
-  // Página pública de status (a integrar com status.floresabeirario.pt)
   const publicStatusUrl = `https://status.floresabeirario.pt/?id=${local.order_id}`;
 
-  // Extras estruturados
   const extras: ExtrasInFrame = local.extras_in_frame ?? { options: [], notes: "" };
   function toggleExtra(opt: string) {
     const has = extras.options.includes(opt);
@@ -277,7 +323,6 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     update("extras_in_frame", { options: extras.options, notes: v });
   }
 
-  // Galeria de inspiração
   const gallery: InspirationItem[] = local.inspiration_gallery ?? [];
   const [newInspirationUrl, setNewInspirationUrl] = useState("");
   function addInspiration() {
@@ -298,7 +343,6 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  // Alerta para a Maria: tem pagamento parcial/total mas não tem comprovativo (nem fatura, se NIF)
   const hasAnyPayment = ["100_pago", "70_pago", "30_pago"].includes(local.payment_status);
   const missingInvoice = hasAnyPayment && local.needs_invoice && !local.invoice_attachment_url;
 
@@ -328,7 +372,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               title="Copiar ID"
             >
               #{local.order_id}
-              {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 opacity-0 group-hover:opacity-100" />}
+              {copied && <Check className="h-3 w-3 text-green-600" />}
             </button>
           </div>
 
@@ -380,116 +424,199 @@ export default function WorkbenchClient({ order }: { order: Order }) {
         </div>
       </header>
 
-      {/* ── Corpo ─────────────────────────────────────────────── */}
+      {/* ── Corpo: 3 colunas (comms | principal | direita) ────── */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto p-6 space-y-5">
+        <div className="max-w-[1400px] mx-auto p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-          {/* ═══════════════════════════════
-              HERO — foto + sumário + atalhos
-          ═══════════════════════════════ */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-            {/* Foto da encomenda — DESTAQUE para identificar a encomenda visualmente */}
-            <div className="lg:col-span-2">
-              <div className="aspect-[4/3] rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden relative group">
-                {local.flowers_photo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={local.flowers_photo_url}
-                    alt={`Flores de ${local.client_name}`}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC] text-center px-6">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882] mb-3">
-                      <ImageIcon className="h-6 w-6" />
-                    </div>
-                    <p className="text-sm font-medium text-[#3D2B1F]">Foto da encomenda</p>
-                    <p className="text-xs text-[#8B7355] mt-1 max-w-xs">
-                      Adicione uma foto do bouquet para identificar visualmente esta encomenda.
-                    </p>
-                  </div>
-                )}
-                {/* Pequeno campo para colar URL — overlay no canto inferior */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-3">
-                  <Input
-                    className="h-8 text-xs bg-white/95 border-white/40 placeholder:text-[#8B7355]"
-                    placeholder="URL da foto (ex: link da Drive)"
-                    value={local.flowers_photo_url ?? ""}
-                    onChange={(e) => update("flowers_photo_url", e.target.value || null)}
-                  />
-                </div>
-              </div>
-            </div>
+            {/* ═══════════════════════════════
+                COLUNA ESQUERDA — COMUNICAÇÕES (sticky)
+            ═══════════════════════════════ */}
+            <aside className="lg:col-span-3 space-y-5 lg:sticky lg:top-[68px]">
 
-            {/* Sumário rápido + atalhos */}
-            <div className="lg:col-span-3 space-y-3">
-              {/* Chips de info */}
-              <div className="rounded-2xl border border-[#E8E0D5] bg-white p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  <InfoChip
-                    label="Data do evento"
-                    value={fmtDate(local.event_date)}
-                    accent={urgentEvent ? "red" : daysUntilEvent !== null && daysUntilEvent < 0 ? "muted" : "default"}
-                    sublabel={
-                      daysUntilEvent === null
-                        ? undefined
-                        : daysUntilEvent < 0
-                          ? `Há ${Math.abs(daysUntilEvent)} dias`
-                          : daysUntilEvent === 0
-                            ? "Hoje!"
-                            : `Em ${daysUntilEvent} dias`
-                    }
-                  />
-                  <InfoChip
-                    label="Tipo de evento"
-                    value={local.event_type ? EVENT_TYPE_LABELS[local.event_type] : "—"}
-                  />
-                  <InfoChip
-                    label="Localização"
-                    value={local.event_location || "—"}
-                  />
-                  <InfoChip
-                    label="Idioma do form"
-                    value={local.form_language === "pt" ? "🇵🇹 Português" : "🇬🇧 English"}
-                  />
-                </div>
+              <Card title="Comunicações" icon={<MessageCircle className="h-3.5 w-3.5" />} accent="blue">
+                <Tabs defaultValue="email">
+                  <TabsList className="bg-[#FAF8F5] border border-[#E8E0D5] w-full">
+                    <TabsTrigger value="email" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                      <Mail className="h-3.5 w-3.5 mr-1.5" />
+                      Email
+                    </TabsTrigger>
+                    <TabsTrigger value="whatsapp" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:text-green-700">
+                      <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                      WhatsApp
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="email" className="mt-3">
+                    <PlaceholderBox
+                      icon={<Mail className="h-4 w-4" />}
+                      title="Sem emails sincronizados"
+                      description={`Vai puxar automaticamente os emails trocados com ${local.email ?? "o cliente"} via Gmail API.`}
+                    />
+                  </TabsContent>
+                  <TabsContent value="whatsapp" className="mt-3">
+                    <PlaceholderBox
+                      icon={<MessageCircle className="h-4 w-4" />}
+                      title="Sem registos de WhatsApp"
+                      description="Vais poder colar screenshots ou texto das conversas. Cada entrada datada e visível aqui."
+                    />
+                  </TabsContent>
+                </Tabs>
+              </Card>
 
-                {/* Atalhos */}
-                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-[#F0EAE0]">
-                  {local.drive_folder_url ? (
-                    <a
-                      href={local.drive_folder_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-3 py-1.5 text-xs font-medium text-[#3D2B1F] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5" />
-                      Pasta Drive
-                      <ExternalLink className="h-3 w-3 opacity-60" />
-                    </a>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-3 py-1.5 text-xs text-[#B8A99A]">
-                      <FolderOpen className="h-3.5 w-3.5" />
-                      Pasta Drive (não definida)
-                    </span>
-                  )}
-                  <a
-                    href={publicStatusUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-3 py-1.5 text-xs font-medium text-[#3D2B1F] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    Página pública de status
-                    <ExternalLink className="h-3 w-3 opacity-60" />
-                  </a>
+              <Card title="Assistente de resposta" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet">
+                <div className="space-y-3">
+                  <Textarea
+                    disabled
+                    rows={4}
+                    placeholder="Em breve: descreve o tipo de resposta (ex: 'agradecer feedback' ou 'confirmar agendamento') e a IA gera um rascunho com o tom da marca, em PT ou EN, baseado no contexto desta encomenda."
+                    className="text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] rounded-lg resize-none italic"
+                  />
                   <button
-                    onClick={copyId}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-3 py-1.5 text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+                    disabled
+                    className="w-full h-9 inline-flex items-center justify-center gap-2 rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#B8A99A] text-xs font-medium cursor-not-allowed"
                   >
-                    {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? "Copiado" : "Copiar ID"}
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Sugerir resposta (em breve)
                   </button>
+                </div>
+              </Card>
+
+            </aside>
+
+            {/* ═══════════════════════════════
+                COLUNA DO MEIO — DETALHES PRINCIPAIS
+            ═══════════════════════════════ */}
+            <main className="lg:col-span-6 space-y-5">
+
+              {/* Hero: foto vertical + sumário + atalhos */}
+              <div className="rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
+                <div className="grid grid-cols-12 gap-0">
+                  {/* Foto 3:4 vertical */}
+                  <div className="col-span-5 relative group bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
+                    <div className="aspect-[3/4]">
+                      {local.flowers_photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={local.flowers_photo_url}
+                          alt={`Flores de ${local.client_name}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882] mb-2">
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                          <p className="text-sm font-medium text-[#3D2B1F]">Foto da encomenda</p>
+                          <p className="text-[11px] text-[#8B7355] mt-1">
+                            Adiciona o link de uma foto do bouquet.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {/* URL overlay (visível em hover) */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5">
+                      <Input
+                        className="h-8 text-xs bg-white/95 border-white/40 placeholder:text-[#8B7355]"
+                        placeholder="URL da foto"
+                        value={local.flowers_photo_url ?? ""}
+                        onChange={(e) => update("flowers_photo_url", e.target.value || null)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Info + atalhos */}
+                  <div className="col-span-7 p-5 flex flex-col">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-auto">
+                      <InfoChip
+                        label="Data do evento"
+                        value={fmtDate(local.event_date)}
+                        accent={urgentEvent ? "red" : daysUntilEvent !== null && daysUntilEvent < 0 ? "muted" : "default"}
+                        sublabel={
+                          daysUntilEvent === null
+                            ? undefined
+                            : daysUntilEvent < 0
+                              ? `Há ${Math.abs(daysUntilEvent)} dias`
+                              : daysUntilEvent === 0
+                                ? "Hoje!"
+                                : `Em ${daysUntilEvent} dias`
+                        }
+                      />
+                      <InfoChip
+                        label="Tipo de evento"
+                        value={local.event_type ? EVENT_TYPE_LABELS[local.event_type] : "—"}
+                      />
+                      <InfoChip
+                        label="Localização"
+                        value={local.event_location || "—"}
+                      />
+                      <InfoChip
+                        label="Idioma do form"
+                        value={local.form_language === "pt" ? "🇵🇹 Português" : "🇬🇧 English"}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-3 mt-3 border-t border-[#F0EAE0]">
+                      {/* Drive — botão + popover de edição */}
+                      {local.drive_folder_url ? (
+                        <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-[#E8E0D5] bg-white">
+                          <a
+                            href={local.drive_folder_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                          >
+                            <FolderOpen className="h-3.5 w-3.5" />
+                            Pasta Drive
+                            <ExternalLink className="h-3 w-3 opacity-60" />
+                          </a>
+                          <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(local.drive_folder_url ?? ""); }}>
+                            <PopoverTrigger
+                              className="px-2 border-l border-[#E8E0D5] text-[#8B7355] hover:bg-[#FAF8F5] transition-colors"
+                              title="Editar URL"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </PopoverTrigger>
+                            <DriveUrlEditor
+                              draft={driveUrlDraft}
+                              setDraft={setDriveUrlDraft}
+                              onSave={saveDriveUrl}
+                            />
+                          </Popover>
+                        </div>
+                      ) : (
+                        <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(""); }}>
+                          <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-2.5 py-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F] hover:border-[#C4A882] transition-colors">
+                            <FolderOpen className="h-3.5 w-3.5" />
+                            Definir pasta Drive
+                          </PopoverTrigger>
+                          <DriveUrlEditor
+                            draft={driveUrlDraft}
+                            setDraft={setDriveUrlDraft}
+                            onSave={saveDriveUrl}
+                          />
+                        </Popover>
+                      )}
+
+                      <a
+                        href={publicStatusUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+                      >
+                        <Globe className="h-3.5 w-3.5" />
+                        Status público
+                        <ExternalLink className="h-3 w-3 opacity-60" />
+                      </a>
+
+                      <button
+                        onClick={copyId}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+                      >
+                        {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? "Copiado" : "Copiar ID"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -500,24 +627,14 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   <div className="text-xs text-amber-900 leading-relaxed">
                     <p className="font-semibold">Falta anexar fatura</p>
                     <p className="text-amber-800 mt-0.5">
-                      Esta encomenda tem pagamento registado e o cliente pediu fatura com NIF, mas ainda não há anexo.
+                      Esta encomenda tem pagamento e o cliente pediu fatura com NIF, mas ainda não há anexo.
                     </p>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* ═══════════════════════════════
-              GRID PRINCIPAL
-          ═══════════════════════════════ */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-            {/* COLUNA ESQUERDA (2/3) */}
-            <div className="lg:col-span-2 space-y-5">
 
               {/* Cliente */}
-              <Card title="Dados do cliente">
+              <Card title="Dados do cliente" icon={<User className="h-3.5 w-3.5" />} accent="rose">
                 <Grid2>
                   <Field label="Nome na encomenda">
                     <Input className={inp} value={local.client_name} onChange={(e) => update("client_name", e.target.value)} />
@@ -541,7 +658,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               </Card>
 
               {/* Evento */}
-              <Card title="Dados do evento">
+              <Card title="Dados do evento" icon={<Calendar className="h-3.5 w-3.5" />} accent="amber">
                 <Grid2>
                   <Field label="Tipo de evento">
                     <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
@@ -572,8 +689,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </Grid2>
               </Card>
 
-              {/* Flores e quadro — agrupado com envios juntos */}
-              <Card title="Flores e quadro">
+              {/* Flores e quadro */}
+              <Card title="Flores e quadro" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
                 <Grid2>
                   <Field label="Tipo de flores" span2>
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />
@@ -608,9 +725,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
                 <Separator className="bg-[#F0EAE0]" />
 
-                {/* Envio das flores (do cliente para FBR) */}
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">Envio das flores (cliente → FBR)</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Envio das flores (cliente → FBR)</p>
                   <div className="grid grid-cols-3 gap-3 items-end">
                     <Field label="Como envia">
                       <Select value={local.flower_delivery_method ?? ""} onValueChange={(v) => update("flower_delivery_method", v as Order["flower_delivery_method"])}>
@@ -635,9 +751,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </div>
                 </div>
 
-                {/* Receção do quadro (FBR → cliente) */}
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">Receção do quadro (FBR → cliente)</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Receção do quadro (FBR → cliente)</p>
                   <div className="grid grid-cols-3 gap-3 items-end">
                     <Field label="Como recebe">
                       <Select value={local.frame_delivery_method ?? ""} onValueChange={(v) => update("frame_delivery_method", v as Order["frame_delivery_method"])}>
@@ -663,7 +778,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               </Card>
 
               {/* Extras no quadro */}
-              <Card title="Extras no quadro">
+              <Card title="Extras no quadro" icon={<Layers className="h-3.5 w-3.5" />} accent="orange">
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {EXTRA_OPTIONS.map((opt) => (
@@ -687,8 +802,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
-              {/* Peças extra (mini-quadros, ornamentos, pendentes) */}
-              <Card title="Peças extra">
+              {/* Peças extra */}
+              <Card title="Peças extra" icon={<Boxes className="h-3.5 w-3.5" />} accent="indigo">
                 <div className="space-y-4">
                   <ExtraPieceRow
                     label="Quadros extra pequenos"
@@ -718,14 +833,14 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               <Card
                 title="Galeria de inspiração"
                 icon={<Heart className="h-3.5 w-3.5" />}
-                badge={gallery.length > 0 ? <span className="text-[10px] text-[#B8A99A]">({gallery.length})</span> : undefined}
+                accent="pink"
+                badge={gallery.length > 0 ? <span className="text-[10px] text-pink-700 font-semibold bg-pink-100 px-1.5 py-0.5 rounded-full">{gallery.length}</span> : undefined}
               >
                 <div className="space-y-3">
-                  {/* Adicionar */}
                   <div className="flex gap-2">
                     <Input
                       className={inp + " flex-1"}
-                      placeholder="Cole um link ou URL de imagem (Pinterest, Drive, Instagram…)"
+                      placeholder="Cole link/URL (Pinterest, Drive, Instagram…)"
                       value={newInspirationUrl}
                       onChange={(e) => setNewInspirationUrl(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addInspiration(); } }}
@@ -733,19 +848,18 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                     <button
                       onClick={addInspiration}
                       disabled={!newInspirationUrl.trim()}
-                      className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2A1E15] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-pink-600 text-white text-xs font-medium hover:bg-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Adicionar
                     </button>
                   </div>
 
-                  {/* Grelha */}
                   {gallery.length === 0 ? (
                     <PlaceholderBox
                       icon={<Heart className="h-4 w-4" />}
                       title="Sem inspirações ainda"
-                      description="Adicione fotos do bouquet de referência, paletas de cores, ou ideias do cliente. (No futuro vão sincronizar com a pasta Drive automaticamente.)"
+                      description="Adicione fotos de bouquets de referência, paletas, ou ideias do cliente. (Vão sincronizar com a Drive automaticamente.)"
                     />
                   ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -759,10 +873,10 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                               href={item.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="w-full h-full flex flex-col items-center justify-center text-center p-2 text-[#8B7355] hover:bg-[#F0E8DC] transition-colors"
+                              className="w-full h-full flex flex-col items-center justify-center text-center p-2 text-pink-700 hover:bg-pink-50 transition-colors"
                             >
                               <Link2 className="h-5 w-5 mb-1" />
-                              <span className="text-[10px] truncate w-full">{new URL(item.url).hostname}</span>
+                              <span className="text-[10px] truncate w-full">{safeHostname(item.url)}</span>
                             </a>
                           )}
                           <button
@@ -779,57 +893,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
-              {/* Comunicações */}
-              <Card title="Comunicações" icon={<MessageCircle className="h-3.5 w-3.5" />}>
-                <Tabs defaultValue="email">
-                  <TabsList className="bg-[#FAF8F5] border border-[#E8E0D5]">
-                    <TabsTrigger value="email" className="text-xs data-[state=active]:bg-white">
-                      <Mail className="h-3.5 w-3.5 mr-1.5" />
-                      Email
-                    </TabsTrigger>
-                    <TabsTrigger value="whatsapp" className="text-xs data-[state=active]:bg-white">
-                      <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
-                      WhatsApp
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="email" className="mt-3">
-                    <PlaceholderBox
-                      icon={<Mail className="h-4 w-4" />}
-                      title="Histórico de emails (em breve)"
-                      description={`Vai puxar automaticamente os emails trocados com ${local.email ?? "o cliente"} via Gmail API. Por agora, podes consultar a tua caixa de entrada diretamente.`}
-                    />
-                  </TabsContent>
-                  <TabsContent value="whatsapp" className="mt-3">
-                    <PlaceholderBox
-                      icon={<MessageCircle className="h-4 w-4" />}
-                      title="Histórico de WhatsApp (em breve)"
-                      description="Vai permitir colar screenshots ou texto das conversas com o cliente. Cada entrada será datada e visível neste workbench."
-                    />
-                  </TabsContent>
-                </Tabs>
-              </Card>
-
-              {/* Assistente IA */}
-              <Card title="Assistente de resposta IA" icon={<Sparkles className="h-3.5 w-3.5" />}>
-                <div className="space-y-3">
-                  <Textarea
-                    disabled
-                    rows={3}
-                    placeholder="Em breve: descreve o tipo de resposta que precisas (ex: 'agradecer feedback positivo' ou 'confirmar agendamento') e a IA gera um rascunho com o tom da marca, em PT ou EN, baseado no contexto desta encomenda."
-                    className="text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] rounded-lg resize-none italic"
-                  />
-                  <button
-                    disabled
-                    className="w-full h-9 inline-flex items-center justify-center gap-2 rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#B8A99A] text-xs font-medium cursor-not-allowed"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Sugerir resposta (em breve — Anthropic API)
-                  </button>
-                </div>
-              </Card>
-
               {/* Origem e notas */}
-              <Card title="Origem e notas">
+              <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
                 <Grid2>
                   <Field label="Como conheceu a FBR">
                     <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => update("how_found_fbr", v as Order["how_found_fbr"])}>
@@ -861,44 +926,16 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </Grid2>
               </Card>
 
-            </div>
+            </main>
 
-            {/* COLUNA DIREITA (1/3) */}
-            <div className="lg:col-span-1 space-y-5">
+            {/* ═══════════════════════════════
+                COLUNA DIREITA — FINANÇAS / PARCERIA / ENTREGA
+            ═══════════════════════════════ */}
+            <aside className="lg:col-span-3 space-y-5">
 
-              {/* Pasta Drive */}
-              <Card title="Pasta Google Drive" icon={<FolderOpen className="h-3.5 w-3.5" />}>
-                <Field label="URL da pasta">
-                  <div className="flex gap-1.5">
-                    <Input
-                      className={inp + " flex-1 min-w-0"}
-                      value={local.drive_folder_url ?? ""}
-                      onChange={(e) => update("drive_folder_url", e.target.value || null)}
-                      placeholder="https://drive.google.com/…"
-                    />
-                    {local.drive_folder_url && (
-                      <a
-                        href={local.drive_folder_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    )}
-                  </div>
-                </Field>
-                {!local.drive_folder_url && (
-                  <p className="text-[11px] text-[#B8A99A] leading-relaxed">
-                    No futuro, a pasta vai ser criada automaticamente via Google Drive API ao receber a encomenda.
-                  </p>
-                )}
-              </Card>
-
-              {/* Finanças */}
-              <Card title="Finanças">
+              <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
                 <div className="space-y-3">
-                  <Field label="Orçamento" hint="Calculado automaticamente a partir da tabela de preços (Finanças). Editável.">
+                  <Field label="Orçamento" hint="Calculado a partir da tabela de preços. Editável.">
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
                       <Input
@@ -952,13 +989,12 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
-              {/* Parceria */}
-              <Card title="Parceria">
+              <Card title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="sky">
                 <div className="space-y-3">
-                  <Field label="Parceiro recomendador" hint="Em breve: lista vinda da aba Parcerias.">
+                  <Field label="Parceiro recomendador" hint="Em breve: lista da aba Parcerias.">
                     <Select value={local.partner_id ?? ""} onValueChange={(v) => update("partner_id", v || null)} disabled>
                       <SelectTrigger className={sel + " opacity-60"}>
-                        <SelectValue placeholder="Sem parceiro associado" />
+                        <SelectValue placeholder="Sem parceiro" />
                       </SelectTrigger>
                       <SelectContent />
                     </Select>
@@ -990,8 +1026,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
-              {/* Entrega final & feedback */}
-              <Card title="Entrega final e feedback">
+              <Card title="Entrega e feedback" icon={<Package className="h-3.5 w-3.5" />} accent="purple">
                 <div className="space-y-3">
                   <Field label="Data entrega do quadro">
                     <Input className={inp} type="date" value={toDateInput(local.frame_delivery_date)} onChange={(e) => update("frame_delivery_date", e.target.value || null)} />
@@ -1010,12 +1045,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
-              {/* Cupão */}
               {local.coupon_code && (
-                <Card title="Cupão 5%">
+                <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-base tracking-[0.2em] border-[#C4A882] text-[#3D2B1F] px-3 py-1">
+                      <Badge variant="outline" className="font-mono text-base tracking-[0.2em] border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1">
                         {local.coupon_code}
                       </Badge>
                       <button
@@ -1026,7 +1060,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         <Copy className="h-4 w-4" />
                       </button>
                     </div>
-                    <Field label="Validade" hint="2 anos após entrega do quadro.">
+                    <Field label="Validade" hint="2 anos após entrega.">
                       <Input className={inp} type="date" value={toDateInput(local.coupon_expiry)} onChange={(e) => update("coupon_expiry", e.target.value || null)} />
                     </Field>
                     <Field label="Estado">
@@ -1043,7 +1077,6 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </Card>
               )}
 
-              {/* Metadata */}
               <div className="rounded-xl border border-[#E8E0D5] bg-white px-4 py-3 space-y-1">
                 <p className="text-[10px] text-[#B8A99A]">
                   Criada em {local.created_at ? format(parseISO(local.created_at), "dd MMM yyyy, HH:mm", { locale: pt }) : "—"}
@@ -1056,7 +1089,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 <p className="font-mono text-[10px] text-[#D0C4B8]">{local.order_id}</p>
               </div>
 
-            </div>
+            </aside>
+
           </div>
         </div>
       </div>
@@ -1066,7 +1100,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
-              <Receipt className="h-4 w-4 text-[#C4A882]" />
+              <Receipt className="h-4 w-4 text-emerald-600" />
               Pagamento atualizado
             </DialogTitle>
             <DialogDescription className="text-[#8B7355]">
@@ -1079,10 +1113,9 @@ export default function WorkbenchClient({ order }: { order: Order }) {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Lembrete: comprovativo na Drive */}
-            <div className="rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] px-3 py-3 space-y-2">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-3 space-y-2">
               <div className="flex items-start gap-2">
-                <Paperclip className="h-4 w-4 text-[#C4A882] mt-0.5 shrink-0" />
+                <Paperclip className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div className="flex-1 text-sm text-[#3D2B1F]">
                   <p className="font-medium">Anexa o comprovativo à pasta Drive</p>
                   <p className="text-xs text-[#8B7355] mt-0.5">
@@ -1095,7 +1128,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   href={local.drive_folder_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-6 inline-flex items-center gap-1 text-xs font-medium text-[#3D2B1F] hover:underline"
+                  className="ml-6 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline"
                 >
                   <FolderOpen className="h-3 w-3" />
                   Abrir pasta Drive
@@ -1108,7 +1141,6 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               )}
             </div>
 
-            {/* NIF / Fatura */}
             <div className="space-y-2">
               <CheckRow
                 label="O cliente pediu fatura com NIF"
@@ -1151,6 +1183,45 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 }
 
 // ── Sub-componentes auxiliares ─────────────────────────────────
+
+function safeHostname(url: string): string {
+  try { return new URL(url).hostname; } catch { return url.slice(0, 20); }
+}
+
+function DriveUrlEditor({
+  draft,
+  setDraft,
+  onSave,
+}: {
+  draft: string;
+  setDraft: (v: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <PopoverContent className="w-80 p-3 space-y-2">
+      <Label className="text-xs font-medium text-[#8B7355]">URL da pasta Google Drive</Label>
+      <Input
+        className={inp}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="https://drive.google.com/…"
+        autoFocus
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
+      />
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          onClick={onSave}
+          className="h-8 px-3 rounded-lg bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15] transition-colors"
+        >
+          Guardar
+        </button>
+      </div>
+      <p className="text-[10px] text-[#B8A99A] leading-relaxed pt-1 border-t border-[#F0EAE0]">
+        Em breve: a pasta vai ser criada automaticamente ao primeiro pagamento, com a estrutura de subpastas definida.
+      </p>
+    </PopoverContent>
+  );
+}
 
 function InfoChip({
   label,
