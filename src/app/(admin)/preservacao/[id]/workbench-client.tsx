@@ -238,6 +238,10 @@ export default function WorkbenchClient({ order }: { order: Order }) {
   const [dialogNeedsInvoice, setDialogNeedsInvoice] = useState(false);
   const [dialogNif, setDialogNif] = useState("");
 
+  // Diálogo de "Quadro recebido" — pede data de entrega
+  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
+  const [deliveryDateDraft, setDeliveryDateDraft] = useState("");
+
   // Edição rápida do URL da pasta Drive (popover no hero)
   const [driveUrlDraft, setDriveUrlDraft] = useState("");
   const [drivePopoverOpen, setDrivePopoverOpen] = useState(false);
@@ -270,6 +274,21 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     setSaveState("idle");
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(flush, 900);
+  }
+
+  function onStatusChange(newStatus: Order["status"]) {
+    if (newStatus === local.status) return;
+    if (newStatus === "quadro_recebido" && !local.frame_delivery_date) {
+      setDeliveryDateDraft(toDateInput(new Date().toISOString()));
+      setDeliveryDialogOpen(true);
+    }
+    update("status", newStatus);
+  }
+
+  function confirmDeliveryDialog() {
+    const date = deliveryDateDraft.trim();
+    if (date) update("frame_delivery_date", date);
+    setDeliveryDialogOpen(false);
   }
 
   function onPaymentStatusChange(newStatus: PaymentStatus) {
@@ -386,7 +405,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
           <div className="w-56 shrink-0">
             <Select
               value={local.status}
-              onValueChange={(v) => update("status", v as Order["status"])}
+              onValueChange={(v) => onStatusChange(v as Order["status"])}
             >
               <SelectTrigger className={`h-8 text-xs font-semibold border-2 ${STATUS_COLORS[local.status] ?? ""}`}>
                 <SelectValue />
@@ -607,14 +626,6 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         Status público
                         <ExternalLink className="h-3 w-3 opacity-60" />
                       </a>
-
-                      <button
-                        onClick={copyId}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2.5 py-1.5 text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
-                      >
-                        {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-                        {copied ? "Copiado" : "Copiar ID"}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -896,7 +907,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               {/* Origem e notas */}
               <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
                 <Grid2>
-                  <Field label="Como conheceu a FBR">
+                  <Field label="Como conheceu a FBR" span2={local.how_found_fbr !== "vale_presente"}>
                     <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => update("how_found_fbr", v as Order["how_found_fbr"])}>
                       <SelectTrigger className={sel}><SelectValue placeholder="—" /></SelectTrigger>
                       <SelectContent>
@@ -911,9 +922,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field label="Código vale-presente">
-                    <Input className={inp} value={local.gift_voucher_code ?? ""} onChange={(e) => update("gift_voucher_code", e.target.value || null)} />
-                  </Field>
+                  {local.how_found_fbr === "vale_presente" && (
+                    <Field label="Código vale-presente">
+                      <Input className={inp} value={local.gift_voucher_code ?? ""} onChange={(e) => update("gift_voucher_code", e.target.value || null)} placeholder="Código de 6 dígitos" />
+                    </Field>
+                  )}
                   <Field label="Notas adicionais" span2>
                     <Textarea
                       className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
@@ -958,7 +971,18 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       </SelectContent>
                     </Select>
                   </Field>
-                  <CheckRow label="Cliente pediu fatura com NIF" checked={local.needs_invoice} onChange={(v) => update("needs_invoice", v)} />
+                  <Field label="Cliente pediu fatura com NIF?">
+                    <Select
+                      value={local.needs_invoice ? "sim" : "nao"}
+                      onValueChange={(v) => update("needs_invoice", v === "sim")}
+                    >
+                      <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sim">Sim</SelectItem>
+                        <SelectItem value="nao">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
                   {local.needs_invoice && (
                     <>
                       <Field label="NIF">
@@ -1045,9 +1069,9 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
-              {local.coupon_code && (
-                <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
-                  <div className="space-y-3">
+              <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
+                <div className="space-y-3">
+                  {local.coupon_code ? (
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="font-mono text-base tracking-[0.2em] border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1">
                         {local.coupon_code}
@@ -1060,22 +1084,26 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         <Copy className="h-4 w-4" />
                       </button>
                     </div>
-                    <Field label="Validade" hint="2 anos após entrega.">
-                      <Input className={inp} type="date" value={toDateInput(local.coupon_expiry)} onChange={(e) => update("coupon_expiry", e.target.value || null)} />
-                    </Field>
-                    <Field label="Estado">
-                      <Select value={local.coupon_status} onValueChange={(v) => update("coupon_status", v as Order["coupon_status"])}>
-                        <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="na">N/A</SelectItem>
-                          <SelectItem value="nao_utilizado">Não utilizado</SelectItem>
-                          <SelectItem value="utilizado">Utilizado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                </Card>
-              )}
+                  ) : (
+                    <p className="text-[11px] text-[#8B7355] italic leading-relaxed">
+                      O código é gerado automaticamente quando o estado mudar para <strong>“A ser emoldurado”</strong>.
+                    </p>
+                  )}
+                  <Field label="Validade" hint="2 anos após entrega.">
+                    <Input className={inp} type="date" value={toDateInput(local.coupon_expiry)} onChange={(e) => update("coupon_expiry", e.target.value || null)} disabled={!local.coupon_code} />
+                  </Field>
+                  <Field label="Estado">
+                    <Select value={local.coupon_status} onValueChange={(v) => update("coupon_status", v as Order["coupon_status"])} disabled={!local.coupon_code}>
+                      <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="na">N/A</SelectItem>
+                        <SelectItem value="nao_utilizado">Não utilizado</SelectItem>
+                        <SelectItem value="utilizado">Utilizado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </Card>
 
               <div className="rounded-xl border border-[#E8E0D5] bg-white px-4 py-3 space-y-1">
                 <p className="text-[10px] text-[#B8A99A]">
@@ -1142,13 +1170,19 @@ export default function WorkbenchClient({ order }: { order: Order }) {
             </div>
 
             <div className="space-y-2">
-              <CheckRow
-                label="O cliente pediu fatura com NIF"
-                checked={dialogNeedsInvoice}
-                onChange={setDialogNeedsInvoice}
-              />
+              <Label className="text-xs font-medium text-[#8B7355]">O cliente pediu fatura com NIF?</Label>
+              <Select
+                value={dialogNeedsInvoice ? "sim" : "nao"}
+                onValueChange={(v) => setDialogNeedsInvoice(v === "sim")}
+              >
+                <SelectTrigger className={sel}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sim">Sim</SelectItem>
+                  <SelectItem value="nao">Não</SelectItem>
+                </SelectContent>
+              </Select>
               {dialogNeedsInvoice && (
-                <div className="ml-6">
+                <div className="pt-2">
                   <Label className="text-xs font-medium text-[#8B7355]">NIF</Label>
                   <Input
                     className={inp + " mt-1"}
@@ -1174,6 +1208,51 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               className="h-9 px-4 rounded-lg bg-[#3D2B1F] text-sm text-white font-medium hover:bg-[#2C1F15] transition-colors"
             >
               Confirmar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Diálogo "Quadro recebido" → pede data de entrega ─── */}
+      <Dialog open={deliveryDialogOpen} onOpenChange={setDeliveryDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+              <Package className="h-4 w-4 text-purple-600" />
+              Quadro recebido
+            </DialogTitle>
+            <DialogDescription className="text-[#8B7355]">
+              Para fechar bem esta encomenda, indica em que dia o cliente recebeu o quadro.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <Label className="text-xs font-medium text-[#8B7355]">Data de entrega do quadro</Label>
+            <Input
+              className={inp + " mt-1.5"}
+              type="date"
+              value={deliveryDateDraft}
+              onChange={(e) => setDeliveryDateDraft(e.target.value)}
+              autoFocus
+            />
+            <p className="text-[10px] text-[#B8A99A] mt-2 leading-relaxed">
+              Esta data é usada para calcular a validade do cupão de 5%.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => setDeliveryDialogOpen(false)}
+              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            >
+              Mais tarde
+            </button>
+            <button
+              onClick={confirmDeliveryDialog}
+              className="h-9 px-4 rounded-lg bg-[#3D2B1F] text-sm text-white font-medium hover:bg-[#2C1F15] transition-colors disabled:opacity-50"
+              disabled={!deliveryDateDraft}
+            >
+              Guardar data
             </button>
           </DialogFooter>
         </DialogContent>

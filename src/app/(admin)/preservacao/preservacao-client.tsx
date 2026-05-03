@@ -11,11 +11,12 @@ import {
   Search,
   LayoutList,
   CalendarDays,
-  Rows3,
+  LayoutGrid,
   AlertTriangle,
   ExternalLink,
   Check,
   Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -308,7 +309,7 @@ function GroupSection({
 
 // ── Tipos ─────────────────────────────────────────────────────
 
-type ViewType = "tabela" | "calendario" | "workbench";
+type ViewType = "tabela" | "calendario" | "cards";
 type GroupedOrders = ReturnType<typeof groupOrders>;
 
 interface Props {
@@ -346,7 +347,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
   }
 
   function openOrder(order: Order) {
-    router.push(`/preservacao/${order.id}`);
+    router.push(`/preservacao/${order.order_id}`);
   }
 
   const totalActive = initialOrders.filter(
@@ -356,7 +357,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
   const VIEW_BUTTONS = [
     { id: "tabela" as ViewType,     label: "Tabela",     icon: <LayoutList className="h-3.5 w-3.5" /> },
     { id: "calendario" as ViewType, label: "Calendário", icon: <CalendarDays className="h-3.5 w-3.5" /> },
-    { id: "workbench" as ViewType,  label: "Workbench",  icon: <Rows3 className="h-3.5 w-3.5" /> },
+    { id: "cards" as ViewType,      label: "Cards",      icon: <LayoutGrid className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -430,10 +431,22 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
           </div>
         )}
 
-        {activeView !== "tabela" && (
+        {activeView === "cards" && (
+          <div className="space-y-6">
+            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} alert />
+            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} />
+            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} />
+            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} />
+            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} />
+            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} />
+            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} />
+          </div>
+        )}
+
+        {activeView === "calendario" && (
           <div className="rounded-xl border border-dashed border-[#E8E0D5] bg-white p-12 text-center">
             <p className="text-sm text-[#8B7355]">
-              Vista <strong>{activeView}</strong> — em construção.
+              Vista <strong>Calendário</strong> — em construção.
             </p>
           </div>
         )}
@@ -449,5 +462,89 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
       />
 
     </div>
+  );
+}
+
+// ── Vista de cards ────────────────────────────────────────────
+
+function CardGroup({
+  title,
+  orders,
+  colorClass,
+  onOpenOrder,
+  alert = false,
+}: {
+  title: string;
+  orders: Order[];
+  colorClass: string;
+  onOpenOrder: (o: Order) => void;
+  alert?: boolean;
+}) {
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        {alert && <AlertTriangle className="h-4 w-4 text-red-500" />}
+        <h2 className={`text-sm font-semibold ${colorClass}`}>{title}</h2>
+        <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+          {orders.length}
+        </span>
+      </div>
+      {orders.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-[#E8E0D5] bg-white px-4 py-6 text-center text-xs text-[#B8A99A] italic">
+          Nenhuma encomenda neste grupo.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {orders.map((o) => (
+            <OrderCard key={o.id} order={o} onOpen={onOpenOrder} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OrderCard({ order, onOpen }: { order: Order; onOpen: (o: Order) => void }) {
+  const daysUntilEvent =
+    order.event_date ? differenceInDays(parseISO(order.event_date), new Date()) : null;
+  const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
+
+  return (
+    <button
+      onClick={() => onOpen(order)}
+      className="group text-left rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md hover:border-[#C4A882] transition-all"
+    >
+      <div className="relative aspect-square bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
+        {order.flowers_photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={order.flowers_photo_url}
+            alt={`Flores de ${order.client_name}`}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882]">
+              <ImageIcon className="h-4 w-4" />
+            </div>
+          </div>
+        )}
+        {urgentEvent && (
+          <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            {daysUntilEvent}d
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-2.5">
+        <p className="text-sm font-semibold text-[#3D2B1F] truncate">
+          {order.client_name}
+        </p>
+        <p className="text-[11px] text-[#8B7355] truncate mt-0.5">
+          {order.event_date ? formatDate(order.event_date) : "Sem data"}
+          {order.event_type && ` · ${EVENT_TYPE_LABELS[order.event_type]}`}
+        </p>
+      </div>
+    </button>
   );
 }

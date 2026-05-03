@@ -65,11 +65,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen bg-[#FAF8F5] dark:bg-[#0D0D0D]">
+    <div className="flex h-screen overflow-hidden bg-[#FAF8F5] dark:bg-[#0D0D0D]">
       {/* Sidebar */}
       <aside
         className={cn(
-          "flex flex-col bg-white dark:bg-[#141414] border-r border-[#E8E0D5] dark:border-[#2C2C2E] transition-all duration-200 shrink-0",
+          "flex flex-col h-full bg-white dark:bg-[#141414] border-r border-[#E8E0D5] dark:border-[#2C2C2E] transition-all duration-200 shrink-0",
           collapsed ? "w-16" : "w-56"
         )}
       >
@@ -148,7 +148,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main */}
-      <main className="flex-1 min-w-0 overflow-auto">
+      <main className="flex-1 min-w-0 h-full overflow-auto">
         {children}
       </main>
     </div>
