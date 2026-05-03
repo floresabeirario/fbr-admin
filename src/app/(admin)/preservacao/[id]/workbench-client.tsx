@@ -114,21 +114,21 @@ function fmtDate(val: string | null | undefined): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  entrega_flores_agendar: "bg-amber-100 text-amber-800 border-amber-300",
-  entrega_agendada:       "bg-blue-100 text-blue-800 border-blue-300",
-  flores_enviadas:        "bg-blue-100 text-blue-800 border-blue-300",
-  flores_recebidas:       "bg-blue-100 text-blue-800 border-blue-300",
-  flores_na_prensa:       "bg-purple-100 text-purple-800 border-purple-300",
-  reconstrucao_botanica:  "bg-purple-100 text-purple-800 border-purple-300",
-  a_compor_design:        "bg-purple-100 text-purple-800 border-purple-300",
-  a_aguardar_aprovacao:   "bg-purple-100 text-purple-800 border-purple-300",
-  a_ser_emoldurado:       "bg-orange-100 text-orange-800 border-orange-300",
-  emoldurado:             "bg-orange-100 text-orange-800 border-orange-300",
-  a_ser_fotografado:      "bg-orange-100 text-orange-800 border-orange-300",
-  quadro_pronto:          "bg-orange-100 text-orange-800 border-orange-300",
-  quadro_enviado:         "bg-orange-100 text-orange-800 border-orange-300",
-  quadro_recebido:        "bg-green-100 text-green-800 border-green-300",
-  cancelado:              "bg-gray-100 text-gray-500 border-gray-300",
+  entrega_flores_agendar: "bg-rose-50 text-rose-600 border-rose-200",
+  entrega_agendada:       "bg-sky-50 text-sky-600 border-sky-200",
+  flores_enviadas:        "bg-sky-50 text-sky-600 border-sky-200",
+  flores_recebidas:       "bg-sky-50 text-sky-600 border-sky-200",
+  flores_na_prensa:       "bg-violet-50 text-violet-600 border-violet-200",
+  reconstrucao_botanica:  "bg-violet-50 text-violet-600 border-violet-200",
+  a_compor_design:        "bg-violet-50 text-violet-600 border-violet-200",
+  a_aguardar_aprovacao:   "bg-violet-50 text-violet-600 border-violet-200",
+  a_ser_emoldurado:       "bg-amber-50 text-amber-700 border-amber-200",
+  emoldurado:             "bg-amber-50 text-amber-700 border-amber-200",
+  a_ser_fotografado:      "bg-amber-50 text-amber-700 border-amber-200",
+  quadro_pronto:          "bg-amber-50 text-amber-700 border-amber-200",
+  quadro_enviado:         "bg-amber-50 text-amber-700 border-amber-200",
+  quadro_recebido:        "bg-emerald-50 text-emerald-600 border-emerald-200",
+  cancelado:              "bg-stone-100 text-stone-500 border-stone-200",
 };
 
 const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
@@ -150,21 +150,21 @@ const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
 };
 
 const STATUS_ITEM_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
-  entrega_flores_agendar: "text-amber-700",
-  entrega_agendada:       "text-blue-700",
-  flores_enviadas:        "text-blue-700",
-  flores_recebidas:       "text-blue-700",
-  flores_na_prensa:       "text-purple-700",
-  reconstrucao_botanica:  "text-purple-700",
-  a_compor_design:        "text-purple-700",
-  a_aguardar_aprovacao:   "text-purple-700",
-  a_ser_emoldurado:       "text-orange-700",
-  emoldurado:             "text-orange-700",
-  a_ser_fotografado:      "text-orange-700",
-  quadro_pronto:          "text-orange-700",
-  quadro_enviado:         "text-orange-700",
-  quadro_recebido:        "text-green-700",
-  cancelado:              "text-gray-500",
+  entrega_flores_agendar: "text-rose-600",
+  entrega_agendada:       "text-sky-600",
+  flores_enviadas:        "text-sky-600",
+  flores_recebidas:       "text-sky-600",
+  flores_na_prensa:       "text-violet-600",
+  reconstrucao_botanica:  "text-violet-600",
+  a_compor_design:        "text-violet-600",
+  a_aguardar_aprovacao:   "text-violet-600",
+  a_ser_emoldurado:       "text-amber-700",
+  emoldurado:             "text-amber-700",
+  a_ser_fotografado:      "text-amber-700",
+  quadro_pronto:          "text-amber-700",
+  quadro_enviado:         "text-amber-700",
+  quadro_recebido:        "text-emerald-600",
+  cancelado:              "text-stone-500",
 };
 
 const PAYMENT_COLORS: Record<string, string> = {
