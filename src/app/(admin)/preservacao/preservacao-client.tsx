@@ -17,6 +17,22 @@ import {
   Check,
   Loader2,
   Image as ImageIcon,
+  CalendarClock,
+  CalendarCheck,
+  Send,
+  PackageCheck,
+  Layers,
+  Flower2,
+  Palette,
+  Hourglass,
+  Hammer,
+  Frame,
+  Camera,
+  Sparkles,
+  Truck,
+  PartyPopper,
+  Ban,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +50,11 @@ import {
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
+  FLOWER_DELIVERY_METHOD_LABELS,
+  FRAME_DELIVERY_METHOD_LABELS,
 } from "@/types/database";
+
+type ShippingColumn = "flores" | "quadro";
 import NovaEncomendaSheet from "./nova-encomenda-sheet";
 import { updateOrderAction } from "./actions";
 
@@ -74,6 +94,24 @@ const STATUS_COLORS: Record<string, string> = {
   cancelado:              "bg-gray-50 text-gray-500 border-gray-200",
 };
 
+const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
+  entrega_flores_agendar: CalendarClock,
+  entrega_agendada:       CalendarCheck,
+  flores_enviadas:        Send,
+  flores_recebidas:       PackageCheck,
+  flores_na_prensa:       Layers,
+  reconstrucao_botanica:  Flower2,
+  a_compor_design:        Palette,
+  a_aguardar_aprovacao:   Hourglass,
+  a_ser_emoldurado:       Hammer,
+  emoldurado:             Frame,
+  a_ser_fotografado:      Camera,
+  quadro_pronto:          Sparkles,
+  quadro_enviado:         Truck,
+  quadro_recebido:        PartyPopper,
+  cancelado:              Ban,
+};
+
 const PAYMENT_COLORS: Record<string, string> = {
   "100_pago":      "bg-green-50 text-green-700 border-green-200",
   "70_pago":       "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -99,14 +137,33 @@ function InlineStatusSelect({
         onPointerDown={(e) => e.stopPropagation()}
         className={`h-7 text-xs font-medium border rounded-full px-2.5 max-w-[200px] ${colorClass} hover:brightness-95 transition`}
       >
-        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <SelectValue labels={STATUS_LABELS} />}
+        {busy ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <SelectValue>
+            {(v) => {
+              if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
+              const Icon = STATUS_ICONS[v as OrderStatus];
+              return (
+                <>
+                  <Icon className="h-3 w-3 shrink-0" />
+                  {STATUS_LABELS[v as OrderStatus]}
+                </>
+              );
+            }}
+          </SelectValue>
+        )}
       </SelectTrigger>
       <SelectContent onClick={(e) => e.stopPropagation()} className="max-h-80">
-        {(Object.keys(STATUS_LABELS) as Array<OrderStatus>).map((s) => (
-          <SelectItem key={s} value={s} className="text-xs">
-            {STATUS_LABELS[s]}
-          </SelectItem>
-        ))}
+        {(Object.keys(STATUS_LABELS) as Array<OrderStatus>).map((s) => {
+          const Icon = STATUS_ICONS[s];
+          return (
+            <SelectItem key={s} value={s} className="text-xs">
+              <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+              {STATUS_LABELS[s]}
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );
@@ -126,7 +183,15 @@ function PaymentBadge({ status }: { status: string }) {
 
 // ── Linha da tabela ───────────────────────────────────────────
 
-function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void }) {
+function OrderRow({
+  order,
+  onOpen,
+  shippingColumn,
+}: {
+  order: Order;
+  onOpen: (o: Order) => void;
+  shippingColumn: ShippingColumn;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null);
@@ -143,6 +208,15 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void 
     daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
 
   const isPreReserva = currentStatus === "entrega_flores_agendar";
+
+  const shippingLabel =
+    shippingColumn === "flores"
+      ? order.flower_delivery_method
+        ? FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method]
+        : "—"
+      : order.frame_delivery_method
+        ? FRAME_DELIVERY_METHOD_LABELS[order.frame_delivery_method]
+        : "—";
 
   function changeStatus(newStatus: OrderStatus) {
     if (newStatus === currentStatus) return;
@@ -175,11 +249,6 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void 
       onClick={() => onOpen(order)}
     >
       <td className="px-4 py-3">
-        <span className="font-mono text-xs text-[#8B7355]">
-          {order.order_id.slice(0, 8)}…
-        </span>
-      </td>
-      <td className="px-4 py-3">
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
@@ -190,27 +259,32 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: (o: Order) => void 
               </span>
             )}
           </div>
-          {order.email && (
-            <span className="text-xs text-[#8B7355] truncate max-w-[180px]">{order.email}</span>
+          {order.event_type && (
+            <span className="text-xs text-[#8B7355]">
+              {EVENT_TYPE_LABELS[order.event_type]}
+            </span>
           )}
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="flex flex-col gap-0.5">
-          {order.event_type && (
-            <span className="text-xs text-[#3D2B1F]">
-              {EVENT_TYPE_LABELS[order.event_type]}
-            </span>
-          )}
-          {order.event_date && (
-            <span
-              className={`text-xs ${urgentEvent ? "text-red-600 font-semibold" : "text-[#8B7355]"}`}
-            >
-              {urgentEvent && "⚠ "}
-              {formatDate(order.event_date)}
-            </span>
-          )}
-        </div>
+        {order.event_date ? (
+          <span
+            className={`text-sm ${urgentEvent ? "text-red-600 font-semibold" : "text-[#3D2B1F]"}`}
+          >
+            {urgentEvent && "⚠ "}
+            {formatDate(order.event_date)}
+          </span>
+        ) : (
+          <span className="text-sm text-[#B8A99A]">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-[#3D2B1F] block max-w-[200px] truncate" title={order.event_location ?? undefined}>
+          {order.event_location || <span className="text-[#B8A99A]">—</span>}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-[#3D2B1F]">{shippingLabel}</span>
       </td>
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
         <InlineStatusSelect value={currentStatus} onChange={changeStatus} busy={isPending && optimisticStatus !== null} />
@@ -256,12 +330,14 @@ interface GroupSectionProps {
   isCollapsed: boolean;
   onToggle: () => void;
   onOpenOrder: (o: Order) => void;
+  shippingColumn: ShippingColumn;
   alert?: boolean;
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, alert = false,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, alert = false,
 }: GroupSectionProps) {
+  const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   return (
     <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
       <button
@@ -288,8 +364,8 @@ function GroupSection({
           <table className="w-full text-left">
             <thead>
               <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
-                {["ID", "Cliente", "Evento", "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide ${i === 4 ? "text-right" : ""}`}>
+                {["Cliente", "Data evento", "Localização", shippingHeader, "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
+                  <th key={i} className={`px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide ${i === 5 ? "text-right" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -297,7 +373,7 @@ function GroupSection({
             </thead>
             <tbody>
               {orders.map((order) => (
-                <OrderRow key={order.id} order={order} onOpen={onOpenOrder} />
+                <OrderRow key={order.id} order={order} onOpen={onOpenOrder} shippingColumn={shippingColumn} />
               ))}
             </tbody>
           </table>
@@ -413,13 +489,13 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
       <div className="flex-1 overflow-auto p-6">
         {activeView === "tabela" && (
           <div className="space-y-3">
-            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} alert />
-            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} />
-            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} />
-            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} />
-            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} />
-            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} />
-            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} />
+            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" alert />
+            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" />
+            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" />
+            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" />
+            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" />
+            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" />
+            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" />
 
             {filteredOrders.length === 0 && initialOrders.length > 0 && (
               <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">

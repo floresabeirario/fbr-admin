@@ -60,6 +60,19 @@ import {
   Package,
   Ticket,
   Pencil,
+  CalendarClock,
+  CalendarCheck,
+  Send,
+  PackageCheck,
+  Palette,
+  Hourglass,
+  Hammer,
+  Frame,
+  Camera,
+  Truck,
+  PartyPopper,
+  Ban,
+  type LucideIcon,
 } from "lucide-react";
 import { updateOrderAction } from "../actions";
 import type {
@@ -116,6 +129,24 @@ const STATUS_COLORS: Record<string, string> = {
   quadro_enviado:         "bg-orange-100 text-orange-800 border-orange-300",
   quadro_recebido:        "bg-green-100 text-green-800 border-green-300",
   cancelado:              "bg-gray-100 text-gray-500 border-gray-300",
+};
+
+const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
+  entrega_flores_agendar: CalendarClock,
+  entrega_agendada:       CalendarCheck,
+  flores_enviadas:        Send,
+  flores_recebidas:       PackageCheck,
+  flores_na_prensa:       Layers,
+  reconstrucao_botanica:  Flower2,
+  a_compor_design:        Palette,
+  a_aguardar_aprovacao:   Hourglass,
+  a_ser_emoldurado:       Hammer,
+  emoldurado:             Frame,
+  a_ser_fotografado:      Camera,
+  quadro_pronto:          Sparkles,
+  quadro_enviado:         Truck,
+  quadro_recebido:        PartyPopper,
+  cancelado:              Ban,
 };
 
 const PAYMENT_COLORS: Record<string, string> = {
@@ -419,14 +450,30 @@ export default function WorkbenchClient({ order }: { order: Order }) {
               onValueChange={(v) => onStatusChange(v as Order["status"])}
             >
               <SelectTrigger className={`h-8 text-xs font-semibold border-2 ${STATUS_COLORS[local.status] ?? ""}`}>
-                <SelectValue labels={STATUS_LABELS} />
+                <SelectValue>
+                  {(v) => {
+                    if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
+                    const key = v as keyof typeof STATUS_LABELS;
+                    const Icon = STATUS_ICONS[key];
+                    return (
+                      <>
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        {STATUS_LABELS[key]}
+                      </>
+                    );
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map((s) => (
-                  <SelectItem key={s} value={s} className="text-xs">
-                    {STATUS_LABELS[s]}
-                  </SelectItem>
-                ))}
+                {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map((s) => {
+                  const Icon = STATUS_ICONS[s];
+                  return (
+                    <SelectItem key={s} value={s} className="text-xs">
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                      {STATUS_LABELS[s]}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -462,7 +509,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
             {/* ═══════════════════════════════
                 COLUNA ESQUERDA — COMUNICAÇÕES (sticky)
             ═══════════════════════════════ */}
-            <aside className="lg:col-span-3 space-y-5 lg:sticky lg:top-[68px]">
+            <aside className="lg:col-span-3">
+              <div className="space-y-5 lg:sticky lg:top-2">
 
               <Card title="Comunicações" icon={<MessageCircle className="h-3.5 w-3.5" />} accent="blue">
                 <Tabs defaultValue="email">
@@ -511,6 +559,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
+              </div>
             </aside>
 
             {/* ═══════════════════════════════
