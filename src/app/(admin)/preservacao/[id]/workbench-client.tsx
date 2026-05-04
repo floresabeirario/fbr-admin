@@ -263,7 +263,7 @@ function Field({ label, children, span2, hint }: { label: string; children: Reac
 // Versão de Field para o hero — labels micro (uppercase + tracking) para harmonizar com inputs sem borda.
 function HeroField({ label, children, span2 }: { label: string; children: React.ReactNode; span2?: boolean }) {
   return (
-    <div className={`space-y-1 ${span2 ? "col-span-2" : ""}`}>
+    <div className={`space-y-0.5 ${span2 ? "col-span-2" : ""}`}>
       <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#B8A99A]">{label}</Label>
       {children}
     </div>
@@ -301,8 +301,8 @@ const sel = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-lg
 // Variantes "discretas" para o hero: parecem texto estático, revelam-se editáveis ao hover/focus.
 // Placeholders em itálico + cinza muito claro para nunca se confundirem com dados reais.
 const subtlePlaceholder = "placeholder:italic placeholder:text-[#D4C8B8] placeholder:font-normal";
-const inpSubtle = `h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
-const selSubtle = "h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
+const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
+const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
 const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
 
 // ── Componente principal ───────────────────────────────────────
@@ -802,7 +802,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </div>
 
                   {/* Coluna direita do hero: nome em destaque + atalhos + dados do evento */}
-                  <div className="col-span-7 p-5 flex flex-col gap-4">
+                  <div className="col-span-7 p-4 flex flex-col gap-3">
                     {/* Nome (título) + atalhos */}
                     <div className="flex items-start justify-between gap-3">
                       <Textarea
@@ -867,10 +867,10 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
                     {/* DADOS DO EVENTO */}
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-2">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-1.5">
                         Evento
                       </p>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                         <HeroField label="Tipo">
                           <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
                             <SelectTrigger className={selSubtle}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
@@ -906,21 +906,18 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                           {local.estimated_delivery_date ? (
                             <Link
                               href="/status"
-                              className="group inline-flex items-center gap-2 rounded-lg px-2 py-1.5 -mx-2 hover:bg-sky-50 transition-colors"
+                              className="group inline-flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-sky-50 transition-colors"
                               title="Editar na aba Status"
                             >
-                              <Globe className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                              <Globe className="h-3 w-3 text-sky-600 shrink-0" />
                               <span className="text-sm text-[#3D2B1F] capitalize">
                                 {formatPublicEstimatedDelivery(local.estimated_delivery_date, "pt")}
                               </span>
-                              <span className="text-[10px] text-[#B8A99A] italic">
-                                (cliente vê só mês e ano)
-                              </span>
-                              <ExternalLink className="h-3 w-3 text-sky-600/40 ml-auto group-hover:text-sky-600 transition-colors" />
+                              <ExternalLink className="h-3 w-3 text-sky-600/40 group-hover:text-sky-600 transition-colors" />
                             </Link>
                           ) : (
-                            <p className="text-xs text-[#B8A99A] italic px-2 py-1.5">
-                              Gerada automaticamente quando passa para <em>Flores na prensa</em>
+                            <p className="text-[11px] text-[#B8A99A] italic px-1.5">
+                              Gerada quando passa para <em>Flores na prensa</em>
                             </p>
                           )}
                         </HeroField>
