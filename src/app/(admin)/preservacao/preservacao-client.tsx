@@ -99,24 +99,6 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
 };
 
-const STATUS_DOT_COLORS: Record<OrderStatus, string> = {
-  entrega_flores_agendar: "bg-rose-500",
-  entrega_agendada:       "bg-pink-500",
-  flores_enviadas:        "bg-fuchsia-500",
-  flores_recebidas:       "bg-purple-500",
-  flores_na_prensa:       "bg-violet-500",
-  reconstrucao_botanica:  "bg-indigo-500",
-  a_compor_design:        "bg-blue-500",
-  a_aguardar_aprovacao:   "bg-sky-500",
-  a_ser_emoldurado:       "bg-cyan-500",
-  emoldurado:             "bg-teal-500",
-  a_ser_fotografado:      "bg-emerald-500",
-  quadro_pronto:          "bg-lime-500",
-  quadro_enviado:         "bg-yellow-500",
-  quadro_recebido:        "bg-green-500",
-  cancelado:              "bg-stone-400",
-};
-
 const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
   entrega_flores_agendar: CalendarClock,
   entrega_agendada:       CalendarCheck,
@@ -205,20 +187,13 @@ export function StatusSelect({
               {group.label}
             </div>
             <div className="px-1 pb-1">
-              {group.statuses.map((s) => {
-                const Icon = STATUS_ICONS[s];
-                return (
-                  <SelectItem
-                    key={s}
-                    value={s}
-                    className="text-xs font-medium rounded-md text-[#3D2B1F] data-[highlighted]:bg-[#FAF8F5] focus:bg-[#FAF8F5]"
-                  >
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_COLORS[s]}`} />
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+              {group.statuses.map((s) => (
+                <SelectItem key={s} value={s} className="my-0.5">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
                     {STATUS_LABELS[s]}
-                  </SelectItem>
-                );
-              })}
+                  </span>
+                </SelectItem>
+              ))}
             </div>
           </div>
         ))}

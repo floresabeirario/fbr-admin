@@ -134,24 +134,6 @@ const STATUS_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
   cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
 };
 
-const STATUS_DOT_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
-  entrega_flores_agendar: "bg-rose-500",
-  entrega_agendada:       "bg-pink-500",
-  flores_enviadas:        "bg-fuchsia-500",
-  flores_recebidas:       "bg-purple-500",
-  flores_na_prensa:       "bg-violet-500",
-  reconstrucao_botanica:  "bg-indigo-500",
-  a_compor_design:        "bg-blue-500",
-  a_aguardar_aprovacao:   "bg-sky-500",
-  a_ser_emoldurado:       "bg-cyan-500",
-  emoldurado:             "bg-teal-500",
-  a_ser_fotografado:      "bg-emerald-500",
-  quadro_pronto:          "bg-lime-500",
-  quadro_enviado:         "bg-yellow-500",
-  quadro_recebido:        "bg-green-500",
-  cancelado:              "bg-stone-400",
-};
-
 const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
   entrega_flores_agendar: CalendarClock,
   entrega_agendada:       CalendarCheck,
@@ -317,7 +299,7 @@ const sel = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-lg
 const subtlePlaceholder = "placeholder:italic placeholder:text-[#D4C8B8] placeholder:font-normal";
 const inpSubtle = `h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
 const selSubtle = "h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
-const titleSubtle = `h-auto py-1 px-2 text-2xl font-semibold leading-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
+const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
 
 // ── Componente principal ───────────────────────────────────────
 
@@ -819,11 +801,12 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   <div className="col-span-7 p-5 flex flex-col gap-4">
                     {/* Nome (título) + atalhos */}
                     <div className="flex items-start justify-between gap-3">
-                      <Input
-                        className={titleSubtle + " flex-1 min-w-0"}
+                      <Textarea
+                        className={titleSubtle + " flex-1 min-w-0 resize-none overflow-hidden"}
                         value={local.client_name}
                         onChange={(e) => update("client_name", e.target.value)}
                         placeholder="Nome do cliente"
+                        rows={2}
                       />
                       <div className="flex flex-col items-stretch gap-1.5 shrink-0 pt-1.5">
                         {local.drive_folder_url ? (
@@ -909,7 +892,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         </HeroField>
                         {isWedding && (
                           <HeroField label="Nome dos noivos">
-                            <Input className={inpSubtle} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ex: Ana & João" />
+                            <Input className={inpSubtle} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="—" />
                           </HeroField>
                         )}
                         <HeroField label="Localização" span2={!isWedding}>
@@ -1569,20 +1552,13 @@ function StatusSelect({
               {group.label}
             </div>
             <div className="px-1 pb-1">
-              {group.statuses.map((s) => {
-                const Icon = STATUS_ICONS[s];
-                return (
-                  <SelectItem
-                    key={s}
-                    value={s}
-                    className="text-xs font-medium rounded-md text-[#3D2B1F] data-[highlighted]:bg-[#FAF8F5] focus:bg-[#FAF8F5]"
-                  >
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_COLORS[s]}`} />
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+              {group.statuses.map((s) => (
+                <SelectItem key={s} value={s} className="my-0.5">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
                     {STATUS_LABELS[s]}
-                  </SelectItem>
-                );
-              })}
+                  </span>
+                </SelectItem>
+              ))}
             </div>
           </div>
         ))}
