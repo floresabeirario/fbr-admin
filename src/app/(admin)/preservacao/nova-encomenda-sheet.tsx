@@ -324,6 +324,26 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                 <SelectItem value="outro">Outro</SelectItem>
               </SelectContent>
             </Select>
+
+            {form.how_found_fbr === "vale_presente" && (
+              <Field label="Código vale-presente">
+                <Input
+                  value={form.gift_voucher_code ?? ""}
+                  onChange={(e) => set("gift_voucher_code", e.target.value || null)}
+                  placeholder="Código de 6 dígitos"
+                />
+              </Field>
+            )}
+
+            {form.how_found_fbr === "outro" && (
+              <Field label='Especifique "Outro"'>
+                <Input
+                  value={form.how_found_fbr_other ?? ""}
+                  onChange={(e) => set("how_found_fbr_other", e.target.value || null)}
+                  placeholder="Como ouviu falar da FBR..."
+                />
+              </Field>
+            )}
           </Section>
 
           {/* ── Notas ─── */}

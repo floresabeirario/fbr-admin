@@ -313,9 +313,11 @@ const inp = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2
 const sel = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-lg";
 
 // Variantes "discretas" para o hero: parecem texto estático, revelam-se editáveis ao hover/focus.
-const inpSubtle = "h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors";
+// Placeholders em itálico + cinza muito claro para nunca se confundirem com dados reais.
+const subtlePlaceholder = "placeholder:italic placeholder:text-[#D4C8B8] placeholder:font-normal";
+const inpSubtle = `h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
 const selSubtle = "h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
-const titleSubtle = "h-auto py-1 px-2 text-2xl font-semibold leading-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors";
+const titleSubtle = `h-auto py-1 px-2 text-2xl font-semibold leading-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
 
 // ── Componente principal ───────────────────────────────────────
 
@@ -907,11 +909,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         </HeroField>
                         {isWedding && (
                           <HeroField label="Nome dos noivos">
-                            <Input className={inpSubtle} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ana & João" />
+                            <Input className={inpSubtle} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ex: Ana & João" />
                           </HeroField>
                         )}
                         <HeroField label="Localização" span2={!isWedding}>
-                          <Input className={inpSubtle} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Quinta / Igreja / Cidade" />
+                          <Input className={inpSubtle} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Ex: Quinta / Igreja / Cidade" />
                         </HeroField>
                       </div>
                     </div>
