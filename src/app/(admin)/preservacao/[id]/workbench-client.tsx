@@ -167,9 +167,8 @@ const STATUS_GROUPS: Array<{ label: string; statuses: Array<keyof typeof STATUS_
 
 const PAYMENT_COLORS: Record<string, string> = {
   "100_pago":      "text-green-800 bg-green-100 border-green-300",
-  "70_pago":       "text-yellow-800 bg-yellow-100 border-yellow-300",
-  "30_pago":       "text-yellow-800 bg-yellow-100 border-yellow-300",
-  "30_por_pagar":  "text-red-700 bg-red-100 border-red-300",
+  "70_pago":       "text-lime-800 bg-lime-100 border-lime-300",
+  "30_pago":       "text-amber-900 bg-amber-100 border-amber-300",
   "100_por_pagar": "text-red-700 bg-red-100 border-red-300",
 };
 

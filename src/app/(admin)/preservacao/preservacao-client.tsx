@@ -19,6 +19,8 @@ import {
   Image as ImageIcon,
   Download,
   ListOrdered,
+  Clock,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,12 +195,14 @@ function OrderRow({
   shippingColumn,
   isLoading,
   canEdit,
+  inSemResposta,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
   shippingColumn: ShippingColumn;
   isLoading: boolean;
   canEdit: boolean;
+  inSemResposta: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -218,6 +222,8 @@ function OrderRow({
     daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
 
   const isPreReserva = currentStatus === "entrega_flores_agendar";
+  const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
+  const autoFlaggedSemResposta = isPreReserva && !currentContacted && daysSinceCreated >= 4;
 
   const shippingLabel =
     shippingColumn === "flores"
@@ -258,10 +264,35 @@ function OrderRow({
     setOptimisticContacted(true);
     startTransition(async () => {
       try {
-        await updateOrderAction(order.id, { contacted: true });
+        await updateOrderAction(order.id, {
+          contacted: true,
+          manually_no_response: false,
+        });
         router.refresh();
       } catch {
         setOptimisticContacted(null);
+      }
+    });
+  }
+
+  function moveToSemResposta() {
+    startTransition(async () => {
+      try {
+        await updateOrderAction(order.id, { manually_no_response: true });
+        router.refresh();
+      } catch {
+        // silencioso — UI volta ao estado anterior no refresh
+      }
+    });
+  }
+
+  function moveOutOfSemResposta() {
+    startTransition(async () => {
+      try {
+        await updateOrderAction(order.id, { manually_no_response: false });
+        router.refresh();
+      } catch {
+        // silencioso
       }
     });
   }
@@ -349,6 +380,28 @@ function OrderRow({
               Marcar contactada
             </button>
           )}
+          {canEdit && isPreReserva && !inSemResposta && !autoFlaggedSemResposta && (
+            <button
+              onClick={(e) => { e.stopPropagation(); moveToSemResposta(); }}
+              disabled={isPending}
+              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+              title="Mover para Sem resposta"
+            >
+              <Clock className="h-3 w-3" />
+              Sem resposta
+            </button>
+          )}
+          {canEdit && inSemResposta && order.manually_no_response && !autoFlaggedSemResposta && (
+            <button
+              onClick={(e) => { e.stopPropagation(); moveOutOfSemResposta(); }}
+              disabled={isPending}
+              className="inline-flex items-center gap-1 rounded-full border border-[#E8E0D5] bg-white px-2 py-1 text-[11px] font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+              title="Voltar para Pré-reservas"
+            >
+              <Undo2 className="h-3 w-3" />
+              Pré-reservas
+            </button>
+          )}
           <button
             className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
             onClick={(e) => { e.stopPropagation(); onOpen(order); }}
@@ -374,11 +427,12 @@ interface GroupSectionProps {
   shippingColumn: ShippingColumn;
   loadingOrderId: string | null;
   canEdit: boolean;
+  isSemResposta?: boolean;
   alert?: boolean;
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, alert = false,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   return (
@@ -433,6 +487,7 @@ function GroupSection({
                   shippingColumn={shippingColumn}
                   isLoading={loadingOrderId === order.id}
                   canEdit={canEdit}
+                  inSemResposta={isSemResposta}
                 />
               ))}
             </tbody>
@@ -567,7 +622,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
       <div className="flex-1 overflow-auto p-6">
         {activeView === "tabela" && (
           <div className="space-y-3">
-            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert />
+            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert />
             <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} />
             <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} />
             <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} />

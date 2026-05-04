@@ -8,11 +8,11 @@ export default async function PreservacaoPage() {
   const supabase = await createClient();
   const role = await getCurrentRole();
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("orders")
     .select("*")
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .order("event_date", { ascending: true, nullsFirst: false });
 
   const orders: Order[] = (data ?? []) as Order[];
   const grouped = groupOrders(orders);

@@ -23,7 +23,6 @@ export type PaymentStatus =
   | "100_pago"
   | "70_pago"
   | "30_pago"
-  | "30_por_pagar"
   | "100_por_pagar";
 
 export type EventType =
@@ -129,6 +128,7 @@ export interface Order {
   // Campos admin
   status: OrderStatus;
   contacted: boolean;
+  manually_no_response: boolean;
   budget: number | null;
   payment_status: PaymentStatus;
   nif: string | null;
@@ -266,7 +266,6 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   "100_pago": "100% pago",
   "70_pago": "70% pago",
   "30_pago": "30% pago",
-  "30_por_pagar": "30% por pagar",
   "100_por_pagar": "100% por pagar",
 };
 

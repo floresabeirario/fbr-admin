@@ -101,25 +101,36 @@ const SEM_RESPOSTA_DAYS = 4;
 export function isWithoutResponse(order: Order): boolean {
   if (order.status !== "entrega_flores_agendar") return false;
   if (order.contacted) return false;
+  if (order.manually_no_response) return true;
   const days = differenceInDays(new Date(), new Date(order.created_at));
   return days >= SEM_RESPOSTA_DAYS;
 }
 
+// Ordena por data do evento ascendente (mais próxima primeiro);
+// encomendas sem data ficam no fim.
+function byEventDateAsc(a: Order, b: Order): number {
+  if (!a.event_date && !b.event_date) return 0;
+  if (!a.event_date) return 1;
+  if (!b.event_date) return -1;
+  return a.event_date.localeCompare(b.event_date);
+}
+
 // Agrupa as encomendas para a vista de tabela
 export function groupOrders(orders: Order[]) {
-  const semResposta = orders.filter(isWithoutResponse);
+  const sorted = [...orders].sort(byEventDateAsc);
+  const semResposta = sorted.filter(isWithoutResponse);
   const semRespostaIds = new Set(semResposta.map((o) => o.id));
 
   return {
-    pre_reservas: orders.filter(
+    pre_reservas: sorted.filter(
       (o) =>
         o.status === "entrega_flores_agendar" && !semRespostaIds.has(o.id)
     ),
     sem_resposta: semResposta,
-    reservas: orders.filter((o) =>
+    reservas: sorted.filter((o) =>
       ["entrega_agendada", "flores_enviadas", "flores_recebidas"].includes(o.status)
     ),
-    preservacao_design: orders.filter((o) =>
+    preservacao_design: sorted.filter((o) =>
       [
         "flores_na_prensa",
         "reconstrucao_botanica",
@@ -127,7 +138,7 @@ export function groupOrders(orders: Order[]) {
         "a_aguardar_aprovacao",
       ].includes(o.status)
     ),
-    finalizacao: orders.filter((o) =>
+    finalizacao: sorted.filter((o) =>
       [
         "a_ser_emoldurado",
         "emoldurado",
@@ -136,8 +147,8 @@ export function groupOrders(orders: Order[]) {
         "quadro_enviado",
       ].includes(o.status)
     ),
-    concluidos: orders.filter((o) => o.status === "quadro_recebido"),
-    cancelamentos: orders.filter((o) => o.status === "cancelado"),
+    concluidos: sorted.filter((o) => o.status === "quadro_recebido"),
+    cancelamentos: sorted.filter((o) => o.status === "cancelado"),
   };
 }
 

@@ -83,18 +83,17 @@ export const STATUS_GROUPS: Array<{ label: string; statuses: OrderStatus[] }> = 
   { label: "Cancelado",           statuses: ["cancelado"] },
 ];
 
+// Gradiente vermelho → âmbar → lime → verde, conforme a quantia já paga
 export const PAYMENT_COLORS: Record<PaymentStatus, string> = {
   "100_pago":      "bg-green-100 text-green-800 border-green-300",
-  "70_pago":       "bg-yellow-100 text-yellow-800 border-yellow-300",
-  "30_pago":       "bg-yellow-100 text-yellow-800 border-yellow-300",
-  "30_por_pagar":  "bg-red-100 text-red-700 border-red-300",
+  "70_pago":       "bg-lime-100 text-lime-800 border-lime-300",
+  "30_pago":       "bg-amber-100 text-amber-900 border-amber-300",
   "100_por_pagar": "bg-red-100 text-red-700 border-red-300",
 };
 
 export const PAYMENT_DOT_COLORS: Record<PaymentStatus, string> = {
   "100_pago":      "bg-green-500",
-  "70_pago":       "bg-yellow-500",
-  "30_pago":       "bg-yellow-500",
-  "30_por_pagar":  "bg-red-500",
+  "70_pago":       "bg-lime-500",
+  "30_pago":       "bg-amber-500",
   "100_por_pagar": "bg-red-600",
 };
