@@ -302,6 +302,10 @@ function PlaceholderBox({ icon, title, description }: { icon: React.ReactNode; t
 const inp = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg";
 const sel = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-lg";
 
+// Variantes "discretas" para o hero: parecem texto estático, revelam-se editáveis ao hover/focus.
+const inpSubtle = "h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors";
+const selSubtle = "h-9 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
+
 // ── Componente principal ───────────────────────────────────────
 
 export default function WorkbenchClient({ order }: { order: Order }) {
@@ -595,7 +599,19 @@ export default function WorkbenchClient({ order }: { order: Order }) {
             <aside className="lg:col-span-3">
               <div className="space-y-5 lg:sticky lg:top-2">
 
-              <Card title="Comunicações" icon={<MessageCircle className="h-3.5 w-3.5" />} accent="blue">
+              <Card
+                title="Comunicações"
+                icon={<MessageCircle className="h-3.5 w-3.5" />}
+                accent="blue"
+                action={
+                  <span
+                    className="text-base leading-none"
+                    title={local.form_language === "pt" ? "Formulário preenchido em Português" : "Formulário preenchido em Inglês"}
+                  >
+                    {local.form_language === "pt" ? "🇵🇹" : "🇬🇧"}
+                  </span>
+                }
+              >
                 {/* Contacto preferido (movido das antigas dados-do-cliente) */}
                 <div className="rounded-lg bg-[#FAF8F5] border border-[#E8E0D5] p-3 space-y-2">
                   <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">
@@ -793,17 +809,9 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-rose-600 mb-2">
                         Cliente
                       </p>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                        <Field label="Nome">
-                          <Input className={inp} value={local.client_name} onChange={(e) => update("client_name", e.target.value)} />
-                        </Field>
-                        <Field label="Email">
-                          <Input className={inp} type="email" value={local.email ?? ""} onChange={(e) => update("email", e.target.value || null)} />
-                        </Field>
-                        <Field label="Telemóvel" span2>
-                          <Input className={inp} value={local.phone ?? ""} onChange={(e) => update("phone", e.target.value || null)} />
-                        </Field>
-                      </div>
+                      <Field label="Nome">
+                        <Input className={inpSubtle} value={local.client_name} onChange={(e) => update("client_name", e.target.value)} />
+                      </Field>
                     </div>
 
                     <Separator className="bg-[#F0EAE0]" />
@@ -816,7 +824,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                         <Field label="Tipo">
                           <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
-                            <SelectTrigger className={sel}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
+                            <SelectTrigger className={selSubtle}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
                             <SelectContent>
                               {(Object.keys(EVENT_TYPE_LABELS) as Array<keyof typeof EVENT_TYPE_LABELS>).map((t) => (
                                 <SelectItem key={t} value={t}>{EVENT_TYPE_LABELS[t]}</SelectItem>
@@ -826,7 +834,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         </Field>
                         <Field label="Data">
                           <Input
-                            className={`${inp} ${urgentEvent ? "border-red-300 bg-red-50" : ""}`}
+                            className={`${inpSubtle} ${urgentEvent ? "border-red-300 bg-red-50" : ""}`}
                             type="date"
                             value={toDateInput(local.event_date)}
                             onChange={(e) => update("event_date", e.target.value || null)}
@@ -840,17 +848,12 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                           </div>
                         )}
                         {isWedding && (
-                          <Field label="Nome dos noivos" span2>
-                            <Input className={inp} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ana & João" />
+                          <Field label="Nome dos noivos">
+                            <Input className={inpSubtle} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ana & João" />
                           </Field>
                         )}
-                        <Field label="Localização" span2>
-                          <Input className={inp} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Quinta / Igreja / Cidade" />
-                        </Field>
-                        <Field label="Idioma do form">
-                          <p className="h-9 flex items-center text-sm text-[#3D2B1F]">
-                            {local.form_language === "pt" ? "🇵🇹 Português" : "🇬🇧 English"}
-                          </p>
+                        <Field label="Localização" span2={!isWedding}>
+                          <Input className={inpSubtle} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Quinta / Igreja / Cidade" />
                         </Field>
                       </div>
                     </div>
