@@ -178,7 +178,7 @@ export function StatusSelect({
       </SelectTrigger>
       <SelectContent
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[420px] p-0 rounded-md border border-[#E8E0D5]"
+        className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-[#E8E0D5]"
       >
         {STATUS_GROUPS.map((group, gi) => (
           <div key={group.label}>
