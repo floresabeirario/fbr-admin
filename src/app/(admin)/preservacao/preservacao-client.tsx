@@ -187,13 +187,17 @@ export function StatusSelect({
               {group.label}
             </div>
             <div className="px-1 pb-1">
-              {group.statuses.map((s) => (
-                <SelectItem key={s} value={s} className="my-0.5">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
-                    {STATUS_LABELS[s]}
-                  </span>
-                </SelectItem>
-              ))}
+              {group.statuses.map((s) => {
+                const Icon = STATUS_ICONS[s];
+                return (
+                  <SelectItem key={s} value={s} className="my-0.5">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
+                      {STATUS_LABELS[s]}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </div>
           </div>
         ))}
