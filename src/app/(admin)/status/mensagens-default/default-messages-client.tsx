@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, RotateCcw, Loader2, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, RotateCcw, Loader2, Check, AlertCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -36,8 +36,10 @@ function buildDraft(saved: PartialPublicMessages): Draft {
 
 export default function DefaultMessagesClient({
   initial,
+  canEdit,
 }: {
   initial: PartialPublicMessages;
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(() => buildDraft(initial));
@@ -96,6 +98,15 @@ export default function DefaultMessagesClient({
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-5xl">
+      {!canEdit && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            <strong>Modo leitura.</strong> Não tens permissão para editar mensagens default.
+          </span>
+        </div>
+      )}
+      <fieldset disabled={!canEdit} className="contents">
       {/* Header */}
       <header className="space-y-3">
         <Link
@@ -237,6 +248,7 @@ export default function DefaultMessagesClient({
           </Button>
         </div>
       </div>
+      </fieldset>
     </div>
   );
 }

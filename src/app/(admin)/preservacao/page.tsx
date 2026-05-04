@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentRole } from "@/lib/auth/server";
 import { groupOrders } from "@/lib/supabase/orders";
 import type { Order } from "@/types/database";
 import PreservacaoClient from "./preservacao-client";
 
 export default async function PreservacaoPage() {
   const supabase = await createClient();
+  const role = await getCurrentRole();
 
   const { data, error } = await supabase
     .from("orders")
@@ -19,6 +21,7 @@ export default async function PreservacaoPage() {
     <PreservacaoClient
       initialOrders={orders}
       initialGrouped={grouped}
+      canEdit={role === "admin"}
     />
   );
 }

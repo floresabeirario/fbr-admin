@@ -22,6 +22,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -46,14 +47,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; photo: string } | null>(null);
+  const [profile, setProfile] = useState<{ name: string; photo: string; role: Role } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) {
         const match = PROFILES.find(p => p.email === data.user!.email);
-        if (match) setProfile(match);
+        if (match) setProfile({ ...match, role: roleForEmail(data.user!.email) });
       }
     });
   }, []);
@@ -116,7 +117,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
               </div>
               {!collapsed && (
-                <span className="text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] truncate">{profile.name}</span>
+                <div className="flex flex-col min-w-0 leading-tight">
+                  <span className="text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] truncate">{profile.name}</span>
+                  {profile.role === "viewer" && (
+                    <span className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold">
+                      {ROLE_LABELS.viewer}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           )}

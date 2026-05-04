@@ -307,7 +307,7 @@ const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tra
 
 // ── Componente principal ───────────────────────────────────────
 
-export default function WorkbenchClient({ order }: { order: Order }) {
+export default function WorkbenchClient({ order, canEdit }: { order: Order; canEdit: boolean }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
   // Padrão React: reset de estado derivado quando o prop `order` muda
@@ -484,6 +484,17 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
   return (
     <div className="flex flex-col h-full bg-[#F7F4F0]">
+
+      {!canEdit && (
+        <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-800 flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            <strong>Modo leitura.</strong> Não tens permissão para editar encomendas. Para alterações, fala com a MJ ou o António.
+          </span>
+        </div>
+      )}
+
+      <fieldset disabled={!canEdit} className="contents">
 
       {/* ── Header fixo ──────────────────────────────────────── */}
       <header className="shrink-0 sticky top-0 z-20 bg-white border-b border-[#E8E0D5] shadow-sm">
@@ -1501,6 +1512,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      </fieldset>
     </div>
   );
 }

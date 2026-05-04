@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/server";
 import type { OrderUpdate, Order } from "@/types/database";
 import type { PartialPublicMessages } from "@/lib/public-status";
 
@@ -15,6 +16,7 @@ export async function updateOrderPublicStatusAction(
     | "estimated_delivery_date"
   >,
 ): Promise<Order> {
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("orders")
@@ -31,6 +33,7 @@ export async function updateOrderPublicStatusAction(
 export async function updateDefaultMessagesAction(
   messages: PartialPublicMessages,
 ): Promise<void> {
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase
     .from("public_status_settings")

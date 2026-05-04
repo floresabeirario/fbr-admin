@@ -15,6 +15,7 @@ import {
   EyeOff,
   Globe,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -94,9 +95,11 @@ function preview(s: string | null | undefined, fallback: string): string {
 export default function StatusClient({
   initialOrders,
   initialDefaults,
+  canEdit,
 }: {
   initialOrders: Order[];
   initialDefaults: PartialPublicMessages;
+  canEdit: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [phaseFilter, setPhaseFilter] = useState<"todas" | PublicPhase>("todas");
@@ -130,6 +133,14 @@ export default function StatusClient({
 
   return (
     <div className="p-6 lg:p-8 space-y-5">
+      {!canEdit && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            <strong>Modo leitura.</strong> Não tens permissão para editar mensagens públicas.
+          </span>
+        </div>
+      )}
       {/* Header */}
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -150,12 +161,14 @@ export default function StatusClient({
             a mensagem e o idioma podem ser personalizados por encomenda.
           </p>
         </div>
-        <Link href="/status/mensagens-default">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Settings2 className="h-4 w-4" />
-            Mensagens default
-          </Button>
-        </Link>
+        {canEdit && (
+          <Link href="/status/mensagens-default">
+            <Button variant="outline" size="sm" className="gap-2">
+              <Settings2 className="h-4 w-4" />
+              Mensagens default
+            </Button>
+          </Link>
+        )}
       </header>
 
       {/* Toolbar */}
@@ -244,6 +257,7 @@ export default function StatusClient({
                   order={o}
                   defaults={initialDefaults}
                   onEdit={() => setEditing(o)}
+                  canEdit={canEdit}
                 />
               ))}
             </tbody>
@@ -269,10 +283,12 @@ function StatusRow({
   order,
   defaults,
   onEdit,
+  canEdit,
 }: {
   order: Order;
   defaults: PartialPublicMessages;
   onEdit: () => void;
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -344,7 +360,7 @@ function StatusRow({
 
       {/* Idioma */}
       <td className="px-3 py-3 align-top">
-        <Select value={lang} onValueChange={(v) => changeLang(v as PublicStatusLanguage)} disabled={isPending}>
+        <Select value={lang} onValueChange={(v) => changeLang(v as PublicStatusLanguage)} disabled={isPending || !canEdit}>
           <SelectTrigger className="h-7 text-xs w-[130px] bg-white">
             {isPending && optimisticLang !== null ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -366,8 +382,9 @@ function StatusRow({
       <td className="px-3 py-3 align-top max-w-[320px]">
         <button
           onClick={onEdit}
-          className="text-left text-xs text-[#3D2B1F] hover:text-sky-700 transition-colors flex items-start gap-1.5 group"
-          title="Editar mensagens"
+          disabled={!canEdit}
+          className="text-left text-xs text-[#3D2B1F] hover:text-sky-700 transition-colors flex items-start gap-1.5 group disabled:hover:text-[#3D2B1F] disabled:cursor-default"
+          title={canEdit ? "Editar mensagens" : "Modo leitura"}
         >
           <span className="leading-relaxed">{preview(order.public_status_message_pt, ptDefault)}</span>
           {ptIsCustom && (
@@ -375,7 +392,7 @@ function StatusRow({
               <CheckCircle2 className="h-3 w-3 text-emerald-600" />
             </span>
           )}
-          <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 mt-0.5" />
+          {canEdit && <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 mt-0.5" />}
         </button>
       </td>
 
@@ -383,8 +400,9 @@ function StatusRow({
       <td className="px-3 py-3 align-top max-w-[320px]">
         <button
           onClick={onEdit}
-          className="text-left text-xs text-[#3D2B1F] hover:text-sky-700 transition-colors flex items-start gap-1.5 group"
-          title="Editar mensagens"
+          disabled={!canEdit}
+          className="text-left text-xs text-[#3D2B1F] hover:text-sky-700 transition-colors flex items-start gap-1.5 group disabled:hover:text-[#3D2B1F] disabled:cursor-default"
+          title={canEdit ? "Editar mensagens" : "Modo leitura"}
         >
           <span className="leading-relaxed">{preview(order.public_status_message_en, enDefault)}</span>
           {enIsCustom && (
@@ -392,7 +410,7 @@ function StatusRow({
               <CheckCircle2 className="h-3 w-3 text-emerald-600" />
             </span>
           )}
-          <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 mt-0.5" />
+          {canEdit && <Pencil className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-60 mt-0.5" />}
         </button>
       </td>
 
@@ -403,7 +421,7 @@ function StatusRow({
           value={toDateInput(estDate)}
           onChange={(e) => changeDate(e.target.value)}
           className="h-7 text-xs w-[140px] bg-white"
-          disabled={isPending}
+          disabled={isPending || !canEdit}
         />
         {estDate && (
           <p

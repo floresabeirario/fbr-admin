@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentRole } from "@/lib/auth/server";
 import { notFound } from "next/navigation";
 import type { Order } from "@/types/database";
 import WorkbenchClient from "./workbench-client";
@@ -10,6 +11,7 @@ export default async function WorkbenchPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const role = await getCurrentRole();
 
   // Aceita tanto o order_id curto (alfanumérico) como o UUID interno,
   // para que links antigos continuem a funcionar.
@@ -24,5 +26,5 @@ export default async function WorkbenchPage({
 
   if (error || !data) notFound();
 
-  return <WorkbenchClient order={data as Order} />;
+  return <WorkbenchClient order={data as Order} canEdit={role === "admin"} />;
 }

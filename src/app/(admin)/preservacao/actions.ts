@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/server";
 import type { OrderInsert, OrderUpdate, OrderStatus, Order } from "@/types/database";
 
 export async function createOrderAction(order: OrderInsert): Promise<Order> {
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("orders")
@@ -17,6 +19,7 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
 }
 
 export async function updateOrderAction(id: string, updates: OrderUpdate): Promise<Order> {
+  await requireAdmin();
   const supabase = await createClient();
 
   // Ao passar para "A ser emoldurado" → gerar cupão automático
@@ -42,6 +45,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
 }
 
 export async function deleteOrderAction(id: string): Promise<void> {
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase
     .from("orders")
