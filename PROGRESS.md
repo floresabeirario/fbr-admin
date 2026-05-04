@@ -48,7 +48,7 @@ A Fase 2 fica fechada. Tarefas (Dashboard) e Parcerias — onde a Ana ganha edi�
 
 ⚠ **Antes de começar a próxima sessão**, executar `supabase/migrations/005_public_status.sql` no Supabase SQL Editor (adiciona colunas `public_status_message_pt/en`, `public_status_language`, `estimated_delivery_date`, `public_status_updated_at`, trigger `sync_public_status_fields`, e tabela `public_status_settings`).
 
-⚠ **Importação histórica:** correr também `supabase/migrations/006_import_monday.sql` no SQL Editor — importa as 17 encomendas históricas do Monday.com (Sandra, João e "Teste Noiva" excluídos por já estarem manualmente ou serem teste). Está envolvido em `BEGIN/COMMIT` por isso ou entra tudo ou nada.
+✅ **Importação histórica feita (2026-05-04):** as 17 encomendas do Monday foram importadas via `supabase/migrations/006_import_monday.sql`. Sandra, João e "Teste Noiva" excluídos (manuais/teste). Migração já corrida — não voltar a correr.
 
 ⚠ **Pendente para a Fase 5 (formulário público):** quando o cliente escolher "Florista" no campo "Como conheceu a FBR", tem de aparecer uma caixa obrigatória "Que florista?" (já implementado nos formulários admin: nova encomenda + workbench).
 
