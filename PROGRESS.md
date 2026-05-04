@@ -48,9 +48,14 @@ A Fase 2 fica fechada. Tarefas (Dashboard) e Parcerias — onde a Ana ganha edi�
 
 ⚠ **Antes de começar a próxima sessão**, executar `supabase/migrations/005_public_status.sql` no Supabase SQL Editor (adiciona colunas `public_status_message_pt/en`, `public_status_language`, `estimated_delivery_date`, `public_status_updated_at`, trigger `sync_public_status_fields`, e tabela `public_status_settings`).
 
+⚠ **Importação histórica:** correr também `supabase/migrations/006_import_monday.sql` no SQL Editor — importa as 17 encomendas históricas do Monday.com (Sandra, João e "Teste Noiva" excluídos por já estarem manualmente ou serem teste). Está envolvido em `BEGIN/COMMIT` por isso ou entra tudo ou nada.
+
+⚠ **Pendente para a Fase 5 (formulário público):** quando o cliente escolher "Florista" no campo "Como conheceu a FBR", tem de aparecer uma caixa obrigatória "Que florista?" (já implementado nos formulários admin: nova encomenda + workbench).
+
 **Decisão arquitetural confirmada (2026-05-03):** todos os ficheiros relacionados com encomendas (fotos, comprovativos, faturas, inspirações) são guardados no Google Drive, na pasta do cliente. A plataforma só guarda o URL/link. Não usar Supabase Storage para isto.
 
 ## Notas de sessão
+- **2026-05-04 (sessão 15):** Importação das encomendas históricas do Monday. Script gerador `scripts/import-monday.js` lê `public/mondayexport.xlsx` e produz `supabase/migrations/006_import_monday.sql` com 17 INSERTs. Excluídas: "Teste Noiva teste", João Correia, Sandra Carvalho (estes dois últimos já metidos manualmente). Decisões: telemóveis convertidos de notação científica para string de dígitos; "Sinal por pagar"/"N/A" → `100_por_pagar`; Laureana e Eugenia forçadas para `cancelado` (deram gosto antes de pagar); IDs do Sheets reaproveitados como `order_id` quando existem; cupões antigos curtos (`F2B5R`, `F2B5R2`, `F2B6R1`) mantidos como estão por terem sido enviados aos clientes. **Nova regra para cupões:** alfabeto sem `0` nem `O` (evita confusão na leitura) — extraído para `src/lib/coupon.ts` e usado em `actions.ts` e `lib/supabase/orders.ts`. **Florista obrigatória:** campo "Que florista?" aparece e é validado em `nova-encomenda-sheet.tsx` quando how_found_fbr=florista; também aparece (sem validação dura) no workbench. Falta replicar no formulário público (Fase 5).
 - **2026-05-02 (sessão 1):** Leitura do PDF spec. Plano por fases definido.
 - **2026-05-02 (sessão 2):** Fase 1 completa. Login Netflix com fotos a funcionar no Vercel. Mudámos de Google OAuth para email+password com subendereços Gmail. Deploy Vercel configurado com env vars.
 - **2026-05-02 (sessão 3):** Fase 2 iniciada. Schema BD criado e migrado no Supabase. Tabela de encomendas com grupos colapsáveis a funcionar. Formulário "Nova Encomenda" funcional. Corrigido 403 (mudança para Server Component + Server Actions). Deploy OK.

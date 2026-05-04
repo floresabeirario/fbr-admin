@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/server";
+import { generateCouponCode } from "@/lib/coupon";
 import type { OrderInsert, OrderUpdate, OrderStatus, Order } from "@/types/database";
 
 export async function createOrderAction(order: OrderInsert): Promise<Order> {
@@ -24,12 +25,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
 
   // Ao passar para "A ser emoldurado" → gerar cupão automático
   if (updates.status === "a_ser_emoldurado") {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let code = "";
-    for (let i = 0; i < 6; i++) {
-      code += chars[Math.floor(Math.random() * chars.length)];
-    }
-    updates.coupon_code = code;
+    updates.coupon_code = generateCouponCode();
     updates.coupon_status = "nao_utilizado";
   }
 

@@ -1118,6 +1118,16 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
                       <Input className={inp} value={local.gift_voucher_code ?? ""} onChange={(e) => update("gift_voucher_code", e.target.value || null)} placeholder="Código de 6 dígitos" />
                     </Field>
                   )}
+                  {local.how_found_fbr === "florista" && (
+                    <Field label="Que florista? *" hint="Obrigatório quando o cliente escolhe Florista.">
+                      <Input
+                        className={inp}
+                        value={local.how_found_fbr_other ?? ""}
+                        onChange={(e) => update("how_found_fbr_other", e.target.value || null)}
+                        placeholder="Nome da florista que recomendou…"
+                      />
+                    </Field>
+                  )}
                   {local.how_found_fbr === "outro" && (
                     <Field label='Especifique "Outro"' hint="O cliente preencheu este campo no formulário público.">
                       <Input

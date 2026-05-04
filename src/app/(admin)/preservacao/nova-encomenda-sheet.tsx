@@ -73,6 +73,8 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
     if (!form.contact_preference) errors.contact_preference = "Selecciona o contacto preferido";
     if (!form.email?.trim() && !form.phone?.trim())
       errors.email = "Email ou telemóvel obrigatório";
+    if (form.how_found_fbr === "florista" && !form.how_found_fbr_other?.trim())
+      errors.how_found_fbr_other = "Indica o nome da florista";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -331,6 +333,17 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                   value={form.gift_voucher_code ?? ""}
                   onChange={(e) => set("gift_voucher_code", e.target.value || null)}
                   placeholder="Código de 6 dígitos"
+                />
+              </Field>
+            )}
+
+            {form.how_found_fbr === "florista" && (
+              <Field label="Que florista? *" error={fieldErrors.how_found_fbr_other}>
+                <Input
+                  value={form.how_found_fbr_other ?? ""}
+                  onChange={(e) => set("how_found_fbr_other", e.target.value || null)}
+                  placeholder="Nome da florista que recomendou…"
+                  className={inputClass(fieldErrors.how_found_fbr_other)}
                 />
               </Field>
             )}

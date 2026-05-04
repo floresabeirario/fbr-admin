@@ -1,6 +1,7 @@
 import { createClient } from "./client";
 import type { Order, OrderInsert, OrderUpdate, OrderStatus } from "@/types/database";
 import { differenceInDays } from "date-fns";
+import { generateCouponCode } from "@/lib/coupon";
 
 // ── Leitura ───────────────────────────────────────────────────
 
@@ -140,13 +141,3 @@ export function groupOrders(orders: Order[]) {
   };
 }
 
-// ── Utilitários ───────────────────────────────────────────────
-
-function generateCouponCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
