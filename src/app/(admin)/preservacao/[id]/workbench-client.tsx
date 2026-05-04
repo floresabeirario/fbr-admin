@@ -1202,7 +1202,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       <SelectContent />
                     </Select>
                   </Field>
-                  <div className="grid grid-cols-[6.5rem_1fr] gap-3">
+                  <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-3">
                     <Field label="Comissão (€)">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
