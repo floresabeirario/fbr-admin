@@ -397,7 +397,7 @@ export const FORM_LANGUAGE_LABELS: Record<FormLanguage, string> = {
 export const PUBLIC_STATUS_LANGUAGE_LABELS: Record<PublicStatusLanguage, string> = {
   pt: "🇵🇹 Só PT",
   en: "🇬🇧 Só EN",
-  ambos: "🇵🇹 🇬🇧 Ambos",
+  ambos: "🇵🇹 🇬🇧 Ambos (bilingue)",
 };
 
 export const SIM_NAO_LABELS: Record<"sim" | "nao", string> = {

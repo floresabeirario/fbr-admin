@@ -14,11 +14,29 @@ ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS public_status_message_en TEXT;
 
 -- ── Idioma a mostrar ao cliente ────────────────────────────────
--- 'pt' | 'en' | 'ambos' (default: ambos)
+-- 'pt' | 'en' | 'ambos'.
+-- Default = idioma do formulário (form_language). O admin muda
+-- para 'ambos' quando quer mostrar nas duas línguas (ex: casal
+-- bilingue). Implementado via trigger sync_public_status_fields
+-- e backfill abaixo.
 ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS public_status_language TEXT
-    NOT NULL DEFAULT 'ambos'
     CHECK (public_status_language IN ('pt', 'en', 'ambos'));
+
+-- Se a coluna já tinha sido criada com DEFAULT 'ambos' (versão
+-- anterior desta migração), removemos o default agora. Idempotente:
+-- se não houver default, nada acontece.
+ALTER TABLE orders
+  ALTER COLUMN public_status_language DROP DEFAULT;
+
+-- Backfill: para encomendas que ainda não têm valor, copiar form_language.
+UPDATE orders
+  SET public_status_language = COALESCE(form_language, 'pt')
+  WHERE public_status_language IS NULL;
+
+-- Agora podemos garantir NOT NULL (todas as linhas têm valor).
+ALTER TABLE orders
+  ALTER COLUMN public_status_language SET NOT NULL;
 
 -- ── Data prevista de entrega ───────────────────────────────────
 -- Auto-gerada (data + 6 meses) quando o estado passa para
@@ -34,11 +52,17 @@ ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS public_status_updated_at TIMESTAMPTZ
     DEFAULT now();
 
--- ── Trigger: auto-preencher estimated_delivery_date e
---             public_status_updated_at ────────────────────────────
+-- ── Trigger: auto-preencher estimated_delivery_date,
+--             public_status_language e public_status_updated_at ──
 CREATE OR REPLACE FUNCTION sync_public_status_fields()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Em INSERT: se o admin não explicitou um idioma para o status
+  -- público, copia o idioma do formulário (default: 'pt').
+  IF TG_OP = 'INSERT' AND NEW.public_status_language IS NULL THEN
+    NEW.public_status_language := COALESCE(NEW.form_language, 'pt');
+  END IF;
+
   -- Se o estado mudou para "flores_na_prensa" e ainda não há
   -- data prevista, gera (data actual + 6 meses).
   IF NEW.status = 'flores_na_prensa'
@@ -55,6 +79,7 @@ BEGIN
     OR NEW.public_status_message_pt IS DISTINCT FROM OLD.public_status_message_pt
     OR NEW.public_status_message_en IS DISTINCT FROM OLD.public_status_message_en
     OR NEW.estimated_delivery_date  IS DISTINCT FROM OLD.estimated_delivery_date
+    OR NEW.public_status_language   IS DISTINCT FROM OLD.public_status_language
   ) THEN
     NEW.public_status_updated_at := now();
   END IF;
@@ -96,7 +121,8 @@ ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE public_status_settings ENABLE ROW LEVEL SECURITY;
 
--- Admins têm acesso total
+-- Admins têm acesso total (DROP IF EXISTS torna a migração re-runnable)
+DROP POLICY IF EXISTS "admins_all_settings" ON public_status_settings;
 CREATE POLICY "admins_all_settings" ON public_status_settings FOR ALL
   USING (
     auth.jwt() ->> 'email' IN (
@@ -112,6 +138,7 @@ CREATE POLICY "admins_all_settings" ON public_status_settings FOR ALL
   );
 
 -- Viewer (Ana) pode ler (precisa para a aba Status)
+DROP POLICY IF EXISTS "viewer_read_settings" ON public_status_settings;
 CREATE POLICY "viewer_read_settings" ON public_status_settings FOR SELECT
   USING (
     auth.jwt() ->> 'email' = 'info+ana@floresabeirario.pt'

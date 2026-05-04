@@ -1369,7 +1369,14 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   {PUBLIC_PHASE_LABEL_EN[STATUS_TO_PUBLIC_PHASE[local.status]]}
                 </p>
                 <Grid2>
-                  <Field label="Idioma">
+                  <Field
+                    label="Idioma"
+                    hint={
+                      local.public_status_language === local.form_language
+                        ? "Igual ao idioma do formulário. Muda só para casais bilingues."
+                        : undefined
+                    }
+                  >
                     <Select
                       value={local.public_status_language}
                       onValueChange={(v) => update("public_status_language", v as PublicStatusLanguage)}
