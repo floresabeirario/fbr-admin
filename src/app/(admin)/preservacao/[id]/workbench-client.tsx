@@ -1115,29 +1115,31 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
               <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
                 <div className="space-y-3">
-                  <Field label="Orçamento" hint="Calculado a partir da tabela de preços. Editável.">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
-                      <Input
-                        className={inp + " pl-7"}
-                        type="number" min={0} step={0.01}
-                        value={local.budget ?? ""}
-                        onChange={(e) => update("budget", e.target.value ? Number(e.target.value) : null)}
-                      />
-                    </div>
-                  </Field>
-                  <Field label="Pagamento">
-                    <Select value={local.payment_status} onValueChange={(v) => onPaymentStatusChange(v as PaymentStatus)}>
-                      <SelectTrigger className={`${sel} font-medium ${PAYMENT_COLORS[local.payment_status] ?? ""}`}>
-                        <SelectValue labels={PAYMENT_STATUS_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(PAYMENT_STATUS_LABELS) as Array<keyof typeof PAYMENT_STATUS_LABELS>).map((s) => (
-                          <SelectItem key={s} value={s}>{PAYMENT_STATUS_LABELS[s]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Orçamento" hint="Calculado a partir da tabela de preços.">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+                        <Input
+                          className={inp + " pl-7"}
+                          type="number" min={0} step={0.01}
+                          value={local.budget ?? ""}
+                          onChange={(e) => update("budget", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Pagamento">
+                      <Select value={local.payment_status} onValueChange={(v) => onPaymentStatusChange(v as PaymentStatus)}>
+                        <SelectTrigger className={`${sel} font-medium ${PAYMENT_COLORS[local.payment_status] ?? ""}`}>
+                          <SelectValue labels={PAYMENT_STATUS_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(PAYMENT_STATUS_LABELS) as Array<keyof typeof PAYMENT_STATUS_LABELS>).map((s) => (
+                            <SelectItem key={s} value={s}>{PAYMENT_STATUS_LABELS[s]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
 
                   {/* Pediu fatura — Sim/Não com NIF inline à direita do Sim */}
                   <div className="space-y-1.5">
