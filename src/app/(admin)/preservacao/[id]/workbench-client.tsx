@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -49,21 +50,19 @@ import {
   Paperclip,
   Heart,
   Receipt,
-  User,
-  Calendar,
   Flower2,
-  Layers,
-  Boxes,
   StickyNote,
   Wallet,
   Handshake,
   Package,
   Ticket,
   Pencil,
+  CalendarPlus,
   CalendarClock,
   CalendarCheck,
   Send,
   PackageCheck,
+  Layers,
   Palette,
   Hourglass,
   Hammer,
@@ -93,13 +92,19 @@ import {
   FRAME_SIZE_LABELS,
   YES_NO_INFO_LABELS,
   HOW_FOUND_FBR_LABELS,
+  HOW_FOUND_FBR_COLORS,
   PARTNER_COMMISSION_STATUS_LABELS,
+  PARTNER_COMMISSION_STATUS_COLORS,
   COUPON_STATUS_LABELS,
+  COUPON_STATUS_COLORS,
   CLIENT_FEEDBACK_STATUS_LABELS,
+  CLIENT_FEEDBACK_STATUS_COLORS,
   SIM_NAO_LABELS,
 } from "@/types/database";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { pt } from "date-fns/locale";
+import { relativeMonthsDays } from "@/lib/format-date";
+import { toEmbeddableImageUrl } from "@/lib/drive-url";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -108,27 +113,43 @@ function toDateInput(val: string | null | undefined): string {
   try { return format(parseISO(val), "yyyy-MM-dd"); } catch { return ""; }
 }
 
-function fmtDate(val: string | null | undefined): string {
-  if (!val) return "—";
-  try { return format(parseISO(val), "dd MMM yyyy", { locale: pt }); } catch { return "—"; }
-}
+// ── Cores e ícones por estado ─────────────────────────────────
+// (Sincronizar com preservacao-client.tsx — devem coincidir.)
 
-const STATUS_COLORS: Record<string, string> = {
-  entrega_flores_agendar: "bg-rose-100 text-[#3D2B1F] border-rose-200",
-  entrega_agendada:       "bg-pink-100 text-[#3D2B1F] border-pink-200",
-  flores_enviadas:        "bg-fuchsia-100 text-[#3D2B1F] border-fuchsia-200",
-  flores_recebidas:       "bg-purple-100 text-[#3D2B1F] border-purple-200",
-  flores_na_prensa:       "bg-violet-100 text-[#3D2B1F] border-violet-200",
-  reconstrucao_botanica:  "bg-indigo-100 text-[#3D2B1F] border-indigo-200",
-  a_compor_design:        "bg-blue-100 text-[#3D2B1F] border-blue-200",
-  a_aguardar_aprovacao:   "bg-sky-100 text-[#3D2B1F] border-sky-200",
-  a_ser_emoldurado:       "bg-cyan-100 text-[#3D2B1F] border-cyan-200",
-  emoldurado:             "bg-teal-100 text-[#3D2B1F] border-teal-200",
-  a_ser_fotografado:      "bg-emerald-100 text-[#3D2B1F] border-emerald-200",
-  quadro_pronto:          "bg-lime-100 text-[#3D2B1F] border-lime-200",
-  quadro_enviado:         "bg-yellow-100 text-[#3D2B1F] border-yellow-200",
-  quadro_recebido:        "bg-green-100 text-[#3D2B1F] border-green-200",
-  cancelado:              "bg-stone-100 text-stone-500 border-stone-200",
+const STATUS_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
+  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300",
+  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300",
+  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300",
+  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300",
+  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300",
+  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300",
+  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300",
+  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300",
+  a_ser_emoldurado:       "bg-cyan-100 text-cyan-900 border-cyan-300",
+  emoldurado:             "bg-teal-100 text-teal-900 border-teal-300",
+  a_ser_fotografado:      "bg-emerald-100 text-emerald-900 border-emerald-300",
+  quadro_pronto:          "bg-lime-100 text-lime-900 border-lime-300",
+  quadro_enviado:         "bg-yellow-100 text-yellow-900 border-yellow-300",
+  quadro_recebido:        "bg-green-100 text-green-900 border-green-300",
+  cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
+};
+
+const STATUS_DOT_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
+  entrega_flores_agendar: "bg-rose-500",
+  entrega_agendada:       "bg-pink-500",
+  flores_enviadas:        "bg-fuchsia-500",
+  flores_recebidas:       "bg-purple-500",
+  flores_na_prensa:       "bg-violet-500",
+  reconstrucao_botanica:  "bg-indigo-500",
+  a_compor_design:        "bg-blue-500",
+  a_aguardar_aprovacao:   "bg-sky-500",
+  a_ser_emoldurado:       "bg-cyan-500",
+  emoldurado:             "bg-teal-500",
+  a_ser_fotografado:      "bg-emerald-500",
+  quadro_pronto:          "bg-lime-500",
+  quadro_enviado:         "bg-yellow-500",
+  quadro_recebido:        "bg-green-500",
+  cancelado:              "bg-stone-400",
 };
 
 const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
@@ -149,30 +170,21 @@ const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
   cancelado:              Ban,
 };
 
-const STATUS_ITEM_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
-  entrega_flores_agendar: "bg-rose-50 text-[#3D2B1F]",
-  entrega_agendada:       "bg-pink-50 text-[#3D2B1F]",
-  flores_enviadas:        "bg-fuchsia-50 text-[#3D2B1F]",
-  flores_recebidas:       "bg-purple-50 text-[#3D2B1F]",
-  flores_na_prensa:       "bg-violet-50 text-[#3D2B1F]",
-  reconstrucao_botanica:  "bg-indigo-50 text-[#3D2B1F]",
-  a_compor_design:        "bg-blue-50 text-[#3D2B1F]",
-  a_aguardar_aprovacao:   "bg-sky-50 text-[#3D2B1F]",
-  a_ser_emoldurado:       "bg-cyan-50 text-[#3D2B1F]",
-  emoldurado:             "bg-teal-50 text-[#3D2B1F]",
-  a_ser_fotografado:      "bg-emerald-50 text-[#3D2B1F]",
-  quadro_pronto:          "bg-lime-50 text-[#3D2B1F]",
-  quadro_enviado:         "bg-yellow-50 text-[#3D2B1F]",
-  quadro_recebido:        "bg-green-50 text-[#3D2B1F]",
-  cancelado:              "bg-stone-50 text-stone-500",
-};
+const STATUS_GROUPS: Array<{ label: string; statuses: Array<keyof typeof STATUS_LABELS> }> = [
+  { label: "Pré-reserva",          statuses: ["entrega_flores_agendar"] },
+  { label: "Reservas",             statuses: ["entrega_agendada", "flores_enviadas", "flores_recebidas"] },
+  { label: "Preservação e design", statuses: ["flores_na_prensa", "reconstrucao_botanica", "a_compor_design", "a_aguardar_aprovacao"] },
+  { label: "Finalização",          statuses: ["a_ser_emoldurado", "emoldurado", "a_ser_fotografado", "quadro_pronto", "quadro_enviado"] },
+  { label: "Concluído",            statuses: ["quadro_recebido"] },
+  { label: "Cancelado",            statuses: ["cancelado"] },
+];
 
 const PAYMENT_COLORS: Record<string, string> = {
-  "100_pago":      "text-green-700 bg-green-50 border-green-200",
-  "70_pago":       "text-yellow-700 bg-yellow-50 border-yellow-200",
-  "30_pago":       "text-yellow-700 bg-yellow-50 border-yellow-200",
-  "30_por_pagar":  "text-red-600 bg-red-50 border-red-200",
-  "100_por_pagar": "text-red-700 bg-red-50 border-red-200",
+  "100_pago":      "text-green-800 bg-green-100 border-green-300",
+  "70_pago":       "text-yellow-800 bg-yellow-100 border-yellow-300",
+  "30_pago":       "text-yellow-800 bg-yellow-100 border-yellow-300",
+  "30_por_pagar":  "text-red-700 bg-red-100 border-red-300",
+  "100_por_pagar": "text-red-700 bg-red-100 border-red-300",
 };
 
 // Paleta de acentos por secção — discreta, só na borda esquerda + cor do ícone
@@ -197,15 +209,22 @@ const ACCENTS: Record<Accent, { border: string; icon: string; bgSoft: string }> 
   blue:    { border: "border-l-blue-300",    icon: "text-blue-500",    bgSoft: "bg-blue-50/50" },
 };
 
+// Opções de extras tal como aparecem no formulário público.
+// "Não pretendo incluir extras" e "Outro (especifique abaixo)" têm
+// comportamento especial (ver toggleExtra).
+const EXTRAS_NONE = "Não pretendo incluir extras";
+const EXTRAS_OTHER = "Outro (especifique abaixo)";
+
 const EXTRA_OPTIONS = [
-  "Convite",
-  "Foto",
-  "Velas",
-  "Folhas e ramos",
-  "Fitas",
-  "Tecidos",
-  "Renda",
-  "Acessório pessoal",
+  EXTRAS_NONE,
+  "Votos manuscritos",
+  "Convite do casamento",
+  "Fitas, tecidos ou rendas",
+  "Fotografia",
+  "Joia ou medalha",
+  "Coleira de animal",
+  "Cartas ou bilhetes",
+  EXTRAS_OTHER,
 ];
 
 // ── Componentes de layout ──────────────────────────────────────
@@ -288,6 +307,13 @@ const sel = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-lg
 export default function WorkbenchClient({ order }: { order: Order }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
+  // Padrão React: reset de estado derivado quando o prop `order` muda
+  // (ex: o `router.refresh()` traz novo snapshot do servidor).
+  const [trackedOrderUpdatedAt, setTrackedOrderUpdatedAt] = useState(order.updated_at);
+  if (order.updated_at !== trackedOrderUpdatedAt) {
+    setTrackedOrderUpdatedAt(order.updated_at);
+    setLocal(order);
+  }
   const pendingRef = useRef<OrderUpdate>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -306,10 +332,9 @@ export default function WorkbenchClient({ order }: { order: Order }) {
   const [driveUrlDraft, setDriveUrlDraft] = useState("");
   const [drivePopoverOpen, setDrivePopoverOpen] = useState(false);
 
-  useEffect(() => {
-    setLocal(order);
-    pendingRef.current = {};
-  }, [order]);
+  // Edição do ID curto da encomenda (popover no header)
+  const [orderIdDraft, setOrderIdDraft] = useState("");
+  const [orderIdPopoverOpen, setOrderIdPopoverOpen] = useState(false);
 
   const flush = useCallback(async () => {
     const updates = { ...pendingRef.current };
@@ -381,22 +406,47 @@ export default function WorkbenchClient({ order }: { order: Order }) {
     setDrivePopoverOpen(false);
   }
 
+  function saveOrderId() {
+    const v = orderIdDraft.trim().toUpperCase();
+    if (!v || v === local.order_id) {
+      setOrderIdPopoverOpen(false);
+      return;
+    }
+    update("order_id", v);
+    setOrderIdPopoverOpen(false);
+  }
+
+  // Cupão: gerar validade = data de hoje + 2 anos
+  function generateCouponExpiry() {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 2);
+    update("coupon_expiry", format(d, "yyyy-MM-dd"));
+  }
+
   const daysUntilEvent = local.event_date
     ? differenceInDays(parseISO(local.event_date), new Date())
     : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
   const isWedding = local.event_type === "casamento";
+  const eventRelative = local.event_date ? relativeMonthsDays(local.event_date) : null;
 
   const publicStatusUrl = `https://status.floresabeirario.pt/?id=${local.order_id}`;
+  const photoUrl = toEmbeddableImageUrl(local.flowers_photo_url);
 
   const extras: ExtrasInFrame = local.extras_in_frame ?? { options: [], notes: "" };
   function toggleExtra(opt: string) {
     const has = extras.options.includes(opt);
-    const next: ExtrasInFrame = {
-      options: has ? extras.options.filter((o) => o !== opt) : [...extras.options, opt],
-      notes: extras.notes,
-    };
-    update("extras_in_frame", next);
+    let nextOptions: string[];
+    if (opt === EXTRAS_NONE) {
+      // "Não pretendo incluir extras" é exclusivo: limpa tudo se ligar.
+      nextOptions = has ? [] : [EXTRAS_NONE];
+    } else if (has) {
+      nextOptions = extras.options.filter((o) => o !== opt);
+    } else {
+      // Ao escolher qualquer outro extra, remove o "Não pretendo incluir".
+      nextOptions = [...extras.options.filter((o) => o !== EXTRAS_NONE), opt];
+    }
+    update("extras_in_frame", { options: nextOptions, notes: extras.notes });
   }
   function setExtraNotes(v: string) {
     update("extras_in_frame", { options: extras.options, notes: v });
@@ -407,7 +457,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
   function addInspiration() {
     const url = newInspirationUrl.trim();
     if (!url) return;
-    const isImage = /\.(png|jpe?g|gif|webp|avif)$/i.test(url);
+    const isImage = /\.(png|jpe?g|gif|webp|avif)$/i.test(url) || /(?:drive|docs)\.google\.com/.test(url);
     const item: InspirationItem = { type: isImage ? "image" : "link", url };
     update("inspiration_gallery", [...gallery, item]);
     setNewInspirationUrl("");
@@ -424,6 +474,10 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
   const hasAnyPayment = ["100_pago", "70_pago", "30_pago"].includes(local.payment_status);
   const missingInvoice = hasAnyPayment && local.needs_invoice && !local.invoice_attachment_url;
+
+  // Esconder "pago" quando entrega/recolha é em mãos (não há custo de envio).
+  const showFlowerShippingPaid = local.flower_delivery_method !== "maos" && local.flower_delivery_method !== null;
+  const showFrameShippingPaid  = local.frame_delivery_method  !== "maos" && local.frame_delivery_method  !== null;
 
   return (
     <div className="flex flex-col h-full bg-[#F7F4F0]">
@@ -445,14 +499,55 @@ export default function WorkbenchClient({ order }: { order: Order }) {
             <h1 className="text-base font-semibold text-[#3D2B1F] truncate leading-tight">
               {local.client_name}
             </h1>
-            <button
-              onClick={copyId}
-              className="font-mono text-[10px] text-[#B8A99A] leading-tight hover:text-[#3D2B1F] transition-colors flex items-center gap-1"
-              title="Copiar ID"
-            >
-              #{local.order_id}
-              {copied && <Check className="h-3 w-3 text-green-600" />}
-            </button>
+            <div className="flex items-center gap-2 leading-tight">
+              <button
+                onClick={copyId}
+                className="font-mono text-[10px] text-[#B8A99A] hover:text-[#3D2B1F] transition-colors flex items-center gap-1"
+                title="Copiar ID"
+              >
+                #{local.order_id}
+                {copied && <Check className="h-3 w-3 text-green-600" />}
+              </button>
+              <Popover
+                open={orderIdPopoverOpen}
+                onOpenChange={(v) => { setOrderIdPopoverOpen(v); if (v) setOrderIdDraft(local.order_id); }}
+              >
+                <PopoverTrigger
+                  className="text-[#B8A99A] hover:text-[#3D2B1F] transition-colors"
+                  title="Editar ID"
+                >
+                  <Pencil className="h-3 w-3" />
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-3 space-y-2">
+                  <Label className="text-xs font-medium text-[#8B7355]">ID da encomenda</Label>
+                  <Input
+                    className={inp + " font-mono uppercase tracking-wider"}
+                    value={orderIdDraft}
+                    onChange={(e) => setOrderIdDraft(e.target.value)}
+                    placeholder="16 caracteres alfanuméricos"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveOrderId(); } }}
+                  />
+                  <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+                    Útil para encomendas antigas que já têm um ID atribuído. Tem de ser único.
+                  </p>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => setOrderIdPopoverOpen(false)}
+                      className="h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs text-[#8B7355] hover:bg-[#FAF8F5]"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={saveOrderId}
+                      className="h-8 px-3 rounded-lg bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15] transition-colors"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           {urgentEvent && (
@@ -463,37 +558,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
           )}
 
           <div className="w-56 shrink-0">
-            <Select
-              value={local.status}
-              onValueChange={(v) => onStatusChange(v as Order["status"])}
-            >
-              <SelectTrigger className={`h-8 text-xs font-semibold border-2 ${STATUS_COLORS[local.status] ?? ""}`}>
-                <SelectValue>
-                  {(v) => {
-                    if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
-                    const key = v as keyof typeof STATUS_LABELS;
-                    const Icon = STATUS_ICONS[key];
-                    return (
-                      <>
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        {STATUS_LABELS[key]}
-                      </>
-                    );
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map((s) => {
-                  const Icon = STATUS_ICONS[s];
-                  return (
-                    <SelectItem key={s} value={s} className={`text-xs font-medium ${STATUS_ITEM_COLORS[s]}`}>
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      {STATUS_LABELS[s]}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <StatusSelect value={local.status} onChange={onStatusChange} />
           </div>
 
           <CheckRow
@@ -519,18 +584,52 @@ export default function WorkbenchClient({ order }: { order: Order }) {
         </div>
       </header>
 
-      {/* ── Corpo: 3 colunas (comms | principal | direita) ────── */}
+      {/* ── Corpo: 3 colunas ──────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
             {/* ═══════════════════════════════
-                COLUNA ESQUERDA — COMUNICAÇÕES (sticky)
+                COLUNA ESQUERDA — COMUNICAÇÕES + GALERIA (sticky)
             ═══════════════════════════════ */}
             <aside className="lg:col-span-3">
               <div className="space-y-5 lg:sticky lg:top-2">
 
               <Card title="Comunicações" icon={<MessageCircle className="h-3.5 w-3.5" />} accent="blue">
+                {/* Contacto preferido (movido das antigas dados-do-cliente) */}
+                <div className="rounded-lg bg-[#FAF8F5] border border-[#E8E0D5] p-3 space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">
+                    Contacto preferido pelo cliente
+                  </Label>
+                  <Select value={local.contact_preference ?? ""} onValueChange={(v) => update("contact_preference", v as Order["contact_preference"])}>
+                    <SelectTrigger className={sel + " w-full"}><SelectValue placeholder="—" labels={CONTACT_PREFERENCE_LABELS} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">
+                        <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                        WhatsApp
+                      </SelectItem>
+                      <SelectItem value="email">
+                        <Mail className="h-3.5 w-3.5 text-blue-600" />
+                        Email
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="text-[11px] text-[#8B7355] space-y-0.5 pt-1 border-t border-[#E8E0D5]">
+                    {local.email && (
+                      <a href={`mailto:${local.email}`} className="flex items-center gap-1.5 hover:text-[#3D2B1F] transition-colors">
+                        <Mail className="h-3 w-3 text-blue-500 shrink-0" />
+                        <span className="truncate">{local.email}</span>
+                      </a>
+                    )}
+                    {local.phone && (
+                      <a href={`https://wa.me/${local.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[#3D2B1F] transition-colors">
+                        <MessageCircle className="h-3 w-3 text-green-500 shrink-0" />
+                        <span className="truncate">{local.phone}</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
                 <Tabs defaultValue="email">
                   <TabsList className="bg-[#FAF8F5] border border-[#E8E0D5] w-full">
                     <TabsTrigger value="email" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:text-blue-700">
@@ -577,6 +676,72 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               </Card>
 
+              {/* Galeria de inspiração — movida para a coluna esquerda */}
+              <Card
+                title="Galeria de inspiração"
+                icon={<Heart className="h-3.5 w-3.5" />}
+                accent="pink"
+                badge={gallery.length > 0 ? <span className="text-[10px] text-pink-700 font-semibold bg-pink-100 px-1.5 py-0.5 rounded-full">{gallery.length}</span> : undefined}
+              >
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input
+                      className={inp + " flex-1"}
+                      placeholder="Cole link ou URL"
+                      value={newInspirationUrl}
+                      onChange={(e) => setNewInspirationUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addInspiration(); } }}
+                    />
+                    <button
+                      onClick={addInspiration}
+                      disabled={!newInspirationUrl.trim()}
+                      className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-pink-600 text-white text-xs font-medium hover:bg-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {gallery.length === 0 ? (
+                    <PlaceholderBox
+                      icon={<Heart className="h-4 w-4" />}
+                      title="Sem inspirações"
+                      description="Adicione fotos de bouquets de referência, paletas, ou ideias do cliente."
+                    />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {gallery.map((item, idx) => {
+                        const embedUrl = toEmbeddableImageUrl(item.url);
+                        return (
+                          <div key={idx} className="group relative aspect-square rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] overflow-hidden">
+                            {item.type === "image" && embedUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={embedUrl} alt={item.label ?? ""} className="w-full h-full object-cover" />
+                            ) : (
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full h-full flex flex-col items-center justify-center text-center p-2 text-pink-700 hover:bg-pink-50 transition-colors"
+                              >
+                                <Link2 className="h-5 w-5 mb-1" />
+                                <span className="text-[10px] truncate w-full">{safeHostname(item.url)}</span>
+                              </a>
+                            )}
+                            <button
+                              onClick={() => removeInspiration(idx)}
+                              className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                              title="Remover"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </Card>
+
               </div>
             </aside>
 
@@ -585,18 +750,19 @@ export default function WorkbenchClient({ order }: { order: Order }) {
             ═══════════════════════════════ */}
             <main className="lg:col-span-6 space-y-5">
 
-              {/* Hero: foto vertical + sumário + atalhos */}
+              {/* Hero unificado: foto + dados do cliente + dados do evento */}
               <div className="rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
                 <div className="grid grid-cols-12 gap-0">
                   {/* Foto 3:4 vertical */}
                   <div className="col-span-5 relative group bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
                     <div className="aspect-[3/4]">
-                      {local.flowers_photo_url ? (
+                      {photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={local.flowers_photo_url}
+                          src={photoUrl}
                           alt={`Flores de ${local.client_name}`}
                           className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
@@ -605,12 +771,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                           </div>
                           <p className="text-sm font-medium text-[#3D2B1F]">Foto da encomenda</p>
                           <p className="text-[11px] text-[#8B7355] mt-1">
-                            Adiciona o link de uma foto do bouquet.
+                            Cole o link partilhável (Drive, Imgur, …).
                           </p>
                         </div>
                       )}
                     </div>
-                    {/* URL overlay (visível em hover) */}
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5">
                       <Input
                         className="h-8 text-xs bg-white/95 border-white/40 placeholder:text-[#8B7355]"
@@ -621,39 +786,77 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                     </div>
                   </div>
 
-                  {/* Info + atalhos */}
-                  <div className="col-span-7 p-5 flex flex-col">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-auto">
-                      <InfoChip
-                        label="Data do evento"
-                        value={fmtDate(local.event_date)}
-                        accent={urgentEvent ? "red" : daysUntilEvent !== null && daysUntilEvent < 0 ? "muted" : "default"}
-                        sublabel={
-                          daysUntilEvent === null
-                            ? undefined
-                            : daysUntilEvent < 0
-                              ? `Há ${Math.abs(daysUntilEvent)} dias`
-                              : daysUntilEvent === 0
-                                ? "Hoje!"
-                                : `Em ${daysUntilEvent} dias`
-                        }
-                      />
-                      <InfoChip
-                        label="Tipo de evento"
-                        value={local.event_type ? EVENT_TYPE_LABELS[local.event_type] : "—"}
-                      />
-                      <InfoChip
-                        label="Localização"
-                        value={local.event_location || "—"}
-                      />
-                      <InfoChip
-                        label="Idioma do form"
-                        value={local.form_language === "pt" ? "🇵🇹 Português" : "🇬🇧 English"}
-                      />
+                  {/* Coluna direita do hero: cliente + evento + atalhos */}
+                  <div className="col-span-7 p-5 flex flex-col gap-4">
+                    {/* DADOS DO CLIENTE */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-rose-600 mb-2">
+                        Cliente
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <Field label="Nome">
+                          <Input className={inp} value={local.client_name} onChange={(e) => update("client_name", e.target.value)} />
+                        </Field>
+                        <Field label="Email">
+                          <Input className={inp} type="email" value={local.email ?? ""} onChange={(e) => update("email", e.target.value || null)} />
+                        </Field>
+                        <Field label="Telemóvel" span2>
+                          <Input className={inp} value={local.phone ?? ""} onChange={(e) => update("phone", e.target.value || null)} />
+                        </Field>
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 pt-3 mt-3 border-t border-[#F0EAE0]">
-                      {/* Drive — botão + popover de edição */}
+                    <Separator className="bg-[#F0EAE0]" />
+
+                    {/* DADOS DO EVENTO */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-2">
+                        Evento
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <Field label="Tipo">
+                          <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
+                            <SelectTrigger className={sel}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
+                            <SelectContent>
+                              {(Object.keys(EVENT_TYPE_LABELS) as Array<keyof typeof EVENT_TYPE_LABELS>).map((t) => (
+                                <SelectItem key={t} value={t}>{EVENT_TYPE_LABELS[t]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Data">
+                          <Input
+                            className={`${inp} ${urgentEvent ? "border-red-300 bg-red-50" : ""}`}
+                            type="date"
+                            value={toDateInput(local.event_date)}
+                            onChange={(e) => update("event_date", e.target.value || null)}
+                          />
+                        </Field>
+                        {eventRelative && (
+                          <div className="col-span-2 -mt-1">
+                            <p className={`text-[11px] font-medium ${urgentEvent ? "text-red-600" : "text-[#8B7355]"}`}>
+                              {urgentEvent && "⚠ "}{eventRelative}
+                            </p>
+                          </div>
+                        )}
+                        {isWedding && (
+                          <Field label="Nome dos noivos" span2>
+                            <Input className={inp} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ana & João" />
+                          </Field>
+                        )}
+                        <Field label="Localização" span2>
+                          <Input className={inp} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Quinta / Igreja / Cidade" />
+                        </Field>
+                        <Field label="Idioma do form">
+                          <p className="h-9 flex items-center text-sm text-[#3D2B1F]">
+                            {local.form_language === "pt" ? "🇵🇹 Português" : "🇬🇧 English"}
+                          </p>
+                        </Field>
+                      </div>
+                    </div>
+
+                    {/* Atalhos */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#F0EAE0]">
                       {local.drive_folder_url ? (
                         <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-[#E8E0D5] bg-white">
                           <a
@@ -673,11 +876,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                             >
                               <Pencil className="h-3 w-3" />
                             </PopoverTrigger>
-                            <DriveUrlEditor
-                              draft={driveUrlDraft}
-                              setDraft={setDriveUrlDraft}
-                              onSave={saveDriveUrl}
-                            />
+                            <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} />
                           </Popover>
                         </div>
                       ) : (
@@ -686,11 +885,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                             <FolderOpen className="h-3.5 w-3.5" />
                             Definir pasta Drive
                           </PopoverTrigger>
-                          <DriveUrlEditor
-                            draft={driveUrlDraft}
-                            setDraft={setDriveUrlDraft}
-                            onSave={saveDriveUrl}
-                          />
+                          <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} />
                         </Popover>
                       )}
 
@@ -722,64 +917,8 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                 </div>
               )}
 
-              {/* Cliente */}
-              <Card title="Dados do cliente" icon={<User className="h-3.5 w-3.5" />} accent="rose">
-                <Grid2>
-                  <Field label="Nome na encomenda">
-                    <Input className={inp} value={local.client_name} onChange={(e) => update("client_name", e.target.value)} />
-                  </Field>
-                  <Field label="Contacto preferido">
-                    <Select value={local.contact_preference ?? ""} onValueChange={(v) => update("contact_preference", v as Order["contact_preference"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={CONTACT_PREFERENCE_LABELS} /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                        <SelectItem value="email">Email</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Email">
-                    <Input className={inp} type="email" value={local.email ?? ""} onChange={(e) => update("email", e.target.value || null)} />
-                  </Field>
-                  <Field label="Telemóvel">
-                    <Input className={inp} value={local.phone ?? ""} onChange={(e) => update("phone", e.target.value || null)} />
-                  </Field>
-                </Grid2>
-              </Card>
-
-              {/* Evento */}
-              <Card title="Dados do evento" icon={<Calendar className="h-3.5 w-3.5" />} accent="amber">
-                <Grid2>
-                  <Field label="Tipo de evento">
-                    <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(EVENT_TYPE_LABELS) as Array<keyof typeof EVENT_TYPE_LABELS>).map((t) => (
-                          <SelectItem key={t} value={t}>{EVENT_TYPE_LABELS[t]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Data do evento">
-                    <Input
-                      className={`${inp} ${urgentEvent ? "border-red-300 bg-red-50" : ""}`}
-                      type="date"
-                      value={toDateInput(local.event_date)}
-                      onChange={(e) => update("event_date", e.target.value || null)}
-                    />
-                  </Field>
-                  {isWedding && (
-                    <Field label="Nome dos noivos" span2>
-                      <Input className={inp} value={local.couple_names ?? ""} onChange={(e) => update("couple_names", e.target.value || null)} placeholder="Ana & João" />
-                    </Field>
-                  )}
-                  <Field label="Localização do evento" span2>
-                    <Input className={inp} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Quinta / Igreja / Cidade" />
-                  </Field>
-                </Grid2>
-              </Card>
-
-              {/* Flores e quadro */}
-              <Card title="Flores e quadro" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
+              {/* Card único: Flores, quadro, extras e peças extra */}
+              <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
                 <Grid2>
                   <Field label="Tipo de flores" span2>
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />
@@ -814,62 +953,12 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
                 <Separator className="bg-[#F0EAE0]" />
 
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Envio das flores (cliente → FBR)</p>
-                  <div className="grid grid-cols-3 gap-3 items-end">
-                    <Field label="Como envia">
-                      <Select value={local.flower_delivery_method ?? ""} onValueChange={(v) => update("flower_delivery_method", v as Order["flower_delivery_method"])}>
-                        <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FLOWER_DELIVERY_METHOD_LABELS} /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="maos">Em mãos</SelectItem>
-                          <SelectItem value="ctt">CTT</SelectItem>
-                          <SelectItem value="recolha_evento">Recolha no evento</SelectItem>
-                          <SelectItem value="nao_sei">Não sei</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="Custo (€)">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
-                        <Input className={inp + " pl-7"} type="number" min={0} step={0.01} value={local.flower_shipping_cost ?? ""} onChange={(e) => update("flower_shipping_cost", e.target.value ? Number(e.target.value) : null)} />
-                      </div>
-                    </Field>
-                    <div className="pb-2">
-                      <CheckRow label="Pago" checked={local.flower_shipping_paid} onChange={(v) => update("flower_shipping_paid", v)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">Receção do quadro (FBR → cliente)</p>
-                  <div className="grid grid-cols-3 gap-3 items-end">
-                    <Field label="Como recebe">
-                      <Select value={local.frame_delivery_method ?? ""} onValueChange={(v) => update("frame_delivery_method", v as Order["frame_delivery_method"])}>
-                        <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FRAME_DELIVERY_METHOD_LABELS} /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="maos">Em mãos</SelectItem>
-                          <SelectItem value="ctt">CTT</SelectItem>
-                          <SelectItem value="nao_sei">Não sei</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field label="Custo (€)">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
-                        <Input className={inp + " pl-7"} type="number" min={0} step={0.01} value={local.frame_shipping_cost ?? ""} onChange={(e) => update("frame_shipping_cost", e.target.value ? Number(e.target.value) : null)} />
-                      </div>
-                    </Field>
-                    <div className="pb-2">
-                      <CheckRow label="Pago" checked={local.frame_shipping_paid} onChange={(v) => update("frame_shipping_paid", v)} />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Extras no quadro */}
-              <Card title="Extras no quadro" icon={<Layers className="h-3.5 w-3.5" />} accent="orange">
+                {/* Extras a incluir no quadro */}
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                    Extras a incluir no quadro
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
                     {EXTRA_OPTIONS.map((opt) => (
                       <CheckRow
                         key={opt}
@@ -879,124 +968,114 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       />
                     ))}
                   </div>
-                  <Field label="Notas / outros extras">
-                    <Textarea
-                      className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
-                      rows={2}
-                      value={extras.notes}
-                      onChange={(e) => setExtraNotes(e.target.value)}
-                      placeholder="Ex: pequena pena de pavão, anel da avó…"
-                    />
-                  </Field>
-                </div>
-              </Card>
-
-              {/* Peças extra */}
-              <Card title="Peças extra" icon={<Boxes className="h-3.5 w-3.5" />} accent="indigo">
-                <div className="space-y-4">
-                  <ExtraPieceRow
-                    label="Quadros extra pequenos"
-                    value={local.extra_small_frames}
-                    qty={local.extra_small_frames_qty}
-                    onValue={(v) => update("extra_small_frames", v)}
-                    onQty={(q) => update("extra_small_frames_qty", q)}
-                  />
-                  <ExtraPieceRow
-                    label="Ornamentos de Natal"
-                    value={local.christmas_ornaments}
-                    qty={local.christmas_ornaments_qty}
-                    onValue={(v) => update("christmas_ornaments", v)}
-                    onQty={(q) => update("christmas_ornaments_qty", q)}
-                  />
-                  <ExtraPieceRow
-                    label="Pendentes para colares"
-                    value={local.necklace_pendants}
-                    qty={local.necklace_pendants_qty}
-                    onValue={(v) => update("necklace_pendants", v)}
-                    onQty={(q) => update("necklace_pendants_qty", q)}
-                  />
-                </div>
-              </Card>
-
-              {/* Galeria de inspiração */}
-              <Card
-                title="Galeria de inspiração"
-                icon={<Heart className="h-3.5 w-3.5" />}
-                accent="pink"
-                badge={gallery.length > 0 ? <span className="text-[10px] text-pink-700 font-semibold bg-pink-100 px-1.5 py-0.5 rounded-full">{gallery.length}</span> : undefined}
-              >
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <Input
-                      className={inp + " flex-1"}
-                      placeholder="Cole link/URL (Pinterest, Drive, Instagram…)"
-                      value={newInspirationUrl}
-                      onChange={(e) => setNewInspirationUrl(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addInspiration(); } }}
-                    />
-                    <button
-                      onClick={addInspiration}
-                      disabled={!newInspirationUrl.trim()}
-                      className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-pink-600 text-white text-xs font-medium hover:bg-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Adicionar
-                    </button>
-                  </div>
-
-                  {gallery.length === 0 ? (
-                    <PlaceholderBox
-                      icon={<Heart className="h-4 w-4" />}
-                      title="Sem inspirações ainda"
-                      description="Adicione fotos de bouquets de referência, paletas, ou ideias do cliente. (Vão sincronizar com a Drive automaticamente.)"
-                    />
-                  ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {gallery.map((item, idx) => (
-                        <div key={idx} className="group relative aspect-square rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] overflow-hidden">
-                          {item.type === "image" ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={item.url} alt={item.label ?? ""} className="w-full h-full object-cover" />
-                          ) : (
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="w-full h-full flex flex-col items-center justify-center text-center p-2 text-pink-700 hover:bg-pink-50 transition-colors"
-                            >
-                              <Link2 className="h-5 w-5 mb-1" />
-                              <span className="text-[10px] truncate w-full">{safeHostname(item.url)}</span>
-                            </a>
-                          )}
-                          <button
-                            onClick={() => removeInspiration(idx)}
-                            className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                            title="Remover"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                  {extras.options.includes(EXTRAS_OTHER) && (
+                    <Field label='Especifique "Outro"'>
+                      <Textarea
+                        className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                        rows={2}
+                        value={extras.notes}
+                        onChange={(e) => setExtraNotes(e.target.value)}
+                        placeholder="Ex: pequena pena de pavão, anel da avó…"
+                      />
+                    </Field>
                   )}
+                </div>
+
+                <Separator className="bg-[#F0EAE0]" />
+
+                {/* Peças extra (mini-quadros, ornamentos, pendentes) */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                    Peças extra
+                  </p>
+                  <div className="space-y-3">
+                    <ExtraPieceRow
+                      label="Quadros extra pequenos"
+                      value={local.extra_small_frames}
+                      qty={local.extra_small_frames_qty}
+                      onValue={(v) => update("extra_small_frames", v)}
+                      onQty={(q) => update("extra_small_frames_qty", q)}
+                    />
+                    <ExtraPieceRow
+                      label="Ornamentos de Natal"
+                      value={local.christmas_ornaments}
+                      qty={local.christmas_ornaments_qty}
+                      onValue={(v) => update("christmas_ornaments", v)}
+                      onQty={(q) => update("christmas_ornaments_qty", q)}
+                    />
+                    <ExtraPieceRow
+                      label="Pendentes para colares"
+                      value={local.necklace_pendants}
+                      qty={local.necklace_pendants_qty}
+                      onValue={(v) => update("necklace_pendants", v)}
+                      onQty={(q) => update("necklace_pendants_qty", q)}
+                    />
+                  </div>
+                </div>
+              </Card>
+
+              {/* Card separado: Envio das flores + Receção do quadro */}
+              <Card title="Envio das flores e receção do quadro" icon={<Truck className="h-3.5 w-3.5" />} accent="orange">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-orange-700">Envio das flores (cliente → FBR)</p>
+                  <ShippingRow
+                    method={local.flower_delivery_method}
+                    methodLabels={FLOWER_DELIVERY_METHOD_LABELS}
+                    cost={local.flower_shipping_cost}
+                    paid={local.flower_shipping_paid}
+                    showPaid={showFlowerShippingPaid}
+                    onMethod={(v) => update("flower_delivery_method", v as Order["flower_delivery_method"])}
+                    onCost={(v) => update("flower_shipping_cost", v)}
+                    onPaid={(v) => update("flower_shipping_paid", v)}
+                    methodOptions={[
+                      ["maos", "Em mãos"],
+                      ["ctt", "CTT"],
+                      ["recolha_evento", "Recolha no evento"],
+                      ["nao_sei", "Não sei"],
+                    ]}
+                  />
+                </div>
+
+                <Separator className="bg-[#F0EAE0]" />
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-orange-700">Receção do quadro (FBR → cliente)</p>
+                  <ShippingRow
+                    method={local.frame_delivery_method}
+                    methodLabels={FRAME_DELIVERY_METHOD_LABELS}
+                    cost={local.frame_shipping_cost}
+                    paid={local.frame_shipping_paid}
+                    showPaid={showFrameShippingPaid}
+                    onMethod={(v) => update("frame_delivery_method", v as Order["frame_delivery_method"])}
+                    onCost={(v) => update("frame_shipping_cost", v)}
+                    onPaid={(v) => update("frame_shipping_paid", v)}
+                    methodOptions={[
+                      ["maos", "Em mãos"],
+                      ["ctt", "CTT"],
+                      ["nao_sei", "Não sei"],
+                    ]}
+                  />
                 </div>
               </Card>
 
               {/* Origem e notas */}
               <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
-                <Grid2>
-                  <Field label="Como conheceu a FBR" span2={local.how_found_fbr !== "vale_presente"}>
+                <div className="space-y-3">
+                  <Field label="Como conheceu a FBR">
                     <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => update("how_found_fbr", v as Order["how_found_fbr"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={HOW_FOUND_FBR_LABELS} /></SelectTrigger>
+                      <SelectTrigger
+                        className={`${sel} font-medium ${local.how_found_fbr ? HOW_FOUND_FBR_COLORS[local.how_found_fbr] : ""}`}
+                      >
+                        <SelectValue placeholder="—" labels={HOW_FOUND_FBR_LABELS} />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="instagram">Instagram</SelectItem>
-                        <SelectItem value="facebook">Facebook</SelectItem>
-                        <SelectItem value="casamentos_pt">casamentos.pt</SelectItem>
-                        <SelectItem value="google">Google</SelectItem>
-                        <SelectItem value="vale_presente">Vale-Presente</SelectItem>
-                        <SelectItem value="florista">Florista</SelectItem>
-                        <SelectItem value="recomendacao">Recomendação</SelectItem>
-                        <SelectItem value="outro">Outro</SelectItem>
+                        {(Object.keys(HOW_FOUND_FBR_LABELS) as Array<keyof typeof HOW_FOUND_FBR_LABELS>).map((k) => (
+                          <SelectItem key={k} value={k} className="my-0.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${HOW_FOUND_FBR_COLORS[k]}`}>
+                              {HOW_FOUND_FBR_LABELS[k]}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1005,7 +1084,17 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       <Input className={inp} value={local.gift_voucher_code ?? ""} onChange={(e) => update("gift_voucher_code", e.target.value || null)} placeholder="Código de 6 dígitos" />
                     </Field>
                   )}
-                  <Field label="Notas adicionais" span2>
+                  {local.how_found_fbr === "outro" && (
+                    <Field label='Especifique "Outro"' hint="O cliente preencheu este campo no formulário público.">
+                      <Input
+                        className={inp}
+                        value={local.how_found_fbr_other ?? ""}
+                        onChange={(e) => update("how_found_fbr_other", e.target.value || null)}
+                        placeholder="Detalha como ouviu falar da FBR…"
+                      />
+                    </Field>
+                  )}
+                  <Field label="Notas adicionais">
                     <Textarea
                       className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
                       rows={4}
@@ -1014,13 +1103,13 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       placeholder="Pedidos especiais, informações relevantes…"
                     />
                   </Field>
-                </Grid2>
+                </div>
               </Card>
 
             </main>
 
             {/* ═══════════════════════════════
-                COLUNA DIREITA — FINANÇAS / PARCERIA / ENTREGA
+                COLUNA DIREITA — FINANÇAS / PARCERIA / ENTREGA / CUPÃO
             ═══════════════════════════════ */}
             <aside className="lg:col-span-3 space-y-5">
 
@@ -1049,44 +1138,54 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field label="Cliente pediu fatura com NIF?">
-                    <Select
-                      value={local.needs_invoice ? "sim" : "nao"}
-                      onValueChange={(v) => update("needs_invoice", v === "sim")}
-                    >
-                      <SelectTrigger className={sel}><SelectValue labels={SIM_NAO_LABELS} /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sim">Sim</SelectItem>
-                        <SelectItem value="nao">Não</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
+
+                  {/* Pediu fatura — Sim/Não com NIF inline à direita do Sim */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-[#8B7355]">Cliente pediu fatura com NIF?</Label>
+                    <div className="flex gap-2 items-stretch">
+                      <Select
+                        value={local.needs_invoice ? "sim" : "nao"}
+                        onValueChange={(v) => update("needs_invoice", v === "sim")}
+                      >
+                        <SelectTrigger className={`${sel} ${local.needs_invoice ? "shrink-0 w-24" : "flex-1"}`}>
+                          <SelectValue labels={SIM_NAO_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sim">Sim</SelectItem>
+                          <SelectItem value="nao">Não</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {local.needs_invoice && (
+                        <Input
+                          className={inp + " flex-1 min-w-0"}
+                          value={local.nif ?? ""}
+                          onChange={(e) => update("nif", e.target.value || null)}
+                          placeholder="NIF (9 dígitos)"
+                        />
+                      )}
+                    </div>
+                  </div>
                   {local.needs_invoice && (
-                    <>
-                      <Field label="NIF">
-                        <Input className={inp} value={local.nif ?? ""} onChange={(e) => update("nif", e.target.value || null)} placeholder="9 dígitos" />
-                      </Field>
-                      <Field label="Anexo da fatura">
-                        <div className="flex gap-1.5">
-                          <Input
-                            className={inp + " flex-1 min-w-0"}
-                            value={local.invoice_attachment_url ?? ""}
-                            onChange={(e) => update("invoice_attachment_url", e.target.value || null)}
-                            placeholder="URL do PDF (Drive)"
-                          />
-                          {local.invoice_attachment_url && (
-                            <a
-                              href={local.invoice_attachment_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
-                            >
-                              <Paperclip className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </Field>
-                    </>
+                    <Field label="Anexo da fatura">
+                      <div className="flex gap-1.5">
+                        <Input
+                          className={inp + " flex-1 min-w-0"}
+                          value={local.invoice_attachment_url ?? ""}
+                          onChange={(e) => update("invoice_attachment_url", e.target.value || null)}
+                          placeholder="URL do PDF (Drive)"
+                        />
+                        {local.invoice_attachment_url && (
+                          <a
+                            href={local.invoice_attachment_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                          >
+                            <Paperclip className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </Field>
                   )}
                 </div>
               </Card>
@@ -1114,14 +1213,17 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Estado da comissão">
                     <Select value={local.partner_commission_status} onValueChange={(v) => update("partner_commission_status", v as Order["partner_commission_status"])}>
-                      <SelectTrigger className={sel}><SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} /></SelectTrigger>
+                      <SelectTrigger className={`${sel} font-medium ${PARTNER_COMMISSION_STATUS_COLORS[local.partner_commission_status]}`}>
+                        <SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="na">N/A</SelectItem>
-                        <SelectItem value="parceiro_informado">Parceiro informado</SelectItem>
-                        <SelectItem value="a_aguardar">A aguardar</SelectItem>
-                        <SelectItem value="paga">Paga</SelectItem>
-                        <SelectItem value="a_aguardar_resposta">A aguardar resposta</SelectItem>
-                        <SelectItem value="nao_aceita">Não aceita</SelectItem>
+                        {(Object.keys(PARTNER_COMMISSION_STATUS_LABELS) as Array<keyof typeof PARTNER_COMMISSION_STATUS_LABELS>).map((k) => (
+                          <SelectItem key={k} value={k} className="my-0.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_COMMISSION_STATUS_COLORS[k]}`}>
+                              {PARTNER_COMMISSION_STATUS_LABELS[k]}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1135,12 +1237,17 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                   </Field>
                   <Field label="Feedback do cliente">
                     <Select value={local.client_feedback_status} onValueChange={(v) => update("client_feedback_status", v as Order["client_feedback_status"])}>
-                      <SelectTrigger className={sel}><SelectValue labels={CLIENT_FEEDBACK_STATUS_LABELS} /></SelectTrigger>
+                      <SelectTrigger className={`${sel} font-medium ${CLIENT_FEEDBACK_STATUS_COLORS[local.client_feedback_status]}`}>
+                        <SelectValue labels={CLIENT_FEEDBACK_STATUS_LABELS} />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="na">N/A</SelectItem>
-                        <SelectItem value="deu_feedback">Deu feedback</SelectItem>
-                        <SelectItem value="ja_pedido">Já pedido</SelectItem>
-                        <SelectItem value="nao_disse_nada">Não disse nada</SelectItem>
+                        {(Object.keys(CLIENT_FEEDBACK_STATUS_LABELS) as Array<keyof typeof CLIENT_FEEDBACK_STATUS_LABELS>).map((k) => (
+                          <SelectItem key={k} value={k} className="my-0.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${CLIENT_FEEDBACK_STATUS_COLORS[k]}`}>
+                              {CLIENT_FEEDBACK_STATUS_LABELS[k]}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1149,34 +1256,65 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
               <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
                 <div className="space-y-3">
-                  {local.coupon_code ? (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-base tracking-[0.2em] border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1">
-                        {local.coupon_code}
-                      </Badge>
+                  <Field
+                    label="Código"
+                    hint="Gerado automaticamente em 'A ser emoldurado'. Editável para encomendas antigas."
+                  >
+                    <div className="flex gap-1.5">
+                      <Input
+                        className={inp + " flex-1 font-mono uppercase tracking-[0.2em]"}
+                        value={local.coupon_code ?? ""}
+                        onChange={(e) => update("coupon_code", e.target.value.toUpperCase() || null)}
+                        placeholder="—"
+                        maxLength={10}
+                      />
+                      {local.coupon_code && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(local.coupon_code!)}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                          title="Copiar"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </Field>
+                  {local.coupon_code && (
+                    <Badge variant="outline" className="font-mono text-base tracking-[0.2em] border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1">
+                      {local.coupon_code}
+                    </Badge>
+                  )}
+                  <Field label="Validade" hint="Tipicamente 2 anos após a entrega do quadro.">
+                    <div className="flex gap-1.5">
+                      <Input
+                        className={inp + " flex-1 min-w-0"}
+                        type="date"
+                        value={toDateInput(local.coupon_expiry)}
+                        onChange={(e) => update("coupon_expiry", e.target.value || null)}
+                      />
                       <button
-                        onClick={() => navigator.clipboard.writeText(local.coupon_code!)}
-                        className="text-[#B8A99A] hover:text-[#3D2B1F] transition-colors"
-                        title="Copiar"
+                        onClick={generateCouponExpiry}
+                        className="inline-flex h-9 items-center gap-1 px-2.5 shrink-0 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-800 text-[11px] font-medium hover:bg-yellow-100 transition-colors"
+                        title="Gerar validade: hoje + 2 anos"
                       >
-                        <Copy className="h-4 w-4" />
+                        <CalendarPlus className="h-3.5 w-3.5" />
+                        +2 anos
                       </button>
                     </div>
-                  ) : (
-                    <p className="text-[11px] text-[#8B7355] italic leading-relaxed">
-                      O código é gerado automaticamente quando o estado mudar para <strong>“A ser emoldurado”</strong>.
-                    </p>
-                  )}
-                  <Field label="Validade" hint="2 anos após entrega.">
-                    <Input className={inp} type="date" value={toDateInput(local.coupon_expiry)} onChange={(e) => update("coupon_expiry", e.target.value || null)} disabled={!local.coupon_code} />
                   </Field>
                   <Field label="Estado">
-                    <Select value={local.coupon_status} onValueChange={(v) => update("coupon_status", v as Order["coupon_status"])} disabled={!local.coupon_code}>
-                      <SelectTrigger className={sel}><SelectValue labels={COUPON_STATUS_LABELS} /></SelectTrigger>
+                    <Select value={local.coupon_status} onValueChange={(v) => update("coupon_status", v as Order["coupon_status"])}>
+                      <SelectTrigger className={`${sel} font-medium ${COUPON_STATUS_COLORS[local.coupon_status]}`}>
+                        <SelectValue labels={COUPON_STATUS_LABELS} />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="na">N/A</SelectItem>
-                        <SelectItem value="nao_utilizado">Não utilizado</SelectItem>
-                        <SelectItem value="utilizado">Utilizado</SelectItem>
+                        {(Object.keys(COUPON_STATUS_LABELS) as Array<keyof typeof COUPON_STATUS_LABELS>).map((k) => (
+                          <SelectItem key={k} value={k} className="my-0.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${COUPON_STATUS_COLORS[k]}`}>
+                              {COUPON_STATUS_LABELS[k]}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -1249,28 +1387,29 @@ export default function WorkbenchClient({ order }: { order: Order }) {
 
             <div className="space-y-2">
               <Label className="text-xs font-medium text-[#8B7355]">O cliente pediu fatura com NIF?</Label>
-              <Select
-                value={dialogNeedsInvoice ? "sim" : "nao"}
-                onValueChange={(v) => setDialogNeedsInvoice(v === "sim")}
-              >
-                <SelectTrigger className={sel}><SelectValue labels={SIM_NAO_LABELS} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sim">Sim</SelectItem>
-                  <SelectItem value="nao">Não</SelectItem>
-                </SelectContent>
-              </Select>
-              {dialogNeedsInvoice && (
-                <div className="pt-2">
-                  <Label className="text-xs font-medium text-[#8B7355]">NIF</Label>
+              <div className="flex gap-2 items-stretch">
+                <Select
+                  value={dialogNeedsInvoice ? "sim" : "nao"}
+                  onValueChange={(v) => setDialogNeedsInvoice(v === "sim")}
+                >
+                  <SelectTrigger className={`${sel} ${dialogNeedsInvoice ? "shrink-0 w-24" : "flex-1"}`}>
+                    <SelectValue labels={SIM_NAO_LABELS} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+                {dialogNeedsInvoice && (
                   <Input
-                    className={inp + " mt-1"}
+                    className={inp + " flex-1 min-w-0"}
                     value={dialogNif}
                     onChange={(e) => setDialogNif(e.target.value)}
-                    placeholder="9 dígitos"
+                    placeholder="NIF (9 dígitos)"
                     autoFocus
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
@@ -1380,28 +1519,114 @@ function DriveUrlEditor({
   );
 }
 
-function InfoChip({
-  label,
+function StatusSelect({
   value,
-  sublabel,
-  accent = "default",
+  onChange,
 }: {
-  label: string;
-  value: string;
-  sublabel?: string;
-  accent?: "default" | "red" | "muted";
+  value: keyof typeof STATUS_LABELS;
+  onChange: (v: keyof typeof STATUS_LABELS) => void;
 }) {
-  const accentClass =
-    accent === "red"
-      ? "text-red-700"
-      : accent === "muted"
-        ? "text-[#B8A99A]"
-        : "text-[#3D2B1F]";
+  const colorClass = STATUS_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
   return (
-    <div className="space-y-0.5">
-      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#B8A99A]">{label}</p>
-      <p className={`text-sm font-medium ${accentClass} truncate`}>{value}</p>
-      {sublabel && <p className={`text-[11px] ${accent === "red" ? "text-red-600" : "text-[#8B7355]"}`}>{sublabel}</p>}
+    <Select value={value} onValueChange={(v) => onChange(v as keyof typeof STATUS_LABELS)}>
+      <SelectTrigger className={`h-8 text-xs font-semibold border rounded-md ${colorClass} hover:brightness-95 transition`}>
+        <SelectValue>
+          {(v) => {
+            if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
+            const key = v as keyof typeof STATUS_LABELS;
+            const Icon = STATUS_ICONS[key];
+            return (
+              <>
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {STATUS_LABELS[key]}
+              </>
+            );
+          }}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent className="max-h-[420px] p-0 rounded-md border border-[#E8E0D5]">
+        {STATUS_GROUPS.map((group, gi) => (
+          <div key={group.label}>
+            {gi > 0 && <SelectSeparator className="bg-[#E8E0D5] my-0" />}
+            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#B8A99A]">
+              {group.label}
+            </div>
+            <div className="px-1 pb-1">
+              {group.statuses.map((s) => {
+                const Icon = STATUS_ICONS[s];
+                return (
+                  <SelectItem
+                    key={s}
+                    value={s}
+                    className="text-xs font-medium rounded-md text-[#3D2B1F] data-[highlighted]:bg-[#FAF8F5] focus:bg-[#FAF8F5]"
+                  >
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_COLORS[s]}`} />
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                    {STATUS_LABELS[s]}
+                  </SelectItem>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ShippingRow<M extends string>({
+  method, methodLabels, methodOptions,
+  cost, paid, showPaid,
+  onMethod, onCost, onPaid,
+}: {
+  method: M | null;
+  methodLabels: Record<M, string>;
+  methodOptions: Array<[M, string]>;
+  cost: number | null;
+  paid: boolean;
+  showPaid: boolean;
+  onMethod: (v: string | null) => void;
+  onCost: (v: number | null) => void;
+  onPaid: (v: boolean) => void;
+}) {
+  return (
+    <div className={`grid gap-3 items-end ${showPaid ? "grid-cols-3" : "grid-cols-2"}`}>
+      <Field label="Como">
+        <Select value={method ?? ""} onValueChange={onMethod}>
+          <SelectTrigger className={sel}><SelectValue placeholder="—" labels={methodLabels} /></SelectTrigger>
+          <SelectContent>
+            {methodOptions.map(([v, label]) => (
+              <SelectItem key={v} value={v}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Custo (€)">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+          <Input
+            className={inp + " pl-7"}
+            type="number" min={0} step={0.01}
+            value={cost ?? ""}
+            onChange={(e) => onCost(e.target.value ? Number(e.target.value) : null)}
+            disabled={method === "maos"}
+            placeholder={method === "maos" ? "—" : "0,00"}
+          />
+        </div>
+      </Field>
+      {showPaid && (
+        <Field label="Pago?">
+          <Select value={paid ? "sim" : "nao"} onValueChange={(v) => onPaid(v === "sim")}>
+            <SelectTrigger className={`${sel} ${paid ? "bg-green-50 border-green-300 text-green-800" : "bg-amber-50 border-amber-300 text-amber-800"}`}>
+              <SelectValue labels={SIM_NAO_LABELS} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sim">Sim</SelectItem>
+              <SelectItem value="nao">Não</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
     </div>
   );
 }

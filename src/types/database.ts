@@ -118,6 +118,7 @@ export interface Order {
   necklace_pendants: YesNoInfo | null;
   necklace_pendants_qty: number | null;
   how_found_fbr: HowFoundFBR | null;
+  how_found_fbr_other: string | null;
   gift_voucher_code: string | null;
   additional_notes: string | null;
   form_language: FormLanguage;
@@ -152,8 +153,10 @@ export type OrderInsert = Partial<Omit<Order, "id" | "order_id" | "created_at" |
   client_name: string;
 };
 
-// Tipo para actualizar uma encomenda existente
-export type OrderUpdate = Partial<Omit<Order, "id" | "order_id" | "created_at">>;
+// Tipo para actualizar uma encomenda existente.
+// `order_id` é editável (admin pode corrigir IDs ao importar encomendas
+// antigas). `id` (UUID) e `created_at` continuam imutáveis.
+export type OrderUpdate = Partial<Omit<Order, "id" | "created_at">>;
 
 // ── Agrupamento visual de estados ────────────────────────────
 
@@ -318,6 +321,20 @@ export const HOW_FOUND_FBR_LABELS: Record<HowFoundFBR, string> = {
   outro: "Outro",
 };
 
+// Cores associadas a cada plataforma de origem (badge no select).
+// O fundo é a cor mais identitária da plataforma; o texto fica legível
+// sobre esse fundo.
+export const HOW_FOUND_FBR_COLORS: Record<HowFoundFBR, string> = {
+  instagram:    "bg-gradient-to-r from-pink-500 via-fuchsia-500 to-orange-400 text-white border-transparent",
+  facebook:     "bg-blue-600 text-white border-blue-700",
+  casamentos_pt:"bg-rose-500 text-white border-rose-600",
+  google:       "bg-yellow-100 text-blue-700 border-yellow-300",
+  vale_presente:"bg-amber-100 text-amber-900 border-amber-300",
+  florista:     "bg-emerald-100 text-emerald-800 border-emerald-300",
+  recomendacao: "bg-purple-100 text-purple-800 border-purple-300",
+  outro:        "bg-slate-100 text-slate-700 border-slate-300",
+};
+
 export const PARTNER_COMMISSION_STATUS_LABELS: Record<PartnerCommissionStatus, string> = {
   na: "N/A",
   parceiro_informado: "Parceiro informado",
@@ -327,10 +344,25 @@ export const PARTNER_COMMISSION_STATUS_LABELS: Record<PartnerCommissionStatus, s
   nao_aceita: "Não aceita",
 };
 
+export const PARTNER_COMMISSION_STATUS_COLORS: Record<PartnerCommissionStatus, string> = {
+  na:                  "bg-gray-100 text-gray-600 border-gray-200",
+  parceiro_informado:  "bg-sky-100 text-sky-800 border-sky-200",
+  a_aguardar:          "bg-amber-100 text-amber-800 border-amber-200",
+  paga:                "bg-emerald-100 text-emerald-800 border-emerald-200",
+  a_aguardar_resposta: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  nao_aceita:          "bg-rose-100 text-rose-800 border-rose-200",
+};
+
 export const COUPON_STATUS_LABELS: Record<CouponStatus, string> = {
   utilizado: "Utilizado",
   nao_utilizado: "Não utilizado",
   na: "N/A",
+};
+
+export const COUPON_STATUS_COLORS: Record<CouponStatus, string> = {
+  utilizado:     "bg-emerald-100 text-emerald-800 border-emerald-200",
+  nao_utilizado: "bg-amber-100 text-amber-800 border-amber-200",
+  na:            "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 export const CLIENT_FEEDBACK_STATUS_LABELS: Record<ClientFeedbackStatus, string> = {
@@ -338,6 +370,13 @@ export const CLIENT_FEEDBACK_STATUS_LABELS: Record<ClientFeedbackStatus, string>
   ja_pedido: "Já pedido",
   nao_disse_nada: "Não disse nada",
   na: "N/A",
+};
+
+export const CLIENT_FEEDBACK_STATUS_COLORS: Record<ClientFeedbackStatus, string> = {
+  deu_feedback:   "bg-emerald-100 text-emerald-800 border-emerald-200",
+  ja_pedido:      "bg-sky-100 text-sky-800 border-sky-200",
+  nao_disse_nada: "bg-rose-100 text-rose-800 border-rose-200",
+  na:             "bg-gray-100 text-gray-600 border-gray-200",
 };
 
 export const FORM_LANGUAGE_LABELS: Record<FormLanguage, string> = {

@@ -17,6 +17,7 @@ import {
   Check,
   Loader2,
   Image as ImageIcon,
+  Download,
   CalendarClock,
   CalendarCheck,
   Send,
@@ -40,13 +41,17 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { groupOrders } from "@/lib/supabase/orders";
+import { exportOrdersToCsv } from "@/lib/export-csv";
+import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import {
   type Order,
   type OrderStatus,
+  type PaymentStatus,
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
@@ -74,24 +79,42 @@ function formatEuro(value: number | null): string {
   return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
-// ── Badges ────────────────────────────────────────────────────
+// ── Cores e ícones por estado ─────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
-  entrega_flores_agendar: "bg-rose-100 text-[#3D2B1F] border-rose-200",
-  entrega_agendada:       "bg-pink-100 text-[#3D2B1F] border-pink-200",
-  flores_enviadas:        "bg-fuchsia-100 text-[#3D2B1F] border-fuchsia-200",
-  flores_recebidas:       "bg-purple-100 text-[#3D2B1F] border-purple-200",
-  flores_na_prensa:       "bg-violet-100 text-[#3D2B1F] border-violet-200",
-  reconstrucao_botanica:  "bg-indigo-100 text-[#3D2B1F] border-indigo-200",
-  a_compor_design:        "bg-blue-100 text-[#3D2B1F] border-blue-200",
-  a_aguardar_aprovacao:   "bg-sky-100 text-[#3D2B1F] border-sky-200",
-  a_ser_emoldurado:       "bg-cyan-100 text-[#3D2B1F] border-cyan-200",
-  emoldurado:             "bg-teal-100 text-[#3D2B1F] border-teal-200",
-  a_ser_fotografado:      "bg-emerald-100 text-[#3D2B1F] border-emerald-200",
-  quadro_pronto:          "bg-lime-100 text-[#3D2B1F] border-lime-200",
-  quadro_enviado:         "bg-yellow-100 text-[#3D2B1F] border-yellow-200",
-  quadro_recebido:        "bg-green-100 text-[#3D2B1F] border-green-200",
-  cancelado:              "bg-stone-100 text-stone-500 border-stone-200",
+const STATUS_COLORS: Record<OrderStatus, string> = {
+  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300",
+  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300",
+  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300",
+  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300",
+  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300",
+  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300",
+  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300",
+  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300",
+  a_ser_emoldurado:       "bg-cyan-100 text-cyan-900 border-cyan-300",
+  emoldurado:             "bg-teal-100 text-teal-900 border-teal-300",
+  a_ser_fotografado:      "bg-emerald-100 text-emerald-900 border-emerald-300",
+  quadro_pronto:          "bg-lime-100 text-lime-900 border-lime-300",
+  quadro_enviado:         "bg-yellow-100 text-yellow-900 border-yellow-300",
+  quadro_recebido:        "bg-green-100 text-green-900 border-green-300",
+  cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
+};
+
+const STATUS_DOT_COLORS: Record<OrderStatus, string> = {
+  entrega_flores_agendar: "bg-rose-500",
+  entrega_agendada:       "bg-pink-500",
+  flores_enviadas:        "bg-fuchsia-500",
+  flores_recebidas:       "bg-purple-500",
+  flores_na_prensa:       "bg-violet-500",
+  reconstrucao_botanica:  "bg-indigo-500",
+  a_compor_design:        "bg-blue-500",
+  a_aguardar_aprovacao:   "bg-sky-500",
+  a_ser_emoldurado:       "bg-cyan-500",
+  emoldurado:             "bg-teal-500",
+  a_ser_fotografado:      "bg-emerald-500",
+  quadro_pronto:          "bg-lime-500",
+  quadro_enviado:         "bg-yellow-500",
+  quadro_recebido:        "bg-green-500",
+  cancelado:              "bg-stone-400",
 };
 
 const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
@@ -112,48 +135,46 @@ const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
   cancelado:              Ban,
 };
 
-const STATUS_ITEM_COLORS: Record<OrderStatus, string> = {
-  entrega_flores_agendar: "bg-rose-50 text-[#3D2B1F]",
-  entrega_agendada:       "bg-pink-50 text-[#3D2B1F]",
-  flores_enviadas:        "bg-fuchsia-50 text-[#3D2B1F]",
-  flores_recebidas:       "bg-purple-50 text-[#3D2B1F]",
-  flores_na_prensa:       "bg-violet-50 text-[#3D2B1F]",
-  reconstrucao_botanica:  "bg-indigo-50 text-[#3D2B1F]",
-  a_compor_design:        "bg-blue-50 text-[#3D2B1F]",
-  a_aguardar_aprovacao:   "bg-sky-50 text-[#3D2B1F]",
-  a_ser_emoldurado:       "bg-cyan-50 text-[#3D2B1F]",
-  emoldurado:             "bg-teal-50 text-[#3D2B1F]",
-  a_ser_fotografado:      "bg-emerald-50 text-[#3D2B1F]",
-  quadro_pronto:          "bg-lime-50 text-[#3D2B1F]",
-  quadro_enviado:         "bg-yellow-50 text-[#3D2B1F]",
-  quadro_recebido:        "bg-green-50 text-[#3D2B1F]",
-  cancelado:              "bg-stone-50 text-stone-500",
+// Estados agrupados por fase, para meter separadores entre grupos no dropdown
+const STATUS_GROUPS: Array<{ label: string; statuses: OrderStatus[] }> = [
+  { label: "Pré-reserva",        statuses: ["entrega_flores_agendar"] },
+  { label: "Reservas",            statuses: ["entrega_agendada", "flores_enviadas", "flores_recebidas"] },
+  { label: "Preservação e design", statuses: ["flores_na_prensa", "reconstrucao_botanica", "a_compor_design", "a_aguardar_aprovacao"] },
+  { label: "Finalização",         statuses: ["a_ser_emoldurado", "emoldurado", "a_ser_fotografado", "quadro_pronto", "quadro_enviado"] },
+  { label: "Concluído",           statuses: ["quadro_recebido"] },
+  { label: "Cancelado",           statuses: ["cancelado"] },
+];
+
+const PAYMENT_COLORS: Record<PaymentStatus, string> = {
+  "100_pago":      "bg-green-100 text-green-800 border-green-300",
+  "70_pago":       "bg-yellow-100 text-yellow-800 border-yellow-300",
+  "30_pago":       "bg-yellow-100 text-yellow-800 border-yellow-300",
+  "30_por_pagar":  "bg-red-100 text-red-700 border-red-300",
+  "100_por_pagar": "bg-red-100 text-red-700 border-red-300",
 };
 
-const PAYMENT_COLORS: Record<string, string> = {
-  "100_pago":      "bg-green-50 text-green-700 border-green-200",
-  "70_pago":       "bg-yellow-50 text-yellow-700 border-yellow-200",
-  "30_pago":       "bg-yellow-50 text-yellow-700 border-yellow-200",
-  "30_por_pagar":  "bg-red-50 text-red-600 border-red-200",
-  "100_por_pagar": "bg-red-50 text-red-700 border-red-200",
-};
+// ── Dropdown de estado partilhado (tabela + workbench) ────────
 
-function InlineStatusSelect({
+export function StatusSelect({
   value,
   onChange,
   busy,
+  size = "sm",
 }: {
   value: OrderStatus;
   onChange: (s: OrderStatus) => void;
-  busy: boolean;
+  busy?: boolean;
+  size?: "sm" | "md";
 }) {
-  const colorClass = STATUS_COLORS[value] ?? "bg-gray-50 text-gray-500 border-gray-200";
+  const colorClass = STATUS_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
+  const heightClass = size === "md" ? "h-8 text-xs" : "h-7 text-[11px]";
+
   return (
     <Select value={value} onValueChange={(v) => onChange(v as OrderStatus)} disabled={busy}>
       <SelectTrigger
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`h-7 text-xs font-medium border rounded-full px-2.5 max-w-[200px] ${colorClass} hover:brightness-95 transition`}
+        className={`${heightClass} font-semibold border rounded-md px-2.5 max-w-[220px] ${colorClass} hover:brightness-95 transition`}
       >
         {busy ? (
           <Loader2 className="h-3 w-3 animate-spin" />
@@ -161,41 +182,93 @@ function InlineStatusSelect({
           <SelectValue>
             {(v) => {
               if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
-              const Icon = STATUS_ICONS[v as OrderStatus];
+              const key = v as OrderStatus;
+              const Icon = STATUS_ICONS[key];
               return (
                 <>
                   <Icon className="h-3 w-3 shrink-0" />
-                  {STATUS_LABELS[v as OrderStatus]}
+                  {STATUS_LABELS[key]}
                 </>
               );
             }}
           </SelectValue>
         )}
       </SelectTrigger>
-      <SelectContent onClick={(e) => e.stopPropagation()} className="max-h-80">
-        {(Object.keys(STATUS_LABELS) as Array<OrderStatus>).map((s) => {
-          const Icon = STATUS_ICONS[s];
-          return (
-            <SelectItem key={s} value={s} className={`text-xs font-medium ${STATUS_ITEM_COLORS[s]}`}>
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              {STATUS_LABELS[s]}
-            </SelectItem>
-          );
-        })}
+      <SelectContent
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[420px] p-0 rounded-md border border-[#E8E0D5]"
+      >
+        {STATUS_GROUPS.map((group, gi) => (
+          <div key={group.label}>
+            {gi > 0 && <SelectSeparator className="bg-[#E8E0D5] my-0" />}
+            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#B8A99A]">
+              {group.label}
+            </div>
+            <div className="px-1 pb-1">
+              {group.statuses.map((s) => {
+                const Icon = STATUS_ICONS[s];
+                return (
+                  <SelectItem
+                    key={s}
+                    value={s}
+                    className="text-xs font-medium rounded-md text-[#3D2B1F] data-[highlighted]:bg-[#FAF8F5] focus:bg-[#FAF8F5]"
+                  >
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT_COLORS[s]}`} />
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                    {STATUS_LABELS[s]}
+                  </SelectItem>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </SelectContent>
     </Select>
   );
 }
 
-function PaymentBadge({ status }: { status: string }) {
+// ── Dropdown de pagamento partilhado ──────────────────────────
+
+const PAYMENT_DOT_COLORS: Record<PaymentStatus, string> = {
+  "100_pago":      "bg-green-500",
+  "70_pago":       "bg-yellow-500",
+  "30_pago":       "bg-yellow-500",
+  "30_por_pagar":  "bg-red-500",
+  "100_por_pagar": "bg-red-600",
+};
+
+export function PaymentSelect({
+  value,
+  onChange,
+  busy,
+}: {
+  value: PaymentStatus;
+  onChange: (p: PaymentStatus) => void;
+  busy?: boolean;
+}) {
+  const colorClass = PAYMENT_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-        PAYMENT_COLORS[status] ?? "bg-gray-50 text-gray-500 border-gray-200"
-      }`}
-    >
-      {PAYMENT_STATUS_LABELS[status as keyof typeof PAYMENT_STATUS_LABELS] ?? status}
-    </span>
+    <Select value={value} onValueChange={(v) => onChange(v as PaymentStatus)} disabled={busy}>
+      <SelectTrigger
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={`h-7 text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition`}
+      >
+        {busy ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <SelectValue labels={PAYMENT_STATUS_LABELS} />
+        )}
+      </SelectTrigger>
+      <SelectContent className="rounded-md border border-[#E8E0D5]">
+        {(Object.keys(PAYMENT_STATUS_LABELS) as PaymentStatus[]).map((s) => (
+          <SelectItem key={s} value={s} className="text-xs font-medium rounded-md">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${PAYMENT_DOT_COLORS[s]}`} />
+            {PAYMENT_STATUS_LABELS[s]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -205,17 +278,21 @@ function OrderRow({
   order,
   onOpen,
   shippingColumn,
+  isLoading,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
   shippingColumn: ShippingColumn;
+  isLoading: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null);
+  const [optimisticPayment, setOptimisticPayment] = useState<PaymentStatus | null>(null);
   const [optimisticContacted, setOptimisticContacted] = useState<boolean | null>(null);
 
   const currentStatus = optimisticStatus ?? order.status;
+  const currentPayment = optimisticPayment ?? order.payment_status;
   const currentContacted = optimisticContacted ?? order.contacted;
 
   const daysUntilEvent =
@@ -249,6 +326,19 @@ function OrderRow({
     });
   }
 
+  function changePayment(newPayment: PaymentStatus) {
+    if (newPayment === currentPayment) return;
+    setOptimisticPayment(newPayment);
+    startTransition(async () => {
+      try {
+        await updateOrderAction(order.id, { payment_status: newPayment });
+        router.refresh();
+      } catch {
+        setOptimisticPayment(null);
+      }
+    });
+  }
+
   function markContacted() {
     setOptimisticContacted(true);
     startTransition(async () => {
@@ -263,25 +353,30 @@ function OrderRow({
 
   return (
     <tr
-      className="border-b border-[#F0EAE0] hover:bg-[#FDFAF7] cursor-pointer transition-colors"
+      className={`border-b border-[#F0EAE0] cursor-pointer transition-colors ${
+        isLoading ? "bg-[#F0EAE0]/60" : "hover:bg-[#FDFAF7]"
+      }`}
       onClick={() => onOpen(order)}
     >
       <td className="px-4 py-3">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
-            {currentContacted && isPreReserva && (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
-                <Check className="h-2.5 w-2.5" />
-                Contactada
+        <div className="flex items-center gap-2">
+          {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
+              {currentContacted && isPreReserva && (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                  <Check className="h-2.5 w-2.5" />
+                  Contactada
+                </span>
+              )}
+            </div>
+            {order.event_type && (
+              <span className="text-xs text-[#8B7355]">
+                {EVENT_TYPE_LABELS[order.event_type]}
               </span>
             )}
           </div>
-          {order.event_type && (
-            <span className="text-xs text-[#8B7355]">
-              {EVENT_TYPE_LABELS[order.event_type]}
-            </span>
-          )}
         </div>
       </td>
       <td className="px-4 py-3">
@@ -297,7 +392,10 @@ function OrderRow({
         )}
       </td>
       <td className="px-4 py-3">
-        <span className="text-sm text-[#3D2B1F] block max-w-[200px] truncate" title={order.event_location ?? undefined}>
+        <span
+          className="text-sm text-[#3D2B1F] block max-w-[200px] truncate"
+          title={order.event_location ?? undefined}
+        >
           {order.event_location || <span className="text-[#B8A99A]">—</span>}
         </span>
       </td>
@@ -305,13 +403,21 @@ function OrderRow({
         <span className="text-sm text-[#3D2B1F]">{shippingLabel}</span>
       </td>
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-        <InlineStatusSelect value={currentStatus} onChange={changeStatus} busy={isPending && optimisticStatus !== null} />
+        <StatusSelect
+          value={currentStatus}
+          onChange={changeStatus}
+          busy={isPending && optimisticStatus !== null}
+        />
       </td>
       <td className="px-4 py-3 text-right">
         <span className="text-sm text-[#3D2B1F]">{formatEuro(order.budget)}</span>
       </td>
-      <td className="px-4 py-3">
-        <PaymentBadge status={order.payment_status} />
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <PaymentSelect
+          value={currentPayment}
+          onChange={changePayment}
+          busy={isPending && optimisticPayment !== null}
+        />
       </td>
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-2">
@@ -349,11 +455,12 @@ interface GroupSectionProps {
   onToggle: () => void;
   onOpenOrder: (o: Order) => void;
   shippingColumn: ShippingColumn;
+  loadingOrderId: string | null;
   alert?: boolean;
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, alert = false,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, alert = false,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   return (
@@ -391,7 +498,13 @@ function GroupSection({
             </thead>
             <tbody>
               {orders.map((order) => (
-                <OrderRow key={order.id} order={order} onOpen={onOpenOrder} shippingColumn={shippingColumn} />
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  onOpen={onOpenOrder}
+                  shippingColumn={shippingColumn}
+                  isLoading={loadingOrderId === order.id}
+                />
               ))}
             </tbody>
           </table>
@@ -419,6 +532,8 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
   const [activeView, setActiveView] = useState<ViewType>("tabela");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
+  const [, startNavTransition] = useTransition();
 
   const filteredOrders = search.trim()
     ? initialOrders.filter(
@@ -435,13 +550,17 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
   function toggleGroup(id: string) {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
 
   function openOrder(order: Order) {
-    router.push(`/preservacao/${order.order_id}`);
+    if (navigatingId) return;
+    setNavigatingId(order.id);
+    startNavTransition(() => {
+      router.push(`/preservacao/${order.order_id}`);
+    });
   }
 
   const totalActive = initialOrders.filter(
@@ -492,6 +611,14 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
               </button>
             ))}
           </div>
+          <button
+            onClick={() => exportOrdersToCsv(initialOrders)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            title="Exportar todas as encomendas para Excel/CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
           <Button
             size="sm"
             className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-8 gap-1.5"
@@ -507,18 +634,18 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
       <div className="flex-1 overflow-auto p-6">
         {activeView === "tabela" && (
           <div className="space-y-3">
-            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" alert />
-            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" />
-            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" />
-            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" />
-            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" />
-            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" />
-            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" />
+            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} alert />
+            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} />
+            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} />
+            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} />
+            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} />
+            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} />
+            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} />
 
             {filteredOrders.length === 0 && initialOrders.length > 0 && (
               <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">
                 <p className="text-sm text-[#8B7355]">
-                  Nenhum resultado para <strong>"{search}"</strong>
+                  Nenhum resultado para <strong>&ldquo;{search}&rdquo;</strong>
                 </p>
               </div>
             )}
@@ -527,13 +654,13 @@ export default function PreservacaoClient({ initialOrders, initialGrouped }: Pro
 
         {activeView === "cards" && (
           <div className="space-y-6">
-            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} alert />
-            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} />
-            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} />
-            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} />
-            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} />
-            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} />
-            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} />
+            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} alert />
+            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} />
+            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} />
+            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} />
+            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} />
+            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} />
+            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} />
           </div>
         )}
 
@@ -566,12 +693,14 @@ function CardGroup({
   orders,
   colorClass,
   onOpenOrder,
+  loadingOrderId,
   alert = false,
 }: {
   title: string;
   orders: Order[];
   colorClass: string;
   onOpenOrder: (o: Order) => void;
+  loadingOrderId: string | null;
   alert?: boolean;
 }) {
   return (
@@ -590,7 +719,12 @@ function CardGroup({
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {orders.map((o) => (
-            <OrderCard key={o.id} order={o} onOpen={onOpenOrder} />
+            <OrderCard
+              key={o.id}
+              order={o}
+              onOpen={onOpenOrder}
+              isLoading={loadingOrderId === o.id}
+            />
           ))}
         </div>
       )}
@@ -598,21 +732,30 @@ function CardGroup({
   );
 }
 
-function OrderCard({ order, onOpen }: { order: Order; onOpen: (o: Order) => void }) {
+function OrderCard({
+  order, onOpen, isLoading,
+}: {
+  order: Order;
+  onOpen: (o: Order) => void;
+  isLoading: boolean;
+}) {
   const daysUntilEvent =
     order.event_date ? differenceInDays(parseISO(order.event_date), new Date()) : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
+  const photoUrl = toEmbeddableImageUrl(order.flowers_photo_url);
 
   return (
     <button
       onClick={() => onOpen(order)}
-      className="group text-left rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md hover:border-[#C4A882] transition-all"
+      className={`group text-left rounded-2xl border bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md transition-all ${
+        isLoading ? "border-[#C4A882] ring-2 ring-[#C4A882]/30" : "border-[#E8E0D5] hover:border-[#C4A882]"
+      }`}
     >
       <div className="relative aspect-square bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
-        {order.flowers_photo_url ? (
+        {photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={order.flowers_photo_url}
+            src={photoUrl}
             alt={`Flores de ${order.client_name}`}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
@@ -627,6 +770,11 @@ function OrderCard({ order, onOpen }: { order: Order; onOpen: (o: Order) => void
           <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
             <AlertTriangle className="h-2.5 w-2.5" />
             {daysUntilEvent}d
+          </div>
+        )}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+            <Loader2 className="h-6 w-6 animate-spin text-[#3D2B1F]" />
           </div>
         )}
       </div>
