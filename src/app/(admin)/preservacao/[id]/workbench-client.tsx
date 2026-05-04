@@ -100,11 +100,20 @@ import {
   CLIENT_FEEDBACK_STATUS_LABELS,
   CLIENT_FEEDBACK_STATUS_COLORS,
   SIM_NAO_LABELS,
+  PUBLIC_STATUS_LANGUAGE_LABELS,
+  type PublicStatusLanguage,
 } from "@/types/database";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import { relativeMonthsDays } from "@/lib/format-date";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
+import {
+  publicStatusUrl,
+  STATUS_TO_PUBLIC_PHASE,
+  PUBLIC_PHASE_LABEL_PT,
+  PUBLIC_PHASE_LABEL_EN,
+  PUBLIC_PHASE_COLORS,
+} from "@/lib/public-status";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -429,7 +438,7 @@ export default function WorkbenchClient({ order }: { order: Order }) {
   const isWedding = local.event_type === "casamento";
   const eventRelative = local.event_date ? relativeMonthsDays(local.event_date) : null;
 
-  const publicStatusUrl = `https://status.floresabeirario.pt/?id=${local.order_id}`;
+  const publicStatusLink = publicStatusUrl(local.order_id);
   const photoUrl = toEmbeddableImageUrl(local.flowers_photo_url);
 
   const extras: ExtrasInFrame = local.extras_in_frame ?? { options: [], notes: "" };
@@ -846,11 +855,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         )}
 
                         <a
-                          href={publicStatusUrl}
+                          href={publicStatusLink}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
-                          title="Status público"
+                          title="Abrir status público"
                         >
                           <Globe className="h-3.5 w-3.5" />
                           Status público
@@ -1323,6 +1332,78 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                     </Select>
                   </Field>
                 </div>
+              </Card>
+
+              {/* ── STATUS PÚBLICO ───────────────────────────── */}
+              <Card
+                title="Status público"
+                accent="blue"
+                icon={<Globe className="h-3.5 w-3.5" />}
+                badge={
+                  <span
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${PUBLIC_PHASE_COLORS[STATUS_TO_PUBLIC_PHASE[local.status]]}`}
+                  >
+                    {STATUS_TO_PUBLIC_PHASE[local.status] !== "cancelada" && (
+                      <span className="opacity-60">{STATUS_TO_PUBLIC_PHASE[local.status]}</span>
+                    )}
+                    {PUBLIC_PHASE_LABEL_PT[STATUS_TO_PUBLIC_PHASE[local.status]]}
+                  </span>
+                }
+                action={
+                  <a
+                    href={publicStatusLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 hover:underline"
+                    title="Abrir página pública"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Ver
+                  </a>
+                }
+              >
+                <p className="text-[11px] text-[#8B7355] leading-relaxed -mt-1">
+                  {PUBLIC_PHASE_LABEL_PT[STATUS_TO_PUBLIC_PHASE[local.status]]}{" "}
+                  <span className="text-[#B8A99A]">/</span>{" "}
+                  {PUBLIC_PHASE_LABEL_EN[STATUS_TO_PUBLIC_PHASE[local.status]]}
+                </p>
+                <Grid2>
+                  <Field label="Idioma">
+                    <Select
+                      value={local.public_status_language}
+                      onValueChange={(v) => update("public_status_language", v as PublicStatusLanguage)}
+                    >
+                      <SelectTrigger className={sel}>
+                        <SelectValue labels={PUBLIC_STATUS_LANGUAGE_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(PUBLIC_STATUS_LANGUAGE_LABELS) as PublicStatusLanguage[]).map((k) => (
+                          <SelectItem key={k} value={k}>
+                            {PUBLIC_STATUS_LANGUAGE_LABELS[k]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Data prevista">
+                    <Input
+                      className={inp}
+                      type="date"
+                      value={toDateInput(local.estimated_delivery_date)}
+                      onChange={(e) => update("estimated_delivery_date", e.target.value || null)}
+                    />
+                  </Field>
+                </Grid2>
+                <p className="text-[10px] text-[#B8A99A] -mt-2">
+                  Data gerada automaticamente quando o estado passa para <em>Flores na prensa</em> (data + 6 meses). Editável.
+                </p>
+                <Link
+                  href="/status"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-sky-700 hover:underline"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Editar mensagem na aba Status
+                </Link>
               </Card>
 
               <div className="rounded-xl border border-[#E8E0D5] bg-white px-4 py-3 space-y-1">

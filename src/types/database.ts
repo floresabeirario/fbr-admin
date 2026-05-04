@@ -75,6 +75,9 @@ export type ClientFeedbackStatus = "deu_feedback" | "ja_pedido" | "nao_disse_nad
 
 export type FormLanguage = "pt" | "en";
 
+// Idioma a mostrar ao cliente no site público de status.
+export type PublicStatusLanguage = "pt" | "en" | "ambos";
+
 export interface InspirationItem {
   type: "image" | "link";
   url: string;
@@ -146,6 +149,13 @@ export interface Order {
   drive_folder_url: string | null;
   flowers_photo_url: string | null;
   inspiration_gallery: InspirationItem[];
+
+  // ── Status público (site status.floresabeirario.pt) ─────────
+  public_status_message_pt: string | null;
+  public_status_message_en: string | null;
+  public_status_language: PublicStatusLanguage;
+  estimated_delivery_date: string | null;
+  public_status_updated_at: string;
 }
 
 // Tipo para criar uma nova encomenda (campos obrigatórios mínimos)
@@ -382,6 +392,12 @@ export const CLIENT_FEEDBACK_STATUS_COLORS: Record<ClientFeedbackStatus, string>
 export const FORM_LANGUAGE_LABELS: Record<FormLanguage, string> = {
   pt: "🇵🇹 Português",
   en: "🇬🇧 English",
+};
+
+export const PUBLIC_STATUS_LANGUAGE_LABELS: Record<PublicStatusLanguage, string> = {
+  pt: "🇵🇹 Só PT",
+  en: "🇬🇧 Só EN",
+  ambos: "🇵🇹 🇬🇧 Ambos",
 };
 
 export const SIM_NAO_LABELS: Record<"sim" | "nao", string> = {

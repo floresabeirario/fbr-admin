@@ -1,8 +1,27 @@
-export default function StatusPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold text-[#3D2B1F]">Status</h1>
-      <p className="mt-2 text-sm text-[#8B7355]">Em construção.</p>
-    </div>
-  );
+import { createClient } from "@/lib/supabase/server";
+import type { Order } from "@/types/database";
+import type { PartialPublicMessages } from "@/lib/public-status";
+import StatusClient from "./status-client";
+
+export default async function StatusPage() {
+  const supabase = await createClient();
+
+  const [ordersRes, settingsRes] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("*")
+      .is("deleted_at", null)
+      .order("public_status_updated_at", { ascending: false }),
+    supabase
+      .from("public_status_settings")
+      .select("messages")
+      .eq("id", 1)
+      .single(),
+  ]);
+
+  const orders: Order[] = (ordersRes.data ?? []) as Order[];
+  const defaultMessages: PartialPublicMessages =
+    (settingsRes.data?.messages as PartialPublicMessages) ?? {};
+
+  return <StatusClient initialOrders={orders} initialDefaults={defaultMessages} />;
 }
