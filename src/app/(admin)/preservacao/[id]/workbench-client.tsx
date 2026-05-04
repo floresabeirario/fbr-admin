@@ -823,17 +823,18 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         onChange={(e) => update("client_name", e.target.value)}
                         placeholder="Nome do cliente"
                       />
-                      <div className="flex items-center gap-1.5 shrink-0 pt-1.5">
+                      <div className="flex flex-col items-stretch gap-1.5 shrink-0 pt-1.5">
                         {local.drive_folder_url ? (
                           <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-[#E8E0D5] bg-white">
                             <a
                               href={local.drive_folder_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
                               title="Abrir pasta Drive"
                             >
                               <FolderOpen className="h-3.5 w-3.5" />
+                              Pasta Drive
                               <ExternalLink className="h-3 w-3 opacity-60" />
                             </a>
                             <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(local.drive_folder_url ?? ""); }}>
@@ -849,11 +850,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                         ) : (
                           <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(""); }}>
                             <PopoverTrigger
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-2.5 py-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F] hover:border-[#C4A882] transition-colors"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-2.5 py-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F] hover:border-[#C4A882] transition-colors"
                               title="Definir pasta Drive"
                             >
                               <FolderOpen className="h-3.5 w-3.5" />
-                              Pasta Drive
+                              Definir pasta Drive
                             </PopoverTrigger>
                             <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} />
                           </Popover>
@@ -863,10 +864,11 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                           href={publicStatusUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
                           title="Status público"
                         >
                           <Globe className="h-3.5 w-3.5" />
+                          Status público
                           <ExternalLink className="h-3 w-3 opacity-60" />
                         </a>
                       </div>
