@@ -48,6 +48,7 @@ import {
   STATUS_TO_PUBLIC_PHASE,
   publicStatusUrl,
   resolveMessage,
+  formatPublicEstimatedDelivery,
   type PartialPublicMessages,
   type PublicPhase,
 } from "@/lib/public-status";
@@ -404,6 +405,14 @@ function StatusRow({
           className="h-7 text-xs w-[140px] bg-white"
           disabled={isPending}
         />
+        {estDate && (
+          <p
+            className="mt-1 text-[10px] text-[#B8A99A]"
+            title="Cliente vê só mês e ano"
+          >
+            Cliente vê: <span className="text-[#8B7355] font-medium">{formatPublicEstimatedDelivery(estDate, "pt")}</span>
+          </p>
+        )}
       </td>
 
       {/* Última atualização */}

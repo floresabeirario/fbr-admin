@@ -113,6 +113,7 @@ import {
   PUBLIC_PHASE_LABEL_PT,
   PUBLIC_PHASE_LABEL_EN,
   PUBLIC_PHASE_COLORS,
+  formatPublicEstimatedDelivery,
 } from "@/lib/public-status";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -1392,10 +1393,18 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       value={toDateInput(local.estimated_delivery_date)}
                       onChange={(e) => update("estimated_delivery_date", e.target.value || null)}
                     />
+                    {local.estimated_delivery_date && (
+                      <p
+                        className="text-[10px] text-[#B8A99A]"
+                        title="O cliente vê apenas mês e ano no site público"
+                      >
+                        Cliente vê: <span className="text-[#8B7355] font-medium">{formatPublicEstimatedDelivery(local.estimated_delivery_date, "pt")}</span>
+                      </p>
+                    )}
                   </Field>
                 </Grid2>
                 <p className="text-[10px] text-[#B8A99A] -mt-2">
-                  Data gerada automaticamente quando o estado passa para <em>Flores na prensa</em> (data + 6 meses). Editável.
+                  Gerada automaticamente quando o estado passa para <em>Flores na prensa</em> (data + 6 meses). Editável. O cliente só vê o mês e o ano.
                 </p>
                 <Link
                   href="/status"

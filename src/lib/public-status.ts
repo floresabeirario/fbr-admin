@@ -201,3 +201,31 @@ export type PartialPublicMessages = Partial<
 export function publicStatusUrl(orderId: string): string {
   return `https://status.floresabeirario.pt/${orderId}`;
 }
+
+/**
+ * Formata a data prevista de entrega tal como o cliente a vê no site
+ * público: só mês e ano (sem dia).
+ *
+ * Ex.: "2026-05-04" → "maio de 2026" (PT) / "May 2026" (EN)
+ */
+export function formatPublicEstimatedDelivery(
+  dateIso: string | null | undefined,
+  lang: "pt" | "en",
+): string {
+  if (!dateIso) return lang === "pt" ? "—" : "—";
+  // Construímos a data manualmente para evitar problemas de timezone:
+  // se chegar um ISO com hora, parseISO seria mais correcto, mas para
+  // uma DATE simples (yyyy-mm-dd) o split é seguro e não tem TZ shift.
+  const [y, m] = dateIso.split("-");
+  const year = Number(y);
+  const month = Number(m); // 1-12
+  if (!year || !month) return "—";
+  // Usamos dia 15 para evitar qualquer salto de timezone.
+  const d = new Date(year, month - 1, 15);
+  if (lang === "pt") {
+    const fmt = new Intl.DateTimeFormat("pt-PT", { month: "long", year: "numeric" });
+    return fmt.format(d);
+  }
+  const fmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+  return fmt.format(d);
+}
