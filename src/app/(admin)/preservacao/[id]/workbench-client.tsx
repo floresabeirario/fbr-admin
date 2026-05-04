@@ -1202,33 +1202,35 @@ export default function WorkbenchClient({ order }: { order: Order }) {
                       <SelectContent />
                     </Select>
                   </Field>
-                  <Field label="Comissão (€)">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
-                      <Input
-                        className={inp + " pl-7"}
-                        type="number" min={0} step={0.01}
-                        value={local.partner_commission ?? ""}
-                        onChange={(e) => update("partner_commission", e.target.value ? Number(e.target.value) : null)}
-                      />
-                    </div>
-                  </Field>
-                  <Field label="Estado da comissão">
-                    <Select value={local.partner_commission_status} onValueChange={(v) => update("partner_commission_status", v as Order["partner_commission_status"])}>
-                      <SelectTrigger className={`${sel} font-medium ${PARTNER_COMMISSION_STATUS_COLORS[local.partner_commission_status]}`}>
-                        <SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(PARTNER_COMMISSION_STATUS_LABELS) as Array<keyof typeof PARTNER_COMMISSION_STATUS_LABELS>).map((k) => (
-                          <SelectItem key={k} value={k} className="my-0.5">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_COMMISSION_STATUS_COLORS[k]}`}>
-                              {PARTNER_COMMISSION_STATUS_LABELS[k]}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  <div className="grid grid-cols-[6.5rem_1fr] gap-3">
+                    <Field label="Comissão (€)">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+                        <Input
+                          className={inp + " pl-7"}
+                          type="number" min={0} step={0.01}
+                          value={local.partner_commission ?? ""}
+                          onChange={(e) => update("partner_commission", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Estado da comissão">
+                      <Select value={local.partner_commission_status} onValueChange={(v) => update("partner_commission_status", v as Order["partner_commission_status"])}>
+                        <SelectTrigger className={`${sel} font-medium ${PARTNER_COMMISSION_STATUS_COLORS[local.partner_commission_status]}`}>
+                          <SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(PARTNER_COMMISSION_STATUS_LABELS) as Array<keyof typeof PARTNER_COMMISSION_STATUS_LABELS>).map((k) => (
+                            <SelectItem key={k} value={k} className="my-0.5">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_COMMISSION_STATUS_COLORS[k]}`}>
+                                {PARTNER_COMMISSION_STATUS_LABELS[k]}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
                 </div>
               </Card>
 
