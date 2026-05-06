@@ -13,7 +13,7 @@ export default async function StatusPage() {
       .from("orders")
       .select("*")
       .is("deleted_at", null)
-      .order("public_status_updated_at", { ascending: false }),
+      .order("event_date", { ascending: true, nullsFirst: false }),
     supabase
       .from("public_status_settings")
       .select("messages")

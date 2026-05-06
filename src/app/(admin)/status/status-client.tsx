@@ -111,12 +111,12 @@ export default function StatusClient({
         (o.email ?? "").toLowerCase().includes(term)
       );
     });
-    // Ordena por data do evento — mais recentes primeiro; sem data fica no fim.
+    // Ordena por data do evento ascendente — mais próxima primeiro; sem data fica no fim.
     return list.sort((a, b) => {
       if (!a.event_date && !b.event_date) return 0;
       if (!a.event_date) return 1;
       if (!b.event_date) return -1;
-      return a.event_date < b.event_date ? 1 : a.event_date > b.event_date ? -1 : 0;
+      return a.event_date < b.event_date ? -1 : a.event_date > b.event_date ? 1 : 0;
     });
   }, [initialOrders, search, phaseFilter, hideArchived]);
 
