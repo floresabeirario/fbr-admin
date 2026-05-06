@@ -56,6 +56,12 @@ A Fase 2 fica fechada. Tarefas (Dashboard) e Parcerias — onde a Ana ganha edi�
 
 ⚠ **Pendente para a Fase 5 (formulário público):** quando o cliente escolher "Florista" no campo "Como conheceu a FBR", tem de aparecer uma caixa obrigatória "Que florista?" (já implementado nos formulários admin: nova encomenda + workbench).
 
+## Ideias futuras / Pendências (a planear)
+
+- **Chat interno entre membros (António, MJ, Ana):** canal de comunicação dentro da plataforma com texto, vídeo, foto e áudio — substituir trocas avulsas por WhatsApp/email para tudo que diz respeito à operação. (Provável Fase 6 ou 7.)
+- **Nova aba "Livro de Receitas 👩‍🍳":** secção tipo wiki para registar o "how-to" da preservação por tipo de flor (rosa, peónia, silvestre, etc.). Objectivo: guardar conhecimento adquirido e evitar perdê-lo. Cada receita com fotos, passos, tempo de prensa, observações.
+- **Aba Parcerias — comissão condicional:** quando o parceiro recomendador for "Nenhum parceiro", esconder os campos *Comissão (€)* e *Estado da comissão* no workbench (ficam só ruído). Implementar quando a aba Parcerias existir (Fase 5).
+
 **Decisão arquitetural confirmada (2026-05-03):** todos os ficheiros relacionados com encomendas (fotos, comprovativos, faturas, inspirações) são guardados no Google Drive, na pasta do cliente. A plataforma só guarda o URL/link. Não usar Supabase Storage para isto.
 
 ## Notas de sessão

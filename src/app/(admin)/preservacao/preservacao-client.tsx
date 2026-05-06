@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO, differenceInDays, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
   ChevronDown,
@@ -216,7 +216,7 @@ function OrderRow({
 
   const daysUntilEvent =
     order.event_date
-      ? differenceInDays(parseISO(order.event_date), new Date())
+      ? differenceInCalendarDays(parseISO(order.event_date), new Date())
       : null;
   const urgentEvent =
     daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
@@ -304,7 +304,7 @@ function OrderRow({
       }`}
       onClick={() => onOpen(order)}
     >
-      <td className="px-4 py-3">
+      <td className="px-4 py-1.5">
         <div className="flex items-center gap-2">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
           <div className="flex flex-col min-w-0">
@@ -325,7 +325,7 @@ function OrderRow({
           </div>
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-1.5">
         {order.event_date ? (
           <span
             className={`text-sm ${urgentEvent ? "text-red-600 font-semibold" : "text-[#3D2B1F]"}`}
@@ -337,7 +337,7 @@ function OrderRow({
           <span className="text-sm text-[#B8A99A]">—</span>
         )}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-1.5">
         <span
           className="text-sm text-[#3D2B1F] block max-w-[200px] truncate"
           title={order.event_location ?? undefined}
@@ -345,10 +345,10 @@ function OrderRow({
           {order.event_location || <span className="text-[#B8A99A]">—</span>}
         </span>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-1.5">
         <span className="text-sm text-[#3D2B1F]">{shippingLabel}</span>
       </td>
-      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <StatusSelect
           value={currentStatus}
           onChange={changeStatus}
@@ -356,10 +356,10 @@ function OrderRow({
           disabled={!canEdit}
         />
       </td>
-      <td className="px-4 py-3 text-right">
+      <td className="px-4 py-1.5 text-right">
         <span className="text-sm text-[#3D2B1F]">{formatEuro(order.budget)}</span>
       </td>
-      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <PaymentSelect
           value={currentPayment}
           onChange={changePayment}
@@ -367,7 +367,7 @@ function OrderRow({
           disabled={!canEdit}
         />
       </td>
-      <td className="px-4 py-3 text-right">
+      <td className="px-4 py-1.5 text-right">
         <div className="flex items-center justify-end gap-2">
           {canEdit && isPreReserva && !currentContacted && (
             <button
@@ -435,28 +435,31 @@ function GroupSection({
   title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
+  const isEmpty = orders.length === 0;
+  // Grupos vazios ficam sempre colapsados (poupar espaço); o cabeçalho continua a aparecer.
+  const effectivelyCollapsed = isCollapsed || isEmpty;
   return (
-    <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty ? "opacity-60" : ""}`}>
       <button
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#FDFAF7] transition-colors"
-        onClick={onToggle}
+        className={`w-full flex items-center gap-3 px-4 hover:bg-[#FDFAF7] transition-colors ${isEmpty ? "py-1.5 cursor-default" : "py-2.5"}`}
+        onClick={isEmpty ? undefined : onToggle}
       >
-        {isCollapsed
+        {isEmpty ? (
+          <span className="h-3.5 w-3.5 shrink-0" />
+        ) : effectivelyCollapsed
           ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
           : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
         }
-        {alert && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
+        {alert && !isEmpty && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
         <span className={`text-sm font-semibold ${colorClass}`}>{title}</span>
         <span className="ml-1 rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
           {orders.length}
         </span>
+        {isEmpty && (
+          <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem encomendas</span>
+        )}
       </button>
-      {!isCollapsed && orders.length === 0 && (
-        <p className="border-t border-[#F0EAE0] px-4 py-3 text-xs text-[#B8A99A] italic">
-          Nenhuma encomenda neste grupo.
-        </p>
-      )}
-      {!isCollapsed && orders.length > 0 && (
+      {!effectivelyCollapsed && orders.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left table-fixed">
             <colgroup>
@@ -531,6 +534,12 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
     : initialOrders;
 
   const grouped = search.trim() ? groupOrders(filteredOrders) : initialGrouped;
+
+  // Calendário e timeline só mostram encomendas com data agendada (excluem
+  // pré-reservas "por agendar" e canceladas — não fazem sentido na grelha temporal).
+  const scheduledOrders = filteredOrders.filter(
+    (o) => o.status !== "entrega_flores_agendar" && o.status !== "cancelado"
+  );
 
   function toggleGroup(id: string) {
     setCollapsedGroups((prev) => {
@@ -654,7 +663,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
 
         {activeView === "calendario" && (
           <CalendarView
-            orders={filteredOrders}
+            orders={scheduledOrders}
             onOpenOrder={openOrder}
             loadingOrderId={navigatingId}
           />
@@ -662,7 +671,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
 
         {activeView === "timeline" && (
           <TimelineView
-            orders={filteredOrders}
+            orders={scheduledOrders}
             onOpenOrder={openOrder}
             loadingOrderId={navigatingId}
           />
@@ -699,20 +708,20 @@ function CardGroup({
   loadingOrderId: string | null;
   alert?: boolean;
 }) {
+  const isEmpty = orders.length === 0;
   return (
-    <section>
+    <section className={isEmpty ? "opacity-60" : ""}>
       <div className="flex items-center gap-2 mb-3">
-        {alert && <AlertTriangle className="h-4 w-4 text-red-500" />}
+        {alert && !isEmpty && <AlertTriangle className="h-4 w-4 text-red-500" />}
         <h2 className={`text-sm font-semibold ${colorClass}`}>{title}</h2>
         <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
           {orders.length}
         </span>
+        {isEmpty && (
+          <span className="ml-1 text-[11px] text-[#B8A99A] italic">sem encomendas</span>
+        )}
       </div>
-      {orders.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[#E8E0D5] bg-white px-4 py-6 text-center text-xs text-[#B8A99A] italic">
-          Nenhuma encomenda neste grupo.
-        </p>
-      ) : (
+      {!isEmpty && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {orders.map((o) => (
             <OrderCard
@@ -736,7 +745,7 @@ function OrderCard({
   isLoading: boolean;
 }) {
   const daysUntilEvent =
-    order.event_date ? differenceInDays(parseISO(order.event_date), new Date()) : null;
+    order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
   const photoUrl = toEmbeddableImageUrl(order.flowers_photo_url);
 

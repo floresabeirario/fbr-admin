@@ -30,11 +30,18 @@ const PROFILES = [
   { name: "Ana", email: "info+ana@floresabeirario.pt", photo: "/userphotos/ana.webp" },
 ];
 
-const navItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  parent?: string; // href do pai — renderiza indentado
+};
+
+const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/preservacao", label: "Preservação de Flores", icon: Flower2 },
+  { href: "/status", label: "Status", icon: Radio, parent: "/preservacao" },
   { href: "/vale-presente", label: "Vale-Presente", icon: Gift },
-  { href: "/status", label: "Status", icon: Radio },
   { href: "/parcerias", label: "Parcerias", icon: Handshake },
   { href: "/financas", label: "Finanças", icon: Euro },
   { href: "/entregas-recolhas", label: "Entregas e Recolhas", icon: Truck },
@@ -88,21 +95,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-y-auto px-2">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon, parent }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const isSub = !!parent;
             return (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors",
+                  isSub && !collapsed ? "pl-7 pr-2 ml-2 border-l border-[#E8E0D5] dark:border-[#2C2C2E] text-[13px]" : "px-2",
                   active
                     ? "bg-[#F0EAE0] dark:bg-[#2C2C2E] text-[#3D2B1F] dark:text-[#E8D5B5]"
                     : "text-[#8B7355] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5]"
                 )}
                 title={collapsed ? label : undefined}
               >
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className={cn("shrink-0", isSub ? "h-3.5 w-3.5" : "h-4 w-4")} />
                 {!collapsed && <span className="truncate">{label}</span>}
               </Link>
             );

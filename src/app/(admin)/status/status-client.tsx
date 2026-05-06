@@ -66,14 +66,6 @@ function formatDate(d: string | null): string {
   }
 }
 
-function formatDateTime(d: string | null): string {
-  if (!d) return "—";
-  try {
-    return format(parseISO(d), "dd/MM/yyyy HH:mm", { locale: pt });
-  } catch {
-    return "—";
-  }
-}
 
 function toDateInput(d: string | null): string {
   if (!d) return "";
@@ -108,7 +100,7 @@ export default function StatusClient({
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return initialOrders.filter((o) => {
+    const list = initialOrders.filter((o) => {
       const phase = STATUS_TO_PUBLIC_PHASE[o.status];
       if (hideArchived && (phase === 11 || phase === "cancelada")) return false;
       if (phaseFilter !== "todas" && phase !== phaseFilter) return false;
@@ -118,6 +110,13 @@ export default function StatusClient({
         o.order_id.toLowerCase().includes(term) ||
         (o.email ?? "").toLowerCase().includes(term)
       );
+    });
+    // Ordena por data do evento — mais recentes primeiro; sem data fica no fim.
+    return list.sort((a, b) => {
+      if (!a.event_date && !b.event_date) return 0;
+      if (!a.event_date) return 1;
+      if (!b.event_date) return -1;
+      return a.event_date < b.event_date ? 1 : a.event_date > b.event_date ? -1 : 0;
     });
   }, [initialOrders, search, phaseFilter, hideArchived]);
 
@@ -435,7 +434,7 @@ function StatusRow({
 
       {/* Última atualização */}
       <td className="px-3 py-3 align-top text-xs text-[#8B7355] whitespace-nowrap">
-        {formatDateTime(order.public_status_updated_at)}
+        {formatDate(order.public_status_updated_at)}
       </td>
 
       {/* Acções */}

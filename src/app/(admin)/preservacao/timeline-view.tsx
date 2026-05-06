@@ -6,7 +6,7 @@ import {
   format,
   isPast,
   startOfDay,
-  differenceInDays,
+  differenceInCalendarDays,
 } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -281,7 +281,7 @@ function TimelineRow({
   const isLoading = loadingOrderId === order.id;
   const eventDate = order.event_date ? parseISO(order.event_date) : null;
   const daysAway =
-    eventDate && today ? differenceInDays(eventDate, today) : null;
+    eventDate && today ? differenceInCalendarDays(eventDate, today) : null;
   const urgent = daysAway !== null && daysAway >= 0 && daysAway <= 5;
 
   return (

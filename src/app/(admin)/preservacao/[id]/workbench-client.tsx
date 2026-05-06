@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -36,7 +35,6 @@ import {
   Loader2,
   Check,
   ExternalLink,
-  Copy,
   AlertTriangle,
   Image as ImageIcon,
   FolderOpen,
@@ -85,11 +83,11 @@ import {
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
-  CONTACT_PREFERENCE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
   FRAME_DELIVERY_METHOD_LABELS,
   FRAME_BACKGROUND_LABELS,
   FRAME_SIZE_LABELS,
+  FRAME_SIZE_COLORS,
   YES_NO_INFO_LABELS,
   HOW_FOUND_FBR_LABELS,
   HOW_FOUND_FBR_COLORS,
@@ -101,9 +99,10 @@ import {
   CLIENT_FEEDBACK_STATUS_COLORS,
   SIM_NAO_LABELS,
 } from "@/types/database";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import { relativeMonthsDays } from "@/lib/format-date";
+import { formatPhone, phoneToWaMe } from "@/lib/format-phone";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import {
   publicStatusUrl,
@@ -338,6 +337,14 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
   const [orderIdDraft, setOrderIdDraft] = useState("");
   const [orderIdPopoverOpen, setOrderIdPopoverOpen] = useState(false);
 
+  // Confirmação ao alterar campos preenchidos pelo cliente — protege contra cliques acidentais.
+  const [clientEditDialog, setClientEditDialog] = useState<null | {
+    label: string;
+    oldDisplay: string;
+    newDisplay: string;
+    apply: () => void;
+  }>(null);
+
   const flush = useCallback(async () => {
     const updates = { ...pendingRef.current };
     if (Object.keys(updates).length === 0) return;
@@ -361,6 +368,30 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
     setSaveState("idle");
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(flush, 900);
+  }
+
+  // Atalho para campos preenchidos pelo cliente: pede confirmação antes de aplicar.
+  // Razão: evitar alterações acidentais por cliques sem querer numa dropdown/data.
+  function clientUpdate<K extends keyof OrderUpdate>(
+    key: K,
+    newValue: OrderUpdate[K],
+    label: string,
+    formatter?: (v: OrderUpdate[K]) => string,
+  ) {
+    const oldValue = local[key as keyof Order] as unknown as OrderUpdate[K];
+    if (newValue === oldValue) return;
+    const fmt = formatter ?? ((v: OrderUpdate[K]) => (v === null || v === undefined || v === "" ? "—" : String(v)));
+    setClientEditDialog({
+      label,
+      oldDisplay: fmt(oldValue),
+      newDisplay: fmt(newValue),
+      apply: () => update(key, newValue),
+    });
+  }
+
+  function confirmClientEdit() {
+    clientEditDialog?.apply();
+    setClientEditDialog(null);
   }
 
   function onStatusChange(newStatus: Order["status"]) {
@@ -426,7 +457,7 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
   }
 
   const daysUntilEvent = local.event_date
-    ? differenceInDays(parseISO(local.event_date), new Date())
+    ? differenceInCalendarDays(parseISO(local.event_date), new Date())
     : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
   const isWedding = local.event_type === "casamento";
@@ -621,37 +652,70 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
                   </span>
                 }
               >
-                {/* Contacto preferido (movido das antigas dados-do-cliente) */}
-                <div className="rounded-lg bg-[#FAF8F5] border border-[#E8E0D5] p-3 space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">
-                    Contacto preferido pelo cliente
-                  </Label>
-                  <Select value={local.contact_preference ?? ""} onValueChange={(v) => update("contact_preference", v as Order["contact_preference"])}>
-                    <SelectTrigger className={sel + " w-full"}><SelectValue placeholder="—" labels={CONTACT_PREFERENCE_LABELS} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="whatsapp">
-                        <MessageCircle className="h-3.5 w-3.5 text-green-600" />
-                        WhatsApp
-                      </SelectItem>
-                      <SelectItem value="email">
-                        <Mail className="h-3.5 w-3.5 text-blue-600" />
-                        Email
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="text-[11px] text-[#8B7355] space-y-0.5 pt-1 border-t border-[#E8E0D5]">
-                    {local.email && (
-                      <a href={`mailto:${local.email}`} className="flex items-center gap-1.5 hover:text-[#3D2B1F] transition-colors">
-                        <Mail className="h-3 w-3 text-blue-500 shrink-0" />
-                        <span className="truncate">{local.email}</span>
-                      </a>
-                    )}
-                    {local.phone && (
-                      <a href={`https://wa.me/${local.phone.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[#3D2B1F] transition-colors">
-                        <MessageCircle className="h-3 w-3 text-green-500 shrink-0" />
-                        <span className="truncate">{local.phone}</span>
-                      </a>
-                    )}
+                {/* Contactos do cliente — discreto, sem caixa pesada */}
+                <div className="space-y-1.5">
+                  {local.email && (
+                    <a
+                      href={`mailto:${local.email}`}
+                      className={`flex items-center gap-1.5 text-[12px] hover:text-[#3D2B1F] transition-colors ${
+                        local.contact_preference === "email"
+                          ? "text-blue-700 font-medium"
+                          : "text-[#8B7355]"
+                      }`}
+                      title={local.contact_preference === "email" ? "Contacto preferido" : "Email"}
+                    >
+                      <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                      <span className="truncate">{local.email}</span>
+                      {local.contact_preference === "email" && (
+                        <span className="ml-auto text-[10px] uppercase tracking-wider text-blue-600 shrink-0">★</span>
+                      )}
+                    </a>
+                  )}
+                  {local.phone && (
+                    <a
+                      href={`https://wa.me/${phoneToWaMe(local.phone)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-1.5 text-[12px] hover:text-[#3D2B1F] transition-colors ${
+                        local.contact_preference === "whatsapp"
+                          ? "text-green-700 font-medium"
+                          : "text-[#8B7355]"
+                      }`}
+                      title={local.contact_preference === "whatsapp" ? "Contacto preferido" : "WhatsApp"}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                      <span className="truncate font-mono">{formatPhone(local.phone)}</span>
+                      {local.contact_preference === "whatsapp" && (
+                        <span className="ml-auto text-[10px] uppercase tracking-wider text-green-600 shrink-0">★</span>
+                      )}
+                    </a>
+                  )}
+                  {/* Toggle minimalista para mudar a preferência */}
+                  <div className="flex items-center gap-1 pt-1">
+                    <span className="text-[10px] text-[#B8A99A] uppercase tracking-wider">Prefere:</span>
+                    <button
+                      type="button"
+                      onClick={() => clientUpdate("contact_preference", "whatsapp", "Contacto preferido", (v) => v === "whatsapp" ? "WhatsApp" : v === "email" ? "Email" : "—")}
+                      className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
+                        local.contact_preference === "whatsapp"
+                          ? "text-green-700 font-medium bg-green-50"
+                          : "text-[#B8A99A] hover:text-[#8B7355]"
+                      }`}
+                    >
+                      WhatsApp
+                    </button>
+                    <span className="text-[10px] text-[#D0C4B8]">·</span>
+                    <button
+                      type="button"
+                      onClick={() => clientUpdate("contact_preference", "email", "Contacto preferido", (v) => v === "whatsapp" ? "WhatsApp" : v === "email" ? "Email" : "—")}
+                      className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
+                        local.contact_preference === "email"
+                          ? "text-blue-700 font-medium bg-blue-50"
+                          : "text-[#B8A99A] hover:text-[#8B7355]"
+                      }`}
+                    >
+                      Email
+                    </button>
                   </div>
                 </div>
 
@@ -877,12 +941,9 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
 
                     {/* DADOS DO EVENTO */}
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-600 mb-1.5">
-                        Evento
-                      </p>
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                         <HeroField label="Tipo">
-                          <Select value={local.event_type ?? ""} onValueChange={(v) => update("event_type", v as Order["event_type"])}>
+                          <Select value={local.event_type ?? ""} onValueChange={(v) => clientUpdate("event_type", v as Order["event_type"], "Tipo de evento", (val) => val ? EVENT_TYPE_LABELS[val] : "—")}>
                             <SelectTrigger className={selSubtle}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
                             <SelectContent>
                               {(Object.keys(EVENT_TYPE_LABELS) as Array<keyof typeof EVENT_TYPE_LABELS>).map((t) => (
@@ -896,7 +957,7 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
                             className={`${inpSubtle} ${urgentEvent ? "border-red-300 bg-red-50" : ""}`}
                             type="date"
                             value={toDateInput(local.event_date)}
-                            onChange={(e) => update("event_date", e.target.value || null)}
+                            onChange={(e) => clientUpdate("event_date", e.target.value || null, "Data do evento", (v) => v ? format(parseISO(v as string), "dd/MM/yyyy") : "—")}
                           />
                           {eventRelative && (
                             <p className={`text-[10px] px-2 ${urgentEvent ? "text-red-600 font-medium" : "text-[#B8A99A]"}`}>
@@ -957,19 +1018,25 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />
                   </Field>
                   <Field label="Tamanho da moldura">
-                    <Select value={local.frame_size ?? ""} onValueChange={(v) => update("frame_size", v as Order["frame_size"])}>
-                      <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FRAME_SIZE_LABELS} /></SelectTrigger>
+                    <Select value={local.frame_size ?? ""} onValueChange={(v) => clientUpdate("frame_size", v as Order["frame_size"], "Tamanho da moldura", (val) => val ? FRAME_SIZE_LABELS[val] : "—")}>
+                      <SelectTrigger
+                        className={`${sel} font-medium ${local.frame_size ? FRAME_SIZE_COLORS[local.frame_size] : ""}`}
+                      >
+                        <SelectValue placeholder="—" labels={FRAME_SIZE_LABELS} />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="30x40">30×40</SelectItem>
-                        <SelectItem value="40x50">40×50</SelectItem>
-                        <SelectItem value="50x70">50×70</SelectItem>
-                        <SelectItem value="voces_a_escolher">Vocês a escolher</SelectItem>
-                        <SelectItem value="nao_sei">Não sei</SelectItem>
+                        {(Object.keys(FRAME_SIZE_LABELS) as Array<keyof typeof FRAME_SIZE_LABELS>).map((k) => (
+                          <SelectItem key={k} value={k} className="my-0.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${FRAME_SIZE_COLORS[k]}`}>
+                              {FRAME_SIZE_LABELS[k]}
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </Field>
                   <Field label="Fundo do quadro">
-                    <Select value={local.frame_background ?? ""} onValueChange={(v) => update("frame_background", v as Order["frame_background"])}>
+                    <Select value={local.frame_background ?? ""} onValueChange={(v) => clientUpdate("frame_background", v as Order["frame_background"], "Fundo do quadro", (val) => val ? FRAME_BACKGROUND_LABELS[val] : "—")}>
                       <SelectTrigger className={sel}><SelectValue placeholder="—" labels={FRAME_BACKGROUND_LABELS} /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="transparente">Transparente</SelectItem>
@@ -1016,12 +1083,12 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
 
                 <Separator className="bg-[#F0EAE0]" />
 
-                {/* Peças extra (mini-quadros, ornamentos, pendentes) */}
-                <div className="space-y-3">
+                {/* Peças extra — compactas, qty estreito (max 2 algarismos típicos) */}
+                <div className="space-y-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
                     Peças extra
                   </p>
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     <ExtraPieceRow
                       label="Quadros extra pequenos"
                       value={local.extra_small_frames}
@@ -1057,7 +1124,7 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
                     cost={local.flower_shipping_cost}
                     paid={local.flower_shipping_paid}
                     showPaid={showFlowerShippingPaid}
-                    onMethod={(v) => update("flower_delivery_method", v as Order["flower_delivery_method"])}
+                    onMethod={(v) => clientUpdate("flower_delivery_method", v as Order["flower_delivery_method"], "Envio das flores", (val) => val ? FLOWER_DELIVERY_METHOD_LABELS[val] : "—")}
                     onCost={(v) => update("flower_shipping_cost", v)}
                     onPaid={(v) => update("flower_shipping_paid", v)}
                     methodOptions={[
@@ -1079,7 +1146,7 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
                     cost={local.frame_shipping_cost}
                     paid={local.frame_shipping_paid}
                     showPaid={showFrameShippingPaid}
-                    onMethod={(v) => update("frame_delivery_method", v as Order["frame_delivery_method"])}
+                    onMethod={(v) => clientUpdate("frame_delivery_method", v as Order["frame_delivery_method"], "Receção do quadro", (val) => val ? FRAME_DELIVERY_METHOD_LABELS[val] : "—")}
                     onCost={(v) => update("frame_shipping_cost", v)}
                     onPaid={(v) => update("frame_shipping_paid", v)}
                     methodOptions={[
@@ -1095,7 +1162,7 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
               <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
                 <div className="space-y-3">
                   <Field label="Como conheceu a FBR">
-                    <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => update("how_found_fbr", v as Order["how_found_fbr"])}>
+                    <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => clientUpdate("how_found_fbr", v as Order["how_found_fbr"], "Como conheceu a FBR", (val) => val ? HOW_FOUND_FBR_LABELS[val] : "—")}>
                       <SelectTrigger
                         className={`${sel} font-medium ${local.how_found_fbr ? HOW_FOUND_FBR_COLORS[local.how_found_fbr] : ""}`}
                       >
@@ -1303,34 +1370,10 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
 
               <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
                 <div className="space-y-3">
-                  <Field
-                    label="Código"
-                    hint="Gerado automaticamente em 'A ser emoldurado'. Editável para encomendas antigas."
-                  >
-                    <div className="flex gap-1.5">
-                      <Input
-                        className={inp + " flex-1 font-mono uppercase tracking-[0.2em]"}
-                        value={local.coupon_code ?? ""}
-                        onChange={(e) => update("coupon_code", e.target.value.toUpperCase() || null)}
-                        placeholder="—"
-                        maxLength={10}
-                      />
-                      {local.coupon_code && (
-                        <button
-                          onClick={() => navigator.clipboard.writeText(local.coupon_code!)}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
-                          title="Copiar"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </Field>
-                  {local.coupon_code && (
-                    <Badge variant="outline" className="font-mono text-base tracking-[0.2em] border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1">
-                      {local.coupon_code}
-                    </Badge>
-                  )}
+                  <CouponCodeField
+                    code={local.coupon_code}
+                    onChange={(v) => update("coupon_code", v)}
+                  />
                   <Field label="Validade" hint="Tipicamente 2 anos após a entrega do quadro.">
                     <div className="flex gap-1.5">
                       <Input
@@ -1472,6 +1515,55 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
               className="h-9 px-4 rounded-lg bg-[#3D2B1F] text-sm text-white font-medium hover:bg-[#2C1F15] transition-colors"
             >
               Confirmar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Diálogo de confirmação de edição de campo do cliente ─── */}
+      <Dialog open={!!clientEditDialog} onOpenChange={(open) => !open && setClientEditDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              Confirmar alteração
+            </DialogTitle>
+            <DialogDescription className="text-[#8B7355]">
+              Este campo foi preenchido pelo <strong className="text-[#3D2B1F]">cliente</strong> no formulário.
+              Tens a certeza que queres alterar?
+            </DialogDescription>
+          </DialogHeader>
+
+          {clientEditDialog && (
+            <div className="space-y-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">
+                {clientEditDialog.label}
+              </p>
+              <div className="rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] divide-y divide-[#E8E0D5]">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <span className="text-[10px] uppercase tracking-wider text-[#B8A99A] w-12">Antes</span>
+                  <span className="text-sm text-[#8B7355] line-through">{clientEditDialog.oldDisplay}</span>
+                </div>
+                <div className="flex items-center gap-3 px-3 py-2 bg-amber-50/50">
+                  <span className="text-[10px] uppercase tracking-wider text-amber-700 w-12">Novo</span>
+                  <span className="text-sm font-medium text-[#3D2B1F]">{clientEditDialog.newDisplay}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => setClientEditDialog(null)}
+              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmClientEdit}
+              className="h-9 px-4 rounded-lg bg-amber-600 text-sm text-white font-medium hover:bg-amber-700 transition-colors"
+            >
+              Sim, alterar
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1677,6 +1769,84 @@ function ShippingRow<M extends string>({
   );
 }
 
+function CouponCodeField({
+  code,
+  onChange,
+}: {
+  code: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(code ?? "");
+
+  function startEdit() {
+    setDraft(code ?? "");
+    setEditing(true);
+  }
+  function commit() {
+    const v = draft.trim().toUpperCase();
+    onChange(v || null);
+    setEditing(false);
+  }
+  function cancel() {
+    setDraft(code ?? "");
+    setEditing(false);
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-medium text-[#8B7355]">Código</Label>
+      {editing ? (
+        <div className="flex gap-1.5">
+          <Input
+            className={inp + " flex-1 font-mono uppercase tracking-[0.2em]"}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ex: F2B6R1"
+            maxLength={10}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commit(); }
+              if (e.key === "Escape") { e.preventDefault(); cancel(); }
+            }}
+          />
+          <button
+            onClick={commit}
+            className="h-9 w-9 inline-flex shrink-0 items-center justify-center rounded-lg bg-[#3D2B1F] text-white hover:bg-[#2C1F15] transition-colors"
+            title="Guardar"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : code ? (
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-base tracking-[0.2em] border border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1 rounded-full">
+            {code}
+          </span>
+          <button
+            onClick={startEdit}
+            className="h-7 w-7 inline-flex shrink-0 items-center justify-center rounded-md text-[#8B7355] hover:bg-[#F0EAE0] hover:text-[#3D2B1F] transition-colors"
+            title="Editar código"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={startEdit}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-3 py-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F] hover:border-[#C4A882] transition-colors"
+        >
+          <Pencil className="h-3 w-3" />
+          Definir código manualmente
+        </button>
+      )}
+      <p className="text-[10px] text-[#B8A99A]">
+        Gerado automaticamente em &lsquo;A ser emoldurado&rsquo;. Editável para encomendas antigas.
+      </p>
+    </div>
+  );
+}
+
 function ExtraPieceRow({
   label,
   value,
@@ -1690,31 +1860,29 @@ function ExtraPieceRow({
   onValue: (v: "sim" | "nao" | "mais_info" | null) => void;
   onQty: (q: number | null) => void;
 }) {
+  const showQty = value === "sim" || value === "mais_info";
   return (
-    <div className="grid grid-cols-5 gap-3 items-end">
-      <div className="col-span-3">
-        <Label className="text-xs font-medium text-[#8B7355]">{label}</Label>
-        <Select value={value ?? ""} onValueChange={(v) => onValue((v || null) as "sim" | "nao" | "mais_info" | null)}>
-          <SelectTrigger className={sel + " mt-1.5"}><SelectValue placeholder="—" labels={YES_NO_INFO_LABELS} /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="sim">Sim</SelectItem>
-            <SelectItem value="nao">Não</SelectItem>
-            <SelectItem value="mais_info">Mais info</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="col-span-2">
-        <Label className="text-xs font-medium text-[#8B7355]">Quantidade</Label>
-        <Input
-          className={inp + " mt-1.5"}
-          type="number"
-          min={0}
-          value={qty ?? ""}
-          onChange={(e) => onQty(e.target.value ? Number(e.target.value) : null)}
-          disabled={value !== "sim" && value !== "mais_info"}
-          placeholder={value === "nao" || value === null ? "—" : "0"}
-        />
-      </div>
+    <div className="flex items-center gap-2">
+      <Label className="flex-1 text-xs text-[#3D2B1F] truncate">{label}</Label>
+      <Select value={value ?? ""} onValueChange={(v) => onValue((v || null) as "sim" | "nao" | "mais_info" | null)}>
+        <SelectTrigger className="h-7 w-[7.5rem] text-xs border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-md px-2"><SelectValue placeholder="—" labels={YES_NO_INFO_LABELS} /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="sim">Sim</SelectItem>
+          <SelectItem value="nao">Não</SelectItem>
+          <SelectItem value="mais_info">Mais info</SelectItem>
+        </SelectContent>
+      </Select>
+      <Input
+        className="h-7 w-12 text-xs text-center border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-md px-1 disabled:opacity-30"
+        type="number"
+        min={0}
+        max={99}
+        value={qty ?? ""}
+        onChange={(e) => onQty(e.target.value ? Number(e.target.value) : null)}
+        disabled={!showQty}
+        placeholder={showQty ? "0" : ""}
+        title={showQty ? "Quantidade" : "Selecciona Sim/Mais info para indicar quantidade"}
+      />
     </div>
   );
 }
