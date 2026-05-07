@@ -1,25 +1,49 @@
 import { createClient } from "@/lib/supabase/server";
-import { LayoutDashboard } from "lucide-react";
+import { getCurrentEmail, getCurrentRole } from "@/lib/auth/server";
+import { getUpcomingPickups, getDashboardAlerts } from "@/lib/dashboard";
+import type { Order } from "@/types/database";
+import type { Voucher } from "@/types/voucher";
+import type { Task, ChecklistItem } from "@/types/tasks";
+import DashboardClient from "./dashboard-client";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const email = (await getCurrentEmail()) ?? "";
+  const role = await getCurrentRole();
+
+  // Tudo em paralelo
+  const [ordersRes, vouchersRes, tasksRes, checklistRes] = await Promise.all([
+    supabase.from("orders").select("*").is("deleted_at", null),
+    supabase.from("vouchers").select("*").is("deleted_at", null),
+    supabase
+      .from("tasks")
+      .select("*")
+      .is("deleted_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false }),
+    // Admin vê todas as checklists; viewer só a sua (RLS garante).
+    supabase
+      .from("personal_checklist")
+      .select("*")
+      .is("deleted_at", null)
+      .order("position", { ascending: true }),
+  ]);
+
+  const orders: Order[] = (ordersRes.data ?? []) as Order[];
+  const vouchers: Voucher[] = (vouchersRes.data ?? []) as Voucher[];
+  const tasks: Task[] = (tasksRes.data ?? []) as Task[];
+  const checklist: ChecklistItem[] = (checklistRes.data ?? []) as ChecklistItem[];
+
+  const pickups = getUpcomingPickups(orders);
+  const alerts = getDashboardAlerts(orders, vouchers);
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <LayoutDashboard className="h-6 w-6 text-[#C4A882]" />
-        <div>
-          <h1 className="text-2xl font-semibold text-[#3D2B1F]">Dashboard</h1>
-          <p className="text-sm text-[#8B7355]">
-            Bem-vinda, {user?.user_metadata?.name ?? user?.email} 👋
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-[#E8E0D5] bg-white p-6 text-sm text-[#8B7355]">
-        Em construção — tarefas, métricas e alertas vêm aqui a seguir.
-      </div>
-    </div>
+    <DashboardClient
+      currentEmail={email}
+      role={role}
+      tasks={tasks}
+      checklist={checklist}
+      pickups={pickups}
+      alerts={alerts}
+    />
   );
 }

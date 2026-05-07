@@ -5,6 +5,12 @@
 -- Executar no Supabase SQL Editor
 -- ============================================================
 
+-- 1. GRANT base — sem isto, a RLS policy sozinha não chega.
+GRANT SELECT ON vouchers TO anon;
+
+-- 2. Policy de leitura pública (idempotente).
+DROP POLICY IF EXISTS "vouchers_public_read" ON vouchers;
+
 CREATE POLICY "vouchers_public_read" ON vouchers
   FOR SELECT
   TO anon

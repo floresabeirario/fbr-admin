@@ -15,6 +15,7 @@ import {
   Globe,
   HeartPulse,
   Lightbulb,
+  LineChart,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -39,6 +40,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/metricas", label: "Métricas", icon: LineChart, parent: "/" },
   { href: "/preservacao", label: "Preservação de Flores", icon: Flower2 },
   { href: "/status", label: "Status", icon: Radio, parent: "/preservacao" },
   { href: "/vale-presente", label: "Vale-Presente", icon: Gift },
