@@ -5,12 +5,12 @@
 
 ---
 
-## Fase actual: FASE 2 — Preservação de Flores
+## Fase actual: FASE 3 — Vale-Presente
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
 - [x] **Fase 2** — Preservação de Flores: tabela, workbench, estados, orçamento, permissões ✅
-- [ ] **Fase 3** — Vale-Presente + Status + Voucher sites ← **A SEGUIR**
+- [ ] **Fase 3** — Vale-Presente (admin) + Status + sites públicos voucher.* / status.* ← **A SEGUIR**
 - [ ] **Fase 4** — Dashboard + Tarefas + Métricas
 - [ ] **Fase 5** — Formulários públicos + Parcerias
 - [ ] **Fase 6** — Integrações (Gmail, Drive, Calendar, AI) + PWA + RGPD completo
@@ -34,17 +34,20 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
-- Fase 2 fechada. Tabela com edição inline, workbench, diálogo de pagamento, abas Status (com mensagens default editáveis) e permissões admin/viewer a funcionar. Falta apenas a auto-criação da pasta Drive (depende da Google Drive API → Fase 6).
+- Fase 3 (Vale-Presente — admin) feita: tabela agrupada Pré-reservas/Reservas, sheet de criação, workbench de edição com pagamento/envio/utilização/validade/fatura. Falta a parte pública (voucher.floresabeirario.pt) — pode ficar para depois das Fases 4-5 ou ir agora, decidir na próxima sessão.
 
 ## Próximo passo CONCRETO
-**Fase 2 — A finalizar**
+**Fase 3 — Vale-Presente**
 
-1. ~~Visualizações alternativas: Calendário e Timeline~~ ✅ (sessão 12)
-2. ~~Estados públicos mapeados (11 estados externos + cancelada)~~ ✅ (sessão 13)
-3. ~~Permissões: Ana (viewer) só pode editar tarefas e Parcerias~~ ✅ (sessão 14)
-4. Geração automática da pasta Drive ao criar encomenda (Google Drive API — Fase 6)
+1. ~~Migração SQL `009_create_vouchers.sql` (tabela vouchers + trigger de código + RLS + audit)~~ ✅ (sessão 18)
+2. ~~Tipos TypeScript em `src/types/voucher.ts`~~ ✅ (sessão 18)
+3. ~~Listagem agrupada (Pré-reservas / Reservas) + selects inline (pagamento/envio/utilização) + alertas de expiração~~ ✅ (sessão 18)
+4. ~~Sheet "Novo vale" com validação (mín. 300€, contacto preferido)~~ ✅ (sessão 18)
+5. ~~Workbench de edição (`/vale-presente/[code]`) com diálogo de pagamento + arquivar~~ ✅ (sessão 18)
+6. Site público `voucher.floresabeirario.pt` (campos: código, remetente, destinatário, valor, mensagem, validade) — repo separado ou rota deste? Decidir.
+7. Formulário público de compra de vale (Fase 5, junto com o de preservação)
 
-A Fase 2 fica fechada. Tarefas (Dashboard) e Parcerias — onde a Ana ganha edição — só serão criadas nas Fases 4 e 5; até lá ela fica em modo leitura em todas as abas existentes.
+⚠ **Antes de começar a próxima sessão**, executar `supabase/migrations/009_create_vouchers.sql` no Supabase SQL Editor (cria tabela vouchers, trigger de código de 6 dígitos, RLS admin/viewer, audit log).
 
 ⚠ **Antes de começar a próxima sessão**, executar `supabase/migrations/005_public_status.sql` no Supabase SQL Editor (adiciona colunas `public_status_message_pt/en`, `public_status_language`, `estimated_delivery_date`, `public_status_updated_at`, trigger `sync_public_status_fields`, e tabela `public_status_settings`).
 
@@ -65,6 +68,7 @@ A Fase 2 fica fechada. Tarefas (Dashboard) e Parcerias — onde a Ana ganha edi�
 **Decisão arquitetural confirmada (2026-05-03):** todos os ficheiros relacionados com encomendas (fotos, comprovativos, faturas, inspirações) são guardados no Google Drive, na pasta do cliente. A plataforma só guarda o URL/link. Não usar Supabase Storage para isto.
 
 ## Notas de sessão
+- **2026-05-07 (sessão 18):** Fase 3 — Vale-Presente (admin) construída. Migração `009_create_vouchers.sql` cria a tabela `vouchers` com remetente (nome/contacto/email/tel), o vale (destinatário/mensagem/valor com `CHECK >= 300`), entrega (`delivery_recipient`, `delivery_format` digital/físico, `delivery_channel`, `delivery_shipping_cost`), estado admin (`payment_status` com só 2 valores: `100_pago`/`100_por_pagar`; `send_status`: enviado/agendado/nao_agendado; `usage_status`: preservacao_agendada/preservacao_nao_agendada), validade (`expiry_date` default `+2 years`), NIF/fatura. Função `generate_voucher_code()` gera códigos de 6 caracteres alfanuméricos sem `0`,`O`,`I`,`1` (mais legível); trigger `set_voucher_code` preenche-os automaticamente no INSERT com retry até 10x para garantir unicidade. RLS espelha o padrão das encomendas (admins escrevem, Ana lê). Tipos em `src/types/voucher.ts`; helpers em `src/lib/supabase/vouchers.ts` (`groupVouchers`, `isExpiringSoon`, `isExpired`, `monthsUntilExpiry`). **Listagem (`/vale-presente`)**: tabela agrupada Pré-reservas (100% por pagar) / Reservas (100% pago); selects inline coloridos para pagamento, envio e utilização; coluna de validade com aviso visual (vermelho se expirado, âmbar se ≤3 meses); empty state ilustrado; alerta no topo a contar vales pagos sem preservação agendada a expirar nos próximos 3 meses; pesquisa por nome/código/email; modo leitura para a Ana. **Sheet "Novo vale"**: validação mín. 300€, validações remetente/destinatário, "florista" obrigatória, defaults sensatos. **Workbench (`/vale-presente/[code]`)**: 3 colunas (esquerda=hero+remetente+origem, meio=vale+entrega+comentários, direita=pagamento+envio+utilização+fatura+metadata); auto-save por campo no blur; diálogo de confirmação ao marcar como pago a lembrar comprovativo + perguntar NIF; botão "+2 anos" para reset rápido da validade; arquivar (soft delete); rota aceita o código curto (6 dig) ou o UUID interno. Build OK, sem erros TypeScript.
 - **2026-05-04 (sessão 17):** Pagamento. (1) Removido o estado `30_por_pagar` — funcionalmente equivalente a `70_pago` (70% pago = 30% por pagar). Tipo `PaymentStatus`, `PAYMENT_STATUS_LABELS`, `PAYMENT_COLORS` (em `_styles.ts` e no `workbench-client.tsx` local) e CHECK constraint da BD limpos. Migração `008_remove_30_por_pagar.sql` converte registos existentes (UPDATE → `70_pago`) antes de re-emitir o constraint. (2) `70_pago` e `30_pago` ganharam cores distintas (antes eram ambas amarelas, ilegíveis): gradiente `red → amber → lime → green` consoante a quantia já paga (100% por pagar = vermelho, 30% pago = âmbar, 70% pago = lime, 100% pago = verde). `PAYMENT_DOT_COLORS` ajustado em conformidade.
 - **2026-05-04 (sessão 16):** Pequenas afinações da listagem de Preservação. (1) **Ordenação**: encomendas em todas as vistas (tabela, cards, calendário, timeline) ordenadas por data do evento ascendente — mais próxima primeiro; encomendas sem data ficam no fim. Sort feito tanto no `page.tsx` (Supabase `order("event_date", asc, nullsFirst:false)`) como no `groupOrders` (defesa em profundidade) via helper `byEventDateAsc`. (2) **Mover manualmente para Sem resposta**: nova coluna `manually_no_response BOOLEAN DEFAULT false` (migração `007_manually_no_response.sql`). `isWithoutResponse` retorna true se a flag estiver activa OU se passaram ≥4 dias sem contacto (regra automática mantida). Botão **"Sem resposta"** (ícone Clock, vermelho) aparece nas linhas de Pré-reservas que ainda não estão automaticamente sinalizadas. Botão **"Pré-reservas"** (ícone Undo2) aparece nas linhas de Sem resposta marcadas manualmente desde que ainda não tenham passado 4 dias — clarear a flag não tem efeito visível se a regra automática já se aplicar. "Marcar contactada" agora também limpa a flag manual. Apenas admin vê os botões.
 - **2026-05-04 (sessão 15):** Importação das encomendas históricas do Monday. Script gerador `scripts/import-monday.js` lê `public/mondayexport.xlsx` e produz `supabase/migrations/006_import_monday.sql` com 17 INSERTs. Excluídas: "Teste Noiva teste", João Correia, Sandra Carvalho (estes dois últimos já metidos manualmente). Decisões: telemóveis convertidos de notação científica para string de dígitos; "Sinal por pagar"/"N/A" → `100_por_pagar`; Laureana e Eugenia forçadas para `cancelado` (deram gosto antes de pagar); IDs do Sheets reaproveitados como `order_id` quando existem; cupões antigos curtos (`F2B5R`, `F2B5R2`, `F2B6R1`) mantidos como estão por terem sido enviados aos clientes. **Nova regra para cupões:** alfabeto sem `0` nem `O` (evita confusão na leitura) — extraído para `src/lib/coupon.ts` e usado em `actions.ts` e `lib/supabase/orders.ts`. **Florista obrigatória:** campo "Que florista?" aparece e é validado em `nova-encomenda-sheet.tsx` quando how_found_fbr=florista; também aparece (sem validação dura) no workbench. Falta replicar no formulário público (Fase 5).
