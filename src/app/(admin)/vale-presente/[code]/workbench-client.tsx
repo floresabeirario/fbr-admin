@@ -419,7 +419,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
               </Section>
 
               <Section title="Entrega do vale" icon={<Send className="h-3.5 w-3.5" />} accent="emerald">
-                <Field label="Para quem entregar?">
+                <Field label="Para quem enviar?">
                   <Select
                     value={data.delivery_recipient ?? ""}
                     onValueChange={(v) => updateField("delivery_recipient", v as VoucherDeliveryRecipient)}
@@ -435,7 +435,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
                   </Select>
                 </Field>
 
-                <Field label="Formato">
+                <Field label="Tipo de entrega">
                   <Select
                     value={data.delivery_format ?? ""}
                     onValueChange={(v) => updateField("delivery_format", v as VoucherDeliveryFormat)}
@@ -452,7 +452,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
                 </Field>
 
                 {data.delivery_format === "digital" && (
-                  <Field label="Canal digital">
+                  <Field label="Via (email ou WhatsApp)">
                     <Select
                       value={data.delivery_channel ?? ""}
                       onValueChange={(v) => updateField("delivery_channel", v as VoucherDeliveryChannel)}
@@ -558,7 +558,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
               </Section>
 
               <Section title="Utilização" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet">
-                <Field label="Preservação agendada?">
+                <Field label="Estado de utilização">
                   <Select
                     value={data.usage_status}
                     onValueChange={(v) => updateField("usage_status", v as VoucherUsageStatus)}

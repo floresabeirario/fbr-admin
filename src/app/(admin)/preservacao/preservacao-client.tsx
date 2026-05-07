@@ -651,13 +651,13 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
 
         {activeView === "cards" && (
           <div className="space-y-6">
-            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} alert />
-            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} />
-            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} />
-            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} />
-            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} />
-            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} />
-            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} />
+            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} alert showPhoto={false} />
+            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
+            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
+            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto />
+            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto />
+            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto />
+            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
           </div>
         )}
 
@@ -700,6 +700,7 @@ function CardGroup({
   onOpenOrder,
   loadingOrderId,
   alert = false,
+  showPhoto = true,
 }: {
   title: string;
   orders: Order[];
@@ -707,6 +708,7 @@ function CardGroup({
   onOpenOrder: (o: Order) => void;
   loadingOrderId: string | null;
   alert?: boolean;
+  showPhoto?: boolean;
 }) {
   const isEmpty = orders.length === 0;
   return (
@@ -729,6 +731,7 @@ function CardGroup({
               order={o}
               onOpen={onOpenOrder}
               isLoading={loadingOrderId === o.id}
+              showPhoto={showPhoto}
             />
           ))}
         </div>
@@ -738,16 +741,17 @@ function CardGroup({
 }
 
 function OrderCard({
-  order, onOpen, isLoading,
+  order, onOpen, isLoading, showPhoto = true,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
   isLoading: boolean;
+  showPhoto?: boolean;
 }) {
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
-  const photoUrl = toEmbeddableImageUrl(order.flowers_photo_url);
+  const photoUrl = showPhoto ? toEmbeddableImageUrl(order.flowers_photo_url) : null;
 
   return (
     <button
@@ -756,34 +760,45 @@ function OrderCard({
         isLoading ? "border-[#C4A882] ring-2 ring-[#C4A882]/30" : "border-[#E8E0D5] hover:border-[#C4A882]"
       }`}
     >
-      <div className="relative aspect-square bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
-        {photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photoUrl}
-            alt={`Flores de ${order.client_name}`}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882]">
-              <ImageIcon className="h-4 w-4" />
+      {showPhoto && (
+        <div className="relative aspect-square bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
+          {photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoUrl}
+              alt={`Flores de ${order.client_name}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882]">
+                <ImageIcon className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-        )}
-        {urgentEvent && (
-          <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+          )}
+          {urgentEvent && (
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              {daysUntilEvent}d
+            </div>
+          )}
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+              <Loader2 className="h-6 w-6 animate-spin text-[#3D2B1F]" />
+            </div>
+          )}
+        </div>
+      )}
+      <div className="px-3 py-2.5">
+        {!showPhoto && urgentEvent && (
+          <div className="inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white mb-1.5">
             <AlertTriangle className="h-2.5 w-2.5" />
             {daysUntilEvent}d
           </div>
         )}
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-            <Loader2 className="h-6 w-6 animate-spin text-[#3D2B1F]" />
-          </div>
+        {!showPhoto && isLoading && (
+          <Loader2 className="h-4 w-4 animate-spin text-[#3D2B1F] mb-1" />
         )}
-      </div>
-      <div className="px-3 py-2.5">
         <p className="text-sm font-semibold text-[#3D2B1F] truncate">
           {order.client_name}
         </p>

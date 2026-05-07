@@ -83,6 +83,10 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
     if (!form.sender_email?.trim() && !form.sender_phone?.trim())
       errors.sender_email = "Email ou telemóvel obrigatório";
     if (!form.amount || form.amount < 300) errors.amount = "Mínimo 300€";
+    if (!form.delivery_recipient) errors.delivery_recipient = "Indica para quem enviar o vale";
+    if (!form.delivery_format) errors.delivery_format = "Indica o tipo de entrega";
+    if (form.delivery_format === "digital" && !form.delivery_channel)
+      errors.delivery_channel = "Indica como enviar digitalmente";
     if (form.how_found_fbr === "florista" && !form.how_found_fbr_other?.trim())
       errors.how_found_fbr_other = "Indica o nome da florista";
     setFieldErrors(errors);
@@ -244,12 +248,12 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
 
           {/* ── Entrega do vale ─── */}
           <Section title="Entrega do vale" icon={<Send className="h-3.5 w-3.5" />} accent="emerald">
-            <Field label="Para quem entregar?">
+            <Field label="Para quem enviar? *" error={fieldErrors.delivery_recipient}>
               <Select
                 value={form.delivery_recipient ?? ""}
                 onValueChange={(v) => set("delivery_recipient", v as VoucherInsert["delivery_recipient"])}
               >
-                <SelectTrigger className={inputCls}>
+                <SelectTrigger className={`${inputCls} ${fieldErrors.delivery_recipient ? "border-red-300" : ""}`}>
                   <SelectValue placeholder="Seleccionar..." labels={VOUCHER_DELIVERY_RECIPIENT_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
@@ -260,12 +264,12 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
               </Select>
             </Field>
 
-            <Field label="Formato">
+            <Field label="Tipo de entrega *" error={fieldErrors.delivery_format}>
               <Select
                 value={form.delivery_format ?? ""}
                 onValueChange={(v) => set("delivery_format", v as VoucherInsert["delivery_format"])}
               >
-                <SelectTrigger className={inputCls}>
+                <SelectTrigger className={`${inputCls} ${fieldErrors.delivery_format ? "border-red-300" : ""}`}>
                   <SelectValue placeholder="Seleccionar..." labels={VOUCHER_DELIVERY_FORMAT_LABELS} />
                 </SelectTrigger>
                 <SelectContent>
@@ -277,12 +281,12 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
             </Field>
 
             {form.delivery_format === "digital" && (
-              <Field label="Canal digital">
+              <Field label="Via *" error={fieldErrors.delivery_channel}>
                 <Select
                   value={form.delivery_channel ?? ""}
                   onValueChange={(v) => set("delivery_channel", v as VoucherInsert["delivery_channel"])}
                 >
-                  <SelectTrigger className={inputCls}>
+                  <SelectTrigger className={`${inputCls} ${fieldErrors.delivery_channel ? "border-red-300" : ""}`}>
                     <SelectValue placeholder="Seleccionar..." labels={VOUCHER_DELIVERY_CHANNEL_LABELS} />
                   </SelectTrigger>
                   <SelectContent>

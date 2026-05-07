@@ -1413,11 +1413,11 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
 
               <div className="rounded-xl border border-[#E8E0D5] bg-white px-4 py-3 space-y-1">
                 <p className="text-[10px] text-[#B8A99A]">
-                  Criada em {local.created_at ? format(parseISO(local.created_at), "dd MMM yyyy, HH:mm", { locale: pt }) : "—"}
+                  Criada em {local.created_at ? format(parseISO(local.created_at), "dd/MM/yyyy, HH:mm", { locale: pt }) : "—"}
                 </p>
                 {local.updated_at && local.updated_at !== local.created_at && (
                   <p className="text-[10px] text-[#B8A99A]">
-                    Actualizada em {format(parseISO(local.updated_at), "dd MMM yyyy, HH:mm", { locale: pt })}
+                    Actualizada em {format(parseISO(local.updated_at), "dd/MM/yyyy, HH:mm", { locale: pt })}
                   </p>
                 )}
                 <p className="font-mono text-[10px] text-[#D0C4B8]">{local.order_id}</p>

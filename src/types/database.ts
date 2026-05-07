@@ -318,7 +318,7 @@ export const FRAME_SIZE_LABELS: Record<FrameSize, string> = {
 export const FRAME_SIZE_COLORS: Record<FrameSize, string> = {
   "30x40":          "bg-sky-100 text-sky-800 border-sky-300",
   "40x50":          "bg-violet-100 text-violet-800 border-violet-300",
-  "50x70":          "bg-rose-100 text-rose-800 border-rose-300",
+  "50x70":          "bg-indigo-100 text-indigo-800 border-indigo-300",
   voces_a_escolher: "bg-amber-100 text-amber-800 border-amber-300",
   nao_sei:          "bg-gray-100 text-gray-600 border-gray-300",
 };
