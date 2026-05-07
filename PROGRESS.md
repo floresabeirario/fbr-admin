@@ -10,7 +10,7 @@
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
 - [x] **Fase 2** — Preservação de Flores: tabela, workbench, estados, orçamento, permissões ✅
-- [ ] **Fase 3** — Vale-Presente (admin) + Status + sites públicos voucher.* / status.* ← **A SEGUIR**
+- [ ] **Fase 3** — Vale-Presente (admin) + Status + sites públicos voucher.* / status.* ← **EM CURSO** (admin feito, falta site público)
 - [ ] **Fase 4** — Dashboard + Tarefas + Métricas
 - [ ] **Fase 5** — Formulários públicos + Parcerias
 - [ ] **Fase 6** — Integrações (Gmail, Drive, Calendar, AI) + PWA + RGPD completo
