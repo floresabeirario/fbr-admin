@@ -469,6 +469,42 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
                   </Field>
                 )}
 
+                {data.delivery_recipient === "destinatario" && data.delivery_format === "digital" && (
+                  <Field label="E-mail ou WhatsApp do destinatário">
+                    <Input
+                      value={data.recipient_contact ?? ""}
+                      onChange={(e) => setData((d) => ({ ...d, recipient_contact: e.target.value }))}
+                      onBlur={(e) => updateField("recipient_contact", e.target.value.trim() || null)}
+                      placeholder={data.delivery_channel === "whatsapp" ? "+351 9XX XXX XXX" : "email@exemplo.pt"}
+                      className={inputCls}
+                    />
+                  </Field>
+                )}
+
+                {data.delivery_recipient === "destinatario" && data.delivery_format === "fisico" && (
+                  <Field label="Morada para envio">
+                    <Textarea
+                      value={data.recipient_address ?? ""}
+                      onChange={(e) => setData((d) => ({ ...d, recipient_address: e.target.value }))}
+                      onBlur={(e) => updateField("recipient_address", e.target.value.trim() || null)}
+                      rows={2}
+                      placeholder="Rua, número, código-postal, localidade…"
+                      className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                    />
+                  </Field>
+                )}
+
+                {data.delivery_recipient === "destinatario" && (
+                  <Field label="Data ideal para envio (opcional)">
+                    <Input
+                      type="date"
+                      value={data.ideal_send_date ?? ""}
+                      onChange={(e) => updateField("ideal_send_date", e.target.value || null)}
+                      className={inputCls}
+                    />
+                  </Field>
+                )}
+
                 {data.delivery_format === "fisico" && (
                   <Field label={`Custo de envio (€) — base ${VOUCHER_PHYSICAL_BASE_COST}€`}>
                     <Input

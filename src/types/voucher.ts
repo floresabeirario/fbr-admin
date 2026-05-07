@@ -50,6 +50,10 @@ export interface Voucher {
   delivery_format: VoucherDeliveryFormat | null;
   delivery_channel: VoucherDeliveryChannel | null;
   delivery_shipping_cost: number | null;
+  // Quando entrega vai diretamente para o destinatário:
+  recipient_contact: string | null;   // email ou WhatsApp (se digital)
+  recipient_address: string | null;   // morada (se físico)
+  ideal_send_date: string | null;     // data ideal de envio (opcional)
 
   // Outros
   comments: string | null;
@@ -133,13 +137,13 @@ export const VOUCHER_USAGE_STATUS_COLORS: Record<VoucherUsageStatus, string> = {
 };
 
 export const VOUCHER_DELIVERY_RECIPIENT_LABELS: Record<VoucherDeliveryRecipient, string> = {
-  remetente: "Para mim (remetente)",
-  destinatario: "Para o destinatário",
+  remetente: "Mim (remetente)",
+  destinatario: "Diretamente ao destinatário",
 };
 
 export const VOUCHER_DELIVERY_FORMAT_LABELS: Record<VoucherDeliveryFormat, string> = {
-  digital: "Digital",
-  fisico: "Físico (cartão postal)",
+  digital: "Digital — por email ou WhatsApp (gratuito)",
+  fisico: "Físico — cartão com envelope (9€ + portes)",
 };
 
 export const VOUCHER_DELIVERY_CHANNEL_LABELS: Record<VoucherDeliveryChannel, string> = {

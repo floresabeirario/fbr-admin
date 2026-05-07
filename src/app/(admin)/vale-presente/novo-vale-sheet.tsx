@@ -58,6 +58,9 @@ const INITIAL_FORM: VoucherInsert = {
   delivery_format: undefined,
   delivery_channel: undefined,
   delivery_shipping_cost: undefined,
+  recipient_contact: "",
+  recipient_address: "",
+  ideal_send_date: null,
   comments: "",
   how_found_fbr: undefined,
   payment_status: "100_por_pagar",
@@ -79,14 +82,32 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
     const errors: Record<string, string> = {};
     if (!form.sender_name?.trim()) errors.sender_name = "Nome do remetente obrigatório";
     if (!form.recipient_name?.trim()) errors.recipient_name = "Nome do destinatário obrigatório";
-    if (!form.sender_contact_pref) errors.sender_contact_pref = "Selecciona o contacto preferido";
-    if (!form.sender_email?.trim() && !form.sender_phone?.trim())
-      errors.sender_email = "Email ou telemóvel obrigatório";
-    if (!form.amount || form.amount < 300) errors.amount = "Mínimo 300€";
-    if (!form.delivery_recipient) errors.delivery_recipient = "Indica para quem enviar o vale";
-    if (!form.delivery_format) errors.delivery_format = "Indica o tipo de entrega";
+    if (!form.sender_contact_pref) errors.sender_contact_pref = "Indica como prefere ser contactado";
+    // E-mail é sempre obrigatório (contacto alternativo segundo o PDF)
+    if (!form.sender_email?.trim()) errors.sender_email = "E-mail de contacto obrigatório";
+    // Telemóvel só é obrigatório se WhatsApp
+    if (form.sender_contact_pref === "whatsapp" && !form.sender_phone?.trim())
+      errors.sender_phone = "Telemóvel obrigatório quando o contacto preferido é WhatsApp";
+    if (!form.amount || form.amount < 300)
+      errors.amount = "O valor mínimo é de 300€, correspondente ao quadro mais pequeno";
+    if (!form.delivery_recipient) errors.delivery_recipient = "Indica para quem entregar o vale";
+    if (!form.delivery_format) errors.delivery_format = "Indica o tipo de vale";
     if (form.delivery_format === "digital" && !form.delivery_channel)
-      errors.delivery_channel = "Indica como enviar digitalmente";
+      errors.delivery_channel = "Indica se é por email ou WhatsApp";
+    // Quando o vale vai para o destinatário, há campos extra obrigatórios
+    if (form.delivery_recipient === "destinatario") {
+      if (form.delivery_format === "digital" && !form.recipient_contact?.trim())
+        errors.recipient_contact = "E-mail ou WhatsApp do destinatário obrigatório";
+      if (form.delivery_format === "fisico" && !form.recipient_address?.trim())
+        errors.recipient_address = "Morada para envio obrigatória";
+    }
+    // Data ideal: não pode ser anterior a hoje (regra do PDF)
+    if (form.ideal_send_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const ideal = new Date(form.ideal_send_date);
+      if (ideal < today) errors.ideal_send_date = "A data não pode ser anterior a hoje";
+    }
     if (form.how_found_fbr === "florista" && !form.how_found_fbr_other?.trim())
       errors.how_found_fbr_other = "Indica o nome da florista";
     setFieldErrors(errors);
@@ -99,6 +120,9 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
 
     setSaving(true);
     try {
+      const goesToRecipient = form.delivery_recipient === "destinatario";
+      const isDigital = form.delivery_format === "digital";
+      const isPhysical = form.delivery_format === "fisico";
       const payload: VoucherInsert = {
         ...form,
         sender_name: form.sender_name.trim(),
@@ -108,19 +132,27 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
         message: form.message?.trim() || null,
         comments: form.comments?.trim() || null,
         // shipping_cost só faz sentido se físico
-        delivery_shipping_cost:
-          form.delivery_format === "fisico"
-            ? form.delivery_shipping_cost ?? VOUCHER_PHYSICAL_BASE_COST
-            : null,
-        delivery_channel:
-          form.delivery_format === "digital" ? form.delivery_channel ?? null : null,
+        delivery_shipping_cost: isPhysical
+          ? form.delivery_shipping_cost ?? VOUCHER_PHYSICAL_BASE_COST
+          : null,
+        delivery_channel: isDigital ? form.delivery_channel ?? null : null,
+        // Contacto/morada do destinatário só fazem sentido se vai diretamente
+        recipient_contact: goesToRecipient && isDigital
+          ? form.recipient_contact?.trim() || null
+          : null,
+        recipient_address: goesToRecipient && isPhysical
+          ? form.recipient_address?.trim() || null
+          : null,
+        // Data ideal só se vai para o destinatário
+        ideal_send_date: goesToRecipient ? form.ideal_send_date || null : null,
       };
       await createVoucherAction(payload);
       setForm(INITIAL_FORM);
       onSuccess();
     } catch (err) {
       console.error(err);
-      setFieldErrors({ _root: "Erro ao guardar. Tenta novamente." });
+      const msg = err instanceof Error && err.message ? err.message : "Erro desconhecido";
+      setFieldErrors({ _root: `Erro ao guardar: ${msg}` });
     } finally {
       setSaving(false);
     }
@@ -159,7 +191,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
 
         <form onSubmit={handleSubmit} className="px-6 py-6 space-y-5">
           {/* ── Remetente ─── */}
-          <Section title="Quem oferece (remetente)" icon={<User className="h-3.5 w-3.5" />} accent="rose">
+          <Section title="Dados do remetente" icon={<User className="h-3.5 w-3.5" />} accent="rose">
             <Field label="Nome *" error={fieldErrors.sender_name}>
               <Input
                 value={form.sender_name}
@@ -169,7 +201,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
               />
             </Field>
 
-            <Field label="Contacto preferido *" error={fieldErrors.sender_contact_pref}>
+            <Field label="Como prefere ser contactado/a? *" error={fieldErrors.sender_contact_pref}>
               <div className="grid grid-cols-2 gap-2">
                 <ChoiceButton
                   active={form.sender_contact_pref === "whatsapp"}
@@ -188,17 +220,32 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
               </div>
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Email" error={fieldErrors.sender_email}>
+            {form.sender_contact_pref === "whatsapp" && (
+              <Field label="Número de telemóvel *" error={fieldErrors.sender_phone}>
                 <Input
-                  type="email"
-                  value={form.sender_email ?? ""}
-                  onChange={(e) => set("sender_email", e.target.value)}
-                  placeholder="email@exemplo.pt"
-                  className={`${inputCls} ${fieldErrors.sender_email ? "border-red-300" : ""}`}
+                  value={form.sender_phone ?? ""}
+                  onChange={(e) => set("sender_phone", e.target.value)}
+                  placeholder="+351 9XX XXX XXX"
+                  className={`${inputCls} ${fieldErrors.sender_phone ? "border-red-300" : ""}`}
                 />
               </Field>
-              <Field label="Telemóvel">
+            )}
+
+            <Field label="E-mail de contacto *" error={fieldErrors.sender_email}>
+              <Input
+                type="email"
+                value={form.sender_email ?? ""}
+                onChange={(e) => set("sender_email", e.target.value)}
+                placeholder="email@exemplo.pt"
+                className={`${inputCls} ${fieldErrors.sender_email ? "border-red-300" : ""}`}
+              />
+              <p className="text-[11px] text-[#B8A99A] mt-1">
+                Pedimos um e-mail como contacto alternativo.
+              </p>
+            </Field>
+
+            {form.sender_contact_pref === "email" && (
+              <Field label="Telemóvel (opcional)">
                 <Input
                   value={form.sender_phone ?? ""}
                   onChange={(e) => set("sender_phone", e.target.value)}
@@ -206,21 +253,24 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                   className={inputCls}
                 />
               </Field>
-            </div>
+            )}
           </Section>
 
           {/* ── O vale ─── */}
           <Section title="O vale" icon={<Gift className="h-3.5 w-3.5" />} accent="amber">
-            <Field label="Nome do destinatário *" error={fieldErrors.recipient_name}>
+            <Field label="Nome da(s) pessoa(s) a quem se destina *" error={fieldErrors.recipient_name}>
               <Input
                 value={form.recipient_name}
                 onChange={(e) => set("recipient_name", e.target.value)}
-                placeholder="Para quem é o vale"
+                placeholder="Ex: João e Maria"
                 className={`${inputCls} ${fieldErrors.recipient_name ? "border-red-300" : ""}`}
               />
+              <p className="text-[11px] text-[#B8A99A] mt-1">
+                Este nome será utilizado para personalizar o vale.
+              </p>
             </Field>
 
-            <Field label="Valor (€) *" error={fieldErrors.amount}>
+            <Field label="Valor do vale (€) *" error={fieldErrors.amount}>
               <div className="relative">
                 <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
                 <Input
@@ -232,23 +282,29 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                   className={`${inputCls} pl-9 ${fieldErrors.amount ? "border-red-300" : ""}`}
                 />
               </div>
-              <p className="text-[11px] text-[#B8A99A] mt-1">Mínimo 300€.</p>
+              <p className="text-[11px] text-[#B8A99A] mt-1">
+                Valor mínimo: 300€, correspondente ao quadro mais pequeno.
+              </p>
             </Field>
 
-            <Field label="Mensagem personalizada">
+            <Field label="Mensagem personalizada (opcional)">
               <Textarea
                 value={form.message ?? ""}
                 onChange={(e) => set("message", e.target.value)}
-                placeholder="Mensagem que aparecerá no vale..."
+                placeholder="Mensagem que aparecerá no vale…"
                 rows={3}
+                maxLength={1000}
                 className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
               />
+              <p className="text-[11px] text-[#B8A99A] mt-1 text-right">
+                {(form.message ?? "").length}/1000
+              </p>
             </Field>
           </Section>
 
           {/* ── Entrega do vale ─── */}
-          <Section title="Entrega do vale" icon={<Send className="h-3.5 w-3.5" />} accent="emerald">
-            <Field label="Para quem enviar? *" error={fieldErrors.delivery_recipient}>
+          <Section title="Entrega" icon={<Send className="h-3.5 w-3.5" />} accent="emerald">
+            <Field label="Quero que o vale seja entregue a *" error={fieldErrors.delivery_recipient}>
               <Select
                 value={form.delivery_recipient ?? ""}
                 onValueChange={(v) => set("delivery_recipient", v as VoucherInsert["delivery_recipient"])}
@@ -264,7 +320,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
               </Select>
             </Field>
 
-            <Field label="Tipo de entrega *" error={fieldErrors.delivery_format}>
+            <Field label="Tipo de vale *" error={fieldErrors.delivery_format}>
               <Select
                 value={form.delivery_format ?? ""}
                 onValueChange={(v) => set("delivery_format", v as VoucherInsert["delivery_format"])}
@@ -281,7 +337,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
             </Field>
 
             {form.delivery_format === "digital" && (
-              <Field label="Via *" error={fieldErrors.delivery_channel}>
+              <Field label="Por email ou WhatsApp? *" error={fieldErrors.delivery_channel}>
                 <Select
                   value={form.delivery_channel ?? ""}
                   onValueChange={(v) => set("delivery_channel", v as VoucherInsert["delivery_channel"])}
@@ -295,6 +351,50 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                     ))}
                   </SelectContent>
                 </Select>
+              </Field>
+            )}
+
+            {/* Quando o vale é entregue diretamente ao destinatário, há campos extra. */}
+            {form.delivery_recipient === "destinatario" && form.delivery_format === "digital" && (
+              <Field
+                label="E-mail ou WhatsApp do destinatário *"
+                error={fieldErrors.recipient_contact}
+              >
+                <Input
+                  value={form.recipient_contact ?? ""}
+                  onChange={(e) => set("recipient_contact", e.target.value)}
+                  placeholder={form.delivery_channel === "whatsapp" ? "+351 9XX XXX XXX" : "email@exemplo.pt"}
+                  className={`${inputCls} ${fieldErrors.recipient_contact ? "border-red-300" : ""}`}
+                />
+                <p className="text-[11px] text-[#B8A99A] mt-1">
+                  Utilizado apenas para enviar o vale.
+                </p>
+              </Field>
+            )}
+
+            {form.delivery_recipient === "destinatario" && form.delivery_format === "fisico" && (
+              <Field label="Morada para envio *" error={fieldErrors.recipient_address}>
+                <Textarea
+                  value={form.recipient_address ?? ""}
+                  onChange={(e) => set("recipient_address", e.target.value)}
+                  placeholder="Rua, número, código-postal, localidade…"
+                  rows={2}
+                  className={`text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none ${fieldErrors.recipient_address ? "border-red-300" : ""}`}
+                />
+              </Field>
+            )}
+
+            {form.delivery_recipient === "destinatario" && (
+              <Field label="Data ideal para envio (opcional)" error={fieldErrors.ideal_send_date}>
+                <Input
+                  type="date"
+                  value={form.ideal_send_date ?? ""}
+                  onChange={(e) => set("ideal_send_date", e.target.value || null)}
+                  className={`${inputCls} ${fieldErrors.ideal_send_date ? "border-red-300" : ""}`}
+                />
+                <p className="text-[11px] text-[#B8A99A] mt-1">
+                  Deixe em branco se for indiferente.
+                </p>
               </Field>
             )}
 
@@ -352,11 +452,11 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
             )}
 
             {form.how_found_fbr === "outro" && (
-              <Field label='Especifique "Outro"'>
+              <Field label="Conte-nos como conheceu a Flores à Beira-Rio">
                 <Input
                   value={form.how_found_fbr_other ?? ""}
                   onChange={(e) => set("how_found_fbr_other", e.target.value || null)}
-                  placeholder="Como ouviu falar da FBR..."
+                  placeholder="Como ouviu falar da FBR…"
                   className={inputCls}
                 />
               </Field>
@@ -364,14 +464,18 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
           </Section>
 
           {/* ── Comentários ─── */}
-          <Section title="Comentários" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
+          <Section title="Comentários ou pedidos especiais (opcional)" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
             <Textarea
               value={form.comments ?? ""}
               onChange={(e) => set("comments", e.target.value)}
-              placeholder="Pedidos especiais, informações relevantes..."
+              placeholder="Pedidos especiais, informações relevantes…"
               rows={3}
+              maxLength={1000}
               className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
             />
+            <p className="text-[11px] text-[#B8A99A] mt-1">
+              Caso necessite de receber o vale em menos de 3 dias úteis, informe-nos aqui para que possamos priorizar o seu pedido.
+            </p>
           </Section>
 
           {fieldErrors._root && (
