@@ -46,11 +46,7 @@
 5. Email de confirmação após submissão
 6. No formulário da Preservação: replicar a lógica "Que florista?" obrigatória quando how_found_fbr=florista (já implementada no admin)
 
-⚠ **Antes de começar a próxima sessão**, executar `supabase/migrations/013_partners.sql` no Supabase SQL Editor (cria tabela `partners`, RLS para os 3 utilizadores incluindo Ana, audit log, GRANT SELECT/INSERT/UPDATE/DELETE, FK orders.partner_id → partners.id, adiciona vouchers.partner_id).
-
-⚠ **A SEGUIR à 013**, executar `supabase/migrations/015_partner_phones_with_labels.sql` (converte `partners.phones` de TEXT[] para JSONB com `{label, number}`). É idempotente.
-
-⚠ **DEPOIS DA 015**, executar `supabase/migrations/014_import_monday_partners.sql` para importar os 171 parceiros + 232 interações + 136 acções vindos do Monday. Correr UMA SÓ VEZ (não tem ON CONFLICT — se correr duas vezes duplica tudo).
+✅ **Migrações 013 + 015 + 014 corridas com sucesso (2026-05-08).** Parceiros do Monday importados — 171 parceiros, 232 interações, 136 acções pendentes. `phones` agora em JSONB com etiquetas (4 parceiros com labels reais extraídas; 14 fillers tipo "outro telemovel" reconhecidos).
 
 ⚠ **Antes de começar a próxima sessão**, executar `supabase/migrations/012_tasks_and_checklist.sql` no Supabase SQL Editor (cria tabelas `tasks` e `personal_checklist`, RLS, audit log, GRANTs).
 
