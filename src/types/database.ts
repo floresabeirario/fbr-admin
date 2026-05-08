@@ -156,6 +156,11 @@ export interface Order {
   public_status_language: PublicStatusLanguage;
   estimated_delivery_date: string | null;
   public_status_updated_at: string;
+
+  // ── RGPD (preenchido por submissões do form público) ────────
+  consent_at: string | null;
+  consent_version: string | null;
+  consent_ip: string | null;
 }
 
 // Tipo para criar uma nova encomenda (campos obrigatórios mínimos)

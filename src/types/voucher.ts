@@ -72,6 +72,11 @@ export interface Voucher {
   nif: string | null;
   needs_invoice: boolean;
   invoice_attachment_url: string | null;
+
+  // ── RGPD (preenchido por submissões do form público) ────────
+  consent_at: string | null;
+  consent_version: string | null;
+  consent_ip: string | null;
 }
 
 // Tipo para criar — code é gerado pelo trigger, expiry pelo default
