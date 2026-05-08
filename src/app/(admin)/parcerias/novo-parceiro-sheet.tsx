@@ -74,7 +74,8 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
   const [form, setForm] = useState<PartnerInsert>(initialForm(defaultCategory));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneLabelInput, setPhoneLabelInput] = useState("");
+  const [phoneNumberInput, setPhoneNumberInput] = useState("");
   const [linkInput, setLinkInput] = useState("");
 
   // Reset quando abre/muda categoria
@@ -82,7 +83,8 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
     if (o) {
       setForm(initialForm(defaultCategory));
       setError(null);
-      setPhoneInput("");
+      setPhoneLabelInput("");
+      setPhoneNumberInput("");
       setLinkInput("");
     }
     onOpenChange(o);
@@ -93,10 +95,12 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
   }
 
   function addPhone() {
-    const t = phoneInput.trim();
-    if (!t) return;
-    set("phones", [...(form.phones ?? []), t]);
-    setPhoneInput("");
+    const num = phoneNumberInput.trim();
+    if (!num) return;
+    const lbl = phoneLabelInput.trim();
+    set("phones", [...(form.phones ?? []), { label: lbl || null, number: num }]);
+    setPhoneLabelInput("");
+    setPhoneNumberInput("");
   }
 
   function removePhone(i: number) {
@@ -225,13 +229,16 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
               </div>
             </div>
 
-            {/* Telemóveis (múltiplos) */}
+            {/* Telemóveis (múltiplos, com etiqueta opcional) */}
             <div className="space-y-2">
               <Label>Telemóveis</Label>
               {(form.phones ?? []).map((p, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Phone className="h-3.5 w-3.5 text-[#8B7355]" />
-                  <span className="flex-1 text-sm">{p}</span>
+                  <span className="flex-1 text-sm">
+                    {p.label && <span className="text-[#8B7355]">{p.label}: </span>}
+                    {p.number}
+                  </span>
                   <button
                     type="button"
                     className="text-[#B8A99A] hover:text-rose-600"
@@ -243,8 +250,14 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
               ))}
               <div className="flex gap-2">
                 <Input
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
+                  value={phoneLabelInput}
+                  onChange={(e) => setPhoneLabelInput(e.target.value)}
+                  placeholder="Etiqueta (opcional)"
+                  className="w-36 shrink-0"
+                />
+                <Input
+                  value={phoneNumberInput}
+                  onChange={(e) => setPhoneNumberInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") { e.preventDefault(); addPhone(); }
                   }}

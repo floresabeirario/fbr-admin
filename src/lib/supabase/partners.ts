@@ -63,7 +63,11 @@ export function searchPartners(partners: Partner[], query: string): Partner[] {
       (p.email?.toLowerCase().includes(q) ?? false) ||
       (p.location_label?.toLowerCase().includes(q) ?? false) ||
       (p.notes?.toLowerCase().includes(q) ?? false) ||
-      p.phones.some((ph) => ph.toLowerCase().includes(q))
+      p.phones.some(
+        (ph) =>
+          ph.number.toLowerCase().includes(q) ||
+          (ph.label?.toLowerCase().includes(q) ?? false)
+      )
     );
   });
 }

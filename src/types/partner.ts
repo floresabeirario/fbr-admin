@@ -21,6 +21,12 @@ export type PartnerStatus =
 // ── Aceita comissão de 10% ───────────────────────────────────
 export type PartnerAcceptsCommission = "sim" | "nao" | "a_confirmar";
 
+// ── Telemóvel com etiqueta opcional (pessoa ou departamento) ──
+export interface PartnerPhone {
+  label: string | null; // ex.: "Ana Paula", "Reservas", null = sem etiqueta
+  number: string;
+}
+
 // ── Canal de uma interação ───────────────────────────────────
 export type InteractionChannel =
   | "email"
@@ -66,7 +72,7 @@ export interface Partner {
 
   contact_person: string | null;
   email: string | null;
-  phones: string[];
+  phones: PartnerPhone[];
   links: string[];
 
   location_label: string | null;

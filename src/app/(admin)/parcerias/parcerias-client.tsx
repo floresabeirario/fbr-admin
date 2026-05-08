@@ -159,7 +159,10 @@ function PartnerRow({
           {partner.phones[0] && (
             <span className="inline-flex items-center gap-1">
               <Phone className="h-3 w-3" />
-              {partner.phones[0]}
+              {partner.phones[0].label && (
+                <span className="text-[#8B7355]">{partner.phones[0].label}:</span>
+              )}
+              {partner.phones[0].number}
               {partner.phones.length > 1 && (
                 <span className="text-[10px] text-[#B8A99A]">+{partner.phones.length - 1}</span>
               )}

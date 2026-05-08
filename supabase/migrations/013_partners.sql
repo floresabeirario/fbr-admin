@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS partners (
   contact_person      TEXT,             -- nome da pessoa responsável
   email               TEXT,
   phones              TEXT[] DEFAULT '{}', -- pode ter vários
+  -- NOTA: na migração 015, `phones` é convertido para JSONB com etiquetas.
   links               TEXT[] DEFAULT '{}', -- site, instagram, facebook, etc.
 
   -- ── Localização ───────────────────────────────────────────

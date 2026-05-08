@@ -58,6 +58,7 @@ import {
   type PartnerCategory,
   type PartnerStatus,
   type PartnerAcceptsCommission,
+  type PartnerPhone,
   type InteractionChannel,
   PARTNER_CATEGORY_LABELS,
   PARTNER_CATEGORY_COLORS,
@@ -488,42 +489,89 @@ function PhonesField({
   phones,
   onChange,
 }: {
-  phones: string[];
-  onChange: (phones: string[]) => void;
+  phones: PartnerPhone[];
+  onChange: (phones: PartnerPhone[]) => void;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draftLabel, setDraftLabel] = useState("");
+  const [draftNumber, setDraftNumber] = useState("");
   function add() {
-    const t = draft.trim();
-    if (!t) return;
-    onChange([...phones, t]);
-    setDraft("");
+    const num = draftNumber.trim();
+    if (!num) return;
+    const lbl = draftLabel.trim();
+    onChange([...phones, { label: lbl || null, number: num }]);
+    setDraftLabel("");
+    setDraftNumber("");
   }
   function remove(i: number) {
     onChange(phones.filter((_, idx) => idx !== i));
+  }
+  function updateLabel(i: number, value: string) {
+    onChange(
+      phones.map((p, idx) =>
+        idx === i ? { ...p, label: value.trim() || null } : p
+      )
+    );
+  }
+  function updateNumber(i: number, value: string) {
+    onChange(
+      phones.map((p, idx) => (idx === i ? { ...p, number: value } : p))
+    );
   }
   return (
     <Field label="Telemóveis">
       <div className="space-y-1.5">
         {phones.map((p, i) => (
-          <div key={i} className="flex items-center gap-2 rounded-md border border-[#E8E0D5] bg-[#FAF8F5] px-2.5 py-1.5">
+          <div
+            key={i}
+            className="flex items-center gap-1.5 rounded-md border border-[#E8E0D5] bg-[#FAF8F5] px-2 py-1.5"
+          >
             <Phone className="h-3 w-3 text-[#8B7355] shrink-0" />
-            <span className="flex-1 text-sm text-[#3D2B1F]">{p}</span>
+            <Input
+              defaultValue={p.label ?? ""}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if ((p.label ?? "") !== v) updateLabel(i, v);
+              }}
+              placeholder="Etiqueta"
+              className="h-7 text-xs w-28 shrink-0"
+            />
+            <Input
+              defaultValue={p.number}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (p.number !== v && v) updateNumber(i, v);
+              }}
+              placeholder="Número"
+              className="h-7 text-sm flex-1"
+            />
             <button
               type="button"
-              className="text-[#B8A99A] hover:text-rose-600"
+              className="text-[#B8A99A] hover:text-rose-600 shrink-0"
               onClick={() => remove(i)}
+              aria-label="Remover"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
         ))}
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            value={draftLabel}
+            onChange={(e) => setDraftLabel(e.target.value)}
+            placeholder="Etiqueta (opcional)"
+            className="h-8 text-xs w-32 shrink-0"
+          />
+          <Input
+            value={draftNumber}
+            onChange={(e) => setDraftNumber(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              }
+            }}
             placeholder="+351 …"
-            className="h-8 text-sm"
+            className="h-8 text-sm flex-1"
           />
           <Button type="button" size="sm" variant="outline" onClick={add}>
             <Plus className="h-3.5 w-3.5" />
