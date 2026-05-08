@@ -14,7 +14,15 @@ const googleSans = Google_Sans({
 export const metadata: Metadata = {
   title: "FBR Admin",
   description: "Painel de administração — Flores à Beira Rio",
-  manifest: "/manifest.json",
+  manifest: "/favicon/site.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon/favicon.ico", sizes: "any" },
+      { url: "/favicon/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: { url: "/favicon/apple-touch-icon.png", sizes: "180x180" },
+  },
 };
 
 export const viewport: Viewport = {

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentRole } from "@/lib/auth/server";
 import { notFound } from "next/navigation";
 import type { Order } from "@/types/database";
+import type { Partner } from "@/types/partner";
 import WorkbenchClient from "./workbench-client";
 
 export default async function WorkbenchPage({
@@ -18,13 +19,24 @@ export default async function WorkbenchPage({
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const column = isUuid ? "id" : "order_id";
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq(column, id)
-    .single();
+  const [orderRes, partnersRes] = await Promise.all([
+    supabase.from("orders").select("*").eq(column, id).single(),
+    supabase
+      .from("partners")
+      .select("id, name, category, status")
+      .is("deleted_at", null)
+      .order("name", { ascending: true }),
+  ]);
 
-  if (error || !data) notFound();
+  if (orderRes.error || !orderRes.data) notFound();
 
-  return <WorkbenchClient order={data as Order} canEdit={role === "admin"} />;
+  const partnerOptions = (partnersRes.data ?? []) as Pick<Partner, "id" | "name" | "category" | "status">[];
+
+  return (
+    <WorkbenchClient
+      order={orderRes.data as Order}
+      canEdit={role === "admin"}
+      partners={partnerOptions}
+    />
+  );
 }

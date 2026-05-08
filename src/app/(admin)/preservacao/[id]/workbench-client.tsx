@@ -305,7 +305,17 @@ const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tra
 
 // ── Componente principal ───────────────────────────────────────
 
-export default function WorkbenchClient({ order, canEdit }: { order: Order; canEdit: boolean }) {
+type PartnerOption = { id: string; name: string; category: string; status: string };
+
+export default function WorkbenchClient({
+  order,
+  canEdit,
+  partners = [],
+}: {
+  order: Order;
+  canEdit: boolean;
+  partners?: PartnerOption[];
+}) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
   // Padrão React: reset de estado derivado quando o prop `order` muda
@@ -1304,13 +1314,43 @@ export default function WorkbenchClient({ order, canEdit }: { order: Order; canE
 
               <Card title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="sky">
                 <div className="space-y-3">
-                  <Field label="Parceiro recomendador" hint="Em breve: lista da aba Parcerias.">
-                    <Select value={local.partner_id ?? ""} onValueChange={(v) => update("partner_id", v || null)} disabled>
-                      <SelectTrigger className={sel + " opacity-60"}>
-                        <SelectValue placeholder="Sem parceiro" />
-                      </SelectTrigger>
-                      <SelectContent />
-                    </Select>
+                  <Field
+                    label="Parceiro recomendador"
+                    hint={partners.length === 0 ? "Adiciona parceiros na aba Parcerias." : undefined}
+                  >
+                    <div className="flex gap-2">
+                      <Select
+                        value={local.partner_id ?? "none"}
+                        onValueChange={(v) => update("partner_id", v === "none" ? null : v)}
+                      >
+                        <SelectTrigger className={sel}>
+                          <SelectValue placeholder="Sem parceiro" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum parceiro</SelectItem>
+                          {partners.length > 0 && <SelectSeparator />}
+                          {partners.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              <span className="flex items-center gap-1.5">
+                                <span className="text-sm">{p.name}</span>
+                                <span className="text-[10px] text-[#B8A99A]">
+                                  · {p.category.replace("_", " ")}
+                                </span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {local.partner_id && (
+                        <Link
+                          href={`/parcerias/${local.partner_id}`}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                          title="Abrir parceiro"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                    </div>
                   </Field>
                   <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-3">
                     <Field label="Comissão (€)">
