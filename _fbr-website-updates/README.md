@@ -8,6 +8,14 @@ dados Supabase do admin (`admin.floresabeirario.pt`).
 
 > **Sessão 25 — Fase 5 (parte 2/2).**
 > Mesma estratégia que a sessão 21 usou para o site `voucher.floresabeirario.pt`.
+>
+> **Sessão 26 — Campos em falta no form de Reserva.** O form do site não
+> recolhia 4 campos que o PDF spec inclui: **Tipo de evento**, **Nome dos
+> noivos** (cond. casamento), **Localização do evento** e **Código do
+> Vale-Presente** (cond. comoConheceu = "Vale-Presente"). Adicionados ao
+> `ReservarPreservacaoForm.jsx`, aos `messages/{pt,en}.json` e ao mapping
+> servidor. A migração 016 já permite estes 4 campos sem alterações
+> (não estão na lista de bloqueios da policy).
 
 ---
 
@@ -80,10 +88,20 @@ A árvore deste pacote espelha a estrutura do repo. Copia:
 
 | Origem (este pacote) | Destino (`fbr-website`) |
 | --- | --- |
+| `app/reservar-preservacao/ReservarPreservacaoForm.jsx` | `app/reservar-preservacao/ReservarPreservacaoForm.jsx` (substitui) |
 | `app/api/reservar-preservacao/route.js` | `app/api/reservar-preservacao/route.js` (substitui) |
 | `app/api/vale-presente/route.js`        | `app/api/vale-presente/route.js`        (substitui) |
-| `app/_lib/supabase-mappings.js`         | `app/_lib/supabase-mappings.js`         (novo) |
-| `app/_lib/turnstile.js`                 | `app/_lib/turnstile.js`                 (novo) |
+| `app/_lib/supabase-mappings.js`         | `app/_lib/supabase-mappings.js`         (substitui) |
+| `app/_lib/turnstile.js`                 | `app/_lib/turnstile.js`                 (novo, se ainda não existir) |
+
+Depois, abre `messages/additions.md` e segue as instruções para colar os
+**snippets PT/EN** dentro do bloco `"formReserva"` em cada um dos ficheiros
+`messages/pt.json` e `messages/en.json` do `fbr-website`. São 5 chaves
+novas em cada idioma:
+- `tipoEventoLabel` + `tipoEventoHint` + `tipoEventoOpcoes`
+- `nomeNoivosLabel` + `nomeNoivosHint` + `nomeNoivosPlaceholder`
+- `localEventoLabel` + `localEventoHint` + `localEventoPlaceholder`
+- `codigoValeLabel` + `codigoValeHint` + `codigoValePlaceholder`
 
 ### 4. Adicionar a dependência `@supabase/supabase-js`
 
@@ -110,10 +128,14 @@ O Vercel faz deploy automático. Espera o build acabar (≈1-2 min).
 
 1. Vai a `https://floresabeirario.pt/reservar-preservacao`
 2. Preenche **com o teu próprio email** e submete (estado: campos válidos, termos marcados)
-3. Devias ver o ecrã verde "Pré-reserva registada com sucesso!"
-4. Vai ao admin `https://admin.floresabeirario.pt/preservacao` — a nova reserva deve aparecer no grupo "Pré-reservas".
-5. Apaga depois (soft delete) ou mantém para teste.
-6. Repete para `https://floresabeirario.pt/vale-presente`.
+3. **Confirma os 4 campos novos:**
+   - Selecciona "Casamento" em **Tipo de evento** → deve aparecer o campo **Nome dos noivos**
+   - Preenche **Localização do evento**
+   - Em **Como conheceu**, escolhe "Ofereceram-me um Vale-Presente" → deve aparecer o campo **Código do Vale-Presente**
+4. Devias ver o ecrã verde "Pré-reserva registada com sucesso!"
+5. Vai ao admin `https://admin.floresabeirario.pt/preservacao` — a nova reserva deve aparecer no grupo "Pré-reservas". Abre o workbench e confere que `event_type`, `couple_names`, `event_location` e `gift_voucher_code` estão preenchidos.
+6. Apaga depois (soft delete) ou mantém para teste.
+7. Repete para `https://floresabeirario.pt/vale-presente`.
 
 Se algo correr mal: **Vercel → Deployments → Logs** mostra a stack
 trace do servidor.
@@ -245,10 +267,14 @@ _fbr-website-updates/
 ├── README.md                  ← este ficheiro
 ├── supabase-migration-016.sql ← cópia da migração 016 (consent + RLS anon)
 ├── supabase-migration-017.sql ← cópia da migração 017 (GRANT SELECT colunar)
+├── messages/
+│   └── additions.md           ← snippets PT/EN a colar em messages/{pt,en}.json
 └── app/
     ├── _lib/
     │   ├── supabase-mappings.js
     │   └── turnstile.js
+    ├── reservar-preservacao/
+    │   └── ReservarPreservacaoForm.jsx   ← form actualizado (sessão 26)
     └── api/
         ├── reservar-preservacao/
         │   └── route.js

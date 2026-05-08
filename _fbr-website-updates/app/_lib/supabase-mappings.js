@@ -66,6 +66,14 @@ const COMO_CONHECEU_RESERVA = {
   "Outro (especificar abaixo)":                                            "outro",
 };
 
+const TIPO_EVENTO = {
+  "Casamento":           "casamento",
+  "Batizado":            "batizado",
+  "Funeral":             "funeral",
+  "Pedido de Casamento": "pedido_casamento",
+  "Outro":               "outro",
+};
+
 // ── Vale-Presente ───────────────────────────────────────────
 
 const VALE_MEIO_CONTACTO = MEIO_CONTACTO;
@@ -121,6 +129,7 @@ export function mapReservaToOrder(data, { ip } = {}) {
 
   // Mapeamentos
   const contact_preference     = lookup(MEIO_CONTACTO,         data.meioContacto);
+  const event_type             = lookup(TIPO_EVENTO,           data.tipoEvento);
   const flower_delivery_method = lookup(COMO_ENVIAR_FLORES,    data.comoEnviarFlores);
   const frame_delivery_method  = lookup(COMO_RECEBER_QUADRO,   data.comoReceberQuadro);
   const frame_size             = lookup(TAMANHO_MOLDURA,       data.tamanhoMoldura);
@@ -131,6 +140,7 @@ export function mapReservaToOrder(data, { ip } = {}) {
   const how_found_fbr          = lookup(COMO_CONHECEU_RESERVA, data.comoConheceu);
 
   if (data.meioContacto      && !contact_preference)     errors.push("meioContacto");
+  if (data.tipoEvento        && !event_type)             errors.push("tipoEvento");
   if (data.comoEnviarFlores  && !flower_delivery_method) errors.push("comoEnviarFlores");
   if (data.comoReceberQuadro && !frame_delivery_method)  errors.push("comoReceberQuadro");
   if (data.tamanhoMoldura    && !frame_size)             errors.push("tamanhoMoldura");
@@ -157,6 +167,25 @@ export function mapReservaToOrder(data, { ip } = {}) {
     how_found_fbr_other = (data.comoConheceuOutro || "").trim() || null;
   }
 
+  // gift_voucher_code: só faz sentido quando o cliente diz que veio de
+  // um Vale-Presente. Em qualquer outro contexto, ignoramos o que vier
+  // (mesmo que o JS do site mande, descartamos).
+  const gift_voucher_code =
+    how_found_fbr === "vale_presente"
+      ? (data.codigoValePresente || "").trim().toUpperCase() || null
+      : null;
+  if (how_found_fbr === "vale_presente" && !gift_voucher_code) {
+    errors.push("codigoValePresente");
+  }
+
+  // couple_names: só guardar quando event_type = "casamento". Para
+  // outros eventos, o front-end já oculta o campo, mas defendemos a BD
+  // caso alguém modifique o JS.
+  const couple_names =
+    event_type === "casamento"
+      ? (data.nomeNoivos || "").trim() || null
+      : null;
+
   // extras_in_frame: lista PT directamente + nota opcional
   const extras_options = Array.isArray(data.elementosExtra)
     ? data.elementosExtra.filter((s) => typeof s === "string" && s.trim())
@@ -173,6 +202,9 @@ export function mapReservaToOrder(data, { ip } = {}) {
     email,
     phone,
     event_date:        data.dataEvento || null,
+    event_type,
+    couple_names,
+    event_location:    (data.localEvento || "").trim() || null,
     flower_type:       (data.tipoFlores || "").trim() || null,
     flower_delivery_method,
     frame_delivery_method,
@@ -187,6 +219,7 @@ export function mapReservaToOrder(data, { ip } = {}) {
     necklace_pendants_qty:     toIntOrNull(data.quantosPendentes),
     how_found_fbr,
     how_found_fbr_other,
+    gift_voucher_code,
     additional_notes:   (data.notasAdicionais || "").trim() || null,
     form_language:      data.locale === "en" ? "en" : "pt",
 

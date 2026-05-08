@@ -39,11 +39,14 @@ const MAX_LENGTHS = {
   nome:                200,
   email:               200,
   telefone:            30,
+  nomeNoivos:          300,
+  localEvento:         300,
   tipoFlores:          1000,
   elementosExtraOutro: 500,
   notasAdicionais:     2000,
   comoConheceuOutro:   1000,
   nomeFlorista:        300,
+  codigoValePresente:  20,
 };
 
 export async function POST(request) {
@@ -182,6 +185,9 @@ export async function POST(request) {
         `<tr><td><strong>E-mail</strong></td><td>${e(data.email)}</td></tr>`,
         `<tr><td><strong>Telefone</strong></td><td>${e(data.telefone)}</td></tr>`,
         `<tr><td><strong>Data do evento</strong></td><td>${e(data.dataEvento)}</td></tr>`,
+        `<tr><td><strong>Tipo de evento</strong></td><td>${e(data.tipoEvento)}</td></tr>`,
+        data.nomeNoivos ? `<tr><td><strong>Noivos</strong></td><td>${e(data.nomeNoivos)}</td></tr>` : "",
+        `<tr><td><strong>Local do evento</strong></td><td>${e(data.localEvento)}</td></tr>`,
         `<tr><td><strong>Tipo de flores</strong></td><td>${e(data.tipoFlores)}</td></tr>`,
         `<tr><td><strong>Como enviar flores</strong></td><td>${e(data.comoEnviarFlores)}</td></tr>`,
         `<tr><td><strong>Como receber quadro</strong></td><td>${e(data.comoReceberQuadro)}</td></tr>`,
@@ -198,6 +204,7 @@ export async function POST(request) {
         `<tr><td><strong>Como conheceu</strong></td><td>${e(data.comoConheceu)}</td></tr>`,
         data.nomeFlorista ? `<tr><td><strong>Nome da florista</strong></td><td>${e(data.nomeFlorista)}</td></tr>` : "",
         data.comoConheceuOutro ? `<tr><td><strong>Como conheceu (detalhe)</strong></td><td>${e(data.comoConheceuOutro)}</td></tr>` : "",
+        data.codigoValePresente ? `<tr><td><strong>Código Vale-Presente</strong></td><td><code>${e(data.codigoValePresente)}</code></td></tr>` : "",
         data.notasAdicionais ? `<tr><td><strong>Notas adicionais</strong></td><td>${e(data.notasAdicionais)}</td></tr>` : "",
       ].filter(Boolean).join("\n");
 
