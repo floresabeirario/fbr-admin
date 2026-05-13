@@ -549,6 +549,9 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<ViewType>("tabela");
   // Grupos vazios começam colapsados por default; o utilizador pode abrir.
+  // Excepção: "orfas" (encomendas com estado desconhecido) começa SEMPRE
+  // aberta e nunca é incluída em `collapsedGroups` — é a rede de segurança,
+  // tem de ser visível imediatamente quando aparece.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const empty = new Set<string>();
     if (initialGrouped.sem_resposta.length === 0) empty.add("sem_resposta");
@@ -694,12 +697,38 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto p-6">
+        {/* Rede de segurança: aviso global se houver encomendas com estado
+            desconhecido. Aparece em todas as vistas (tabela, cards, calendário,
+            timeline) para a Maria notar imediatamente que algo está fora do
+            mapa. Não deve ser ignorável visualmente. */}
+        {!showArchived && grouped.orfas.length > 0 && (
+          <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-900">
+                  {grouped.orfas.length} encomenda{grouped.orfas.length !== 1 ? "s" : ""} com estado desconhecido
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Estas encomendas têm um estado na base de dados que o código
+                  ainda não reconhece. Continuam visíveis abaixo no grupo
+                  &ldquo;Sem grupo&rdquo; para nunca se perderem. Avisa o
+                  programador para mapear o estado.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showArchived && (
           <ArchivedOrdersView orders={archivedOrders} onOpenOrder={openOrder} />
         )}
 
         {!showArchived && activeView === "tabela" && (
           <div className="space-y-3">
+            {grouped.orfas.length > 0 && (
+              <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} />
+            )}
             <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} />
             <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
             <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
@@ -720,6 +749,9 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
 
         {!showArchived && activeView === "cards" && (
           <div className="space-y-6">
+            {grouped.orfas.length > 0 && (
+              <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} alert showPhoto={false} />
+            )}
             <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} alert showPhoto={false} />
             <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
             <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />

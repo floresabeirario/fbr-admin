@@ -78,14 +78,57 @@ export const STATUS_ICONS: Record<OrderStatus, LucideIcon> = {
   cancelado:              Ban,
 };
 
-export const STATUS_GROUPS: Array<{ label: string; statuses: OrderStatus[] }> = [
-  { label: "Pré-reserva",         statuses: ["entrega_flores_agendar"] },
-  { label: "Reservas",            statuses: ["entrega_agendada", "flores_enviadas", "flores_recebidas"] },
-  { label: "Preservação e design", statuses: ["flores_na_prensa", "reconstrucao_botanica", "a_compor_design", "a_aguardar_aprovacao", "a_finalizar_quadro"] },
-  { label: "Finalização",         statuses: ["a_ser_emoldurado", "emoldurado", "a_ser_fotografado", "quadro_pronto", "quadro_enviado"] },
-  { label: "Concluído",           statuses: ["quadro_recebido"] },
-  { label: "Cancelado",           statuses: ["cancelado"] },
+// Salvaguarda em tempo de compilação: cada OrderStatus tem de declarar
+// aqui em que secção do dropdown aparece. Se um estado novo for
+// adicionado a `OrderStatus` e esquecido neste Record, o TypeScript
+// queixa-se (não compila). Não substituir por `Partial<Record<…>>` —
+// a exaustividade é o que protege contra estados que ficam invisíveis.
+type StatusGroupLabel =
+  | "Pré-reserva"
+  | "Reservas"
+  | "Preservação e design"
+  | "Finalização"
+  | "Concluído"
+  | "Cancelado";
+
+const STATUS_TO_GROUP_LABEL: Record<OrderStatus, StatusGroupLabel> = {
+  entrega_flores_agendar: "Pré-reserva",
+  entrega_agendada:       "Reservas",
+  flores_enviadas:        "Reservas",
+  flores_recebidas:       "Reservas",
+  flores_na_prensa:       "Preservação e design",
+  reconstrucao_botanica:  "Preservação e design",
+  a_compor_design:        "Preservação e design",
+  a_aguardar_aprovacao:   "Preservação e design",
+  a_finalizar_quadro:     "Preservação e design",
+  a_ser_emoldurado:       "Finalização",
+  emoldurado:             "Finalização",
+  a_ser_fotografado:      "Finalização",
+  quadro_pronto:          "Finalização",
+  quadro_enviado:         "Finalização",
+  quadro_recebido:        "Concluído",
+  cancelado:              "Cancelado",
+};
+
+// Ordem deliberada dos grupos no dropdown e na vista de tabela.
+const GROUP_LABEL_ORDER: StatusGroupLabel[] = [
+  "Pré-reserva",
+  "Reservas",
+  "Preservação e design",
+  "Finalização",
+  "Concluído",
+  "Cancelado",
 ];
+
+// Derivado do Record acima — não editar à mão. Adicionar um estado novo
+// faz-se em `STATUS_TO_GROUP_LABEL`.
+export const STATUS_GROUPS: Array<{ label: StatusGroupLabel; statuses: OrderStatus[] }> =
+  GROUP_LABEL_ORDER.map((label) => ({
+    label,
+    statuses: (Object.keys(STATUS_TO_GROUP_LABEL) as OrderStatus[]).filter(
+      (s) => STATUS_TO_GROUP_LABEL[s] === label,
+    ),
+  }));
 
 // Gradiente vermelho → âmbar → lime → verde, conforme a quantia já paga
 export const PAYMENT_COLORS: Record<PaymentStatus, string> = {

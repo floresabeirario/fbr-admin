@@ -115,40 +115,81 @@ function byEventDateAsc(a: Order, b: Order): number {
   return a.event_date.localeCompare(b.event_date);
 }
 
-// Agrupa as encomendas para a vista de tabela
-export function groupOrders(orders: Order[]) {
-  const sorted = [...orders].sort(byEventDateAsc);
-  const semResposta = sorted.filter(isWithoutResponse);
-  const semRespostaIds = new Set(semResposta.map((o) => o.id));
+// ── Single source of truth: estado → grupo ────────────────────
+// Todos os OrderStatus têm de estar mapeados aqui. Se um estado
+// novo for adicionado a `OrderStatus` e esquecido aqui, o TypeScript
+// dá erro de compilação por causa do `Record<OrderStatus, …>` —
+// é deliberado, é a salvaguarda principal contra "encomendas que
+// desaparecem". Não substituir por `Partial<Record<…>>` nem
+// `Record<string, …>`: a exaustividade é o que mantém isto seguro.
+export type OrderGroupKey =
+  | "pre_reservas"
+  | "sem_resposta"
+  | "reservas"
+  | "preservacao_design"
+  | "finalizacao"
+  | "concluidos"
+  | "cancelamentos";
 
-  return {
-    pre_reservas: sorted.filter(
-      (o) =>
-        o.status === "entrega_flores_agendar" && !semRespostaIds.has(o.id)
-    ),
-    sem_resposta: semResposta,
-    reservas: sorted.filter((o) =>
-      ["entrega_agendada", "flores_enviadas", "flores_recebidas"].includes(o.status)
-    ),
-    preservacao_design: sorted.filter((o) =>
-      [
-        "flores_na_prensa",
-        "reconstrucao_botanica",
-        "a_compor_design",
-        "a_aguardar_aprovacao",
-      ].includes(o.status)
-    ),
-    finalizacao: sorted.filter((o) =>
-      [
-        "a_ser_emoldurado",
-        "emoldurado",
-        "a_ser_fotografado",
-        "quadro_pronto",
-        "quadro_enviado",
-      ].includes(o.status)
-    ),
-    concluidos: sorted.filter((o) => o.status === "quadro_recebido"),
-    cancelamentos: sorted.filter((o) => o.status === "cancelado"),
+const STATUS_TO_GROUP: Record<OrderStatus, OrderGroupKey> = {
+  entrega_flores_agendar: "pre_reservas", // sem_resposta é derivado em runtime
+  entrega_agendada:       "reservas",
+  flores_enviadas:        "reservas",
+  flores_recebidas:       "reservas",
+  flores_na_prensa:       "preservacao_design",
+  reconstrucao_botanica:  "preservacao_design",
+  a_compor_design:        "preservacao_design",
+  a_aguardar_aprovacao:   "preservacao_design",
+  a_finalizar_quadro:     "preservacao_design",
+  a_ser_emoldurado:       "finalizacao",
+  emoldurado:             "finalizacao",
+  a_ser_fotografado:      "finalizacao",
+  quadro_pronto:          "finalizacao",
+  quadro_enviado:         "finalizacao",
+  quadro_recebido:        "concluidos",
+  cancelado:              "cancelamentos",
+};
+
+// Agrupa as encomendas para a vista de tabela.
+// Devolve também `orfas`: encomendas com status que não mapeia para
+// nenhum grupo (não pode acontecer em runtime se TS estiver feliz,
+// mas pode acontecer se a BD tiver um valor que o TS não conhece —
+// ex.: migração nova que ainda não chegou ao código). A UI mostra-as
+// num grupo de alerta vermelho "Sem grupo" em vez de as esconder.
+export function groupOrders(orders: Order[]): Record<OrderGroupKey, Order[]> & { orfas: Order[] } {
+  const sorted = [...orders].sort(byEventDateAsc);
+
+  const buckets: Record<OrderGroupKey, Order[]> & { orfas: Order[] } = {
+    pre_reservas: [],
+    sem_resposta: [],
+    reservas: [],
+    preservacao_design: [],
+    finalizacao: [],
+    concluidos: [],
+    cancelamentos: [],
+    orfas: [],
   };
+
+  for (const order of sorted) {
+    if (isWithoutResponse(order)) {
+      buckets.sem_resposta.push(order);
+      continue;
+    }
+    const group = STATUS_TO_GROUP[order.status];
+    if (!group) {
+      // Defensivo: estado desconhecido vindo da BD. Nunca esconder.
+      buckets.orfas.push(order);
+      if (typeof window !== "undefined" && typeof console !== "undefined") {
+        console.error(
+          `[orders] Encomenda ${order.order_id} tem estado desconhecido "${order.status}". ` +
+            `Adicione um mapeamento em STATUS_TO_GROUP.`,
+        );
+      }
+      continue;
+    }
+    buckets[group].push(order);
+  }
+
+  return buckets;
 }
 
