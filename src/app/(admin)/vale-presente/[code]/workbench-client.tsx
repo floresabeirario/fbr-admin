@@ -23,7 +23,6 @@ import {
   Wallet,
   CalendarDays,
   StickyNote,
-  Receipt,
   Compass,
   AlertTriangle,
   Trash2,
@@ -31,6 +30,9 @@ import {
   Globe,
   Pencil,
   ExternalLink,
+  Handshake,
+  Search,
+  ShieldCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +45,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -51,6 +61,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Flag } from "@/components/ui/flag";
 import { updateVoucherAction, deleteVoucherAction } from "../actions";
 import {
   type Voucher,
@@ -76,9 +87,12 @@ import {
   CONTACT_PREFERENCE_LABELS,
   HOW_FOUND_FBR_LABELS,
   HOW_FOUND_FBR_COLORS,
+  PARTNER_COMMISSION_STATUS_LABELS,
+  PARTNER_COMMISSION_STATUS_COLORS,
   SIM_NAO_LABELS,
   type ContactPreference,
   type HowFoundFBR,
+  type PartnerCommissionStatus,
 } from "@/types/database";
 import { isExpired, isExpiringSoon, monthsUntilExpiry } from "@/lib/supabase/vouchers";
 
@@ -98,9 +112,21 @@ function formatEuro(value: number | null): string {
   return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
+// Categorias dos parceiros (para mostrar inline no combobox)
+const PARTNER_CATEGORY_LABELS: Record<string, string> = {
+  wedding_planners: "Wedding planner",
+  floristas: "Florista",
+  quintas_eventos: "Quinta de eventos",
+  outros: "Outro",
+};
+
+// Forma "leve" de parceiro recebida na page.tsx (só id+name+category+status)
+type PartnerOption = { id: string; name: string; category: string; status: string };
+
 interface Props {
   voucher: Voucher;
   canEdit: boolean;
+  partners?: PartnerOption[];
 }
 
 // ── Edição inline do código do vale ────────────────────────
@@ -160,7 +186,146 @@ function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave:
   );
 }
 
-export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
+// ── Sticky note "post-it" amarelo ─────────────────────────
+// Mesmo padrão do workbench da Preservação: vazio = amarelo claro com
+// ícone +; com texto = amarelo intenso com preview de 2 linhas.
+function StickyNoteButton({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const hasContent = value.trim().length > 0;
+  const preview = hasContent ? value.replace(/\s+/g, " ").trim() : "";
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setDraft(value);
+        else if (draft !== value) onSave(draft);
+      }}
+    >
+      <PopoverTrigger
+        title={hasContent ? "Nota do vale" : "Adicionar nota"}
+        className={`shrink-0 inline-flex items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
+          hasContent
+            ? "bg-yellow-200 border-yellow-400 text-yellow-950"
+            : "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100"
+        }`}
+      >
+        <StickyNote className="h-3 w-3 mt-0.5 shrink-0" />
+        {hasContent ? (
+          <span className="text-left line-clamp-2 break-words">{preview}</span>
+        ) : (
+          <span className="font-medium">Nota</span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-3 bg-yellow-50 border-yellow-300"
+        align="end"
+        side="bottom"
+      >
+        <Label className="text-[10px] uppercase tracking-[0.15em] font-semibold text-yellow-900 mb-1.5 block">
+          Nota do vale
+        </Label>
+        <Textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Ex: cliente pediu para personalizar a mensagem antes de enviar…"
+          rows={6}
+          className="border-yellow-200 bg-white text-sm text-yellow-950 placeholder:text-yellow-700/40"
+          autoFocus
+        />
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => { setDraft(""); }}
+            className="h-7 px-2 rounded-md text-xs text-yellow-800 hover:bg-yellow-100"
+          >
+            Limpar
+          </button>
+          <button
+            type="button"
+            onClick={() => { onSave(draft); setOpen(false); }}
+            className="h-7 px-3 rounded-md bg-yellow-600 text-white text-xs font-medium hover:bg-yellow-700"
+          >
+            Guardar
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Combobox de Parceiros (pesquisa por nome+categoria) ───
+// Igual ao do workbench da Preservação. Selecciona um parceiro
+// existente; "Nenhum parceiro" limpa a associação.
+function PartnerCombobox({
+  partners,
+  value,
+  onChange,
+  triggerCls,
+}: {
+  partners: PartnerOption[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+  triggerCls: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? partners.find((p) => p.id === value) ?? null : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-expanded={open}
+        className={`${triggerCls} flex-1 inline-flex items-center justify-between gap-2 px-3 text-left`}
+      >
+        {selected ? (
+          <span className="flex items-center gap-1.5 truncate">
+            <span className="text-sm">{selected.name}</span>
+            <span className="text-[10px] text-[#B8A99A] shrink-0">
+              · {PARTNER_CATEGORY_LABELS[selected.category] ?? selected.category}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[#B8A99A]">Sem parceiro</span>
+        )}
+        <Search className="h-3.5 w-3.5 text-[#B8A99A] shrink-0" />
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Procurar parceiro…" />
+          <CommandList>
+            <CommandEmpty>Nenhum parceiro encontrado.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="nenhum"
+                onSelect={() => { onChange(null); setOpen(false); }}
+              >
+                <span className="text-[#8B7355] italic">Nenhum parceiro</span>
+              </CommandItem>
+              {partners.map((p) => (
+                <CommandItem
+                  key={p.id}
+                  value={`${p.name} ${PARTNER_CATEGORY_LABELS[p.category] ?? ""}`}
+                  onSelect={() => { onChange(p.id); setOpen(false); }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm">{p.name}</span>
+                    <span className="text-[10px] text-[#B8A99A]">
+                      · {PARTNER_CATEGORY_LABELS[p.category] ?? p.category}
+                    </span>
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export default function VoucherWorkbenchClient({ voucher, canEdit, partners = [] }: Props) {
   const router = useRouter();
   const [data, setData] = useState<Voucher>(voucher);
   const [isPending, startTransition] = useTransition();
@@ -277,6 +442,12 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
           {canEdit && (
             <EditVoucherCode currentCode={data.code} onSave={(c) => updateField("code", c)} />
           )}
+          {/* Idioma em que o cliente preencheu o formulário */}
+          <Flag
+            lang={data.form_language}
+            className="h-4 w-6"
+            title={data.form_language === "pt" ? "Formulário preenchido em Português" : "Formulário preenchido em Inglês"}
+          />
           {/* Link directo para status público */}
           <a
             href={`https://status.floresabeirario.pt/${data.code}`}
@@ -296,6 +467,11 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Sticky note "post-it" amarelo flutuante (mesmo padrão da Preservação) */}
+          <StickyNoteButton
+            value={data.sticky_note ?? ""}
+            onSave={(v) => updateField("sticky_note", v.trim() || null)}
+          />
           {canEdit && (
             <Button
               size="sm"
@@ -613,10 +789,11 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
               </Section>
             </div>
 
-            {/* ── Coluna direita: pagamento + envio + utilização + fatura ── */}
+            {/* ── Coluna direita: pagamento+fatura + envio + utilização + parceria + metadata ── */}
             <div className="space-y-4">
-              <Section title="Pagamento" icon={<Wallet className="h-3.5 w-3.5" />} accent="emerald">
-                <Field label="Estado">
+              {/* Pagamento e Fatura — unificados (sessão 29) */}
+              <Section title="Pagamento e fatura" icon={<Wallet className="h-3.5 w-3.5" />} accent="emerald">
+                <Field label="Estado de pagamento">
                   <Select
                     value={data.payment_status}
                     onValueChange={(v) => requestPaymentChange(v as VoucherPaymentStatus)}
@@ -637,6 +814,50 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
                     </SelectContent>
                   </Select>
                 </Field>
+
+                <div className="h-px bg-[#F0EAE0] -mx-4" />
+
+                <Field label="Cliente pediu fatura com NIF?">
+                  <Select
+                    value={data.needs_invoice ? "sim" : "nao"}
+                    onValueChange={(v) => {
+                      const needs = v === "sim";
+                      updateField("needs_invoice", needs);
+                      if (!needs) updateField("nif", null);
+                    }}
+                  >
+                    <SelectTrigger className={triggerCls}>
+                      <SelectValue labels={SIM_NAO_LABELS} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sim">Sim</SelectItem>
+                      <SelectItem value="nao">Não</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                {data.needs_invoice && (
+                  <>
+                    <Field label="NIF">
+                      <Input
+                        value={data.nif ?? ""}
+                        onChange={(e) => setData((d) => ({ ...d, nif: e.target.value }))}
+                        onBlur={(e) => updateField("nif", e.target.value.trim() || null)}
+                        placeholder="123456789"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Anexo da fatura (Drive)">
+                      <Input
+                        value={data.invoice_attachment_url ?? ""}
+                        onChange={(e) => setData((d) => ({ ...d, invoice_attachment_url: e.target.value }))}
+                        onBlur={(e) => updateField("invoice_attachment_url", e.target.value.trim() || null)}
+                        placeholder="https://drive.google.com/…"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
+                )}
               </Section>
 
               <Section title="Envio do vale" icon={<Send className="h-3.5 w-3.5" />} accent="sky">
@@ -703,48 +924,91 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
                 </Field>
               </Section>
 
-              <Section title="Fatura" icon={<Receipt className="h-3.5 w-3.5" />} accent="orange">
-                <Field label="Cliente pediu fatura com NIF?">
-                  <Select
-                    value={data.needs_invoice ? "sim" : "nao"}
-                    onValueChange={(v) => {
-                      const needs = v === "sim";
-                      updateField("needs_invoice", needs);
-                      if (!needs) updateField("nif", null);
-                    }}
-                  >
-                    <SelectTrigger className={triggerCls}>
-                      <SelectValue labels={SIM_NAO_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sim">Sim</SelectItem>
-                      <SelectItem value="nao">Não</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Parceria — sessão 29: vouchers podem ser recomendados por parceiros tal como encomendas */}
+              <Section title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="orange">
+                <Field label="Parceiro recomendador">
+                  <div className="flex gap-1.5">
+                    <PartnerCombobox
+                      partners={partners}
+                      value={data.partner_id}
+                      onChange={(id) => {
+                        // Estratégia igual à da Preservação: ao escolher um parceiro,
+                        // auto-preenche 10% do valor (se ainda vazio) e muda o estado
+                        // de "N/A" → "A aguardar".
+                        const updates: Partial<VoucherUpdate> = { partner_id: id };
+                        if (id && (data.partner_commission === null || data.partner_commission === 0) && data.amount) {
+                          updates.partner_commission = Math.round(data.amount * 0.1 * 100) / 100;
+                        }
+                        if (id && data.partner_commission_status === "na") {
+                          updates.partner_commission_status = "a_aguardar";
+                        }
+                        // Aplica todos numa transição (optimista) e envia para o servidor.
+                        setData((d) => ({ ...d, ...updates }));
+                        startTransition(async () => {
+                          try {
+                            await updateVoucherAction(voucher.id, updates);
+                            router.refresh();
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        });
+                      }}
+                      triggerCls={triggerCls}
+                    />
+                    {data.partner_id && (
+                      <Link
+                        href={`/parcerias/${data.partner_id}`}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                        title="Abrir parceiro"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    )}
+                  </div>
+                  {partners.length === 0 && (
+                    <p className="text-[10px] text-[#B8A99A] mt-1">
+                      Adiciona parceiros na aba Parcerias.
+                    </p>
+                  )}
                 </Field>
 
-                {data.needs_invoice && (
-                  <>
-                    <Field label="NIF">
+                <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
+                  <Field label="Comissão (€)">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
                       <Input
-                        value={data.nif ?? ""}
-                        onChange={(e) => setData((d) => ({ ...d, nif: e.target.value }))}
-                        onBlur={(e) => updateField("nif", e.target.value.trim() || null)}
-                        placeholder="123456789"
-                        className={inputCls}
+                        className={`${inputCls} pl-7`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={data.partner_commission ?? ""}
+                        onChange={(e) => setData((d) => ({ ...d, partner_commission: e.target.value ? Number(e.target.value) : null }))}
+                        onBlur={(e) => updateField("partner_commission", e.target.value ? Number(e.target.value) : null)}
                       />
-                    </Field>
-                    <Field label="Anexo (Drive)">
-                      <Input
-                        value={data.invoice_attachment_url ?? ""}
-                        onChange={(e) => setData((d) => ({ ...d, invoice_attachment_url: e.target.value }))}
-                        onBlur={(e) => updateField("invoice_attachment_url", e.target.value.trim() || null)}
-                        placeholder="https://drive.google.com/…"
-                        className={inputCls}
-                      />
-                    </Field>
-                  </>
-                )}
+                    </div>
+                  </Field>
+                  <Field label="Estado da comissão">
+                    <Select
+                      value={data.partner_commission_status}
+                      onValueChange={(v) => updateField("partner_commission_status", v as PartnerCommissionStatus)}
+                    >
+                      <SelectTrigger
+                        className={`${triggerCls} font-medium ${PARTNER_COMMISSION_STATUS_COLORS[data.partner_commission_status]}`}
+                      >
+                        <SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(PARTNER_COMMISSION_STATUS_LABELS) as PartnerCommissionStatus[]).map((k) => (
+                          <SelectItem key={k} value={k} className="my-0.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_COMMISSION_STATUS_COLORS[k]}`}>
+                              {PARTNER_COMMISSION_STATUS_LABELS[k]}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
               </Section>
 
               <Section title="Metadata" icon={<CalendarDays className="h-3.5 w-3.5" />} accent="slate">
@@ -758,6 +1022,26 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
                     <p className="text-[#3D2B1F]">{formatDate(data.updated_at)}</p>
                   </div>
                 </div>
+
+                {/* Info de RGPD — só preenchida em vales criados pelo form público (a partir da Fase 5) */}
+                {data.consent_at && (
+                  <div className="pt-2 mt-1 border-t border-[#F0EAE0]">
+                    <div className="flex items-start gap-1.5 text-[11px] text-[#8B7355]">
+                      <ShieldCheck className="h-3 w-3 mt-0.5 text-emerald-600 shrink-0" />
+                      <div>
+                        <p>
+                          Consentimento RGPD em <span className="text-[#3D2B1F]">{formatDate(data.consent_at)}</span>
+                          {data.consent_version && (
+                            <> · v{data.consent_version}</>
+                          )}
+                        </p>
+                        {data.consent_ip && (
+                          <p className="text-[10px] text-[#B8A99A] font-mono">IP {data.consent_ip}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </Section>
             </div>
           </div>

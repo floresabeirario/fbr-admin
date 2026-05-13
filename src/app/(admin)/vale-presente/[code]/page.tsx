@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentRole } from "@/lib/auth/server";
 import { notFound } from "next/navigation";
 import type { Voucher } from "@/types/voucher";
+import type { Partner } from "@/types/partner";
 import VoucherWorkbenchClient from "./workbench-client";
 
 export default async function VoucherWorkbenchPage({
@@ -18,15 +19,24 @@ export default async function VoucherWorkbenchPage({
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
   const column = isUuid ? "id" : "code";
 
-  const { data, error } = await supabase
-    .from("vouchers")
-    .select("*")
-    .eq(column, code.toUpperCase())
-    .single();
+  const [voucherRes, partnersRes] = await Promise.all([
+    supabase.from("vouchers").select("*").eq(column, code.toUpperCase()).single(),
+    supabase
+      .from("partners")
+      .select("id, name, category, status")
+      .is("deleted_at", null)
+      .order("name", { ascending: true }),
+  ]);
 
-  if (error || !data) notFound();
+  if (voucherRes.error || !voucherRes.data) notFound();
+
+  const partnerOptions = (partnersRes.data ?? []) as Pick<Partner, "id" | "name" | "category" | "status">[];
 
   return (
-    <VoucherWorkbenchClient voucher={data as Voucher} canEdit={role === "admin"} />
+    <VoucherWorkbenchClient
+      voucher={voucherRes.data as Voucher}
+      canEdit={role === "admin"}
+      partners={partnerOptions}
+    />
   );
 }
