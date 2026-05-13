@@ -50,3 +50,37 @@ export async function deleteOrderAction(id: string): Promise<void> {
   if (error) throw new Error(error.message);
   revalidatePath("/preservacao");
 }
+
+export async function restoreOrderAction(id: string): Promise<void> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("orders")
+    .update({ deleted_at: null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/preservacao");
+}
+
+export async function hardDeleteOrderAction(
+  id: string,
+  justification: string,
+): Promise<void> {
+  await requireAdmin();
+  const reason = justification.trim();
+  if (reason.length < 3) {
+    throw new Error("Justificação obrigatória (mínimo 3 caracteres).");
+  }
+  const supabase = await createClient();
+  // Audit log trigger automaticamente regista o DELETE com old_values.
+  // Aqui guardamos a justificação como nota separada antes do DELETE.
+  await supabase.from("audit_log").insert({
+    table_name: "orders",
+    record_id: id,
+    action: "DELETE",
+    new_values: { justification: reason },
+  });
+  const { error } = await supabase.from("orders").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/preservacao");
+}

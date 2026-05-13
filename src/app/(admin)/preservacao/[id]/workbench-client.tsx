@@ -69,9 +69,10 @@ import {
   Truck,
   PartyPopper,
   Ban,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { updateOrderAction } from "../actions";
+import { updateOrderAction, deleteOrderAction } from "../actions";
 import type {
   Order,
   OrderUpdate,
@@ -355,6 +356,21 @@ export default function WorkbenchClient({
     apply: () => void;
   }>(null);
 
+  // Diálogo de arquivar (soft delete)
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
+  async function handleArchive() {
+    setArchiving(true);
+    try {
+      await deleteOrderAction(order.id);
+      router.push("/preservacao");
+    } catch (err) {
+      console.error(err);
+      setArchiving(false);
+    }
+  }
+
   const flush = useCallback(async () => {
     const updates = { ...pendingRef.current };
     if (Object.keys(updates).length === 0) return;
@@ -635,6 +651,18 @@ export default function WorkbenchClient({
               </span>
             )}
           </div>
+
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setArchiveDialogOpen(true)}
+              className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-white text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
+              title="Arquivar esta encomenda"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Arquivar</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -1649,6 +1677,39 @@ export default function WorkbenchClient({
               disabled={!deliveryDateDraft}
             >
               Guardar data
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Diálogo: arquivar encomenda ──────────────────────── */}
+      <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+              <Trash2 className="h-4 w-4 text-red-600" />
+              Arquivar esta encomenda?
+            </DialogTitle>
+            <DialogDescription className="text-[#8B7355]">
+              A encomenda fica arquivada e deixa de aparecer na lista. Podes recuperá-la
+              ou apagá-la definitivamente em <strong>Mostrar arquivados</strong> na listagem.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => setArchiveDialogOpen(false)}
+              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+              disabled={archiving}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleArchive}
+              className="h-9 px-4 rounded-lg bg-red-600 text-sm text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+              disabled={archiving}
+            >
+              {archiving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Arquivar
             </button>
           </DialogFooter>
         </DialogContent>

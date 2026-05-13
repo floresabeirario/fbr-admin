@@ -21,7 +21,11 @@ import {
   ListOrdered,
   Clock,
   Undo2,
+  Archive,
+  ArchiveRestore,
+  Trash2,
 } from "lucide-react";
+import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,7 +52,11 @@ import {
 
 type ShippingColumn = "flores" | "quadro";
 import NovaEncomendaSheet from "./nova-encomenda-sheet";
-import { updateOrderAction } from "./actions";
+import {
+  updateOrderAction,
+  restoreOrderAction,
+  hardDeleteOrderAction,
+} from "./actions";
 import {
   STATUS_COLORS,
   STATUS_ICONS,
@@ -509,12 +517,13 @@ type GroupedOrders = ReturnType<typeof groupOrders>;
 interface Props {
   initialOrders: Order[];
   initialGrouped: GroupedOrders;
+  archivedOrders: Order[];
   canEdit: boolean;
 }
 
 // ── Componente principal ──────────────────────────────────────
 
-export default function PreservacaoClient({ initialOrders, initialGrouped, canEdit }: Props) {
+export default function PreservacaoClient({ initialOrders, initialGrouped, archivedOrders, canEdit }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<ViewType>("tabela");
@@ -522,6 +531,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
   const [sheetOpen, setSheetOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
+  const [showArchived, setShowArchived] = useState(false);
 
   const filteredOrders = search.trim()
     ? initialOrders.filter(
@@ -615,6 +625,29 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
             <span className="hidden sm:inline">Exportar</span>
           </button>
           {canEdit && (
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                showArchived
+                  ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+                  : "border-[#E8E0D5] bg-white text-[#3D2B1F] hover:bg-[#FAF8F5]"
+              }`}
+              title={showArchived ? "Voltar às encomendas activas" : "Mostrar encomendas arquivadas"}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {showArchived ? "Voltar à lista" : "Arquivados"}
+              </span>
+              {archivedOrders.length > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  showArchived ? "bg-red-200 text-red-800" : "bg-[#F0EAE0] text-[#8B7355]"
+                }`}>
+                  {archivedOrders.length}
+                </span>
+              )}
+            </button>
+          )}
+          {canEdit && !showArchived && (
             <Button
               size="sm"
               className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-8 gap-1.5"
@@ -629,7 +662,11 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto p-6">
-        {activeView === "tabela" && (
+        {showArchived && (
+          <ArchivedOrdersView orders={archivedOrders} onOpenOrder={openOrder} />
+        )}
+
+        {!showArchived && activeView === "tabela" && (
           <div className="space-y-3">
             <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert />
             <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} />
@@ -649,7 +686,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
           </div>
         )}
 
-        {activeView === "cards" && (
+        {!showArchived && activeView === "cards" && (
           <div className="space-y-6">
             <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} alert showPhoto={false} />
             <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
@@ -661,7 +698,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
           </div>
         )}
 
-        {activeView === "calendario" && (
+        {!showArchived && activeView === "calendario" && (
           <CalendarView
             orders={scheduledOrders}
             onOpenOrder={openOrder}
@@ -669,7 +706,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, canEd
           />
         )}
 
-        {activeView === "timeline" && (
+        {!showArchived && activeView === "timeline" && (
           <TimelineView
             orders={scheduledOrders}
             onOpenOrder={openOrder}
@@ -808,5 +845,138 @@ function OrderCard({
         </p>
       </div>
     </button>
+  );
+}
+
+// ── Vista de arquivados ───────────────────────────────────────
+
+function ArchivedOrdersView({
+  orders,
+  onOpenOrder,
+}: {
+  orders: Order[];
+  onOpenOrder: (o: Order) => void;
+}) {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<Order | null>(null);
+
+  async function handleRestore(order: Order) {
+    setBusyId(order.id);
+    try {
+      await restoreOrderAction(order.id);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleHardDelete(justification: string) {
+    if (!hardDeleteTarget) return;
+    await hardDeleteOrderAction(hardDeleteTarget.id, justification);
+    setHardDeleteTarget(null);
+    router.refresh();
+  }
+
+  if (orders.length === 0) {
+    return (
+      <div className="rounded-xl border border-[#E8E0D5] bg-white p-12 text-center">
+        <Archive className="h-8 w-8 mx-auto text-[#C4A882] mb-3" />
+        <p className="text-sm font-medium text-[#3D2B1F]">Nenhuma encomenda arquivada</p>
+        <p className="text-xs text-[#8B7355] mt-1">
+          Encomendas arquivadas aparecem aqui. Podes restaurá-las ou apagá-las definitivamente.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="rounded-xl border border-red-200 bg-red-50/30 px-4 py-3 mb-4">
+        <p className="text-xs text-red-800">
+          <strong>{orders.length}</strong> encomenda{orders.length !== 1 ? "s" : ""} arquivada{orders.length !== 1 ? "s" : ""}.
+          Restaura para voltar à lista normal, ou apaga definitivamente (irreversível).
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-[#F0EAE0] bg-[#FAF8F5]">
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Cliente</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Data evento</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Estado antes</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Arquivada em</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide text-right">Acções</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => {
+              const isBusy = busyId === order.id;
+              return (
+                <tr
+                  key={order.id}
+                  className="border-b border-[#F0EAE0] last:border-0 hover:bg-[#FDFAF7] cursor-pointer"
+                  onClick={() => onOpenOrder(order)}
+                >
+                  <td className="px-4 py-2">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
+                      <span className="font-mono text-[10px] text-[#B8A99A]">#{order.order_id}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="text-sm text-[#3D2B1F]">{formatDate(order.event_date)}</span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${STATUS_COLORS[order.status] ?? ""}`}>
+                      {STATUS_LABELS[order.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="text-sm text-[#8B7355]">{formatDate(order.deleted_at)}</span>
+                  </td>
+                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleRestore(order)}
+                        disabled={isBusy}
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-[#E8E0D5] bg-white text-[11px] font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                        title="Restaurar para a lista activa"
+                      >
+                        {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArchiveRestore className="h-3 w-3" />}
+                        Restaurar
+                      </button>
+                      <button
+                        onClick={() => setHardDeleteTarget(order)}
+                        disabled={isBusy}
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-red-300 bg-white text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                        title="Apagar definitivamente"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Apagar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <HardDeleteDialog
+        open={!!hardDeleteTarget}
+        onOpenChange={(open) => !open && setHardDeleteTarget(null)}
+        itemLabel={
+          hardDeleteTarget
+            ? `a encomenda de ${hardDeleteTarget.client_name} (#${hardDeleteTarget.order_id})`
+            : ""
+        }
+        onConfirm={handleHardDelete}
+      />
+    </>
   );
 }

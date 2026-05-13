@@ -15,7 +15,11 @@ import {
   Gift,
   Copy,
   Check,
+  Archive,
+  ArchiveRestore,
+  Trash2,
 } from "lucide-react";
+import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,7 +43,11 @@ import {
   VOUCHER_USAGE_STATUS_COLORS,
 } from "@/types/voucher";
 import NovoValeSheet from "./novo-vale-sheet";
-import { updateVoucherAction } from "./actions";
+import {
+  updateVoucherAction,
+  restoreVoucherAction,
+  hardDeleteVoucherAction,
+} from "./actions";
 
 // ── Formatação ────────────────────────────────────────────────
 
@@ -409,16 +417,18 @@ type GroupedVouchers = ReturnType<typeof groupVouchers>;
 interface Props {
   initialVouchers: Voucher[];
   initialGrouped: GroupedVouchers;
+  archivedVouchers: Voucher[];
   canEdit: boolean;
 }
 
-export default function ValePresenteClient({ initialVouchers, initialGrouped, canEdit }: Props) {
+export default function ValePresenteClient({ initialVouchers, initialGrouped, archivedVouchers, canEdit }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
+  const [showArchived, setShowArchived] = useState(false);
 
   const filtered = search.trim()
     ? initialVouchers.filter(
@@ -482,6 +492,29 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ca
             />
           </div>
           {canEdit && (
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                showArchived
+                  ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+                  : "border-[#E8E0D5] bg-white text-[#3D2B1F] hover:bg-[#FAF8F5]"
+              }`}
+              title={showArchived ? "Voltar aos vales activos" : "Mostrar vales arquivados"}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {showArchived ? "Voltar à lista" : "Arquivados"}
+              </span>
+              {archivedVouchers.length > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                  showArchived ? "bg-red-200 text-red-800" : "bg-[#F0EAE0] text-[#8B7355]"
+                }`}>
+                  {archivedVouchers.length}
+                </span>
+              )}
+            </button>
+          )}
+          {canEdit && !showArchived && (
             <Button
               size="sm"
               className="h-8 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
@@ -502,7 +535,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ca
       )}
 
       {/* Alerta de vales a expirar */}
-      {expirandoBreve > 0 && (
+      {!showArchived && expirandoBreve > 0 && (
         <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>
@@ -513,7 +546,9 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ca
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto px-6 py-6 space-y-4">
-        {initialVouchers.length === 0 ? (
+        {showArchived ? (
+          <ArchivedVouchersView vouchers={archivedVouchers} onOpen={openVoucher} />
+        ) : initialVouchers.length === 0 ? (
           <EmptyState onCreate={canEdit ? () => setSheetOpen(true) : undefined} />
         ) : (
           <>
@@ -553,6 +588,137 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ca
         />
       )}
     </div>
+  );
+}
+
+// ── Vista de arquivados ───────────────────────────────────────
+
+function ArchivedVouchersView({
+  vouchers,
+  onOpen,
+}: {
+  vouchers: Voucher[];
+  onOpen: (v: Voucher) => void;
+}) {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<Voucher | null>(null);
+
+  async function handleRestore(voucher: Voucher) {
+    setBusyId(voucher.id);
+    try {
+      await restoreVoucherAction(voucher.id);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleHardDelete(justification: string) {
+    if (!hardDeleteTarget) return;
+    await hardDeleteVoucherAction(hardDeleteTarget.id, justification);
+    setHardDeleteTarget(null);
+    router.refresh();
+  }
+
+  if (vouchers.length === 0) {
+    return (
+      <div className="rounded-xl border border-[#E8E0D5] bg-white p-12 text-center">
+        <Archive className="h-8 w-8 mx-auto text-[#C4A882] mb-3" />
+        <p className="text-sm font-medium text-[#3D2B1F]">Nenhum vale arquivado</p>
+        <p className="text-xs text-[#8B7355] mt-1">
+          Vales arquivados aparecem aqui. Podes restaurá-los ou apagá-los definitivamente.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="rounded-xl border border-red-200 bg-red-50/30 px-4 py-3">
+        <p className="text-xs text-red-800">
+          <strong>{vouchers.length}</strong> vale{vouchers.length !== 1 ? "s" : ""} arquivado{vouchers.length !== 1 ? "s" : ""}.
+          Restaura para voltar à lista normal, ou apaga definitivamente (irreversível).
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-[#F0EAE0] bg-[#FAF8F5]">
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Código</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Remetente / Destinatário</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide text-right">Valor</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Arquivado em</th>
+              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide text-right">Acções</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vouchers.map((v) => {
+              const isBusy = busyId === v.id;
+              return (
+                <tr
+                  key={v.id}
+                  className="border-b border-[#F0EAE0] last:border-0 hover:bg-[#FDFAF7] cursor-pointer"
+                  onClick={() => onOpen(v)}
+                >
+                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                    <CodeBadge code={v.code} />
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium text-[#3D2B1F] truncate">{v.sender_name || "—"}</span>
+                      <span className="text-[11px] text-[#8B7355] truncate">→ {v.recipient_name || "—"}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <span className="text-sm font-semibold text-[#3D2B1F]">{formatEuro(v.amount)}</span>
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className="text-sm text-[#8B7355]">{formatDate(v.deleted_at)}</span>
+                  </td>
+                  <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleRestore(v)}
+                        disabled={isBusy}
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-[#E8E0D5] bg-white text-[11px] font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                        title="Restaurar"
+                      >
+                        {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArchiveRestore className="h-3 w-3" />}
+                        Restaurar
+                      </button>
+                      <button
+                        onClick={() => setHardDeleteTarget(v)}
+                        disabled={isBusy}
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-red-300 bg-white text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                        title="Apagar definitivamente"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Apagar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <HardDeleteDialog
+        open={!!hardDeleteTarget}
+        onOpenChange={(open) => !open && setHardDeleteTarget(null)}
+        itemLabel={
+          hardDeleteTarget
+            ? `o vale ${hardDeleteTarget.code} (${hardDeleteTarget.sender_name} → ${hardDeleteTarget.recipient_name})`
+            : ""
+        }
+        onConfirm={handleHardDelete}
+      />
+    </>
   );
 }
 
