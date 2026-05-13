@@ -45,7 +45,8 @@
   - Métricas: dar muito mais cor à página
   - Finanças: nova secção "Competição" (preços de empresas concorrentes + sites + localização)
   - Transversal: alinhar colunas em todas as tabelas (Vale, Parcerias) como em Preservação
-  - Form público `fbr-website`: aplicar as 6 mudanças listadas em `_fbr-website-updates/PHASE_5_5_TODO.md`
+  - Form público `fbr-website` (placeholder de `<input type="date">` em EN): browser-controlled, requer datepicker custom ou `lang="pt"` forçado. **Não-prioritário** (confirmado pela Maria em 2026-05-13) — decidir abordagem antes de implementar (3 opções em `_fbr-website-updates/PHASE_5_5_TODO.md`).
+  - **Datas em dd/MM/yyyy em toda a stack** — admin já está OK ([[feedback_formato_datas]]); pendente: confirmar que o site público (`fbr-website`) mostra todas as datas neste formato em PT e EN, incluindo qualquer ecrã do voucher/status público.
 
   **Coisas que a Maria precisa de fazer manualmente quando aceitar este lote:**
   1. **Correr migração 018 no Supabase SQL Editor** (`supabase/migrations/018_fase_5_5_afinacoes.sql`)

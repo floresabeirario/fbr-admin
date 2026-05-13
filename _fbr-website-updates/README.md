@@ -1,5 +1,10 @@
 # fbr-website — Migração de Monday → Supabase
 
+> ⚠ **Sessão 28 (Fase 5.5):** se já fizeste push das sessões 25 e 26,
+> agora só precisas das mudanças listadas em **[`PHASE_5_5_TODO.md`](./PHASE_5_5_TODO.md)**
+> — 4 ficheiros para substituir. O resto deste README cobre a migração
+> original Monday → Supabase, que já está em produção.
+
 Este pacote contém os ficheiros prontos a copiar para o repo
 [floresabeirario/fbr-website](https://github.com/floresabeirario/fbr-website)
 para que os formulários de **Reserva de Preservação** e **Vale-Presente**
@@ -16,6 +21,14 @@ dados Supabase do admin (`admin.floresabeirario.pt`).
 > `ReservarPreservacaoForm.jsx`, aos `messages/{pt,en}.json` e ao mapping
 > servidor. A migração 016 já permite estes 4 campos sem alterações
 > (não estão na lista de bloqueios da policy).
+>
+> **Sessão 28 — Fase 5.5.** Toggle E-mail/WhatsApp no campo "Contacto do
+> destinatário" do form de Vale-Presente (com indicativo internacional);
+> mensagens de erro explícitas no submit do vale; opção "Recomendação de
+> IA" nos selects "Como conheceu a FBR"; "Recolha no evento" → "Recolha
+> no local"; "we'll always send you" em vez de "we'll send you" no hint
+> das Notas adicionais. Ver `PHASE_5_5_TODO.md` para os 4 ficheiros a
+> substituir.
 
 ---
 
