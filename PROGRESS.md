@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 5 completa ✅ — preparar Fase 6
+## Fase actual: FASE 5.5 (parte 1) ✅ — afinações pré-Fase 6
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -13,7 +13,8 @@
 - [x] **Fase 3** — Vale-Presente (admin + site público voucher.floresabeirario.pt) + Status ✅
 - [x] **Fase 4** — Dashboard + Tarefas + Métricas ✅
 - [x] **Fase 5** — Formulários públicos + Parcerias ✅
-- [ ] **Fase 6** — Integrações (Gmail, Drive, Calendar, AI) + PWA + RGPD completo ← **A SEGUIR**
+- [~] **Fase 5.5** — Afinações pós-uso (sessão 28 cobre parte 1; parte 2 abaixo) ← **EM CURSO**
+- [ ] **Fase 6** — Integrações (Gmail, Drive, Calendar, AI) + PWA + RGPD completo
 
 ---
 
@@ -34,6 +35,23 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
+- **Sessão 28 ✅ Fase 5.5 parte 1 — pacote grande de afinações pós-uso.** Maria deu uma lista enorme em conversa única (≈40 itens); organizei como "Fase 5.5" e dividi em parte 1 (esta sessão) e parte 2 (próxima). **Migração 018** (`supabase/migrations/018_fase_5_5_afinacoes.sql`) adiciona: novo estado `a_finalizar_quadro` (entre `a_aguardar_aprovacao` e `a_ser_emoldurado`); colunas `pickup_address/date/time_from/time_to` para recolha no local; `inventory JSONB` (lista de `{qty,name}` por encomenda); `sticky_note TEXT` em orders e vouchers; `payment_40_requested/payment_30_requested BOOLEAN`; `approval_responded BOOLEAN`; nova opção `recomendacao_ia` no CHECK constraint de `how_found_fbr` (orders + vouchers); FK `vouchers.partner_id → partners.id` + `partner_commission` + `partner_commission_status` (vales podem ser recomendados por parceiros tal como encomendas). **Bug do NIF resolvido**: `setLocal(updated)` após o auto-save apagava letras digitadas durante o await; agora preserva qualquer chave em `pendingRef.current`, idem para o reset por prop change. **Bandeira**: emoji `🇵🇹/🇬🇧` falhava em Windows mostrando "PT"/"GB"; novo componente `Flag` em SVG (`src/components/ui/flag.tsx`) usado no workbench. **Sidebar**: click em qualquer zona não-interactiva (fora de `<a>`/`<button>`/`<input>`) expande/colapsa. **Renames**: "Recolha no evento" → "Recolha no local" (workbench + nova-encomenda-sheet + dashboard helper + Order.flower_delivery_method label); "A aguardar" → "Encomenda não paga na totalidade" em `PARTNER_COMMISSION_STATUS_LABELS`. **Sticky note "post-it"**: botão amarelo flutuante (`StickyNoteButton`) no header do workbench — sempre visível, vazio mostra `+ Nota`, com conteúdo mostra preview 2 linhas; click → popover com textarea. **Inventário de flores**: `InventorySection` dentro do card "Flores, quadro e extras", linhas `[qty][nome][×]`, auto-save no blur. **Recolha no local**: quando `flower_delivery_method = recolha_evento`, aparece bloco condicional violet com `pickup_address` (texto livre — Google Maps autocomplete fica para parte 2), `pickup_date` e janela `pickup_time_from → pickup_time_to`. **Cores nos métodos de entrega**: `FLOWER_DELIVERY_METHOD_COLORS` + `FRAME_DELIVERY_METHOD_COLORS` (mãos=emerald, ctt=sky, recolha_evento=violet, nao_sei=stone). **Partner combobox**: substituí Select por `PartnerCombobox` com `cmdk` (pesquisa por nome+categoria) — ao escolher um parceiro, auto-preenche `partner_commission = budget * 0.10` (só se não houvesse valor) e muda o `partner_commission_status` de `na` para `a_aguardar`. **Alertas de pagamento (40%/30%)**: quando se passa para `flores_recebidas`/`flores_na_prensa` (40%) ou `a_ser_fotografado`/`quadro_pronto` (30%) e a flag respectiva ainda for false, abre diálogo amarelo "Pedir Xs%?" com 2 botões ("Lembra-me depois" / "Já pedi"); o segundo marca a flag. **Alerta de aprovação**: quando `status = a_aguardar_aprovacao` AND `!approval_responded`, mostra banner sky (informativo) ou red (urgente, ≥4 dias) com botão "Cliente já respondeu". **Data prevista de entrega** ganha input directo no hero do workbench (antes só editável em `/status`). **Cupão**: removido o texto "Editável para encomendas antigas". **Entrega e feedback** card só aparece quando `status ∈ {quadro_pronto, quadro_enviado, quadro_recebido}`. **Vale-presente icon**: linhas da tabela cujo `gift_voucher_code` corresponde a um vale activo mostram pill amarela "Vale" com link directo `/vale-presente/<code>` (loaded server-side via `voucherCodeToId` map). **Grupos vazios colapsados por default**: `collapsedGroups` inicial inclui qualquer grupo com 0 encomendas, mas continuam abríveis (clicando no header). **Vale-Presente workbench** ganhou edição inline do código (`EditVoucherCode` popover com input mono uppercase) e link directo "Página pública" para `status.floresabeirario.pt/<code>`. **Como conheceu FBR — cores especificadas**: casamentos.pt=`#F16B6B`; Google=fundo branco com letras nas cores do logo (helper `HowFoundFbrLabel`); Vale-Presente=`#6E7DAF`; Florista=rosa pastel "fofo"; nova opção `recomendacao_ia` em gradiente violet→cyan→emerald. **Pacote `_fbr-website-updates`**: `app/_lib/supabase-mappings.js` aceita agora "Recolha no local" (mantendo "Recolha no evento" como fallback) + opção `recomendacao_ia` em ambos os forms; novo ficheiro `PHASE_5_5_TODO.md` lista o que falta fazer manualmente no repo `fbr-website` (placeholder data EN, "we'll always send you", indicativo do telemóvel no form vale, erros explícitos no form vale, "Recolha no local" label, opção IA nos selects). Type check (`tsc --noEmit`) limpo.
+
+  **A FAZER NA PARTE 2 (defer para próxima sessão):**
+  - Drag-and-drop encomendas entre grupos em modo tabela
+  - Vale-presente: unificar pagamento+fatura numa secção; reestruturar layout visual no estilo do workbench da Preservação; auditar campos do form vs workbench
+  - Parcerias: Google Maps autocomplete para morada (em vez de lat/long manual)
+  - Dashboard: checklist pessoal com 3 caras em vez de dropdown
+  - Métricas: dar muito mais cor à página
+  - Finanças: nova secção "Competição" (preços de empresas concorrentes + sites + localização)
+  - Transversal: alinhar colunas em todas as tabelas (Vale, Parcerias) como em Preservação
+  - Form público `fbr-website`: aplicar as 6 mudanças listadas em `_fbr-website-updates/PHASE_5_5_TODO.md`
+
+  **Coisas que a Maria precisa de fazer manualmente quando aceitar este lote:**
+  1. **Correr migração 018 no Supabase SQL Editor** (`supabase/migrations/018_fase_5_5_afinacoes.sql`)
+  2. Aplicar as 6 mudanças do `_fbr-website-updates/PHASE_5_5_TODO.md` no repo `fbr-website`
+  3. Após push, dar refresh ao admin e verificar visualmente que tudo está OK
+
 - **Sessão 27 ✅ Eliminação de encomendas e vales (arquivar + apagar definitivamente).** Maria precisava conseguir limpar encomendas falsas criadas durante testes do form público. Implementação completa em ambas as abas (Preservação + Vale-Presente):
   - **Server actions** (`preservacao/actions.ts` e `vale-presente/actions.ts`): `restoreOrderAction`/`restoreVoucherAction` (limpa `deleted_at`); `hardDeleteOrderAction`/`hardDeleteVoucherAction` (DELETE real na BD; valida `justification.length >= 3`; insere linha extra no audit_log com a justificação antes do DELETE — o trigger automático já regista o `old_values` da row apagada).
   - **Workbench da Preservação** ganhou botão "Arquivar" no header (a Vale-Presente já tinha) — soft delete via `deleteOrderAction`.
@@ -46,14 +64,21 @@
 - **Fase 5 fechada (sessão 25):** os formulários públicos do site `floresabeirario.pt` deixam de gravar no Monday e passam a gravar directamente no Supabase. ✅ Smoke test no preview (`fbr-website-git-develop-…vercel.app`) passou para ambos os forms — **Reserva** e **Vale-Presente**. Migrações 016 + 017 já estão em produção no Supabase. **Pendente** (decisão da Maria sobre o momento): merge `develop` → `main` no fbr-website para o switch ir a `floresabeirario.pt` em produção, smoke test em produção, e remover env vars do Monday.
 
 ## Próximo passo CONCRETO
-**Fase 6 — Integrações + PWA + RGPD completo**
+**Fase 5.5 parte 2 — itens restantes da lista enorme da Maria (sessão 28)**
 
+Ver na sessão 28 acima o que ficou pendente. Em resumo:
+1. Drag-and-drop entre grupos · Vale-Presente layout · Parcerias Google Maps · Dashboard 3 caras · Métricas coloridas · Finanças Competição · Alinhamento tabelas
+2. Aplicar manualmente as 6 mudanças do form público `fbr-website`
+
+Depois disso, segue-se a **Fase 6 — Integrações + PWA + RGPD completo**:
 1. Gmail API — histórico de emails por encomenda no workbench (placeholder na sessão 5)
 2. Google Drive API — auto-criação da pasta do cliente ao 1º pagamento (memória `project_drive_auto_creation.md`)
 3. Google Calendar API — criar evento na data do evento ao confirmar pagamento
 4. Anthropic API — assistente de resposta AI no workbench (placeholder na sessão 7)
 5. PWA — manifesto + service worker para uso no telemóvel
 6. RGPD avançado — exportação de dados pessoais por cliente (PDF/JSON), retenção de 10 anos com alertas
+
+⚠ **Sessão 28 (Fase 5.5 parte 1):** correr `supabase/migrations/018_fase_5_5_afinacoes.sql` no Supabase SQL Editor. Adiciona novo estado `a_finalizar_quadro`, campos de recolha no local, inventário JSONB, sticky notes, flags 40%/30%/aprovação, parceiros em vouchers, e opção `recomendacao_ia`.
 
 ✅ **Migrações 013 + 015 + 014 corridas com sucesso (2026-05-08).** Parceiros do Monday importados — 171 parceiros, 232 interações, 136 acções pendentes. `phones` agora em JSONB com etiquetas (4 parceiros com labels reais extraídas; 14 fillers tipo "outro telemovel" reconhecidos).
 

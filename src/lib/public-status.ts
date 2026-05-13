@@ -35,6 +35,10 @@ export const ALL_PUBLIC_PHASES: PublicPhase[] = [
 //   • cancelado       → "cancelada" (NÃO regride a fase 0 como o PDF
 //     sugeria; ver project_status_excel_coexistence.md e a discussão
 //     com a Maria na sessão 13)
+// Nota: o estado interno a_finalizar_quadro partilha a mesma fase
+// pública que a_aguardar_aprovacao (6) — para o cliente é tudo "a
+// aguardar aprovação" até a Maria começar de facto a emoldurar.
+// Assim a timeline pública não precisa de nova fase.
 export const STATUS_TO_PUBLIC_PHASE: Record<OrderStatus, PublicPhase> = {
   entrega_flores_agendar: 0,
   entrega_agendada:       1,
@@ -44,6 +48,7 @@ export const STATUS_TO_PUBLIC_PHASE: Record<OrderStatus, PublicPhase> = {
   reconstrucao_botanica:  4,
   a_compor_design:        5,
   a_aguardar_aprovacao:   6,
+  a_finalizar_quadro:     6,
   a_ser_emoldurado:       7,
   emoldurado:             7,
   a_ser_fotografado:      8,

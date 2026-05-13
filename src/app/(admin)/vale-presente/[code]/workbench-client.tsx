@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
@@ -23,6 +28,9 @@ import {
   AlertTriangle,
   Trash2,
   Sparkles,
+  Globe,
+  Pencil,
+  ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,6 +101,63 @@ function formatEuro(value: number | null): string {
 interface Props {
   voucher: Voucher;
   canEdit: boolean;
+}
+
+// ── Edição inline do código do vale ────────────────────────
+function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(currentCode);
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setDraft(currentCode); }}>
+      <PopoverTrigger
+        className="h-7 w-7 flex items-center justify-center rounded-md border border-[#E8E0D5] bg-white text-[#B8A99A] hover:text-[#3D2B1F] hover:border-[#3D2B1F] transition-colors"
+        title="Editar código"
+      >
+        <Pencil className="h-3 w-3" />
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-3 space-y-2" align="start">
+        <Label className="text-xs font-medium text-[#8B7355]">Código do vale</Label>
+        <Input
+          className="h-9 text-sm font-mono uppercase tracking-wider border-[#E8E0D5] bg-[#FAF8F5]"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.toUpperCase())}
+          maxLength={20}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const v = draft.trim();
+              if (v && v !== currentCode) onSave(v);
+              setOpen(false);
+            }
+          }}
+        />
+        <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+          O código aparece em <code>voucher.floresabeirario.pt</code>. Tem de ser único.
+        </p>
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="h-7 px-3 rounded-md border border-[#E8E0D5] bg-white text-xs text-[#8B7355] hover:bg-[#FAF8F5]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const v = draft.trim();
+              if (v && v !== currentCode) onSave(v);
+              setOpen(false);
+            }}
+            className="h-7 px-3 rounded-md bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15]"
+          >
+            Guardar
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
@@ -208,6 +273,22 @@ export default function VoucherWorkbenchClient({ voucher, canEdit }: Props) {
               <Copy className="h-3.5 w-3.5 text-[#B8A99A]" />
             )}
           </button>
+          {/* Editar código */}
+          {canEdit && (
+            <EditVoucherCode currentCode={data.code} onSave={(c) => updateField("code", c)} />
+          )}
+          {/* Link directo para status público */}
+          <a
+            href={`https://status.floresabeirario.pt/${data.code}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 rounded-md border border-sky-200 bg-white px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+            title="Abrir página pública do vale"
+          >
+            <Globe className="h-3 w-3" />
+            Página pública
+            <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+          </a>
           {!canEdit && (
             <span className="text-[10px] uppercase tracking-wider rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-semibold">
               Modo leitura

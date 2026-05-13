@@ -24,6 +24,7 @@ import {
   Archive,
   ArchiveRestore,
   Trash2,
+  Gift,
 } from "lucide-react";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { Button } from "@/components/ui/button";
@@ -204,6 +205,7 @@ function OrderRow({
   isLoading,
   canEdit,
   inSemResposta,
+  voucherCodeToId,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
@@ -211,6 +213,7 @@ function OrderRow({
   isLoading: boolean;
   canEdit: boolean;
   inSemResposta: boolean;
+  voucherCodeToId: Record<string, string>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -318,6 +321,19 @@ function OrderRow({
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
+              {/* Ícone presente: aparece quando a encomenda veio de um vale-presente
+                  cujo código existe ainda nos vales activos. Click → abre o vale. */}
+              {order.gift_voucher_code && voucherCodeToId[order.gift_voucher_code] && (
+                <a
+                  href={`/vale-presente/${order.gift_voucher_code}`}
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Encomenda originada do vale ${order.gift_voucher_code}`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+                >
+                  <Gift className="h-2.5 w-2.5" />
+                  Vale
+                </a>
+              )}
               {currentContacted && isPreReserva && (
                 <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
                   <Check className="h-2.5 w-2.5" />
@@ -437,24 +453,22 @@ interface GroupSectionProps {
   canEdit: boolean;
   isSemResposta?: boolean;
   alert?: boolean;
+  voucherCodeToId: Record<string, string>;
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   const isEmpty = orders.length === 0;
-  // Grupos vazios ficam sempre colapsados (poupar espaço); o cabeçalho continua a aparecer.
-  const effectivelyCollapsed = isCollapsed || isEmpty;
+  // Empty groups: colapsados por default mas ABRÍVEIS (estado vem do pai).
   return (
-    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty ? "opacity-60" : ""}`}>
+    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty && isCollapsed ? "opacity-60" : ""}`}>
       <button
-        className={`w-full flex items-center gap-3 px-4 hover:bg-[#FDFAF7] transition-colors ${isEmpty ? "py-1.5 cursor-default" : "py-2.5"}`}
-        onClick={isEmpty ? undefined : onToggle}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors`}
+        onClick={onToggle}
       >
-        {isEmpty ? (
-          <span className="h-3.5 w-3.5 shrink-0" />
-        ) : effectivelyCollapsed
+        {isCollapsed
           ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
           : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
         }
@@ -467,7 +481,12 @@ function GroupSection({
           <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem encomendas</span>
         )}
       </button>
-      {!effectivelyCollapsed && orders.length > 0 && (
+      {!isCollapsed && isEmpty && (
+        <div className="px-4 py-4 text-center text-[11px] text-[#B8A99A] italic border-t border-[#F0EAE0]">
+          Nenhuma encomenda neste grupo.
+        </div>
+      )}
+      {!isCollapsed && orders.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left table-fixed">
             <colgroup>
@@ -499,6 +518,7 @@ function GroupSection({
                   isLoading={loadingOrderId === order.id}
                   canEdit={canEdit}
                   inSemResposta={isSemResposta}
+                  voucherCodeToId={voucherCodeToId}
                 />
               ))}
             </tbody>
@@ -519,15 +539,27 @@ interface Props {
   initialGrouped: GroupedOrders;
   archivedOrders: Order[];
   canEdit: boolean;
+  voucherCodeToId: Record<string, string>;
 }
 
 // ── Componente principal ──────────────────────────────────────
 
-export default function PreservacaoClient({ initialOrders, initialGrouped, archivedOrders, canEdit }: Props) {
+export default function PreservacaoClient({ initialOrders, initialGrouped, archivedOrders, canEdit, voucherCodeToId }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<ViewType>("tabela");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Grupos vazios começam colapsados por default; o utilizador pode abrir.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    const empty = new Set<string>();
+    if (initialGrouped.sem_resposta.length === 0) empty.add("sem_resposta");
+    if (initialGrouped.pre_reservas.length === 0) empty.add("pre_reservas");
+    if (initialGrouped.reservas.length === 0) empty.add("reservas");
+    if (initialGrouped.preservacao_design.length === 0) empty.add("preservacao_design");
+    if (initialGrouped.finalizacao.length === 0) empty.add("finalizacao");
+    if (initialGrouped.concluidos.length === 0) empty.add("concluidos");
+    if (initialGrouped.cancelamentos.length === 0) empty.add("cancelamentos");
+    return empty;
+  });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
@@ -668,13 +700,13 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
 
         {!showArchived && activeView === "tabela" && (
           <div className="space-y-3">
-            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert />
-            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} />
-            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} />
-            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} />
-            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} />
-            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} />
-            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} />
+            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} />
+            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
+            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
+            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
+            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
+            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
+            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
 
             {filteredOrders.length === 0 && initialOrders.length > 0 && (
               <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">

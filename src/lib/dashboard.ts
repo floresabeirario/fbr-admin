@@ -30,18 +30,20 @@ export function getUpcomingPickups(orders: Order[]): PickupItem[] {
     if (o.deleted_at) continue;
     if (o.status === "cancelado") continue;
 
-    // Recolha no evento (data = event_date)
+    // Recolha no local (data = pickup_date se existir, senão event_date;
+    // localização = pickup_address se existir, senão event_location)
     if (
       o.flower_delivery_method === "recolha_evento" &&
-      o.event_date
+      (o.pickup_date ?? o.event_date)
     ) {
-      const days = differenceInDays(parseISO(o.event_date), today);
+      const pickupDate = o.pickup_date ?? o.event_date!;
+      const days = differenceInDays(parseISO(pickupDate), today);
       if (days >= -1 && days <= PICKUP_HORIZON_DAYS) {
         items.push({
           order: o,
-          date: o.event_date,
+          date: pickupDate,
           kind: "recolha_evento",
-          location: o.event_location ?? "—",
+          location: o.pickup_address ?? o.event_location ?? "—",
         });
       }
     }
@@ -87,7 +89,7 @@ export function getUpcomingPickups(orders: Order[]): PickupItem[] {
 }
 
 export const PICKUP_KIND_LABELS: Record<PickupItem["kind"], string> = {
-  recolha_evento: "Recolha no evento",
+  recolha_evento: "Recolha no local",
   envio_ctt_flores: "Envio CTT (flores)",
   envio_ctt_quadro: "Envio CTT (quadro)",
 };

@@ -20,6 +20,9 @@ const MEIO_CONTACTO = {
 const COMO_ENVIAR_FLORES = {
   "Entrega em mãos em Coimbra":                                                                 "maos",
   "Envio por CTT/transportadora para o estúdio (custos a cargo do cliente)":                    "ctt",
+  // O texto "Recolha no evento" mudou para "Recolha no local" em 2026-05-13.
+  // Mantemos a chave antiga como fallback para registos vindos de cache antiga.
+  "Recolha no local por parte da Flores à Beira-Rio - mediante orçamento e disponibilidade":    "recolha_evento",
   "Recolha no evento por parte da Flores à Beira-Rio - mediante orçamento e disponibilidade":   "recolha_evento",
   "Ainda não sei":                                                                              "nao_sei",
 };
@@ -63,6 +66,7 @@ const COMO_CONHECEU_RESERVA = {
   "Pesquisa no Google":                                                    "google",
   "Recomendação de florista":                                              "florista",
   "Recomendação de alguém que já contratou o serviço anteriormente":       "recomendacao",
+  "Recomendação de uma IA (ChatGPT, Gemini, etc.)":                        "recomendacao_ia",
   "Outro (especificar abaixo)":                                            "outro",
 };
 
@@ -97,6 +101,7 @@ function inferDeliveryChannel(contactoDestinatario) {
 
 const VALE_COMO_CONHECEU = {
   "recomendacao-cliente": "recomendacao",
+  "recomendacao-ia":      "recomendacao_ia",
   "instagram":            "instagram",
   "facebook":             "facebook",
   "casamentos":           "casamentos_pt",

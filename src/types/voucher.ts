@@ -2,7 +2,12 @@
 // FBR Admin — Tipos TypeScript para vales-presente
 // ============================================================
 
-import type { ContactPreference, FormLanguage, HowFoundFBR } from "./database";
+import type {
+  ContactPreference,
+  FormLanguage,
+  HowFoundFBR,
+  PartnerCommissionStatus,
+} from "./database";
 
 // Pagamento (vales só têm 2 estados, vs. 4 da Preservação)
 export type VoucherPaymentStatus = "100_pago" | "100_por_pagar";
@@ -77,6 +82,14 @@ export interface Voucher {
   consent_at: string | null;
   consent_version: string | null;
   consent_ip: string | null;
+
+  // ── Parcerias (a partir da migração 018) ────────────────────
+  partner_id: string | null;
+  partner_commission: number | null;
+  partner_commission_status: PartnerCommissionStatus;
+
+  // ── Sticky note (post-it amarelo flutuante no workbench) ────
+  sticky_note: string | null;
 }
 
 // Tipo para criar — code é gerado pelo trigger, expiry pelo default

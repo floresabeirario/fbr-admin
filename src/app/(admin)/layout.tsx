@@ -76,12 +76,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#FAF8F5] dark:bg-[#0D0D0D]">
-      {/* Sidebar */}
+      {/* Sidebar — click em qualquer zona não-interactiva expande/colapsa */}
       <aside
+        onClick={(e) => {
+          const interactive = (e.target as HTMLElement).closest(
+            "a, button, input, [role='button']"
+          );
+          if (!interactive) setCollapsed((c) => !c);
+        }}
         className={cn(
-          "flex flex-col h-full bg-white dark:bg-[#141414] border-r border-[#E8E0D5] dark:border-[#2C2C2E] transition-all duration-200 shrink-0",
+          "flex flex-col h-full bg-white dark:bg-[#141414] border-r border-[#E8E0D5] dark:border-[#2C2C2E] transition-all duration-200 shrink-0 cursor-pointer",
           collapsed ? "w-16" : "w-56"
         )}
+        title={collapsed ? "Click para expandir" : "Click para recolher"}
       >
         {/* Logo */}
         <div className={cn("flex items-center h-14 px-4 border-b border-[#E8E0D5] dark:border-[#2C2C2E] shrink-0", collapsed && "justify-center")}>

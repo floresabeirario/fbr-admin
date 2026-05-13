@@ -31,6 +31,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   ArrowLeft,
   Loader2,
   Check,
@@ -70,6 +78,9 @@ import {
   PartyPopper,
   Ban,
   Trash2,
+  Paintbrush,
+  Search,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 import { updateOrderAction, deleteOrderAction } from "../actions";
@@ -85,7 +96,9 @@ import {
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
+  FLOWER_DELIVERY_METHOD_COLORS,
   FRAME_DELIVERY_METHOD_LABELS,
+  FRAME_DELIVERY_METHOD_COLORS,
   FRAME_BACKGROUND_LABELS,
   FRAME_SIZE_LABELS,
   FRAME_SIZE_COLORS,
@@ -105,6 +118,8 @@ import { pt } from "date-fns/locale";
 import { relativeMonthsDays } from "@/lib/format-date";
 import { formatPhone, phoneToWaMe } from "@/lib/format-phone";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
+import { Flag } from "@/components/ui/flag";
+import { HowFoundFbrLabel } from "@/components/ui/how-found-fbr-label";
 import {
   publicStatusUrl,
   formatPublicEstimatedDelivery,
@@ -129,11 +144,12 @@ const STATUS_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
   reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300",
   a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300",
   a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300",
-  a_ser_emoldurado:       "bg-cyan-100 text-cyan-900 border-cyan-300",
-  emoldurado:             "bg-teal-100 text-teal-900 border-teal-300",
-  a_ser_fotografado:      "bg-emerald-100 text-emerald-900 border-emerald-300",
-  quadro_pronto:          "bg-lime-100 text-lime-900 border-lime-300",
-  quadro_enviado:         "bg-yellow-100 text-yellow-900 border-yellow-300",
+  a_finalizar_quadro:     "bg-cyan-100 text-cyan-900 border-cyan-300",
+  a_ser_emoldurado:       "bg-teal-100 text-teal-900 border-teal-300",
+  emoldurado:             "bg-emerald-100 text-emerald-900 border-emerald-300",
+  a_ser_fotografado:      "bg-lime-100 text-lime-900 border-lime-300",
+  quadro_pronto:          "bg-yellow-100 text-yellow-900 border-yellow-300",
+  quadro_enviado:         "bg-orange-100 text-orange-900 border-orange-300",
   quadro_recebido:        "bg-green-100 text-green-900 border-green-300",
   cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
 };
@@ -147,6 +163,7 @@ const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
   reconstrucao_botanica:  Flower2,
   a_compor_design:        Palette,
   a_aguardar_aprovacao:   Hourglass,
+  a_finalizar_quadro:     Paintbrush,
   a_ser_emoldurado:       Hammer,
   emoldurado:             Frame,
   a_ser_fotografado:      Camera,
@@ -159,7 +176,7 @@ const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
 const STATUS_GROUPS: Array<{ label: string; statuses: Array<keyof typeof STATUS_LABELS> }> = [
   { label: "Pré-reserva",          statuses: ["entrega_flores_agendar"] },
   { label: "Reservas",             statuses: ["entrega_agendada", "flores_enviadas", "flores_recebidas"] },
-  { label: "Preservação e design", statuses: ["flores_na_prensa", "reconstrucao_botanica", "a_compor_design", "a_aguardar_aprovacao"] },
+  { label: "Preservação e design", statuses: ["flores_na_prensa", "reconstrucao_botanica", "a_compor_design", "a_aguardar_aprovacao", "a_finalizar_quadro"] },
   { label: "Finalização",          statuses: ["a_ser_emoldurado", "emoldurado", "a_ser_fotografado", "quadro_pronto", "quadro_enviado"] },
   { label: "Concluído",            statuses: ["quadro_recebido"] },
   { label: "Cancelado",            statuses: ["cancelado"] },
@@ -304,9 +321,220 @@ const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-[#3
 const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
 const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
 
-// ── Componente principal ───────────────────────────────────────
+// ── Post-it amarelo flutuante (sticky note) ─────────────────
+// Aparece sempre no header. Vazio = amarelo claro com ícone +; com texto
+// = amarelo intenso com preview. Click → popover com textarea (auto-save no blur).
+function StickyNoteButton({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const hasContent = value.trim().length > 0;
+  const preview = hasContent ? value.replace(/\s+/g, " ").trim() : "";
 
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setDraft(value);
+        else if (draft !== value) onSave(draft);
+      }}
+    >
+      <PopoverTrigger
+        title={hasContent ? "Nota da encomenda" : "Adicionar nota"}
+        className={`shrink-0 inline-flex items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
+          hasContent
+            ? "bg-yellow-200 border-yellow-400 text-yellow-950"
+            : "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100"
+        }`}
+      >
+        <StickyNote className="h-3 w-3 mt-0.5 shrink-0" />
+        {hasContent ? (
+          <span className="text-left line-clamp-2 break-words">{preview}</span>
+        ) : (
+          <span className="font-medium">Nota</span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-3 bg-yellow-50 border-yellow-300"
+        align="end"
+        side="bottom"
+      >
+        <Label className="text-[10px] uppercase tracking-[0.15em] font-semibold text-yellow-900 mb-1.5 block">
+          Nota da encomenda
+        </Label>
+        <Textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Ex: cliente disse que o pendente é para deixar no caixão da mãe…"
+          rows={6}
+          className="border-yellow-200 bg-white text-sm text-yellow-950 placeholder:text-yellow-700/40"
+          autoFocus
+        />
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => { setDraft(""); }}
+            className="h-7 px-2 rounded-md text-xs text-yellow-800 hover:bg-yellow-100"
+          >
+            Limpar
+          </button>
+          <button
+            type="button"
+            onClick={() => { onSave(draft); setOpen(false); }}
+            className="h-7 px-3 rounded-md bg-yellow-600 text-white text-xs font-medium hover:bg-yellow-700"
+          >
+            Guardar
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Inventário de flores ─────────────────────────────────────
+// Linhas {qty, name} editáveis inline. Sem state local — o parent é
+// a fonte da verdade; cada alteração chama onChange imediatamente. O
+// auto-save do workbench (900ms debounce) trata da BD.
+function InventorySection({
+  items,
+  onChange,
+}: {
+  items: { qty: number; name: string }[];
+  onChange: (items: { qty: number; name: string }[]) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-medium text-[#8B7355]">Inventário de flores</Label>
+        <button
+          type="button"
+          onClick={() => onChange([...items, { qty: 1, name: "" }])}
+          className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors"
+        >
+          <Plus className="h-3 w-3" /> Adicionar
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-[11px] text-[#B8A99A] italic px-1.5 py-2 rounded-lg bg-[#FAF8F5] border border-dashed border-[#E8E0D5]">
+          Ex.: 7 rosas laranja · 3 papoilas vermelhas · 2 dálias brancas
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map((row, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                className={`${inp} w-16 text-center`}
+                value={row.qty}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[idx] = { ...row, qty: Math.max(1, Number(e.target.value) || 1) };
+                  onChange(next);
+                }}
+              />
+              <Input
+                className={`${inp} flex-1`}
+                value={row.name}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[idx] = { ...row, name: e.target.value };
+                  onChange(next);
+                }}
+                placeholder="rosas laranja, papoilas vermelhas…"
+              />
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, i) => i !== idx))}
+                className="shrink-0 p-1.5 rounded-lg text-[#B8A99A] hover:bg-red-50 hover:text-red-600 transition-colors"
+                title="Remover"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Combobox de Parceiros (com pesquisa por nome) ────────────
 type PartnerOption = { id: string; name: string; category: string; status: string };
+
+function PartnerCombobox({
+  partners,
+  value,
+  onChange,
+}: {
+  partners: PartnerOption[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? partners.find((p) => p.id === value) ?? null : null;
+
+  const PARTNER_CATEGORY_LABELS: Record<string, string> = {
+    wedding_planners: "Wedding planner",
+    floristas: "Florista",
+    quintas_eventos: "Quinta de eventos",
+    outros: "Outro",
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-expanded={open}
+        className={`${sel} flex-1 inline-flex items-center justify-between gap-2 px-3 text-left`}
+      >
+        {selected ? (
+          <span className="flex items-center gap-1.5 truncate">
+            <span className="text-sm">{selected.name}</span>
+            <span className="text-[10px] text-[#B8A99A] shrink-0">
+              · {PARTNER_CATEGORY_LABELS[selected.category] ?? selected.category}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[#B8A99A]">Sem parceiro</span>
+        )}
+        <Search className="h-3.5 w-3.5 text-[#B8A99A] shrink-0" />
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Procurar parceiro…" />
+          <CommandList>
+            <CommandEmpty>Nenhum parceiro encontrado.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="nenhum"
+                onSelect={() => { onChange(null); setOpen(false); }}
+              >
+                <span className="text-[#8B7355] italic">Nenhum parceiro</span>
+              </CommandItem>
+              {partners.map((p) => (
+                <CommandItem
+                  key={p.id}
+                  value={`${p.name} ${PARTNER_CATEGORY_LABELS[p.category] ?? ""}`}
+                  onSelect={() => { onChange(p.id); setOpen(false); }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm">{p.name}</span>
+                    <span className="text-[10px] text-[#B8A99A]">
+                      · {PARTNER_CATEGORY_LABELS[p.category] ?? p.category}
+                    </span>
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Componente principal ───────────────────────────────────────
 
 export default function WorkbenchClient({
   order,
@@ -322,11 +550,19 @@ export default function WorkbenchClient({
   // Padrão React: reset de estado derivado quando o prop `order` muda
   // (ex: o `router.refresh()` traz novo snapshot do servidor).
   const [trackedOrderUpdatedAt, setTrackedOrderUpdatedAt] = useState(order.updated_at);
+  const pendingRef = useRef<OrderUpdate>({});
   if (order.updated_at !== trackedOrderUpdatedAt) {
     setTrackedOrderUpdatedAt(order.updated_at);
-    setLocal(order);
+    // Não sobrescrever campos que o utilizador está a editar agora —
+    // mantém local para qualquer chave em pendingRef (ainda por sincronizar).
+    setLocal((current) => {
+      const merged = { ...order };
+      for (const key of Object.keys(pendingRef.current)) {
+        (merged as unknown as Record<string, unknown>)[key] = (current as unknown as Record<string, unknown>)[key];
+      }
+      return merged;
+    });
   }
-  const pendingRef = useRef<OrderUpdate>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [copied, setCopied] = useState(false);
@@ -339,6 +575,14 @@ export default function WorkbenchClient({
   // Diálogo de "Quadro recebido" — pede data de entrega
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryDateDraft, setDeliveryDateDraft] = useState("");
+
+  // Diálogos de lembrete de pagamento (40% / 30%) — abrem quando se passa
+  // para "flores_recebidas"/"flores_na_prensa" (40%) ou "a_ser_fotografado"/
+  // "quadro_pronto" (30%). A Maria responde "Já pedi" ou "Lembra-me depois".
+  const [paymentReminderDialog, setPaymentReminderDialog] = useState<null | {
+    kind: "40" | "30";
+    nextStatus: Order["status"];
+  }>(null);
 
   // Edição rápida do URL da pasta Drive (popover no hero)
   const [driveUrlDraft, setDriveUrlDraft] = useState("");
@@ -379,7 +623,16 @@ export default function WorkbenchClient({
     setSaveState("saving");
     try {
       const updated = await updateOrderAction(order.id, updates);
-      setLocal(updated);
+      // Mantém qualquer letra/escolha digitada DURANTE este await — pendingRef
+      // já tem essas mudanças, então preservamos os valores do local actual
+      // nas chaves em pendingRef (ainda por enviar).
+      setLocal((current) => {
+        const merged = { ...updated };
+        for (const key of Object.keys(pendingRef.current)) {
+          (merged as unknown as Record<string, unknown>)[key] = (current as unknown as Record<string, unknown>)[key];
+        }
+        return merged;
+      });
       setSaveState("saved");
       router.refresh();
       setTimeout(() => setSaveState("idle"), 2500);
@@ -422,11 +675,51 @@ export default function WorkbenchClient({
 
   function onStatusChange(newStatus: Order["status"]) {
     if (newStatus === local.status) return;
+
+    // Pedido dos 40% — quando se passa para flores_recebidas/flores_na_prensa
+    if (
+      (newStatus === "flores_recebidas" || newStatus === "flores_na_prensa") &&
+      !local.payment_40_requested
+    ) {
+      setPaymentReminderDialog({ kind: "40", nextStatus: newStatus });
+      return; // só aplica o status depois da resposta
+    }
+
+    // Pedido dos 30% — quando se passa para a_ser_fotografado/quadro_pronto
+    if (
+      (newStatus === "a_ser_fotografado" || newStatus === "quadro_pronto") &&
+      !local.payment_30_requested
+    ) {
+      setPaymentReminderDialog({ kind: "30", nextStatus: newStatus });
+      return;
+    }
+
     if (newStatus === "quadro_recebido" && !local.frame_delivery_date) {
       setDeliveryDateDraft(toDateInput(new Date().toISOString()));
       setDeliveryDialogOpen(true);
     }
     update("status", newStatus);
+  }
+
+  function confirmPaymentReminder(alreadyAsked: boolean) {
+    if (!paymentReminderDialog) return;
+    const { kind, nextStatus } = paymentReminderDialog;
+    const updates: OrderUpdate = { status: nextStatus };
+    if (alreadyAsked) {
+      if (kind === "40") updates.payment_40_requested = true;
+      else updates.payment_30_requested = true;
+    }
+    // Aplica numa transição
+    setLocal((prev) => ({ ...prev, ...updates }));
+    pendingRef.current = { ...pendingRef.current, ...updates };
+    clearTimeout(timerRef.current);
+    setPaymentReminderDialog(null);
+    flush();
+    // Se for o quadro_recebido cadeia, dispara o seguinte diálogo
+    if (nextStatus === "quadro_recebido" && !local.frame_delivery_date) {
+      setDeliveryDateDraft(toDateInput(new Date().toISOString()));
+      setDeliveryDialogOpen(true);
+    }
   }
 
   function confirmDeliveryDialog() {
@@ -652,6 +945,12 @@ export default function WorkbenchClient({
             )}
           </div>
 
+          {/* Sticky note "post-it" — botão amarelo flutuante */}
+          <StickyNoteButton
+            value={local.sticky_note ?? ""}
+            onSave={(v) => update("sticky_note", v.trim() || null)}
+          />
+
           {canEdit && (
             <button
               type="button"
@@ -682,12 +981,11 @@ export default function WorkbenchClient({
                 icon={<MessageCircle className="h-3.5 w-3.5" />}
                 accent="blue"
                 action={
-                  <span
-                    className="text-base leading-none"
+                  <Flag
+                    lang={local.form_language}
+                    className="h-4 w-6"
                     title={local.form_language === "pt" ? "Formulário preenchido em Português" : "Formulário preenchido em Inglês"}
-                  >
-                    {local.form_language === "pt" ? "🇵🇹" : "🇬🇧"}
-                  </span>
+                  />
                 }
               >
                 {/* Contactos do cliente — discreto, sem caixa pesada */}
@@ -1012,21 +1310,24 @@ export default function WorkbenchClient({
                           <Input className={inpSubtle} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Ex: Quinta / Igreja / Cidade" />
                         </HeroField>
                         <HeroField label="Data prevista de entrega" span2>
-                          {local.estimated_delivery_date ? (
-                            <Link
-                              href="/status"
-                              className="group inline-flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-sky-50 transition-colors"
-                              title="Editar na aba Status"
-                            >
-                              <Globe className="h-3 w-3 text-sky-600 shrink-0" />
-                              <span className="text-sm text-[#3D2B1F] capitalize">
+                          <div className="flex items-center gap-2">
+                            <Globe className="h-3 w-3 text-sky-600 shrink-0" />
+                            <Input
+                              className={`${inpSubtle} flex-1`}
+                              type="date"
+                              value={toDateInput(local.estimated_delivery_date)}
+                              onChange={(e) => update("estimated_delivery_date", e.target.value || null)}
+                              placeholder="—"
+                            />
+                            {local.estimated_delivery_date && (
+                              <span className="text-[11px] text-[#B8A99A] capitalize whitespace-nowrap">
                                 {formatPublicEstimatedDelivery(local.estimated_delivery_date, "pt")}
                               </span>
-                              <ExternalLink className="h-3 w-3 text-sky-600/40 group-hover:text-sky-600 transition-colors" />
-                            </Link>
-                          ) : (
-                            <p className="text-[11px] text-[#B8A99A] italic px-1.5">
-                              Gerada quando passa para <em>Flores na prensa</em>
+                            )}
+                          </div>
+                          {!local.estimated_delivery_date && (
+                            <p className="text-[10px] text-[#B8A99A] italic px-1.5">
+                              Gerada automaticamente quando passa para <em>Flores na prensa</em>. Editável aqui ou na aba <Link href="/status" className="underline">Status</Link>.
                             </p>
                           )}
                         </HeroField>
@@ -1049,12 +1350,53 @@ export default function WorkbenchClient({
                 </div>
               )}
 
+              {/* Alerta de aprovação pendente (estado a_aguardar_aprovacao) */}
+              {local.status === "a_aguardar_aprovacao" && !local.approval_responded && (() => {
+                const daysWaiting = differenceInCalendarDays(new Date(), parseISO(local.updated_at));
+                const urgent = daysWaiting >= 4;
+                return (
+                  <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                    urgent
+                      ? "bg-red-50 border-red-200"
+                      : "bg-sky-50 border-sky-200"
+                  }`}>
+                    <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${urgent ? "text-red-600" : "text-sky-600"}`} />
+                    <div className={`flex-1 text-xs leading-relaxed ${urgent ? "text-red-900" : "text-sky-900"}`}>
+                      <p className="font-semibold">
+                        {urgent
+                          ? `Cliente em silêncio há ${daysWaiting} dias`
+                          : "A aguardar resposta do cliente"}
+                      </p>
+                      <p className={`mt-0.5 ${urgent ? "text-red-800" : "text-sky-800"}`}>
+                        {urgent
+                          ? "Já passaram mais de 4 dias desde que se pediu aprovação. Volta a contactar."
+                          : "Marcar como respondida quando o cliente confirmar a proposta de composição."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => update("approval_responded", true)}
+                      className="shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-white border border-current text-xs font-medium hover:bg-current/5 transition-colors"
+                    >
+                      <Check className="h-3 w-3" />
+                      Cliente já respondeu
+                    </button>
+                  </div>
+                );
+              })()}
+
               {/* Card único: Flores, quadro, extras e peças extra */}
               <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
                 <Grid2>
                   <Field label="Tipo de flores" span2>
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />
                   </Field>
+                  <div className="col-span-2">
+                    <InventorySection
+                      items={local.inventory ?? []}
+                      onChange={(items) => update("inventory", items)}
+                    />
+                  </div>
                   <Field label="Tamanho da moldura">
                     <Select value={local.frame_size ?? ""} onValueChange={(v) => clientUpdate("frame_size", v as Order["frame_size"], "Tamanho da moldura", (val) => val ? FRAME_SIZE_LABELS[val] : "—")}>
                       <SelectTrigger
@@ -1159,6 +1501,7 @@ export default function WorkbenchClient({
                   <ShippingRow
                     method={local.flower_delivery_method}
                     methodLabels={FLOWER_DELIVERY_METHOD_LABELS}
+                    methodColors={FLOWER_DELIVERY_METHOD_COLORS}
                     cost={local.flower_shipping_cost}
                     paid={local.flower_shipping_paid}
                     showPaid={showFlowerShippingPaid}
@@ -1168,10 +1511,57 @@ export default function WorkbenchClient({
                     methodOptions={[
                       ["maos", "Em mãos"],
                       ["ctt", "CTT"],
-                      ["recolha_evento", "Recolha no evento"],
+                      ["recolha_evento", "Recolha no local"],
                       ["nao_sei", "Não sei"],
                     ]}
                   />
+
+                  {/* Campos condicionais para "Recolha no local" — morada,
+                      data e janela horária (alimentam Entregas e Recolhas) */}
+                  {local.flower_delivery_method === "recolha_evento" && (
+                    <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700 flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3" /> Detalhes da recolha
+                      </p>
+                      <Field label="Morada da recolha" span2>
+                        <Input
+                          className={inp}
+                          value={local.pickup_address ?? ""}
+                          onChange={(e) => update("pickup_address", e.target.value || null)}
+                          placeholder="Rua, número, código postal, localidade…"
+                        />
+                      </Field>
+                      <Grid2>
+                        <Field label="Data da recolha">
+                          <Input
+                            className={inp}
+                            type="date"
+                            value={toDateInput(local.pickup_date)}
+                            onChange={(e) => update("pickup_date", e.target.value || null)}
+                          />
+                        </Field>
+                        <Field label="Janela horária">
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              className={inp}
+                              type="time"
+                              value={local.pickup_time_from ?? ""}
+                              onChange={(e) => update("pickup_time_from", e.target.value || null)}
+                              placeholder="—"
+                            />
+                            <span className="text-xs text-[#8B7355]">→</span>
+                            <Input
+                              className={inp}
+                              type="time"
+                              value={local.pickup_time_to ?? ""}
+                              onChange={(e) => update("pickup_time_to", e.target.value || null)}
+                              placeholder="—"
+                            />
+                          </div>
+                        </Field>
+                      </Grid2>
+                    </div>
+                  )}
                 </div>
 
                 <Separator className="bg-[#F0EAE0]" />
@@ -1181,6 +1571,7 @@ export default function WorkbenchClient({
                   <ShippingRow
                     method={local.frame_delivery_method}
                     methodLabels={FRAME_DELIVERY_METHOD_LABELS}
+                    methodColors={FRAME_DELIVERY_METHOD_COLORS}
                     cost={local.frame_shipping_cost}
                     paid={local.frame_shipping_paid}
                     showPaid={showFrameShippingPaid}
@@ -1210,7 +1601,7 @@ export default function WorkbenchClient({
                         {(Object.keys(HOW_FOUND_FBR_LABELS) as Array<keyof typeof HOW_FOUND_FBR_LABELS>).map((k) => (
                           <SelectItem key={k} value={k} className="my-0.5">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${HOW_FOUND_FBR_COLORS[k]}`}>
-                              {HOW_FOUND_FBR_LABELS[k]}
+                              <HowFoundFbrLabel value={k} />
                             </span>
                           </SelectItem>
                         ))}
@@ -1344,31 +1735,31 @@ export default function WorkbenchClient({
                 <div className="space-y-3">
                   <Field
                     label="Parceiro recomendador"
-                    hint={partners.length === 0 ? "Adiciona parceiros na aba Parcerias." : undefined}
+                    hint={partners.length === 0 ? "Adiciona parceiros na aba Parcerias." : "Escreve para pesquisar."}
                   >
                     <div className="flex gap-2">
-                      <Select
-                        value={local.partner_id ?? "none"}
-                        onValueChange={(v) => update("partner_id", v === "none" ? null : v)}
-                      >
-                        <SelectTrigger className={sel}>
-                          <SelectValue placeholder="Sem parceiro" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Nenhum parceiro</SelectItem>
-                          {partners.length > 0 && <SelectSeparator />}
-                          {partners.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              <span className="flex items-center gap-1.5">
-                                <span className="text-sm">{p.name}</span>
-                                <span className="text-[10px] text-[#B8A99A]">
-                                  · {p.category.replace("_", " ")}
-                                </span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <PartnerCombobox
+                        partners={partners}
+                        value={local.partner_id}
+                        onChange={(id) => {
+                          const updates: Partial<OrderUpdate> = { partner_id: id };
+                          // Auto-preenche 10% do orçamento quando se escolhe um parceiro
+                          // (mas só se ainda não há comissão definida — para não sobrescrever
+                          // um valor que a Maria já editou manualmente).
+                          if (id && (local.partner_commission === null || local.partner_commission === 0) && local.budget) {
+                            updates.partner_commission = Math.round(local.budget * 0.1 * 100) / 100;
+                          }
+                          if (id && local.partner_commission_status === "na") {
+                            updates.partner_commission_status = "a_aguardar";
+                          }
+                          // Aplica todos numa transição
+                          setLocal((prev) => ({ ...prev, ...updates }));
+                          pendingRef.current = { ...pendingRef.current, ...updates };
+                          setSaveState("idle");
+                          clearTimeout(timerRef.current);
+                          timerRef.current = setTimeout(flush, 900);
+                        }}
+                      />
                       {local.partner_id && (
                         <Link
                           href={`/parcerias/${local.partner_id}`}
@@ -1412,29 +1803,33 @@ export default function WorkbenchClient({
                 </div>
               </Card>
 
-              <Card title="Entrega e feedback" icon={<Package className="h-3.5 w-3.5" />} accent="purple">
-                <div className="space-y-3">
-                  <Field label="Data entrega do quadro">
-                    <Input className={inp} type="date" value={toDateInput(local.frame_delivery_date)} onChange={(e) => update("frame_delivery_date", e.target.value || null)} />
-                  </Field>
-                  <Field label="Feedback do cliente">
-                    <Select value={local.client_feedback_status} onValueChange={(v) => update("client_feedback_status", v as Order["client_feedback_status"])}>
-                      <SelectTrigger className={`${sel} font-medium ${CLIENT_FEEDBACK_STATUS_COLORS[local.client_feedback_status]}`}>
-                        <SelectValue labels={CLIENT_FEEDBACK_STATUS_LABELS} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(CLIENT_FEEDBACK_STATUS_LABELS) as Array<keyof typeof CLIENT_FEEDBACK_STATUS_LABELS>).map((k) => (
-                          <SelectItem key={k} value={k} className="my-0.5">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${CLIENT_FEEDBACK_STATUS_COLORS[k]}`}>
-                              {CLIENT_FEEDBACK_STATUS_LABELS[k]}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-              </Card>
+              {/* "Entrega e feedback" só aparece a partir do estado "Quadro pronto" — antes disso ainda
+                  não faz sentido editar data de entrega ou feedback do cliente. */}
+              {["quadro_pronto", "quadro_enviado", "quadro_recebido"].includes(local.status) && (
+                <Card title="Entrega e feedback" icon={<Package className="h-3.5 w-3.5" />} accent="purple">
+                  <div className="space-y-3">
+                    <Field label="Data entrega do quadro">
+                      <Input className={inp} type="date" value={toDateInput(local.frame_delivery_date)} onChange={(e) => update("frame_delivery_date", e.target.value || null)} />
+                    </Field>
+                    <Field label="Feedback do cliente">
+                      <Select value={local.client_feedback_status} onValueChange={(v) => update("client_feedback_status", v as Order["client_feedback_status"])}>
+                        <SelectTrigger className={`${sel} font-medium ${CLIENT_FEEDBACK_STATUS_COLORS[local.client_feedback_status]}`}>
+                          <SelectValue labels={CLIENT_FEEDBACK_STATUS_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(CLIENT_FEEDBACK_STATUS_LABELS) as Array<keyof typeof CLIENT_FEEDBACK_STATUS_LABELS>).map((k) => (
+                            <SelectItem key={k} value={k} className="my-0.5">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${CLIENT_FEEDBACK_STATUS_COLORS[k]}`}>
+                                {CLIENT_FEEDBACK_STATUS_LABELS[k]}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                </Card>
+              )}
 
               <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
                 <div className="space-y-3">
@@ -1637,6 +2032,37 @@ export default function WorkbenchClient({
         </DialogContent>
       </Dialog>
 
+      {/* ── Diálogo lembrete de pagamento (40% ou 30%) ────────── */}
+      <Dialog open={!!paymentReminderDialog} onOpenChange={(o) => { if (!o) setPaymentReminderDialog(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+              <Wallet className="h-4 w-4 text-amber-600" />
+              {paymentReminderDialog?.kind === "40" ? "Pedir 40% ao cliente?" : "Pedir últimos 30% ao cliente?"}
+            </DialogTitle>
+            <DialogDescription className="text-[#8B7355]">
+              {paymentReminderDialog?.kind === "40"
+                ? "As flores chegaram à FBR — é boa altura para pedir os 40% seguintes ao cliente. Já pediste?"
+                : "O quadro está praticamente pronto — é boa altura para pedir os últimos 30%. Já pediste?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => confirmPaymentReminder(false)}
+              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            >
+              Ainda não — lembra-me depois
+            </button>
+            <button
+              onClick={() => confirmPaymentReminder(true)}
+              className="h-9 px-4 rounded-lg bg-amber-600 text-sm text-white font-medium hover:bg-amber-700 transition-colors"
+            >
+              {paymentReminderDialog?.kind === "40" ? "Sim, já pedi os 40%" : "Sim, já pedi os 30%"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Diálogo "Quadro recebido" → pede data de entrega ─── */}
       <Dialog open={deliveryDialogOpen} onOpenChange={setDeliveryDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -1814,13 +2240,14 @@ function StatusSelect({
 }
 
 function ShippingRow<M extends string>({
-  method, methodLabels, methodOptions,
+  method, methodLabels, methodOptions, methodColors,
   cost, paid, showPaid,
   onMethod, onCost, onPaid,
 }: {
   method: M | null;
   methodLabels: Record<M, string>;
   methodOptions: Array<[M, string]>;
+  methodColors?: Partial<Record<M, string>>;
   cost: number | null;
   paid: boolean;
   showPaid: boolean;
@@ -1828,14 +2255,23 @@ function ShippingRow<M extends string>({
   onCost: (v: number | null) => void;
   onPaid: (v: boolean) => void;
 }) {
+  const triggerColor = method && methodColors?.[method] ? methodColors[method] : "";
   return (
     <div className={`grid gap-3 items-end ${showPaid ? "grid-cols-3" : "grid-cols-2"}`}>
       <Field label="Como">
         <Select value={method ?? ""} onValueChange={onMethod}>
-          <SelectTrigger className={sel}><SelectValue placeholder="—" labels={methodLabels} /></SelectTrigger>
+          <SelectTrigger className={`${sel} font-medium ${triggerColor}`}><SelectValue placeholder="—" labels={methodLabels} /></SelectTrigger>
           <SelectContent>
             {methodOptions.map(([v, label]) => (
-              <SelectItem key={v} value={v}>{label}</SelectItem>
+              <SelectItem key={v} value={v} className="my-0.5">
+                {methodColors?.[v] ? (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${methodColors[v]}`}>
+                    {label}
+                  </span>
+                ) : (
+                  label
+                )}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -1942,7 +2378,7 @@ function CouponCodeField({
         </button>
       )}
       <p className="text-[10px] text-[#B8A99A]">
-        Gerado automaticamente em &lsquo;A ser emoldurado&rsquo;. Editável para encomendas antigas.
+        Gerado automaticamente em &lsquo;A ser emoldurado&rsquo;.
       </p>
     </div>
   );

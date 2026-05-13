@@ -11,6 +11,7 @@ export type OrderStatus =
   | "reconstrucao_botanica"
   | "a_compor_design"
   | "a_aguardar_aprovacao"
+  | "a_finalizar_quadro"
   | "a_ser_emoldurado"
   | "emoldurado"
   | "a_ser_fotografado"
@@ -58,6 +59,7 @@ export type HowFoundFBR =
   | "vale_presente"
   | "florista"
   | "recomendacao"
+  | "recomendacao_ia"
   | "outro";
 
 export type PartnerCommissionStatus =
@@ -86,6 +88,12 @@ export interface InspirationItem {
 export interface ExtrasInFrame {
   options: string[];
   notes: string;
+}
+
+// Item do inventário de flores em cada encomenda
+export interface InventoryItem {
+  qty: number;
+  name: string;     // ex: "rosas laranja", "papoilas vermelhas"
 }
 
 // Tipo completo de uma encomenda (corresponde à tabela orders)
@@ -161,6 +169,28 @@ export interface Order {
   consent_at: string | null;
   consent_version: string | null;
   consent_ip: string | null;
+
+  // ── Recolha no local (visível só quando flower_delivery_method = recolha_evento) ─────
+  pickup_address: string | null;
+  pickup_date: string | null;
+  pickup_time_from: string | null;   // HH:MM (TIME)
+  pickup_time_to: string | null;     // HH:MM (TIME)
+
+  // ── Inventário de flores ─────────────────────────────────────
+  inventory: InventoryItem[];
+
+  // ── Sticky note (post-it amarelo flutuante no workbench) ────
+  sticky_note: string | null;
+
+  // ── Lembretes de pagamento (40% e 30%) ──────────────────────
+  // true = já lembrei o cliente de pagar essa tranche
+  payment_40_requested: boolean;
+  payment_30_requested: boolean;
+
+  // ── Resposta do cliente à proposta de composição ───────────
+  // Quando true, deixa de aparecer o alerta de "cliente em silêncio"
+  // mesmo que estejam ≥4 dias no estado a_aguardar_aprovacao.
+  approval_responded: boolean;
 }
 
 // Tipo para criar uma nova encomenda (campos obrigatórios mínimos)
@@ -218,6 +248,7 @@ export const ORDER_GROUPS: OrderGroupConfig[] = [
       "reconstrucao_botanica",
       "a_compor_design",
       "a_aguardar_aprovacao",
+      "a_finalizar_quadro",
     ],
     color: "text-purple-600",
   },
@@ -258,6 +289,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   reconstrucao_botanica: "Reconstrução botânica",
   a_compor_design: "A compor design",
   a_aguardar_aprovacao: "A aguardar aprovação",
+  a_finalizar_quadro: "A finalizar o quadro",
   a_ser_emoldurado: "A ser emoldurado",
   emoldurado: "Emoldurado",
   a_ser_fotografado: "A ser fotografado",
@@ -290,14 +322,31 @@ export const CONTACT_PREFERENCE_LABELS: Record<ContactPreference, string> = {
 export const FLOWER_DELIVERY_METHOD_LABELS: Record<FlowerDeliveryMethod, string> = {
   maos: "Em mãos",
   ctt: "CTT",
-  recolha_evento: "Recolha no evento",
+  recolha_evento: "Recolha no local",
   nao_sei: "Não sei",
+};
+
+// Cores associadas a cada método de envio das flores — para facilitar
+// a leitura visual na tabela e no workbench.
+export const FLOWER_DELIVERY_METHOD_COLORS: Record<FlowerDeliveryMethod, string> = {
+  maos:           "bg-emerald-100 text-emerald-800 border-emerald-300",
+  ctt:            "bg-sky-100 text-sky-800 border-sky-300",
+  recolha_evento: "bg-violet-100 text-violet-800 border-violet-300",
+  nao_sei:        "bg-stone-100 text-stone-700 border-stone-300",
 };
 
 export const FRAME_DELIVERY_METHOD_LABELS: Record<FrameDeliveryMethod, string> = {
   maos: "Em mãos",
   ctt: "CTT",
   nao_sei: "Não sei",
+};
+
+// Cores associadas a cada método de receção do quadro — espelhadas
+// das cores do envio das flores (mãos/CTT) para coerência.
+export const FRAME_DELIVERY_METHOD_COLORS: Record<FrameDeliveryMethod, string> = {
+  maos:    "bg-emerald-100 text-emerald-800 border-emerald-300",
+  ctt:     "bg-sky-100 text-sky-800 border-sky-300",
+  nao_sei: "bg-stone-100 text-stone-700 border-stone-300",
 };
 
 export const FRAME_BACKGROUND_LABELS: Record<FrameBackground, string> = {
@@ -342,27 +391,40 @@ export const HOW_FOUND_FBR_LABELS: Record<HowFoundFBR, string> = {
   vale_presente: "Vale-Presente",
   florista: "Florista",
   recomendacao: "Recomendação",
+  recomendacao_ia: "Recomendação de IA (ChatGPT, Gemini…)",
   outro: "Outro",
 };
 
 // Cores associadas a cada plataforma de origem (badge no select).
 // O fundo é a cor mais identitária da plataforma; o texto fica legível
 // sobre esse fundo.
+//
+// Especificações da Maria (Fase 5.5):
+//   - casamentos.pt → #F16B6B (coral identitário do site casamentos.pt)
+//   - Google → fundo branco, letras coloridas (azul/vermelho/amarelo/azul/verde/vermelho — ver
+//     `HowFoundFBRBadge` no workbench)
+//   - Vale-Presente → #6E7DAF (azul-acinzentado da brand FBR para vales)
+//   - Florista → rosa pastel "fofo"
 export const HOW_FOUND_FBR_COLORS: Record<HowFoundFBR, string> = {
-  instagram:    "bg-gradient-to-r from-pink-500 via-fuchsia-500 to-orange-400 text-white border-transparent",
-  facebook:     "bg-blue-600 text-white border-blue-700",
-  casamentos_pt:"bg-rose-500 text-white border-rose-600",
-  google:       "bg-yellow-100 text-blue-700 border-yellow-300",
-  vale_presente:"bg-amber-100 text-amber-900 border-amber-300",
-  florista:     "bg-emerald-100 text-emerald-800 border-emerald-300",
-  recomendacao: "bg-purple-100 text-purple-800 border-purple-300",
-  outro:        "bg-slate-100 text-slate-700 border-slate-300",
+  instagram:       "bg-gradient-to-r from-pink-500 via-fuchsia-500 to-orange-400 text-white border-transparent",
+  facebook:        "bg-blue-600 text-white border-blue-700",
+  casamentos_pt:   "bg-[#F16B6B] text-white border-[#D65555]",
+  google:          "bg-white text-slate-700 border-slate-300",
+  vale_presente:   "bg-[#6E7DAF] text-white border-[#56689E]",
+  florista:        "bg-pink-100 text-pink-700 border-pink-200",
+  recomendacao:    "bg-purple-100 text-purple-800 border-purple-300",
+  recomendacao_ia: "bg-gradient-to-r from-violet-500 via-cyan-500 to-emerald-500 text-white border-transparent",
+  outro:           "bg-slate-100 text-slate-700 border-slate-300",
 };
+
+// "Google" tem rendering especial — cada letra na cor original do logo.
+// Usado em badges e selects via componente `HowFoundFbrLabel`.
+export const GOOGLE_LETTER_COLORS = ["#4285F4", "#EA4335", "#FBBC05", "#4285F4", "#34A853", "#EA4335"]; // G-o-o-g-l-e
 
 export const PARTNER_COMMISSION_STATUS_LABELS: Record<PartnerCommissionStatus, string> = {
   na: "N/A",
   parceiro_informado: "Parceiro informado",
-  a_aguardar: "A aguardar",
+  a_aguardar: "Encomenda não paga na totalidade",
   paga: "Paga",
   a_aguardar_resposta: "A aguardar resposta",
   nao_aceita: "Não aceita",
