@@ -69,13 +69,13 @@ function StatusSelect({
       <SelectTrigger
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`h-7 text-[11px] font-medium border ${colorClass} rounded-full px-2.5`}
+        className={`h-7 text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition`}
       >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : (
           <SelectValue labels={PARTNER_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-md border border-[#E8E0D5]">
         {PARTNER_STATUS_ORDER.map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_STATUS_COLORS[k]}`}>
@@ -133,7 +133,7 @@ function PartnerRow({
       )}
       onClick={() => onOpen(partner)}
     >
-      <td className="px-4 py-2">
+      <td className="px-4 py-1.5">
         <div className="flex items-start gap-2">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0 mt-1" />}
           <div className="min-w-0">
@@ -144,7 +144,7 @@ function PartnerRow({
           </div>
         </div>
       </td>
-      <td className="px-4 py-2">
+      <td className="px-4 py-1.5">
         <div className="flex flex-col gap-0.5 text-xs text-[#8B7355]">
           {partner.email && (
             <a
@@ -170,7 +170,7 @@ function PartnerRow({
           )}
         </div>
       </td>
-      <td className="px-4 py-2">
+      <td className="px-4 py-1.5">
         {partner.location_label ? (
           <span className="inline-flex items-center gap-1 text-xs text-[#3D2B1F]">
             <MapPin className="h-3 w-3 text-[#B8A99A]" />
@@ -180,7 +180,7 @@ function PartnerRow({
           <span className="text-xs text-[#B8A99A]">—</span>
         )}
       </td>
-      <td className="px-4 py-2">
+      <td className="px-4 py-1.5">
         {partner.accepts_commission ? (
           <span className={cn(
             "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border",
@@ -192,7 +192,7 @@ function PartnerRow({
           <span className="text-xs text-[#B8A99A]">—</span>
         )}
       </td>
-      <td className="px-4 py-2 text-center">
+      <td className="px-4 py-1.5 text-center">
         {recommended > 0 ? (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
             <Sparkles className="h-3 w-3" />
@@ -202,7 +202,7 @@ function PartnerRow({
           <span className="text-xs text-[#B8A99A]">—</span>
         )}
       </td>
-      <td className="px-4 py-2 text-center">
+      <td className="px-4 py-1.5 text-center">
         {pendingActions > 0 ? (
           <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
             <ListChecks className="h-3 w-3" />
@@ -212,14 +212,14 @@ function PartnerRow({
           <span className="text-xs text-[#B8A99A]">—</span>
         )}
       </td>
-      <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <StatusSelect
           value={currentStatus}
           onChange={changeStatus}
           busy={isPending && optimisticStatus !== null}
         />
       </td>
-      <td className="px-4 py-2 text-right">
+      <td className="px-4 py-1.5 text-right">
         <button
           className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
           onClick={(e) => { e.stopPropagation(); onOpen(partner); }}
@@ -254,40 +254,38 @@ function GroupSection({
   loadingId: string | null;
 }) {
   const isEmpty = partners.length === 0;
-  const collapsed = isCollapsed || isEmpty;
 
   return (
-    <div className={cn("rounded-xl border border-[#E8E0D5] bg-white overflow-hidden", isEmpty && "opacity-60")}>
+    <div className={cn("rounded-xl border border-[#E8E0D5] bg-white overflow-hidden", isEmpty && isCollapsed && "opacity-60")}>
       <button
-        className={cn(
-          "w-full flex items-center gap-3 px-4 hover:bg-[#FDFAF7] transition-colors",
-          isEmpty ? "py-1.5 cursor-default" : "py-2.5"
-        )}
-        onClick={isEmpty ? undefined : onToggle}
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors"
+        onClick={onToggle}
       >
-        {isEmpty ? (
-          <span className="h-3.5 w-3.5 shrink-0" />
-        ) : collapsed ? (
-          <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
-        )}
+        {isCollapsed
+          ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
+        }
         <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border", PARTNER_STATUS_COLORS[status])}>
           {PARTNER_STATUS_LABELS[status]}
         </span>
         <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
           {partners.length}
         </span>
-        {isEmpty && <span className="ml-1 text-[11px] text-[#B8A99A] italic">vazio</span>}
+        {isEmpty && <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem parceiros</span>}
       </button>
-      {!collapsed && partners.length > 0 && (
+      {!isCollapsed && isEmpty && (
+        <div className="px-4 py-4 text-center text-[11px] text-[#B8A99A] italic border-t border-[#F0EAE0]">
+          Nenhum parceiro neste estado.
+        </div>
+      )}
+      {!isCollapsed && partners.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
                 {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
                   <th key={i} className={cn(
-                    "px-4 py-2 text-[10px] font-medium text-[#8B7355] uppercase tracking-wider",
+                    "px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide",
                     (i === 4 || i === 5) && "text-center"
                   )}>
                     {h}
@@ -329,7 +327,16 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   const [activeCategory, setActiveCategory] = useState<PartnerCategory>("wedding_planners");
   const [viewMode, setViewMode] = useState<ViewMode>("tabela");
   const [search, setSearch] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Grupos vazios começam colapsados por default (o utilizador pode abrir).
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    const inThisCategory = filterByCategory(initialPartners, "wedding_planners");
+    const byStatus = groupByStatus(inThisCategory);
+    const empty = new Set<string>();
+    for (const s of PARTNER_STATUS_ORDER) {
+      if (byStatus[s].length === 0) empty.add(s);
+    }
+    return empty;
+  });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
@@ -338,6 +345,19 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   const inCategory = filterByCategory(initialPartners, activeCategory);
   const filtered = search.trim() ? searchPartners(inCategory, search) : inCategory;
   const grouped = groupByStatus(filtered);
+
+  // Cada categoria tem distribuição diferente de estados, e o open/close da
+  // anterior já não faz sentido. Recalcula o set de vazios para colapsar.
+  function changeCategory(c: PartnerCategory) {
+    const inNewCategory = filterByCategory(initialPartners, c);
+    const byStatus = groupByStatus(inNewCategory);
+    const empty = new Set<string>();
+    for (const s of PARTNER_STATUS_ORDER) {
+      if (byStatus[s].length === 0) empty.add(s);
+    }
+    setActiveCategory(c);
+    setCollapsedGroups(empty);
+  }
 
   function toggleGroup(id: string) {
     setCollapsedGroups((prev) => {
@@ -407,7 +427,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
             return (
               <button
                 key={c}
-                onClick={() => setActiveCategory(c)}
+                onClick={() => changeCategory(c)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   active
@@ -479,7 +499,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
               ))}
               {search.trim() && filtered.length === 0 && (
                 <div className="text-center py-12 text-sm text-[#8B7355]">
-                  Sem resultados para "{search}".
+                  Sem resultados para &ldquo;{search}&rdquo;.
                 </div>
               )}
             </>

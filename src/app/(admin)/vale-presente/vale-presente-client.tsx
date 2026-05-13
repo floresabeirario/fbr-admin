@@ -84,13 +84,13 @@ export function PaymentSelect({
       <SelectTrigger
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`h-7 text-[11px] font-medium border ${colorClass} rounded-full px-2.5 ${disabled ? "opacity-70" : ""}`}
+        className={`h-7 text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition ${disabled ? "opacity-70" : ""}`}
       >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : (
           <SelectValue labels={VOUCHER_PAYMENT_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-md border border-[#E8E0D5]">
         {(Object.keys(VOUCHER_PAYMENT_STATUS_LABELS) as VoucherPaymentStatus[]).map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_PAYMENT_STATUS_COLORS[k]}`}>
@@ -120,13 +120,13 @@ export function SendSelect({
       <SelectTrigger
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`h-7 text-[11px] font-medium border ${colorClass} rounded-full px-2.5 ${disabled ? "opacity-70" : ""}`}
+        className={`h-7 text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition ${disabled ? "opacity-70" : ""}`}
       >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : (
           <SelectValue labels={VOUCHER_SEND_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-md border border-[#E8E0D5]">
         {(Object.keys(VOUCHER_SEND_STATUS_LABELS) as VoucherSendStatus[]).map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_SEND_STATUS_COLORS[k]}`}>
@@ -156,13 +156,13 @@ export function UsageSelect({
       <SelectTrigger
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`h-7 text-[11px] font-medium border ${colorClass} rounded-full px-2.5 ${disabled ? "opacity-70" : ""}`}
+        className={`h-7 text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition ${disabled ? "opacity-70" : ""}`}
       >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : (
           <SelectValue labels={VOUCHER_USAGE_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-md border border-[#E8E0D5]">
         {(Object.keys(VOUCHER_USAGE_STATUS_LABELS) as VoucherUsageStatus[]).map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_USAGE_STATUS_COLORS[k]}`}>
@@ -349,28 +349,29 @@ function GroupSection({
   canEdit: boolean;
 }) {
   const isEmpty = vouchers.length === 0;
-  const effectivelyCollapsed = isCollapsed || isEmpty;
 
   return (
-    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty ? "opacity-60" : ""}`}>
+    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty && isCollapsed ? "opacity-60" : ""}`}>
       <button
-        className={`w-full flex items-center gap-3 px-4 hover:bg-[#FDFAF7] transition-colors ${isEmpty ? "py-1.5 cursor-default" : "py-2.5"}`}
-        onClick={isEmpty ? undefined : onToggle}
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors"
+        onClick={onToggle}
       >
-        {isEmpty ? (
-          <span className="h-3.5 w-3.5 shrink-0" />
-        ) : effectivelyCollapsed ? (
-          <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
-        )}
+        {isCollapsed
+          ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
+        }
         <span className={`text-sm font-semibold ${colorClass}`}>{title}</span>
         <span className="ml-1 rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
           {vouchers.length}
         </span>
         {isEmpty && <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem vales</span>}
       </button>
-      {!effectivelyCollapsed && vouchers.length > 0 && (
+      {!isCollapsed && isEmpty && (
+        <div className="px-4 py-4 text-center text-[11px] text-[#B8A99A] italic border-t border-[#F0EAE0]">
+          Nenhum vale neste grupo.
+        </div>
+      )}
+      {!isCollapsed && vouchers.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left table-fixed">
             <colgroup>
@@ -424,7 +425,13 @@ interface Props {
 export default function ValePresenteClient({ initialVouchers, initialGrouped, archivedVouchers, canEdit }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // Grupos vazios começam colapsados por default; o utilizador pode abrir.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    const empty = new Set<string>();
+    if (initialGrouped.pre_reservas.length === 0) empty.add("pre_reservas");
+    if (initialGrouped.reservas.length === 0) empty.add("reservas");
+    return empty;
+  });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
