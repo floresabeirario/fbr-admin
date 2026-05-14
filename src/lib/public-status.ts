@@ -12,33 +12,32 @@
 import type { OrderStatus } from "@/types/database";
 
 // 0  = pré-timeline (a Maria ainda não enviou o link normalmente)
-// 1-11 = fases visíveis na timeline pública
+// 1-12 = fases visíveis na timeline pública
 // "cancelada" = encomenda cancelada (mostrada à parte da timeline)
-export type PublicPhase = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | "cancelada";
+export type PublicPhase = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | "cancelada";
 
 // Lista ordenada das fases que aparecem na timeline pública.
 // Não inclui 0 nem "cancelada".
 export const PUBLIC_TIMELINE_PHASES: PublicPhase[] = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 ];
 
 // Todas as fases possíveis (para selects e filtros).
 export const ALL_PUBLIC_PHASES: PublicPhase[] = [
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, "cancelada",
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, "cancelada",
 ];
 
 // ── Mapeamento estado interno → fase pública ─────────────────
 //
 // Notas importantes do PDF:
 //   • flores_enviadas → fase 1 (cliente continua a ver "agendada")
-//   • emoldurado      → fase 7 (cliente continua a ver "a ser emoldurado")
+//   • emoldurado      → fase 8 (cliente continua a ver "a ser emoldurado")
 //   • cancelado       → "cancelada" (NÃO regride a fase 0 como o PDF
 //     sugeria; ver project_status_excel_coexistence.md e a discussão
 //     com a Maria na sessão 13)
-// Nota: o estado interno a_finalizar_quadro partilha a mesma fase
-// pública que a_aguardar_aprovacao (6) — para o cliente é tudo "a
-// aguardar aprovação" até a Maria começar de facto a emoldurar.
-// Assim a timeline pública não precisa de nova fase.
+//   • a_finalizar_quadro → fase 7 (NEW — fase pública própria entre
+//     "a aguardar aprovação" e "a ser emoldurado"; antes partilhava a 6
+//     mas a Maria pediu para o cliente ver explicitamente este passo).
 export const STATUS_TO_PUBLIC_PHASE: Record<OrderStatus, PublicPhase> = {
   entrega_flores_agendar: 0,
   entrega_agendada:       1,
@@ -48,13 +47,13 @@ export const STATUS_TO_PUBLIC_PHASE: Record<OrderStatus, PublicPhase> = {
   reconstrucao_botanica:  4,
   a_compor_design:        5,
   a_aguardar_aprovacao:   6,
-  a_finalizar_quadro:     6,
-  a_ser_emoldurado:       7,
-  emoldurado:             7,
-  a_ser_fotografado:      8,
-  quadro_pronto:          9,
-  quadro_enviado:         10,
-  quadro_recebido:        11,
+  a_finalizar_quadro:     7,
+  a_ser_emoldurado:       8,
+  emoldurado:             8,
+  a_ser_fotografado:      9,
+  quadro_pronto:          10,
+  quadro_enviado:         11,
+  quadro_recebido:        12,
   cancelado:              "cancelada",
 };
 
@@ -67,11 +66,12 @@ export const PUBLIC_PHASE_LABEL_PT: Record<PublicPhase, string> = {
   4:  "Reconstrução botânica",
   5:  "A compor o design do quadro",
   6:  "A aguardar aprovação da composição",
-  7:  "A ser emoldurado",
-  8:  "A ser fotografado",
-  9:  "Quadro pronto",
-  10: "Quadro enviado",
-  11: "Quadro recebido",
+  7:  "A finalizar o quadro",
+  8:  "A ser emoldurado",
+  9:  "A ser fotografado",
+  10: "Quadro pronto",
+  11: "Quadro enviado",
+  12: "Quadro recebido",
   cancelada: "Cancelada",
 };
 
@@ -83,17 +83,19 @@ export const PUBLIC_PHASE_LABEL_EN: Record<PublicPhase, string> = {
   4:  "Botanical reconstruction",
   5:  "Designing the artwork",
   6:  "Awaiting design approval",
-  7:  "Being framed",
-  8:  "Being photographed",
-  9:  "Artwork ready",
-  10: "Artwork shipped",
-  11: "Artwork received",
+  7:  "Finalising the artwork",
+  8:  "Being framed",
+  9:  "Being photographed",
+  10: "Artwork ready",
+  11: "Artwork shipped",
+  12: "Artwork received",
   cancelada: "Cancelled",
 };
 
 // ── Cores associadas a cada fase pública (badges/timeline) ────
-// Tons que reforçam a progressão: amber → blue → purple → orange
-// → green. "Cancelada" em rose neutro.
+// Tons que reforçam a progressão: amber → blue → purple → rose
+// → orange → green. "Cancelada" em vermelho neutro (separada da
+// timeline, não confunde com a fase 7 nem com a 12).
 export const PUBLIC_PHASE_COLORS: Record<PublicPhase, string> = {
   0:  "bg-stone-100 text-stone-700 border-stone-200",
   1:  "bg-amber-100 text-amber-800 border-amber-200",
@@ -102,12 +104,13 @@ export const PUBLIC_PHASE_COLORS: Record<PublicPhase, string> = {
   4:  "bg-indigo-100 text-indigo-800 border-indigo-200",
   5:  "bg-violet-100 text-violet-800 border-violet-200",
   6:  "bg-purple-100 text-purple-800 border-purple-200",
-  7:  "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200",
-  8:  "bg-pink-100 text-pink-800 border-pink-200",
-  9:  "bg-orange-100 text-orange-800 border-orange-200",
-  10: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  11: "bg-green-100 text-green-800 border-green-200",
-  cancelada: "bg-rose-100 text-rose-800 border-rose-200",
+  7:  "bg-rose-100 text-rose-800 border-rose-200",
+  8:  "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200",
+  9:  "bg-pink-100 text-pink-800 border-pink-200",
+  10: "bg-orange-100 text-orange-800 border-orange-200",
+  11: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  12: "bg-green-100 text-green-800 border-green-200",
+  cancelada: "bg-red-100 text-red-800 border-red-200",
 };
 
 // ── Mensagens default (extraídas do PDF) ──────────────────────
@@ -128,14 +131,16 @@ export const DEFAULT_MESSAGES_PT: Record<PublicPhase, string> = {
   6:
     "A proposta de composição do seu quadro está pronta para ser validada por si. Assim que estiver feliz com o resultado, procederemos à colagem definitiva.",
   7:
-    "O seu quadro seguiu para uma casa de molduras profissional em Coimbra. Todas as nossas molduras são feitas à medida, num processo que pode demorar até 15 dias.",
+    "A composição foi aprovada! Estamos agora a finalizar o seu quadro com a colagem definitiva, antes de seguir para a moldura.",
   8:
-    "O seu quadro já regressou da molduraria! Estamos agora a fotografar a peça para o nosso registo e redes sociais.",
+    "O seu quadro seguiu para uma casa de molduras profissional em Coimbra. Todas as nossas molduras são feitas à medida, num processo que pode demorar até 15 dias.",
   9:
-    "A sua peça está terminada e o resultado ficou deslumbrante! Estamos a preparar a embalagem.",
+    "O seu quadro já regressou da molduraria! Estamos agora a fotografar a peça para o nosso registo e redes sociais.",
   10:
-    "Boas notícias: a sua memória já está a caminho de casa!",
+    "A sua peça está terminada e o resultado ficou deslumbrante! Estamos a preparar a embalagem.",
   11:
+    "Boas notícias: a sua memória já está a caminho de casa!",
+  12:
     "Esperamos que tenha adorado o resultado final. Obrigado por nos confiar estas flores tão especiais! Se teve uma boa experiência connosco, deixe-nos o seu feedback e uma foto da peça final no nosso perfil: https://maps.app.goo.gl/qGGdyE8mo2kdNBmm7",
   cancelada:
     "Esta encomenda foi cancelada. Se tem alguma dúvida ou pretende retomar o processo, contacte-nos por email para info@floresabeirario.pt.",
@@ -157,14 +162,16 @@ export const DEFAULT_MESSAGES_EN: Record<PublicPhase, string> = {
   6:
     "The design proposal for your frame is ready for your validation. Once you are happy with the result, we will proceed with the final mounting.",
   7:
-    "Your artwork has been sent to a professional framing house in Coimbra. All our frames are custom-made, a process that can take up to 15 days.",
+    "Your design has been approved! We are now finalising your artwork with the definitive mounting, before sending it for framing.",
   8:
-    "Your frame is back from the framer! We are now photographing the piece for our records and social media.",
+    "Your artwork has been sent to a professional framing house in Coimbra. All our frames are custom-made, a process that can take up to 15 days.",
   9:
-    "Your piece is finished and the result is stunning! We are preparing the packaging.",
+    "Your frame is back from the framer! We are now photographing the piece for our records and social media.",
   10:
-    "Great news: your memory is on its way home!",
+    "Your piece is finished and the result is stunning! We are preparing the packaging.",
   11:
+    "Great news: your memory is on its way home!",
+  12:
     "We hope you loved the final result. Thank you for trusting us with such special flowers! If you had a good experience with us, please leave your feedback and a photo of the final piece on our profile: https://maps.app.goo.gl/qGGdyE8mo2kdNBmm7",
   cancelada:
     "This order has been cancelled. If you have any questions or wish to resume the process, please contact us at info@floresabeirario.pt.",

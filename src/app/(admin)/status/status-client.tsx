@@ -102,7 +102,7 @@ export default function StatusClient({
     const term = search.trim().toLowerCase();
     const list = initialOrders.filter((o) => {
       const phase = STATUS_TO_PUBLIC_PHASE[o.status];
-      if (hideArchived && (phase === 11 || phase === "cancelada")) return false;
+      if (hideArchived && (phase === 12 || phase === "cancelada")) return false;
       if (phaseFilter !== "todas" && phase !== phaseFilter) return false;
       if (!term) return true;
       return (

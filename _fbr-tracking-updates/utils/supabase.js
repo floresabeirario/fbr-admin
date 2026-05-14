@@ -26,7 +26,7 @@ const supabase = createClient(
 
 // ── Estado interno → fase pública ────────────────────────────
 // 0       = pré-timeline (a Maria ainda não enviou o link normalmente)
-// 1-11    = fases visíveis na timeline pública
+// 1-12    = fases visíveis na timeline pública
 // 'cancelada' = encomenda cancelada (mostrada à parte da timeline)
 const STATUS_TO_PUBLIC_PHASE = {
   entrega_flores_agendar: 0,
@@ -37,13 +37,13 @@ const STATUS_TO_PUBLIC_PHASE = {
   reconstrucao_botanica:  4,
   a_compor_design:        5,
   a_aguardar_aprovacao:   6,
-  a_finalizar_quadro:     6,
-  a_ser_emoldurado:       7,
-  emoldurado:             7,
-  a_ser_fotografado:      8,
-  quadro_pronto:          9,
-  quadro_enviado:        10,
-  quadro_recebido:       11,
+  a_finalizar_quadro:     7,
+  a_ser_emoldurado:       8,
+  emoldurado:             8,
+  a_ser_fotografado:      9,
+  quadro_pronto:         10,
+  quadro_enviado:        11,
+  quadro_recebido:       12,
   cancelado: 'cancelada',
 };
 
@@ -55,11 +55,12 @@ const PUBLIC_PHASE_LABEL_PT = {
   4:  'Reconstrução botânica',
   5:  'A compor o design do quadro',
   6:  'A aguardar aprovação da composição',
-  7:  'A ser emoldurado',
-  8:  'A ser fotografado',
-  9:  'Quadro pronto',
-  10: 'Quadro enviado',
-  11: 'Quadro recebido',
+  7:  'A finalizar o quadro',
+  8:  'A ser emoldurado',
+  9:  'A ser fotografado',
+  10: 'Quadro pronto',
+  11: 'Quadro enviado',
+  12: 'Quadro recebido',
   cancelada: 'Cancelada',
 };
 
@@ -71,11 +72,12 @@ const PUBLIC_PHASE_LABEL_EN = {
   4:  'Botanical reconstruction',
   5:  'Designing the artwork',
   6:  'Awaiting design approval',
-  7:  'Being framed',
-  8:  'Being photographed',
-  9:  'Artwork ready',
-  10: 'Artwork shipped',
-  11: 'Artwork received',
+  7:  'Finalising the artwork',
+  8:  'Being framed',
+  9:  'Being photographed',
+  10: 'Artwork ready',
+  11: 'Artwork shipped',
+  12: 'Artwork received',
   cancelada: 'Cancelled',
 };
 
@@ -87,11 +89,12 @@ const DEFAULT_MESSAGES_PT = {
   4:  'Algumas flores exigem um cuidado extra e estão a ser reconstruídas pétala a pétala para recuperarem a sua forma original.',
   5:  'Com as flores devidamente preservadas, iniciámos o estudo artístico da composição para criar um design harmonioso.',
   6:  'A proposta de composição do seu quadro está pronta para ser validada por si. Assim que estiver feliz com o resultado, procederemos à colagem definitiva.',
-  7:  'O seu quadro seguiu para uma casa de molduras profissional em Coimbra. Todas as nossas molduras são feitas à medida, num processo que pode demorar até 15 dias.',
-  8:  'O seu quadro já regressou da molduraria! Estamos agora a fotografar a peça para o nosso registo e redes sociais.',
-  9:  'A sua peça está terminada e o resultado ficou deslumbrante! Estamos a preparar a embalagem.',
-  10: 'Boas notícias: a sua memória já está a caminho de casa!',
-  11: 'Esperamos que tenha adorado o resultado final. Obrigado por nos confiar estas flores tão especiais! Se teve uma boa experiência connosco, deixe-nos o seu feedback e uma foto da peça final no nosso perfil: https://maps.app.goo.gl/qGGdyE8mo2kdNBmm7',
+  7:  'A composição foi aprovada! Estamos agora a finalizar o seu quadro com a colagem definitiva, antes de seguir para a moldura.',
+  8:  'O seu quadro seguiu para uma casa de molduras profissional em Coimbra. Todas as nossas molduras são feitas à medida, num processo que pode demorar até 15 dias.',
+  9:  'O seu quadro já regressou da molduraria! Estamos agora a fotografar a peça para o nosso registo e redes sociais.',
+  10: 'A sua peça está terminada e o resultado ficou deslumbrante! Estamos a preparar a embalagem.',
+  11: 'Boas notícias: a sua memória já está a caminho de casa!',
+  12: 'Esperamos que tenha adorado o resultado final. Obrigado por nos confiar estas flores tão especiais! Se teve uma boa experiência connosco, deixe-nos o seu feedback e uma foto da peça final no nosso perfil: https://maps.app.goo.gl/qGGdyE8mo2kdNBmm7',
   cancelada: 'Esta encomenda foi cancelada. Se tem alguma dúvida ou pretende retomar o processo, contacte-nos por email para info@floresabeirario.pt.',
 };
 
@@ -103,11 +106,12 @@ const DEFAULT_MESSAGES_EN = {
   4:  'Some flowers require extra care and are being reconstructed petal by petal to regain their original shape.',
   5:  'With the flowers properly preserved, we have begun the artistic study of the composition to create a harmonious design.',
   6:  'The design proposal for your frame is ready for your validation. Once you are happy with the result, we will proceed with the final mounting.',
-  7:  'Your artwork has been sent to a professional framing house in Coimbra. All our frames are custom-made, a process that can take up to 15 days.',
-  8:  'Your frame is back from the framer! We are now photographing the piece for our records and social media.',
-  9:  'Your piece is finished and the result is stunning! We are preparing the packaging.',
-  10: 'Great news: your memory is on its way home!',
-  11: 'We hope you loved the final result. Thank you for trusting us with such special flowers! If you had a good experience with us, please leave your feedback and a photo of the final piece on our profile: https://maps.app.goo.gl/qGGdyE8mo2kdNBmm7',
+  7:  'Your design has been approved! We are now finalising your artwork with the definitive mounting, before sending it for framing.',
+  8:  'Your artwork has been sent to a professional framing house in Coimbra. All our frames are custom-made, a process that can take up to 15 days.',
+  9:  'Your frame is back from the framer! We are now photographing the piece for our records and social media.',
+  10: 'Your piece is finished and the result is stunning! We are preparing the packaging.',
+  11: 'Great news: your memory is on its way home!',
+  12: 'We hope you loved the final result. Thank you for trusting us with such special flowers! If you had a good experience with us, please leave your feedback and a photo of the final piece on our profile: https://maps.app.goo.gl/qGGdyE8mo2kdNBmm7',
   cancelada: 'This order has been cancelled. If you have any questions or wish to resume the process, please contact us at info@floresabeirario.pt.',
 };
 
@@ -197,9 +201,9 @@ async function getEncomendaById(id) {
   const showPt = lang === 'pt' || lang === 'ambos';
   const showEn = lang === 'en' || lang === 'ambos';
 
-  // 5. fase_numero: só preenchido para fases 1-11. Pré-timeline (0)
+  // 5. fase_numero: só preenchido para fases 1-12. Pré-timeline (0)
   //    e cancelada não têm passo na timeline.
-  const fase_numero = typeof safePhase === 'number' && safePhase >= 1 && safePhase <= 11
+  const fase_numero = typeof safePhase === 'number' && safePhase >= 1 && safePhase <= 12
     ? safePhase
     : null;
 
