@@ -281,7 +281,7 @@ function GroupSection({
       )}
       {!isCollapsed && partners.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full min-w-[780px] text-left">
             <thead>
               <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
                 {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
@@ -342,7 +342,7 @@ function OrfasGroupSection({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left">
+        <table className="w-full min-w-[780px] text-left">
           <thead>
             <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
               {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
@@ -454,9 +454,9 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white shrink-0">
         <div>
-          <h1 className="text-xl font-semibold text-[#3D2B1F]">Parcerias</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Parcerias</h1>
           <p className="text-xs text-[#8B7355] mt-0.5">
             {stats.total} parceiro{stats.total !== 1 ? "s" : ""} ·{" "}
             {stats.ativos} activo{stats.ativos !== 1 ? "s" : ""}
@@ -465,19 +465,19 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none min-w-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
             <Input
               placeholder="Pesquisar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
             />
           </div>
           <Button
             size="sm"
-            className="h-8 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
+            className="h-9 sm:h-8 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
             onClick={() => setSheetOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -487,7 +487,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
       </div>
 
       {/* Sub-tabs (categorias) + view switcher */}
-      <div className="flex items-center justify-between gap-4 px-6 pt-4 shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 pt-3 sm:pt-4 shrink-0">
         <div className="flex items-center gap-1 rounded-lg border border-[#E8E0D5] bg-white p-1">
           {PARTNER_CATEGORY_ORDER.map((c) => {
             const active = c === activeCategory;
@@ -563,7 +563,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
       )}
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto px-6 py-6 space-y-4">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
         {initialPartners.length === 0 ? (
           <EmptyState category={activeCategory} onCreate={() => setSheetOpen(true)} />
         ) : viewMode === "tabela" ? (

@@ -174,8 +174,8 @@ export default function PartnerWorkbenchClient({
   return (
     <div className="flex flex-col h-full bg-[#FAF8F5]">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 py-3 border-b border-[#E8E0D5] bg-white shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-[#E8E0D5] bg-white shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href="/parcerias"
             className="inline-flex items-center gap-1 text-sm text-[#8B7355] hover:text-[#3D2B1F] shrink-0"

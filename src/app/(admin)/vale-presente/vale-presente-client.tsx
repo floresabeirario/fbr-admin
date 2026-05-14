@@ -373,7 +373,7 @@ function GroupSection({
       )}
       {!isCollapsed && vouchers.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left table-fixed">
+          <table className="w-full min-w-[820px] text-left table-fixed">
             <colgroup>
               <col className="w-[12%]" />
               <col className="w-[20%]" />
@@ -481,21 +481,21 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white shrink-0">
         <div>
-          <h1 className="text-xl font-semibold text-[#3D2B1F]">Vale-Presente</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Vale-Presente</h1>
           <p className="text-xs text-[#8B7355] mt-0.5">
             {totalActive} vale{totalActive !== 1 ? "s" : ""} · {totalPagos} pago{totalPagos !== 1 ? "s" : ""} · {formatEuro(totalValor)} faturado
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none min-w-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
             <Input
               placeholder="Pesquisar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
             />
           </div>
           {canEdit && (
@@ -536,14 +536,14 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
 
       {/* Modo leitura banner para viewer */}
       {!canEdit && (
-        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           Modo leitura — apenas administradores podem editar vales.
         </div>
       )}
 
       {/* Alerta de vales a expirar */}
       {!showArchived && expirandoBreve > 0 && (
-        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
+        <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>
             {expirandoBreve} vale{expirandoBreve !== 1 ? "s" : ""} pago{expirandoBreve !== 1 ? "s" : ""} ainda sem preservação agendada e a expirar nos próximos 3 meses.
@@ -554,7 +554,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
       {/* Rede de segurança: aviso global se houver vales com estado de
           pagamento desconhecido (mesmo padrão da Preservação). */}
       {!showArchived && grouped.orfas.length > 0 && (
-        <div className="mx-6 mt-4 rounded-xl border-2 border-red-400 bg-red-50 p-4">
+        <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 rounded-xl border-2 border-red-400 bg-red-50 p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -572,7 +572,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
       )}
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto px-6 py-6 space-y-4">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
         {showArchived ? (
           <ArchivedVouchersView vouchers={archivedVouchers} onOpen={openVoucher} />
         ) : initialVouchers.length === 0 ? (

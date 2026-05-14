@@ -131,7 +131,7 @@ export default function StatusClient({
   }, [initialOrders]);
 
   return (
-    <div className="p-6 lg:p-8 space-y-5">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-5">
       {!canEdit && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -229,7 +229,7 @@ export default function StatusClient({
       {/* Tabela */}
       <div className="rounded-lg border border-[#E8E0D5] bg-white overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-[#FAF8F5] border-b border-[#E8E0D5]">
               <tr className="text-[10px] font-bold uppercase tracking-wider text-[#8B7355]">
                 <th className="text-left px-4 py-2.5">ID / Cliente</th>

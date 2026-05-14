@@ -555,7 +555,7 @@ function GroupSection({
       )}
       {!isCollapsed && orders.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left table-fixed">
+          <table className="w-full min-w-[920px] text-left table-fixed">
             <colgroup>
               <col className="w-[3%]" />
               <col className="w-[16%]" />
@@ -784,22 +784,22 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white shrink-0">
         <div>
-          <h1 className="text-xl font-semibold text-[#3D2B1F]">Preservação de Flores</h1>
+          <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Preservação de Flores</h1>
           <p className="text-xs text-[#8B7355] mt-0.5">
             {totalActive} encomenda{totalActive !== 1 ? "s" : ""} em curso ·{" "}
             {initialOrders.length} total
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none min-w-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
             <Input
               placeholder="Pesquisar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
             />
           </div>
           <div className="flex items-center rounded-lg border border-[#E8E0D5] overflow-hidden">
@@ -864,7 +864,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
       </div>
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-3 sm:p-6">
         {/* Rede de segurança: aviso global se houver encomendas com estado
             desconhecido. Aparece em todas as vistas (tabela, cards, calendário,
             timeline) para a Maria notar imediatamente que algo está fora do

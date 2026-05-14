@@ -920,7 +920,7 @@ export default function WorkbenchClient({
 
       {/* ── Header fixo ──────────────────────────────────────── */}
       <header className="shrink-0 sticky top-0 z-20 bg-white border-b border-[#E8E0D5] shadow-sm">
-        <div className="flex items-center gap-4 px-6 py-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3">
           <Link
             href="/preservacao"
             className="flex items-center gap-1.5 text-sm text-[#8B7355] hover:text-[#3D2B1F] transition-colors shrink-0"
@@ -993,7 +993,7 @@ export default function WorkbenchClient({
             </div>
           )}
 
-          <div className="w-56 shrink-0">
+          <div className="w-full sm:w-56 order-last sm:order-none">
             <StatusSelect value={local.status} onChange={onStatusChange} />
           </div>
 
@@ -1040,7 +1040,7 @@ export default function WorkbenchClient({
 
       {/* ── Corpo: 3 colunas ──────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-[1400px] mx-auto p-6">
+        <div className="max-w-[1400px] mx-auto p-3 sm:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
             {/* ═══════════════════════════════

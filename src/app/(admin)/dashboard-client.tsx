@@ -109,7 +109,7 @@ export default function DashboardClient({
   const [viewingEmail, setViewingEmail] = useState<string>(currentEmail);
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
         <LayoutDashboard className="h-6 w-6 text-[#C4A882]" />
@@ -552,7 +552,7 @@ function TasksCard({
             className="h-8 text-sm"
             autoFocus
           />
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Select value={newAssignee} onValueChange={(v) => setNewAssignee((v as string) ?? "")}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue

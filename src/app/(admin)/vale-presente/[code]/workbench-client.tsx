@@ -416,8 +416,8 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
   return (
     <div className="flex flex-col h-full bg-[#F7F4F0]">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-6 py-3 border-b border-[#E8E0D5] bg-white shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-[#E8E0D5] bg-white shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href="/vale-presente"
             className="flex items-center gap-1.5 text-sm text-[#8B7355] hover:text-[#3D2B1F] transition-colors shrink-0"
@@ -488,13 +488,13 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
 
       {/* Banner de viewer */}
       {!canEdit && (
-        <div className="mx-6 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           Modo leitura — apenas administradores podem editar este vale.
         </div>
       )}
 
       <fieldset disabled={!canEdit} className="contents">
-        <div className="flex-1 overflow-auto px-6 py-6">
+        <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
             {/* ── Coluna esquerda: hero + remetente ── */}
             <div className="space-y-4">

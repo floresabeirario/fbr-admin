@@ -265,7 +265,7 @@ export default function MetricasClient({
   );
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header com fundo gradiente subtil */}
       <div className="rounded-2xl bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 dark:from-rose-950/30 dark:via-amber-950/20 dark:to-emerald-950/30 border border-[#E8E0D5] dark:border-[#2C2C2E] p-4 lg:p-5 flex flex-wrap items-center gap-3">
         <div className="h-11 w-11 rounded-xl bg-white/80 dark:bg-[#141414]/80 shadow-sm flex items-center justify-center">
