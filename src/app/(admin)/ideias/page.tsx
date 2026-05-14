@@ -1,8 +1,21 @@
-export default function IdeiasPage() {
-  return (
-    <div className="p-4 sm:p-8">
-      <h1 className="text-2xl font-semibold text-[#3D2B1F]">Ideias Futuras</h1>
-      <p className="mt-2 text-sm text-[#8B7355]">Em construção.</p>
-    </div>
-  );
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentEmail } from "@/lib/auth/server";
+import type { Idea } from "@/types/idea";
+import IdeiasClient from "./ideias-client";
+
+export const dynamic = "force-dynamic";
+
+export default async function IdeiasPage() {
+  const supabase = await createClient();
+  const email = await getCurrentEmail();
+
+  const { data } = await supabase
+    .from("ideas")
+    .select("*")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  const ideas: Idea[] = (data ?? []) as Idea[];
+
+  return <IdeiasClient initialIdeas={ideas} currentEmail={email} />;
 }

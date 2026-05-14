@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/server";
 import { generateCouponCode } from "@/lib/coupon";
+import { computePricingSnapshot } from "@/lib/pricing";
+import type { PricingItem } from "@/types/pricing";
 import {
   createOrderDriveFolderIfNeeded,
   isFirstOrderPayment,
@@ -20,12 +22,100 @@ import type { OrderInsert, OrderUpdate, OrderStatus, Order } from "@/types/datab
 export async function createOrderAction(order: OrderInsert): Promise<Order> {
   await requireAdmin();
   const supabase = await createClient();
+
+  // ── Cálculo automático do orçamento (com snapshot dos preços actuais).
+  // Aplica-se quando a Maria não pôs um orçamento manual E o cálculo
+  // consegue determinar um valor (frame_size definido e não "vocês a
+  // escolher"/"não sei"). Em qualquer outro caso o orçamento fica como
+  // veio (manual ou NULL).
+  let computedSnapshot: ReturnType<typeof computePricingSnapshot> = null;
+  if (order.budget === null || order.budget === undefined) {
+    const { data: pricingRows } = await supabase
+      .from("pricing_items")
+      .select("*")
+      .is("deleted_at", null);
+    if (pricingRows && pricingRows.length > 0) {
+      computedSnapshot = computePricingSnapshot(
+        {
+          frame_size: order.frame_size ?? null,
+          frame_background: order.frame_background ?? null,
+          extra_small_frames: order.extra_small_frames ?? null,
+          extra_small_frames_qty: order.extra_small_frames_qty ?? null,
+          christmas_ornaments: order.christmas_ornaments ?? null,
+          christmas_ornaments_qty: order.christmas_ornaments_qty ?? null,
+          necklace_pendants: order.necklace_pendants ?? null,
+          necklace_pendants_qty: order.necklace_pendants_qty ?? null,
+        },
+        pricingRows as PricingItem[],
+      );
+    }
+  }
+
+  const payload: OrderInsert = computedSnapshot
+    ? {
+        ...order,
+        budget: computedSnapshot.total,
+        pricing_snapshot: computedSnapshot,
+      }
+    : order;
+
   const { data, error } = await supabase
     .from("orders")
-    .insert(order)
+    .insert(payload)
     .select()
     .single();
   if (error) throw new Error(error.message);
+  revalidatePath("/preservacao");
+  return data as Order;
+}
+
+/**
+ * Re-calcula o snapshot de preços de uma encomenda existente usando os
+ * preços actuais da tabela e actualiza `budget` + `pricing_snapshot`.
+ * Botão no workbench — útil quando a Maria muda o tamanho/fundo/extras
+ * depois de a encomenda já existir, ou quando importou uma encomenda
+ * antiga e quer aplicar o cálculo.
+ */
+export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const [orderRes, pricingRes] = await Promise.all([
+    supabase
+      .from("orders")
+      .select(
+        "frame_size, frame_background, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+      )
+      .eq("id", id)
+      .single(),
+    supabase.from("pricing_items").select("*").is("deleted_at", null),
+  ]);
+
+  if (orderRes.error) throw new Error(orderRes.error.message);
+  if (!pricingRes.data || pricingRes.data.length === 0) {
+    throw new Error("Tabela de preços vazia. Preenche os valores em Finanças.");
+  }
+
+  const snapshot = computePricingSnapshot(
+    orderRes.data as Parameters<typeof computePricingSnapshot>[0],
+    pricingRes.data as PricingItem[],
+  );
+
+  if (!snapshot) {
+    throw new Error(
+      "Não é possível calcular o orçamento — tamanho da moldura indefinido ou 'vocês a escolher'.",
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ budget: snapshot.total, pricing_snapshot: snapshot })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/preservacao/${id}`);
   revalidatePath("/preservacao");
   return data as Order;
 }

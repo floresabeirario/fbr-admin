@@ -2,6 +2,8 @@
 // FBR Admin — Tipos TypeScript para a base de dados Supabase
 // ============================================================
 
+import type { PricingSnapshot } from "./pricing";
+
 export type OrderStatus =
   | "entrega_flores_agendar"
   | "entrega_agendada"
@@ -193,6 +195,12 @@ export interface Order {
   // Quando true, deixa de aparecer o alerta de "cliente em silêncio"
   // mesmo que estejam ≥4 dias no estado a_aguardar_aprovacao.
   approval_responded: boolean;
+
+  // ── Snapshot de preços (cálculo automático do orçamento) ───
+  // Guarda os preços usados para calcular o orçamento no momento da
+  // criação. NULL para encomendas antigas (budget continua manual).
+  // Aumentos futuros à tabela de preços não recalculam este snapshot.
+  pricing_snapshot: PricingSnapshot | null;
 
   // ── RGPD (anonimização) ────────────────────────────────────
   // Timestamp em que a encomenda foi anonimizada (PII removida,

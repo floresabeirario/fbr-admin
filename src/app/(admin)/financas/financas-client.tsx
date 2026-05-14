@@ -25,10 +25,16 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 import type { Competitor, CompetitorPrice } from "@/types/competitor";
+import type { PricingItem, PricingCategory } from "@/types/pricing";
+import {
+  PRICING_CATEGORY_LABELS,
+  PRICING_CATEGORY_HELPER,
+} from "@/types/pricing";
 import {
   createCompetitorAction,
   updateCompetitorAction,
   archiveCompetitorAction,
+  updatePricingItemAction,
 } from "./actions";
 
 type TabKey = "precos" | "despesas" | "faturacao" | "competicao";
@@ -51,11 +57,12 @@ function formatEuro(value: number | null): string {
 
 interface Props {
   initialCompetitors: Competitor[];
+  initialPricing: PricingItem[];
   canEdit: boolean;
 }
 
-export default function FinancasClient({ initialCompetitors, canEdit }: Props) {
-  const [tab, setTab] = useState<TabKey>("competicao");
+export default function FinancasClient({ initialCompetitors, initialPricing, canEdit }: Props) {
+  const [tab, setTab] = useState<TabKey>("precos");
 
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
@@ -96,10 +103,220 @@ export default function FinancasClient({ initialCompetitors, canEdit }: Props) {
       {tab === "competicao" && (
         <CompeticaoTab competitors={initialCompetitors} canEdit={canEdit} />
       )}
-      {tab === "precos"    && <PlaceholderTab title="Tabela de preços" />}
+      {tab === "precos"    && <PrecosTab pricing={initialPricing} canEdit={canEdit} />}
       {tab === "despesas"  && <PlaceholderTab title="Despesas" />}
       {tab === "faturacao" && <PlaceholderTab title="Faturação" />}
     </div>
+  );
+}
+
+// ============================================================
+// TABELA DE PREÇOS
+// ============================================================
+
+const PRICING_CATEGORY_ORDER: PricingCategory[] = [
+  "base_frame",
+  "background_supplement",
+  "extra",
+];
+
+const PRICING_CATEGORY_COLORS: Record<PricingCategory, string> = {
+  base_frame: "from-sky-50 to-blue-100 border-sky-200",
+  background_supplement: "from-violet-50 to-purple-100 border-violet-200",
+  extra: "from-amber-50 to-orange-100 border-amber-200",
+};
+
+function PrecosTab({
+  pricing,
+  canEdit,
+}: {
+  pricing: PricingItem[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const grouped = useMemo(() => {
+    const map = new Map<PricingCategory, PricingItem[]>();
+    for (const cat of PRICING_CATEGORY_ORDER) map.set(cat, []);
+    for (const item of pricing) {
+      const list = map.get(item.category);
+      if (list) list.push(item);
+    }
+    return map;
+  }, [pricing]);
+
+  function savePrice(item: PricingItem, raw: string) {
+    const next = raw.trim() === "" ? 0 : Number(raw.replace(",", "."));
+    if (Number.isNaN(next) || next < 0) {
+      toast.error("Preço inválido");
+      return;
+    }
+    if (next === item.price) return;
+    setSaving(item.id);
+    startTransition(async () => {
+      try {
+        await updatePricingItemAction(item.id, { price: next });
+        toast.success(`${item.label}: ${formatEuro(next)}`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao guardar");
+      } finally {
+        setSaving(null);
+      }
+    });
+  }
+
+  function saveNotes(item: PricingItem, raw: string) {
+    const next = raw.trim() === "" ? null : raw.trim();
+    if (next === item.notes) return;
+    setSaving(item.id);
+    startTransition(async () => {
+      try {
+        await updatePricingItemAction(item.id, { notes: next });
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao guardar");
+      } finally {
+        setSaving(null);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Aviso explicativo */}
+      <div className="rounded-2xl border border-sky-200 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-900 p-4 flex gap-3">
+        <Tags className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-sky-900 dark:text-sky-200 leading-relaxed">
+          <p className="font-semibold mb-1">Como funciona o orçamento automático</p>
+          <p>
+            Ao criar uma encomenda nova, o orçamento é calculado automaticamente
+            a partir destes preços: base do tamanho + suplemento de fundo +
+            extras × quantidade. <strong>Aumentos futuros aqui não recalculam
+            encomendas antigas</strong> — cada encomenda guarda um snapshot
+            congelado dos preços do dia da criação. Podes sempre editar o
+            orçamento manualmente em cada workbench.
+          </p>
+          {!canEdit && (
+            <p className="mt-2 italic text-sky-700 dark:text-sky-300">
+              Modo leitura — só administradores podem editar.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {PRICING_CATEGORY_ORDER.map((cat) => {
+        const items = grouped.get(cat) ?? [];
+        if (items.length === 0) return null;
+        const color = PRICING_CATEGORY_COLORS[cat];
+        return (
+          <div
+            key={cat}
+            className={cn(
+              "rounded-2xl border bg-gradient-to-br p-4 space-y-3",
+              color,
+            )}
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+                {PRICING_CATEGORY_LABELS[cat]}
+              </h2>
+              <p className="text-xs text-[#8B7355] dark:text-[#8E8E93] mt-0.5">
+                {PRICING_CATEGORY_HELPER[cat]}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white dark:bg-[#141414] overflow-hidden border border-white/40">
+              <table className="w-full text-sm">
+                <thead className="bg-[#FAF8F5] dark:bg-[#1A1A1A] text-xs uppercase tracking-wide text-[#8B7355] dark:text-[#8E8E93]">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Item</th>
+                    <th className="text-left px-3 py-2 font-medium w-32">Preço (€)</th>
+                    <th className="text-left px-3 py-2 font-medium">Notas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <PriceRow
+                      key={item.id}
+                      item={item}
+                      canEdit={canEdit}
+                      saving={saving === item.id}
+                      onSavePrice={(v) => savePrice(item, v)}
+                      onSaveNotes={(v) => saveNotes(item, v)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PriceRow({
+  item,
+  canEdit,
+  saving,
+  onSavePrice,
+  onSaveNotes,
+}: {
+  item: PricingItem;
+  canEdit: boolean;
+  saving: boolean;
+  onSavePrice: (raw: string) => void;
+  onSaveNotes: (raw: string) => void;
+}) {
+  const [priceDraft, setPriceDraft] = useState(item.price.toString().replace(".", ","));
+  const [notesDraft, setNotesDraft] = useState(item.notes ?? "");
+
+  // Padrão "store info from previous renders" — sincroniza o draft local
+  // com a prop quando o item muda na BD (sem useEffect+setState).
+  const [lastItemId, setLastItemId] = useState(item.id);
+  const [lastPrice, setLastPrice] = useState(item.price);
+  if (item.id !== lastItemId || item.price !== lastPrice) {
+    setLastItemId(item.id);
+    setLastPrice(item.price);
+    setPriceDraft(item.price.toString().replace(".", ","));
+    setNotesDraft(item.notes ?? "");
+  }
+
+  return (
+    <tr className="border-t border-[#F0EAE0] dark:border-[#2C2C2E]">
+      <td className="px-3 py-2 align-middle">
+        <div className="font-medium text-[#3D2B1F] dark:text-[#E8D5B5]">{item.label}</div>
+        <div className="text-[10px] uppercase tracking-wider text-[#B8A99A] mt-0.5">
+          {item.key}
+        </div>
+      </td>
+      <td className="px-3 py-2 align-middle">
+        <Input
+          value={priceDraft}
+          onChange={(e) => setPriceDraft(e.target.value)}
+          onBlur={() => onSavePrice(priceDraft)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          disabled={!canEdit || saving}
+          inputMode="decimal"
+          className="h-8 w-24 text-sm font-medium"
+          placeholder="0,00"
+        />
+      </td>
+      <td className="px-3 py-2 align-middle">
+        <Input
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          onBlur={() => onSaveNotes(notesDraft)}
+          disabled={!canEdit || saving}
+          className="h-8 text-sm"
+          placeholder="(opcional)"
+        />
+      </td>
+    </tr>
   );
 }
 

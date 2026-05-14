@@ -31,12 +31,13 @@ import {
   Pencil,
   ExternalLink,
   Handshake,
-  Search,
   ShieldCheck,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { StickyNoteButton } from "@/components/sticky-note-button";
+import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import {
   Select,
   SelectContent,
@@ -44,14 +45,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -111,17 +104,6 @@ function formatEuro(value: number | null): string {
   if (value === null || value === undefined) return "—";
   return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
-
-// Categorias dos parceiros (para mostrar inline no combobox)
-const PARTNER_CATEGORY_LABELS: Record<string, string> = {
-  wedding_planners: "Wedding planner",
-  floristas: "Florista",
-  quintas_eventos: "Quinta de eventos",
-  outros: "Outro",
-};
-
-// Forma "leve" de parceiro recebida na page.tsx (só id+name+category+status)
-type PartnerOption = { id: string; name: string; category: string; status: string };
 
 interface Props {
   voucher: Voucher;
@@ -186,144 +168,8 @@ function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave:
   );
 }
 
-// ── Sticky note "post-it" amarelo ─────────────────────────
-// Mesmo padrão do workbench da Preservação: vazio = amarelo claro com
-// ícone +; com texto = amarelo intenso com preview de 2 linhas.
-function StickyNoteButton({ value, onSave }: { value: string; onSave: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const hasContent = value.trim().length > 0;
-  const preview = hasContent ? value.replace(/\s+/g, " ").trim() : "";
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o) setDraft(value);
-        else if (draft !== value) onSave(draft);
-      }}
-    >
-      <PopoverTrigger
-        title={hasContent ? "Nota do vale" : "Adicionar nota"}
-        className={`shrink-0 inline-flex items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
-          hasContent
-            ? "bg-yellow-200 border-yellow-400 text-yellow-950"
-            : "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100"
-        }`}
-      >
-        <StickyNote className="h-3 w-3 mt-0.5 shrink-0" />
-        {hasContent ? (
-          <span className="text-left line-clamp-2 break-words">{preview}</span>
-        ) : (
-          <span className="font-medium">Nota</span>
-        )}
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-80 p-3 bg-yellow-50 border-yellow-300"
-        align="end"
-        side="bottom"
-      >
-        <Label className="text-[10px] uppercase tracking-[0.15em] font-semibold text-yellow-900 mb-1.5 block">
-          Nota do vale
-        </Label>
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ex: cliente pediu para personalizar a mensagem antes de enviar…"
-          rows={6}
-          className="border-yellow-200 bg-white text-sm text-yellow-950 placeholder:text-yellow-700/40"
-          autoFocus
-        />
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => { setDraft(""); }}
-            className="h-7 px-2 rounded-md text-xs text-yellow-800 hover:bg-yellow-100"
-          >
-            Limpar
-          </button>
-          <button
-            type="button"
-            onClick={() => { onSave(draft); setOpen(false); }}
-            className="h-7 px-3 rounded-md bg-yellow-600 text-white text-xs font-medium hover:bg-yellow-700"
-          >
-            Guardar
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ── Combobox de Parceiros (pesquisa por nome+categoria) ───
-// Igual ao do workbench da Preservação. Selecciona um parceiro
-// existente; "Nenhum parceiro" limpa a associação.
-function PartnerCombobox({
-  partners,
-  value,
-  onChange,
-  triggerCls,
-}: {
-  partners: PartnerOption[];
-  value: string | null;
-  onChange: (id: string | null) => void;
-  triggerCls: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = value ? partners.find((p) => p.id === value) ?? null : null;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        aria-expanded={open}
-        className={`${triggerCls} flex-1 inline-flex items-center justify-between gap-2 px-3 text-left`}
-      >
-        {selected ? (
-          <span className="flex items-center gap-1.5 truncate">
-            <span className="text-sm">{selected.name}</span>
-            <span className="text-[10px] text-[#B8A99A] shrink-0">
-              · {PARTNER_CATEGORY_LABELS[selected.category] ?? selected.category}
-            </span>
-          </span>
-        ) : (
-          <span className="text-[#B8A99A]">Sem parceiro</span>
-        )}
-        <Search className="h-3.5 w-3.5 text-[#B8A99A] shrink-0" />
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Procurar parceiro…" />
-          <CommandList>
-            <CommandEmpty>Nenhum parceiro encontrado.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value="nenhum"
-                onSelect={() => { onChange(null); setOpen(false); }}
-              >
-                <span className="text-[#8B7355] italic">Nenhum parceiro</span>
-              </CommandItem>
-              {partners.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={`${p.name} ${PARTNER_CATEGORY_LABELS[p.category] ?? ""}`}
-                  onSelect={() => { onChange(p.id); setOpen(false); }}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-sm">{p.name}</span>
-                    <span className="text-[10px] text-[#B8A99A]">
-                      · {PARTNER_CATEGORY_LABELS[p.category] ?? p.category}
-                    </span>
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
+// StickyNoteButton e PartnerCombobox foram extraídos para src/components/
+// — ver imports no topo.
 
 export default function VoucherWorkbenchClient({ voucher, canEdit, partners = [] }: Props) {
   const router = useRouter();
@@ -448,16 +294,16 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
             className="h-4 w-6"
             title={data.form_language === "pt" ? "Formulário preenchido em Português" : "Formulário preenchido em Inglês"}
           />
-          {/* Link directo para status público */}
+          {/* Link directo para o vale digital público (voucher.floresabeirario.pt) */}
           <a
-            href={`https://status.floresabeirario.pt/${data.code}`}
+            href={`https://voucher.floresabeirario.pt/${data.code}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 rounded-md border border-sky-200 bg-white px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-50 transition-colors"
-            title="Abrir página pública do vale"
+            title="Abrir o vale digital (voucher.floresabeirario.pt)"
           >
             <Globe className="h-3 w-3" />
-            Página pública
+            Vale digital
             <ExternalLink className="h-2.5 w-2.5 opacity-60" />
           </a>
           {!canEdit && (
@@ -471,6 +317,9 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
           <StickyNoteButton
             value={data.sticky_note ?? ""}
             onSave={(v) => updateField("sticky_note", v.trim() || null)}
+            title="Nota do vale"
+            label="Nota do vale"
+            placeholder="Ex: cliente pediu para personalizar a mensagem antes de enviar…"
           />
           {canEdit && (
             <Button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
@@ -148,8 +148,14 @@ export default function PartnerWorkbenchClient({
   const [savingField, setSavingField] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
-  // Sincroniza quando a server prop muda (ex: depois do router.refresh)
-  useEffect(() => { setPartner(initial); }, [initial]);
+  // Sincroniza quando a server prop muda (ex: depois do router.refresh).
+  // Padrão "store info from previous renders" — evita useEffect+setState
+  // ([[feedback-react-set-state-in-effect]]).
+  const [trackedUpdatedAt, setTrackedUpdatedAt] = useState(initial.updated_at);
+  if (initial.updated_at !== trackedUpdatedAt) {
+    setTrackedUpdatedAt(initial.updated_at);
+    setPartner(initial);
+  }
 
   // Auto-save um campo no blur
   function saveField<K extends keyof Partner>(key: K, value: Partner[K]) {

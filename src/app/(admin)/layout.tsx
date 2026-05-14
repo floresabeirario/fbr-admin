@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Settings,
   Shield,
+  History,
   Menu,
   X,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const navItems: NavItem[] = [
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
   { href: "/settings/google", label: "Definições Google", icon: Settings },
   { href: "/settings/rgpd", label: "RGPD", icon: Shield },
+  { href: "/settings/audit", label: "Histórico", icon: History },
 ];
 
 function useIsDesktop(): boolean {

@@ -32,14 +32,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
   ArrowLeft,
   Loader2,
   Check,
@@ -80,7 +72,6 @@ import {
   Ban,
   Trash2,
   Paintbrush,
-  Search,
   MapPin,
   type LucideIcon,
 } from "lucide-react";
@@ -90,7 +81,11 @@ import {
   createOrderDriveFolderAction,
   createOrderCalendarEventAction,
   deleteOrderCalendarEventAction,
+  recomputeOrderBudgetAction,
 } from "../actions";
+import type { PricingSnapshot } from "@/types/pricing";
+import { StickyNoteButton } from "@/components/sticky-note-button";
+import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import type {
   Order,
   OrderUpdate,
@@ -331,72 +326,8 @@ const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tra
 // ── Post-it amarelo flutuante (sticky note) ─────────────────
 // Aparece sempre no header. Vazio = amarelo claro com ícone +; com texto
 // = amarelo intenso com preview. Click → popover com textarea (auto-save no blur).
-function StickyNoteButton({ value, onSave }: { value: string; onSave: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const hasContent = value.trim().length > 0;
-  const preview = hasContent ? value.replace(/\s+/g, " ").trim() : "";
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o) setDraft(value);
-        else if (draft !== value) onSave(draft);
-      }}
-    >
-      <PopoverTrigger
-        title={hasContent ? "Nota da encomenda" : "Adicionar nota"}
-        className={`shrink-0 inline-flex items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
-          hasContent
-            ? "bg-yellow-200 border-yellow-400 text-yellow-950"
-            : "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100"
-        }`}
-      >
-        <StickyNote className="h-3 w-3 mt-0.5 shrink-0" />
-        {hasContent ? (
-          <span className="text-left line-clamp-2 break-words">{preview}</span>
-        ) : (
-          <span className="font-medium">Nota</span>
-        )}
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-80 p-3 bg-yellow-50 border-yellow-300"
-        align="end"
-        side="bottom"
-      >
-        <Label className="text-[10px] uppercase tracking-[0.15em] font-semibold text-yellow-900 mb-1.5 block">
-          Nota da encomenda
-        </Label>
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ex: cliente disse que o pendente é para deixar no caixão da mãe…"
-          rows={6}
-          className="border-yellow-200 bg-white text-sm text-yellow-950 placeholder:text-yellow-700/40"
-          autoFocus
-        />
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => { setDraft(""); }}
-            className="h-7 px-2 rounded-md text-xs text-yellow-800 hover:bg-yellow-100"
-          >
-            Limpar
-          </button>
-          <button
-            type="button"
-            onClick={() => { onSave(draft); setOpen(false); }}
-            className="h-7 px-3 rounded-md bg-yellow-600 text-white text-xs font-medium hover:bg-yellow-700"
-          >
-            Guardar
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
+// StickyNoteButton e PartnerCombobox foram extraídos para
+// src/components/ — ver imports no topo.
 
 // ── Inventário de flores ─────────────────────────────────────
 // Linhas {qty, name} editáveis inline. Sem state local — o parent é
@@ -467,79 +398,6 @@ function InventorySection({
   );
 }
 
-// ── Combobox de Parceiros (com pesquisa por nome) ────────────
-type PartnerOption = { id: string; name: string; category: string; status: string };
-
-function PartnerCombobox({
-  partners,
-  value,
-  onChange,
-}: {
-  partners: PartnerOption[];
-  value: string | null;
-  onChange: (id: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = value ? partners.find((p) => p.id === value) ?? null : null;
-
-  const PARTNER_CATEGORY_LABELS: Record<string, string> = {
-    wedding_planners: "Wedding planner",
-    floristas: "Florista",
-    quintas_eventos: "Quinta de eventos",
-    outros: "Outro",
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        aria-expanded={open}
-        className={`${sel} flex-1 inline-flex items-center justify-between gap-2 px-3 text-left`}
-      >
-        {selected ? (
-          <span className="flex items-center gap-1.5 truncate">
-            <span className="text-sm">{selected.name}</span>
-            <span className="text-[10px] text-[#B8A99A] shrink-0">
-              · {PARTNER_CATEGORY_LABELS[selected.category] ?? selected.category}
-            </span>
-          </span>
-        ) : (
-          <span className="text-[#B8A99A]">Sem parceiro</span>
-        )}
-        <Search className="h-3.5 w-3.5 text-[#B8A99A] shrink-0" />
-      </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Procurar parceiro…" />
-          <CommandList>
-            <CommandEmpty>Nenhum parceiro encontrado.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value="nenhum"
-                onSelect={() => { onChange(null); setOpen(false); }}
-              >
-                <span className="text-[#8B7355] italic">Nenhum parceiro</span>
-              </CommandItem>
-              {partners.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={`${p.name} ${PARTNER_CATEGORY_LABELS[p.category] ?? ""}`}
-                  onSelect={() => { onChange(p.id); setOpen(false); }}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-sm">{p.name}</span>
-                    <span className="text-[10px] text-[#B8A99A]">
-                      · {PARTNER_CATEGORY_LABELS[p.category] ?? p.category}
-                    </span>
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 // ── Componente principal ───────────────────────────────────────
 
@@ -1022,6 +880,9 @@ export default function WorkbenchClient({
           <StickyNoteButton
             value={local.sticky_note ?? ""}
             onSave={(v) => update("sticky_note", v.trim() || null)}
+            title="Nota da encomenda"
+            label="Nota da encomenda"
+            placeholder="Ex: cliente disse que o pendente é para deixar no caixão da mãe…"
           />
 
           {canEdit && (
@@ -1737,7 +1598,10 @@ export default function WorkbenchClient({
               <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
                 <div className="space-y-3">
                   <div className="grid grid-cols-[2fr_3fr] gap-3">
-                    <Field label="Orçamento" hint="Calculado a partir da tabela de preços.">
+                    <Field
+                      label="Orçamento"
+                      hint={local.pricing_snapshot ? "Calculado automaticamente — editável." : "Inserido manualmente."}
+                    >
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
                         <Input
@@ -1747,6 +1611,12 @@ export default function WorkbenchClient({
                           onChange={(e) => update("budget", e.target.value ? Number(e.target.value) : null)}
                         />
                       </div>
+                      <BudgetSnapshotBadge
+                        orderId={local.id}
+                        snapshot={local.pricing_snapshot}
+                        currentBudget={local.budget}
+                        canEdit={canEdit}
+                      />
                     </Field>
                     <Field label="Pagamento">
                       <Select value={local.payment_status} onValueChange={(v) => onPaymentStatusChange(v as PaymentStatus)}>
@@ -1823,6 +1693,7 @@ export default function WorkbenchClient({
                       <PartnerCombobox
                         partners={partners}
                         value={local.partner_id}
+                        triggerCls={sel}
                         onChange={(id) => {
                           const updates: Partial<OrderUpdate> = { partner_id: id };
                           // Auto-preenche 10% do orçamento quando se escolhe um parceiro
@@ -2621,5 +2492,122 @@ function ExtraPieceRow({
         title={showQty ? "Quantidade" : "Selecciona Sim/Mais info para indicar quantidade"}
       />
     </div>
+  );
+}
+
+// ============================================================
+// Badge do snapshot de preços + botão "recalcular"
+// ============================================================
+function BudgetSnapshotBadge({
+  orderId,
+  snapshot,
+  currentBudget,
+  canEdit,
+}: {
+  orderId: string;
+  snapshot: PricingSnapshot | null;
+  currentBudget: number | null;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function recompute() {
+    setBusy(true);
+    try {
+      await recomputeOrderBudgetAction(orderId);
+      toast.success("Orçamento recalculado a partir dos preços actuais.");
+      router.refresh();
+      setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao recalcular");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!snapshot) {
+    return (
+      <div className="mt-1.5 flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-wider rounded-full bg-stone-100 text-stone-700 px-2 py-0.5 font-semibold">
+          Manual
+        </span>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={recompute}
+            disabled={busy}
+            className="text-[10px] text-emerald-700 hover:text-emerald-900 hover:underline disabled:opacity-50"
+            title="Calcular o orçamento a partir da tabela de preços"
+          >
+            {busy ? "A calcular…" : "Calcular automaticamente"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const matchesSnapshot = currentBudget !== null && Math.abs(currentBudget - snapshot.total) < 0.01;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        className="mt-1.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider rounded-full px-2 py-0.5 font-semibold transition-colors bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+        title="Ver detalhe do cálculo automático"
+      >
+        <Sparkles className="h-2.5 w-2.5" />
+        {matchesSnapshot ? "Auto-calculado" : "Auto · editado"}
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0 overflow-hidden" align="start">
+        <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
+            <Sparkles className="h-4 w-4" />
+            Cálculo automático
+          </div>
+          <div className="text-[11px] text-emerald-700 mt-0.5">
+            Snapshot feito em {format(parseISO(snapshot.computed_at), "dd/MM/yyyy HH:mm")}
+          </div>
+        </div>
+        <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto">
+          {snapshot.lines.map((l, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex-1 truncate">
+                <span className="text-[#3D2B1F]">{l.label}</span>
+                {l.qty > 1 && (
+                  <span className="text-[#8B7355]"> × {l.qty}</span>
+                )}
+              </div>
+              <span className="text-[#8B7355] tabular-nums">
+                {l.subtotal.toFixed(2).replace(".", ",")}€
+              </span>
+            </div>
+          ))}
+          <div className="border-t border-[#E8E0D5] pt-1.5 mt-1.5 flex items-center justify-between text-sm font-semibold">
+            <span className="text-[#3D2B1F]">Total calculado</span>
+            <span className="text-emerald-700 tabular-nums">
+              {snapshot.total.toFixed(2).replace(".", ",")}€
+            </span>
+          </div>
+          {!matchesSnapshot && (
+            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
+              O orçamento actual ({currentBudget !== null ? currentBudget.toFixed(2).replace(".", ",") : "—"}€) foi editado manualmente.
+            </div>
+          )}
+        </div>
+        {canEdit && (
+          <div className="border-t border-[#E8E0D5] p-2 flex gap-2">
+            <button
+              type="button"
+              onClick={recompute}
+              disabled={busy}
+              className="flex-1 h-8 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            >
+              {busy ? "A recalcular…" : "Recalcular com preços actuais"}
+            </button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

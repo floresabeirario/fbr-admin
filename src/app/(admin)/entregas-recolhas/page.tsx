@@ -1,8 +1,19 @@
-export default function EntregasRecolhasPage() {
-  return (
-    <div className="p-4 sm:p-8">
-      <h1 className="text-2xl font-semibold text-[#3D2B1F]">Entregas e Recolhas</h1>
-      <p className="mt-2 text-sm text-[#8B7355]">Em construção.</p>
-    </div>
-  );
+import { createClient } from "@/lib/supabase/server";
+import type { Order } from "@/types/database";
+import EntregasRecolhasClient from "./entregas-recolhas-client";
+
+export const dynamic = "force-dynamic";
+
+export default async function EntregasRecolhasPage() {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("orders")
+    .select("*")
+    .is("deleted_at", null)
+    .order("event_date", { ascending: true, nullsFirst: false });
+
+  const orders: Order[] = (data ?? []) as Order[];
+
+  return <EntregasRecolhasClient orders={orders} />;
 }

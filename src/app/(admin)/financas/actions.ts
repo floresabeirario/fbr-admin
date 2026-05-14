@@ -8,6 +8,7 @@ import type {
   CompetitorInsert,
   CompetitorUpdate,
 } from "@/types/competitor";
+import type { PricingItem, PricingItemUpdate } from "@/types/pricing";
 
 // Aba Finanças → Competição: só admin escreve. A Ana lê.
 
@@ -58,3 +59,25 @@ export async function archiveCompetitorAction(id: string): Promise<void> {
   if (error) throw new Error(error.message);
   revalidatePath("/financas");
 }
+
+// ============================================================
+// PRICING ITEMS — Tabela de preços (cálculo automático do orçamento)
+// ============================================================
+
+export async function updatePricingItemAction(
+  id: string,
+  updates: PricingItemUpdate,
+): Promise<PricingItem> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pricing_items")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/financas");
+  return data as PricingItem;
+}
+
