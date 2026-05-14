@@ -39,6 +39,27 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
 };
 
+// Cor hexadecimal correspondente (para uso em SVG/charts onde não dá para
+// usar classes Tailwind). Espelha o tom 400/500 dos `STATUS_DOT_COLORS`.
+export const STATUS_HEX: Record<OrderStatus, string> = {
+  entrega_flores_agendar: "#fb7185", // rose-400
+  entrega_agendada:       "#f472b6", // pink-400
+  flores_enviadas:        "#e879f9", // fuchsia-400
+  flores_recebidas:       "#c084fc", // purple-400
+  flores_na_prensa:       "#a78bfa", // violet-400
+  reconstrucao_botanica:  "#818cf8", // indigo-400
+  a_compor_design:        "#60a5fa", // blue-400
+  a_aguardar_aprovacao:   "#38bdf8", // sky-400
+  a_finalizar_quadro:     "#22d3ee", // cyan-400
+  a_ser_emoldurado:       "#2dd4bf", // teal-400
+  emoldurado:             "#34d399", // emerald-400
+  a_ser_fotografado:      "#a3e635", // lime-400
+  quadro_pronto:          "#facc15", // yellow-400
+  quadro_enviado:         "#fb923c", // orange-400
+  quadro_recebido:        "#22c55e", // green-500
+  cancelado:              "#a8a29e", // stone-400
+};
+
 // Variante "dot" para usar como bolinha colorida (pequena, sem borda)
 export const STATUS_DOT_COLORS: Record<OrderStatus, string> = {
   entrega_flores_agendar: "bg-rose-400",

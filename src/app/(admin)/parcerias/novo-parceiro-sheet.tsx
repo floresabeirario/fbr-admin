@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
   Building2,
   User,
@@ -301,45 +302,38 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
             </div>
           </section>
 
-          {/* Localização */}
+          {/* Localização — autocomplete via Nominatim (OSM) */}
           <section className="space-y-3">
             <SectionTitle icon={MapPin} label="Localização" />
             <div className="space-y-2">
-              <Label htmlFor="location_label">Local de actuação</Label>
-              <Input
-                id="location_label"
-                value={form.location_label ?? ""}
-                onChange={(e) => set("location_label", e.target.value)}
-                placeholder="Ex: Porto / Norte / Algarve"
+              <Label>Procurar morada</Label>
+              <AddressAutocomplete
+                value={form.location_label ?? null}
+                onSelect={(sel) => {
+                  set("location_label", sel.label);
+                  set("latitude", sel.latitude);
+                  set("longitude", sel.longitude);
+                }}
+                onClear={() => {
+                  set("location_label", null);
+                  set("latitude", null);
+                  set("longitude", null);
+                }}
+                placeholder="Ex.: Rua Mouzinho, Porto"
               />
+              {(form.latitude !== null || form.longitude !== null) && (
+                <p className="text-[11px] text-emerald-700 inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  <span className="tabular-nums">
+                    {form.latitude?.toFixed(4)}, {form.longitude?.toFixed(4)}
+                  </span>
+                </p>
+              )}
+              <p className="text-[11px] text-[#B8A99A]">
+                Os resultados vêm do OpenStreetMap. Limitado a 1 sugestão por
+                segundo (debounce de 400ms).
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="latitude">Latitude</Label>
-                <Input
-                  id="latitude"
-                  type="number"
-                  step="0.000001"
-                  value={form.latitude ?? ""}
-                  onChange={(e) => set("latitude", e.target.value === "" ? null : parseFloat(e.target.value))}
-                  placeholder="41.15"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="longitude">Longitude</Label>
-                <Input
-                  id="longitude"
-                  type="number"
-                  step="0.000001"
-                  value={form.longitude ?? ""}
-                  onChange={(e) => set("longitude", e.target.value === "" ? null : parseFloat(e.target.value))}
-                  placeholder="-8.61"
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-[#B8A99A]">
-              Coordenadas opcionais. Procura no Google Maps, clica direito no local e copia a primeira linha (latitude, longitude).
-            </p>
           </section>
 
           {/* Comissão */}

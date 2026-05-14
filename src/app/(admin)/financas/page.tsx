@@ -1,8 +1,22 @@
-export default function FinancasPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold text-[#3D2B1F]">Finanças</h1>
-      <p className="mt-2 text-sm text-[#8B7355]">Em construção.</p>
-    </div>
-  );
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentRole } from "@/lib/auth/server";
+import type { Competitor } from "@/types/competitor";
+import FinancasClient from "./financas-client";
+
+export const dynamic = "force-dynamic";
+
+export default async function FinancasPage() {
+  const supabase = await createClient();
+  const role = await getCurrentRole();
+  const canEdit = role === "admin";
+
+  const { data } = await supabase
+    .from("competitors")
+    .select("*")
+    .is("deleted_at", null)
+    .order("name", { ascending: true });
+
+  const competitors: Competitor[] = (data ?? []) as Competitor[];
+
+  return <FinancasClient initialCompetitors={competitors} canEdit={canEdit} />;
 }

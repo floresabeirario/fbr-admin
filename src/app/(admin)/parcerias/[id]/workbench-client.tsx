@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
   Select,
   SelectContent,
@@ -312,43 +313,23 @@ export default function PartnerWorkbenchClient({
               />
             </Card>
 
-            {/* Localização */}
-            <Card icon={MapPin} title="Localização" color="border-l-emerald-400">
-              <Field label="Local de actuação">
-                <Input
-                  defaultValue={partner.location_label ?? ""}
-                  onBlur={(e) => saveField("location_label", e.target.value || null)}
-                  placeholder="Ex: Porto / Norte / Algarve"
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Latitude">
-                  <Input
-                    type="number"
-                    step="0.000001"
-                    defaultValue={partner.latitude ?? ""}
-                    onBlur={(e) => saveField(
-                      "latitude",
-                      e.target.value === "" ? null : parseFloat(e.target.value),
-                    )}
-                  />
-                </Field>
-                <Field label="Longitude">
-                  <Input
-                    type="number"
-                    step="0.000001"
-                    defaultValue={partner.longitude ?? ""}
-                    onBlur={(e) => saveField(
-                      "longitude",
-                      e.target.value === "" ? null : parseFloat(e.target.value),
-                    )}
-                  />
-                </Field>
-              </div>
-              <p className="text-[11px] text-[#B8A99A]">
-                Procura no Google Maps, clica direito no local e copia (latitude, longitude).
-              </p>
-            </Card>
+            {/* Localização — agora com autocomplete (Nominatim/OSM) */}
+            <LocationCard
+              partner={partner}
+              onChange={async (loc) => {
+                setSavingField("location");
+                setPartner((p) => ({ ...p, ...loc }));
+                try {
+                  await updatePartnerAction(partner.id, loc);
+                  router.refresh();
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setSavingField(null);
+                }
+              }}
+            />
+
 
             {/* Comissão */}
             <Card icon={Sparkles} title="Comissão" color="border-l-amber-400">
@@ -1103,3 +1084,93 @@ function RecommendedClients({
     </div>
   );
 }
+
+// ── Card "Localização" com autocomplete de morada ─────────────
+// Usa o Nominatim (OpenStreetMap) para procurar moradas e devolver
+// label + coordenadas. Permite ainda edição manual de lat/long no
+// fundo, mas escondida atrás de um toggle.
+
+function LocationCard({
+  partner,
+  onChange,
+}: {
+  partner: Partner;
+  onChange: (loc: { location_label: string | null; latitude: number | null; longitude: number | null }) => void | Promise<void>;
+}) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  return (
+    <Card icon={MapPin} title="Localização" color="border-l-emerald-400">
+      <Field label="Procurar morada">
+        <AddressAutocomplete
+          value={partner.location_label}
+          onSelect={(sel) =>
+            onChange({
+              location_label: sel.label,
+              latitude: sel.latitude,
+              longitude: sel.longitude,
+            })
+          }
+          onClear={() =>
+            onChange({
+              location_label: null,
+              latitude: null,
+              longitude: null,
+            })
+          }
+          placeholder="Ex.: Rua Mouzinho, Porto"
+        />
+      </Field>
+
+      {(partner.latitude !== null || partner.longitude !== null) && (
+        <p className="text-[11px] text-emerald-700 inline-flex items-center gap-1">
+          <MapPin className="h-3 w-3" />
+          <span className="tabular-nums">
+            {partner.latitude?.toFixed(4)}, {partner.longitude?.toFixed(4)}
+          </span>
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="text-[11px] text-[#8B7355] hover:text-[#3D2B1F] underline"
+      >
+        {showAdvanced ? "Esconder edição manual" : "Editar coordenadas manualmente"}
+      </button>
+
+      {showAdvanced && (
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <Field label="Latitude">
+            <Input
+              type="number"
+              step="0.000001"
+              defaultValue={partner.latitude ?? ""}
+              onBlur={(e) =>
+                onChange({
+                  location_label: partner.location_label,
+                  latitude: e.target.value === "" ? null : parseFloat(e.target.value),
+                  longitude: partner.longitude,
+                })
+              }
+            />
+          </Field>
+          <Field label="Longitude">
+            <Input
+              type="number"
+              step="0.000001"
+              defaultValue={partner.longitude ?? ""}
+              onBlur={(e) =>
+                onChange({
+                  location_label: partner.location_label,
+                  latitude: partner.latitude,
+                  longitude: e.target.value === "" ? null : parseFloat(e.target.value),
+                })
+              }
+            />
+          </Field>
+        </div>
+      )}
+    </Card>
+  );
+}
+
