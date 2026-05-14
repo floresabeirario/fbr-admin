@@ -26,7 +26,9 @@ import {
   History,
   Menu,
   X,
+  Search,
 } from "lucide-react";
+import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -151,6 +153,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </div>
 
+      {/* Search trigger — abre a palette Cmd/Ctrl+K */}
+      <div className="px-2 pt-3 pb-1">
+        <button
+          type="button"
+          onClick={openGlobalSearch}
+          className={cn(
+            "w-full flex items-center gap-2 rounded-lg border border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1C1C1E] px-2.5 py-1.5 text-sm text-[#8B7355] dark:text-[#8E8E93] hover:bg-white dark:hover:bg-[#2C2C2E] hover:border-[#D9CDB9] dark:hover:border-[#3C3C3E] transition-colors",
+            isDesktop && collapsed && "justify-center px-0",
+          )}
+          title="Pesquisar (Ctrl+K)"
+        >
+          <Search className="h-3.5 w-3.5 shrink-0" />
+          {(!isDesktop || !collapsed) && (
+            <>
+              <span className="flex-1 text-left text-[13px]">Procurar…</span>
+              <span className="text-[10px] font-mono text-[#B8A99A] dark:text-[#8E8E93] rounded border border-[#E8E0D5] dark:border-[#2C2C2E] px-1">
+                Ctrl K
+              </span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Nav */}
       <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-y-auto px-2">
         {navItems
@@ -255,7 +280,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <span className="font-['TanMemories'] text-lg text-[#3D2B1F] dark:text-[#E8D5B5]">
           FBR Admin
         </span>
-        <div className="w-10" />
+        <button
+          type="button"
+          onClick={openGlobalSearch}
+          aria-label="Pesquisar"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-[#3D2B1F] hover:bg-[#FAF8F5] dark:text-[#E8D5B5] dark:hover:bg-[#2C2C2E]"
+        >
+          <Search className="h-5 w-5" />
+        </button>
       </header>
 
       {/* Sidebar */}
@@ -288,6 +320,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main className="flex-1 min-w-0 h-full overflow-auto">
         {children}
       </main>
+
+      {/* Pesquisa global — Cmd/Ctrl+K + botões de trigger */}
+      <GlobalSearch />
     </div>
   );
 }
