@@ -7,23 +7,25 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Estrutura aprovada pela Maria (sessão 37):
+ * Estrutura aprovada pela Maria:
  *
  *   📁 FBR — Encomendas              (raiz)
  *   ├─ 📁 Preservação de Flores
- *   │   └─ 📁 [Cliente] | dd/MM/yyyy
- *   │       ├─ 📁 Comprovativos de pagamento
- *   │       ├─ 📁 Faturas
- *   │       ├─ 📁 1. Receção das flores
- *   │       ├─ 📁 2. Preservação
- *   │       ├─ 📁 3. Reconstrução
- *   │       ├─ 📁 4. Composição e colagem
- *   │       ├─ 📁 5. Emolduramento
- *   │       └─ 📁 6. Resultado final
+ *   │   └─ 📁 {ano do evento}        (ex.: 2026)
+ *   │       └─ 📁 [Cliente] | dd/MM/yyyy
+ *   │           ├─ 📁 Comprovativos de pagamento
+ *   │           ├─ 📁 Faturas
+ *   │           ├─ 📁 1. Receção das flores
+ *   │           ├─ 📁 2. Preservação
+ *   │           ├─ 📁 3. Reconstrução
+ *   │           ├─ 📁 4. Composição e colagem
+ *   │           ├─ 📁 5. Emolduramento
+ *   │           └─ 📁 6. Resultado final
  *   └─ 📁 Vale-Presente
- *       └─ 📁 [Remetente] | dd/MM/yyyy (data criação)
- *           ├─ 📁 Comprovativos de pagamento
- *           └─ 📁 Faturas
+ *       └─ 📁 {ano de criação}
+ *           └─ 📁 [Remetente] | dd/MM/yyyy (data criação)
+ *               ├─ 📁 Comprovativos de pagamento
+ *               └─ 📁 Faturas
  */
 
 export const DRIVE_ROOT_NAME = "FBR — Encomendas";
@@ -55,6 +57,13 @@ function formatDateForFolder(dateIso: string | null | undefined): string {
   const mm = String(source.getMonth() + 1).padStart(2, "0");
   const yyyy = source.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
+}
+
+function yearFolderName(dateIso: string | null | undefined): string {
+  if (!dateIso) return "Sem data";
+  const source = new Date(dateIso);
+  if (Number.isNaN(source.getTime())) return "Sem data";
+  return String(source.getFullYear());
 }
 
 /** Sanitiza o nome do cliente para não rebentar paths/queries. */
@@ -181,8 +190,10 @@ export async function ensureOrderFolder(params: {
   const { ordersId } = await ensureRootFolders();
   const drive = await getDrive();
 
+  const yearId = await ensureFolder(drive, yearFolderName(params.eventDate), ordersId);
+
   const folderName = `${sanitize(params.customerName)} | ${formatDateForFolder(params.eventDate)}`;
-  const orderFolderId = await ensureFolder(drive, folderName, ordersId);
+  const orderFolderId = await ensureFolder(drive, folderName, yearId);
 
   for (const sub of ORDER_SUBFOLDERS) {
     await ensureFolder(drive, sub, orderFolderId);
@@ -201,8 +212,10 @@ export async function ensureVoucherFolder(params: {
   const { vouchersId } = await ensureRootFolders();
   const drive = await getDrive();
 
+  const yearId = await ensureFolder(drive, yearFolderName(params.createdAt), vouchersId);
+
   const folderName = `${sanitize(params.senderName)} | ${formatDateForFolder(params.createdAt)}`;
-  const voucherFolderId = await ensureFolder(drive, folderName, vouchersId);
+  const voucherFolderId = await ensureFolder(drive, folderName, yearId);
 
   for (const sub of VOUCHER_SUBFOLDERS) {
     await ensureFolder(drive, sub, voucherFolderId);
