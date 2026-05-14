@@ -107,10 +107,10 @@ export function GoogleSettingsClient({
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-5">
       <div>
-        <h1 className="font-['TanMemories'] text-3xl text-[#3D2B1F] dark:text-[#E8D5B5]">
+        <h1 className="font-['TanMemories'] text-3xl text-cocoa-900">
           Integração Google
         </h1>
-        <p className="text-sm text-[#8B7355] mt-1">
+        <p className="text-sm text-cocoa-700 mt-1">
           Conecta a conta info@floresabeirario.pt para autorizar acesso a Drive, Gmail e Google Calendar.
         </p>
       </div>
@@ -174,20 +174,20 @@ export function GoogleSettingsClient({
             <>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-[#B8A99A]">Conta Google</dt>
-                  <dd className="font-mono text-[13px] text-[#3D2B1F]">{integration?.google_email}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-cocoa-500">Conta Google</dt>
+                  <dd className="font-mono text-[13px] text-cocoa-900">{integration?.google_email}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-[#B8A99A]">Conectado em</dt>
-                  <dd className="text-[13px] text-[#3D2B1F]">{formatDate(integration?.connected_at ?? null)}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-cocoa-500">Conectado em</dt>
+                  <dd className="text-[13px] text-cocoa-900">{formatDate(integration?.connected_at ?? null)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-[#B8A99A]">Conectado por</dt>
-                  <dd className="text-[13px] text-[#3D2B1F]">{integration?.connected_by_email ?? "—"}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-cocoa-500">Conectado por</dt>
+                  <dd className="text-[13px] text-cocoa-900">{integration?.connected_by_email ?? "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-[#B8A99A]">Permissões (scopes)</dt>
-                  <dd className="text-[12px] text-[#3D2B1F] flex flex-wrap gap-1 mt-0.5">
+                  <dt className="text-xs uppercase tracking-wider text-cocoa-500">Permissões (scopes)</dt>
+                  <dd className="text-[12px] text-cocoa-900 flex flex-wrap gap-1 mt-0.5">
                     {(integration?.scopes ?? []).map((s) => {
                       const short = s.split("/").pop() || s;
                       return (
@@ -220,7 +220,7 @@ export function GoogleSettingsClient({
             </>
           ) : (
             <>
-              <p className="text-sm text-[#8B7355]">
+              <p className="text-sm text-cocoa-700">
                 Carrega no botão abaixo para iniciar o fluxo de autorização do Google. Vais ser redirecionado
                 para a tela de consentimento; tem de ser feito com{" "}
                 <span className="font-mono">info@floresabeirario.pt</span>.
@@ -243,8 +243,8 @@ export function GoogleSettingsClient({
             <CardTitle>Estrutura de pastas na Drive</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-sm text-[#8B7355]">
-              Estrutura: <span className="font-medium text-[#3D2B1F]">FBR — Encomendas</span> →
+            <div className="text-sm text-cocoa-700">
+              Estrutura: <span className="font-medium text-cocoa-900">FBR — Encomendas</span> →
               {" "}<span className="font-medium">Preservação de Flores</span> ou
               {" "}<span className="font-medium">Vale-Presente</span> → pasta de cada cliente com subpastas
               por fase.
@@ -275,7 +275,7 @@ export function GoogleSettingsClient({
               <FolderPlus className="h-4 w-4 mr-2" />
               Verificar / criar pastas-mãe agora
             </Button>
-            <p className="text-xs text-[#B8A99A]">
+            <p className="text-xs text-cocoa-500">
               Em geral isto é feito automaticamente da 1ª vez que uma encomenda recebe pagamento. Este botão
               é útil se quiseres preparar a estrutura agora ou se algo correu mal.
             </p>
@@ -290,7 +290,7 @@ export function GoogleSettingsClient({
             <CardTitle>Calendário &ldquo;Preservação de Flores&rdquo;</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-sm text-[#8B7355]">
+            <div className="text-sm text-cocoa-700">
               Ao 1º pagamento de uma encomenda, é criado automaticamente um evento all-day na
               data do evento do cliente neste calendário dedicado. Vales não geram eventos.
             </div>
@@ -299,7 +299,7 @@ export function GoogleSettingsClient({
               {integration?.calendar_id ? (
                 <>
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span className="text-[#3D2B1F]">Calendário pronto</span>
+                  <span className="text-cocoa-900">Calendário pronto</span>
                   <a
                     href={`https://calendar.google.com/calendar/u/0/r?cid=${encodeURIComponent(integration.calendar_id)}`}
                     target="_blank"
@@ -312,7 +312,7 @@ export function GoogleSettingsClient({
               ) : (
                 <>
                   <XCircle className="h-4 w-4 text-stone-300 shrink-0" />
-                  <span className="text-[#3D2B1F]">Ainda não criado</span>
+                  <span className="text-cocoa-900">Ainda não criado</span>
                 </>
               )}
             </div>
@@ -325,7 +325,7 @@ export function GoogleSettingsClient({
               <CalendarPlus className="h-4 w-4 mr-2" />
               Verificar / criar calendário agora
             </Button>
-            <p className="text-xs text-[#B8A99A]">
+            <p className="text-xs text-cocoa-500">
               Cria o calendário (se ainda não existir) ou apenas confirma que está acessível.
               É feito automaticamente no 1º evento — este botão é útil para preparar antes ou
               recuperar caso o calendário tenha sido apagado.
@@ -340,7 +340,7 @@ export function GoogleSettingsClient({
           <CardHeader>
             <CardTitle className="text-sm">Antes de conectar — setup do Google Cloud</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-[#8B7355] space-y-2">
+          <CardContent className="text-sm text-cocoa-700 space-y-2">
             <p>Se ainda não criaste o OAuth client no Google Cloud Console:</p>
             <ol className="list-decimal pl-5 space-y-1 text-[13px]">
               <li>Vai a{" "}
@@ -388,7 +388,7 @@ function FolderRow({ label, id, indent }: { label: string; id: string | null; in
       ) : (
         <XCircle className="h-4 w-4 text-stone-300 shrink-0" />
       )}
-      <span className="text-[#3D2B1F]">{label}</span>
+      <span className="text-cocoa-900">{label}</span>
       {id && (
         <a
           href={folderUrl(id) ?? "#"}

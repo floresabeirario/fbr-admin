@@ -149,7 +149,7 @@ export function AddressAutocomplete({
   return (
     <div ref={containerRef} className={cn("relative", className)}>
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A] pointer-events-none" />
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500 pointer-events-none" />
         <Input
           value={query}
           onChange={(e) => {
@@ -170,7 +170,7 @@ export function AddressAutocomplete({
           className="pl-8 pr-8"
         />
         {loading && (
-          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A] animate-spin" />
+          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500 animate-spin" />
         )}
         {!loading && value && onClear && (
           <Button
@@ -192,33 +192,33 @@ export function AddressAutocomplete({
       </div>
 
       {open && displayResults.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto rounded-md border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] shadow-lg">
+        <div className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto rounded-md border border-cream-200 bg-surface shadow-lg">
           {displayResults.map((r) => (
             <button
               key={r.place_id}
               type="button"
               onClick={() => handleSelect(r)}
-              className="w-full text-left px-3 py-2 hover:bg-[#FAF8F5] dark:hover:bg-[#1A1A1A] border-b border-[#F0EAE0] dark:border-[#1F1F1F] last:border-0 flex items-start gap-2"
+              className="w-full text-left px-3 py-2 hover:bg-cream-50 border-b border-cream-100 last:border-0 flex items-start gap-2"
             >
               <MapPin className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
               <div className="min-w-0">
-                <div className="text-sm text-[#3D2B1F] dark:text-[#E8D5B5] truncate">
+                <div className="text-sm text-cocoa-900 truncate">
                   {r.display_name}
                 </div>
-                <div className="text-[10px] text-[#B8A99A] tabular-nums">
+                <div className="text-[10px] text-cocoa-500 tabular-nums">
                   {parseFloat(r.lat).toFixed(4)}, {parseFloat(r.lon).toFixed(4)}
                 </div>
               </div>
             </button>
           ))}
-          <div className="px-3 py-1.5 text-[10px] text-[#B8A99A] italic border-t border-[#F0EAE0] dark:border-[#1F1F1F]">
+          <div className="px-3 py-1.5 text-[10px] text-cocoa-500 italic border-t border-cream-100">
             Resultados de OpenStreetMap (Nominatim)
           </div>
         </div>
       )}
 
       {open && !loading && trimmed.length >= 3 && displayResults.length === 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] shadow-lg p-3 text-xs text-[#8B7355]">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-cream-200 bg-surface shadow-lg p-3 text-xs text-cocoa-700">
           Sem resultados para &ldquo;{query}&rdquo;.
         </div>
       )}

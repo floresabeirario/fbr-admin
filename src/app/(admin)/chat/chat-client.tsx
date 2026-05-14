@@ -160,18 +160,18 @@ export default function ChatClient({
   return (
     <div className="flex flex-col h-full max-h-screen">
       {/* Header */}
-      <div className="shrink-0 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white">
+      <div className="shrink-0 px-3 sm:px-6 py-3 sm:py-4 border-b border-cream-200 bg-surface">
         <div className="flex items-center gap-3 max-w-[1100px] mx-auto">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-500 shadow-sm flex items-center justify-center">
             <MessageCircle className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1">
-            <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Chat interno</h1>
-            <p className="text-xs text-[#8B7355]">
+            <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Chat interno</h1>
+            <p className="text-xs text-cocoa-700">
               António, MJ e Ana — apenas vocês os 3 vêem esta conversa.
             </p>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-[#B8A99A]">
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-cocoa-500">
             <Info className="h-3 w-3" />
             <span>Versão inicial — só texto. Fotos, vídeo e áudio em breve.</span>
           </div>
@@ -179,12 +179,12 @@ export default function ChatClient({
       </div>
 
       {/* Mensagens */}
-      <div className="flex-1 overflow-y-auto bg-[#FAF8F5]">
+      <div className="flex-1 overflow-y-auto bg-cream-50">
         <div className="max-w-[1100px] mx-auto px-3 sm:px-6 py-4 space-y-4">
           {groupedDays.length === 0 && (
             <div className="text-center py-12">
               <MessageCircle className="h-12 w-12 mx-auto text-sky-200 mb-3" />
-              <p className="text-sm text-[#8B7355]">
+              <p className="text-sm text-cocoa-700">
                 Conversa vazia. Sê a primeira a dizer olá!
               </p>
             </div>
@@ -192,11 +192,11 @@ export default function ChatClient({
           {groupedDays.map((group) => (
             <div key={group.day} className="space-y-2">
               <div className="flex items-center gap-3 my-3">
-                <div className="flex-1 h-px bg-[#E8E0D5]" />
-                <span className="text-[10px] uppercase tracking-wider text-[#B8A99A] font-medium">
+                <div className="flex-1 h-px bg-cream-200" />
+                <span className="text-[10px] uppercase tracking-wider text-cocoa-500 font-medium">
                   {formatDayHeader(group.day)}
                 </span>
-                <div className="flex-1 h-px bg-[#E8E0D5]" />
+                <div className="flex-1 h-px bg-cream-200" />
               </div>
               {group.messages.map((m, i) => {
                 const isOwn = m.author_email === currentEmail;
@@ -227,18 +227,18 @@ export default function ChatClient({
 
       {/* Reply preview */}
       {replyTo && (
-        <div className="shrink-0 px-3 sm:px-6 py-2 border-t border-[#E8E0D5] bg-sky-50/60">
+        <div className="shrink-0 px-3 sm:px-6 py-2 border-t border-cream-200 bg-sky-50/60">
           <div className="max-w-[1100px] mx-auto flex items-center gap-2">
             <Reply className="h-3.5 w-3.5 text-sky-600" />
-            <span className="text-xs text-[#8B7355]">
+            <span className="text-xs text-cocoa-700">
               A responder a <strong>{memberFor(replyTo.author_email).name}</strong>:
-              <span className="ml-1 italic text-[#8B7355]/80 line-clamp-1">
+              <span className="ml-1 italic text-cocoa-700/80 line-clamp-1">
                 {replyTo.body.slice(0, 80)}
               </span>
             </span>
             <button
               onClick={() => setReplyTo(null)}
-              className="ml-auto text-[#B8A99A] hover:text-[#3D2B1F]"
+              className="ml-auto text-cocoa-500 hover:text-cocoa-900"
               title="Cancelar resposta"
             >
               <X className="h-3.5 w-3.5" />
@@ -248,7 +248,7 @@ export default function ChatClient({
       )}
 
       {/* Composer */}
-      <div className="shrink-0 px-3 sm:px-6 py-3 border-t border-[#E8E0D5] bg-white">
+      <div className="shrink-0 px-3 sm:px-6 py-3 border-t border-cream-200 bg-surface">
         <div className="max-w-[1100px] mx-auto flex items-end gap-2">
           <Textarea
             value={draft}
@@ -256,12 +256,12 @@ export default function ChatClient({
             onKeyDown={handleKeyDown}
             placeholder="Escreve uma mensagem... (Enter para enviar, Shift+Enter para quebra de linha)"
             rows={1}
-            className="resize-none min-h-[40px] max-h-[160px] text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+            className="resize-none min-h-[40px] max-h-[160px] text-sm border-cream-200 bg-cream-50 focus:bg-surface"
           />
           <Button
             onClick={handleSend}
             disabled={pending || !draft.trim()}
-            className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-10 px-3 shrink-0"
+            className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-10 px-3 shrink-0"
           >
             <Send className="h-4 w-4" />
           </Button>
@@ -307,29 +307,29 @@ function MessageBubble({
       {/* Bubble */}
       <div className={cn("max-w-[70%] space-y-1", isOwn && "items-end")}>
         {!stacked && (
-          <div className={cn("flex items-baseline gap-2 text-xs text-[#8B7355]", isOwn && "flex-row-reverse")}>
-            <span className="font-medium text-[#3D2B1F]">{member.name}</span>
-            <span className="text-[10px] text-[#B8A99A]">{formatTime(message.created_at)}</span>
+          <div className={cn("flex items-baseline gap-2 text-xs text-cocoa-700", isOwn && "flex-row-reverse")}>
+            <span className="font-medium text-cocoa-900">{member.name}</span>
+            <span className="text-[10px] text-cocoa-500">{formatTime(message.created_at)}</span>
           </div>
         )}
 
         {repliedTo && (
           <div className={cn(
-            "rounded-md border-l-2 px-2 py-1 text-xs bg-white/60",
-            isOwn ? "border-l-[#3D2B1F]" : "border-l-sky-400"
+            "rounded-md border-l-2 px-2 py-1 text-xs bg-surface/60",
+            isOwn ? "border-l-cocoa-900" : "border-l-sky-400"
           )}>
-            <p className="text-[10px] text-[#B8A99A] font-medium">
+            <p className="text-[10px] text-cocoa-500 font-medium">
               ↪ {memberFor(repliedTo.author_email).name}
             </p>
-            <p className="text-[#8B7355] line-clamp-2">{repliedTo.body}</p>
+            <p className="text-cocoa-700 line-clamp-2">{repliedTo.body}</p>
           </div>
         )}
 
         <div className={cn(
           "rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words shadow-sm",
           isOwn
-            ? "bg-[#3D2B1F] text-white rounded-tr-sm"
-            : "bg-white text-[#3D2B1F] border border-[#F0EAE0] rounded-tl-sm"
+            ? "bg-btn-primary text-btn-primary-fg rounded-tr-sm"
+            : "bg-surface text-cocoa-900 border border-cream-100 rounded-tl-sm"
         )}>
           {message.body}
         </div>
@@ -341,7 +341,7 @@ function MessageBubble({
         )}>
           <button
             onClick={onReply}
-            className="text-[10px] text-[#8B7355] hover:text-[#3D2B1F] inline-flex items-center gap-1"
+            className="text-[10px] text-cocoa-700 hover:text-cocoa-900 inline-flex items-center gap-1"
             title="Responder"
           >
             <Reply className="h-3 w-3" />
@@ -350,7 +350,7 @@ function MessageBubble({
           {isOwn && (
             <button
               onClick={onDelete}
-              className="text-[10px] text-[#8B7355] hover:text-rose-600 inline-flex items-center gap-1"
+              className="text-[10px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
               title="Apagar"
             >
               <Trash2 className="h-3 w-3" />
@@ -358,7 +358,7 @@ function MessageBubble({
             </button>
           )}
           {stacked && (
-            <span className="text-[10px] text-[#B8A99A]">{formatTime(message.created_at)}</span>
+            <span className="text-[10px] text-cocoa-500">{formatTime(message.created_at)}</span>
           )}
         </div>
       </div>

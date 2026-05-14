@@ -424,7 +424,7 @@ export const HOW_FOUND_FBR_COLORS: Record<HowFoundFBR, string> = {
   instagram:       "bg-gradient-to-r from-pink-500 via-fuchsia-500 to-orange-400 text-white border-transparent",
   facebook:        "bg-blue-600 text-white border-blue-700",
   casamentos_pt:   "bg-[#F16B6B] text-white border-[#D65555]",
-  google:          "bg-white text-slate-700 border-slate-300",
+  google:          "bg-surface text-slate-700 border-slate-300",
   vale_presente:   "bg-[#6E7DAF] text-white border-[#56689E]",
   florista:        "bg-pink-100 text-pink-700 border-pink-200",
   recomendacao:    "bg-purple-100 text-purple-800 border-purple-300",

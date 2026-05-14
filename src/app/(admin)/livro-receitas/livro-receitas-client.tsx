@@ -92,17 +92,17 @@ export default function LivroReceitasClient({
             <BookOpen className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+            <h1 className="text-2xl font-semibold text-cocoa-900">
               Livro de Receitas
             </h1>
-            <p className="text-sm text-[#8B7355]">
+            <p className="text-sm text-cocoa-700">
               Wiki interno: o &quot;how-to&quot; da preservação por tipo de flor.
             </p>
           </div>
         </div>
         <Button
           onClick={() => setCreating((v) => !v)}
-          className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
+          className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg gap-1.5"
         >
           <Plus className="h-4 w-4" />
           Nova receita
@@ -133,7 +133,7 @@ export default function LivroReceitasClient({
               </SelectContent>
             </Select>
             <div className="flex gap-2">
-              <Button onClick={handleCreate} disabled={pending} className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white">
+              <Button onClick={handleCreate} disabled={pending} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg">
                 Criar e abrir
               </Button>
               <Button variant="outline" onClick={() => setCreating(false)} disabled={pending}>
@@ -147,7 +147,7 @@ export default function LivroReceitasClient({
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
           <Input
             placeholder="Pesquisar receita..."
             value={search}
@@ -172,9 +172,9 @@ export default function LivroReceitasClient({
 
       {/* Grid de receitas */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#E8E0D5] bg-white p-12 text-center">
+        <div className="rounded-xl border border-dashed border-cream-200 bg-surface p-12 text-center">
           <Flower2 className="h-12 w-12 mx-auto text-pink-300 mb-3" />
-          <p className="text-sm text-[#8B7355]">
+          <p className="text-sm text-cocoa-700">
             {initialRecipes.length === 0
               ? "Ainda não há receitas. Cria a primeira para registar o conhecimento da preservação."
               : "Nenhuma receita corresponde aos filtros."}
@@ -205,7 +205,7 @@ function RecipeCard({ recipe }: { recipe: Recipe }) {
   return (
     <Link
       href={`/livro-receitas/${recipe.id}`}
-      className="group rounded-xl border border-[#E8E0D5] bg-white overflow-hidden hover:shadow-md hover:border-pink-300 transition-all"
+      className="group rounded-xl border border-cream-200 bg-surface overflow-hidden hover:shadow-md hover:border-pink-300 transition-all"
     >
       <div className="relative aspect-[4/3] bg-gradient-to-br from-pink-100 to-rose-100 overflow-hidden">
         {firstPhoto ? (
@@ -231,17 +231,17 @@ function RecipeCard({ recipe }: { recipe: Recipe }) {
       </div>
       <div className="p-4 space-y-2">
         <div>
-          <h3 className="font-semibold text-[#3D2B1F] group-hover:text-rose-700 transition-colors">
+          <h3 className="font-semibold text-cocoa-900 group-hover:text-rose-700 transition-colors">
             {recipe.flower_name}
           </h3>
           {recipe.scientific_name && (
-            <p className="text-xs italic text-[#B8A99A]">{recipe.scientific_name}</p>
+            <p className="text-xs italic text-cocoa-500">{recipe.scientific_name}</p>
           )}
         </div>
         {recipe.intro && (
-          <p className="text-sm text-[#8B7355] line-clamp-2">{recipe.intro}</p>
+          <p className="text-sm text-cocoa-700 line-clamp-2">{recipe.intro}</p>
         )}
-        <div className="flex flex-wrap gap-3 text-xs text-[#8B7355] pt-1">
+        <div className="flex flex-wrap gap-3 text-xs text-cocoa-700 pt-1">
           {pressLabel && (
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3 w-3" />

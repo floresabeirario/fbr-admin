@@ -111,16 +111,16 @@ export default function DefaultMessagesClient({
       <header className="space-y-3">
         <Link
           href="/status"
-          className="inline-flex items-center gap-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F]"
+          className="inline-flex items-center gap-1.5 text-xs text-cocoa-700 hover:text-cocoa-900"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Voltar à aba Status
         </Link>
         <div>
-          <h1 className="font-['TanMemories'] text-3xl text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="font-['TanMemories'] text-3xl text-cocoa-900">
             Mensagens default
           </h1>
-          <p className="mt-1 text-sm text-[#8B7355] dark:text-[#8E8E93] max-w-3xl">
+          <p className="mt-1 text-sm text-cocoa-700 max-w-3xl">
             Estes são os textos default que aparecem no site público para cada
             fase. Edita aqui se quiseres rephrasing global. Encomendas com
             mensagem personalizada não são afectadas. Deixa em branco para
@@ -155,16 +155,16 @@ export default function DefaultMessagesClient({
           return (
             <div
               key={k}
-              className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden"
+              className="rounded-xl border border-cream-200 bg-surface overflow-hidden"
             >
-              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#F0EAE0] bg-[#FAF8F5]">
+              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
                 <span
                   className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${PUBLIC_PHASE_COLORS[phase]}`}
                 >
                   {phase !== "cancelada" && <span className="opacity-60">{phase}</span>}
                   {PUBLIC_PHASE_LABEL_PT[phase]}
                 </span>
-                <span className="text-xs text-[#8B7355]">
+                <span className="text-xs text-cocoa-700">
                   {PUBLIC_PHASE_LABEL_EN[phase]}
                 </span>
               </div>
@@ -173,13 +173,13 @@ export default function DefaultMessagesClient({
                 {/* PT */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#8B7355]">
+                    <label className="text-xs font-bold uppercase tracking-wider text-cocoa-700">
                       🇵🇹 Português
                     </label>
                     {ptCustom && (
                       <button
                         onClick={() => resetPhase(phase, "pt")}
-                        className="text-[11px] text-[#8B7355] hover:text-rose-600 inline-flex items-center gap-1"
+                        className="text-[11px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
                       >
                         <RotateCcw className="h-3 w-3" />
                         Repor original
@@ -198,13 +198,13 @@ export default function DefaultMessagesClient({
                 {/* EN */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#8B7355]">
+                    <label className="text-xs font-bold uppercase tracking-wider text-cocoa-700">
                       🇬🇧 English
                     </label>
                     {enCustom && (
                       <button
                         onClick={() => resetPhase(phase, "en")}
-                        className="text-[11px] text-[#8B7355] hover:text-rose-600 inline-flex items-center gap-1"
+                        className="text-[11px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
                       >
                         <RotateCcw className="h-3 w-3" />
                         Reset to original
@@ -226,8 +226,8 @@ export default function DefaultMessagesClient({
       </div>
 
       {/* Footer fixo */}
-      <div className="sticky bottom-0 -mx-6 lg:-mx-8 mt-6 px-6 lg:px-8 py-3 bg-white/95 backdrop-blur border-t border-[#E8E0D5] flex items-center justify-between">
-        <div className="text-xs text-[#8B7355]">
+      <div className="sticky bottom-0 -mx-6 lg:-mx-8 mt-6 px-6 lg:px-8 py-3 bg-surface/95 backdrop-blur border-t border-cream-200 flex items-center justify-between">
+        <div className="text-xs text-cocoa-700">
           {isDirty ? (
             <span className="text-amber-700">Tens alterações por guardar.</span>
           ) : savedFlash ? (

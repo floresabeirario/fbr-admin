@@ -76,7 +76,7 @@ export function StickyNoteButton({
           onChange={(e) => setDraft(e.target.value)}
           placeholder={placeholder}
           rows={6}
-          className="border-yellow-200 bg-white text-sm text-yellow-950 placeholder:text-yellow-700/40"
+          className="border-yellow-200 bg-surface text-sm text-yellow-950 placeholder:text-yellow-700/40"
           autoFocus
         />
         <div className="flex justify-end gap-2 pt-2">

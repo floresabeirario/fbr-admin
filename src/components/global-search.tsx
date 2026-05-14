@@ -165,12 +165,12 @@ export function GlobalSearch() {
       />
       <CommandList>
         {showHint && (
-          <div className="px-3 py-6 text-center text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <div className="px-3 py-6 text-center text-sm text-cocoa-700">
             Escreve pelo menos 2 caracteres para procurar.
           </div>
         )}
         {pending && (
-          <div className="px-3 py-6 text-center text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <div className="px-3 py-6 text-center text-sm text-cocoa-700">
             <Loader2 className="inline-block h-4 w-4 animate-spin mr-2" />
             A procurar…
           </div>
@@ -190,17 +190,17 @@ export function GlobalSearch() {
                   value={`${r.kind}-${r.id}-${r.title}-${r.meta ?? ""}`}
                   onSelect={() => goTo(r.href)}
                 >
-                  <Icon className="h-4 w-4 text-[#8B7355]" />
+                  <Icon className="h-4 w-4 text-cocoa-700" />
                   <div className="flex flex-col min-w-0 flex-1">
                     <span className="truncate text-sm">{r.title}</span>
                     {r.subtitle && (
-                      <span className="truncate text-[11px] text-[#B8A99A]">
+                      <span className="truncate text-[11px] text-cocoa-500">
                         {r.subtitle}
                       </span>
                     )}
                   </div>
                   {r.meta && (
-                    <span className="ml-2 shrink-0 rounded-full bg-[#F0EAE0] px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#8B7355] dark:bg-[#2C2C2E] dark:text-[#B8A99A]">
+                    <span className="ml-2 shrink-0 rounded-full bg-cream-100 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-cocoa-700 dark:text-cocoa-500">
                       {r.meta}
                     </span>
                   )}
@@ -210,7 +210,7 @@ export function GlobalSearch() {
           );
         })}
       </CommandList>
-      <div className="border-t border-[#E8E0D5] dark:border-[#2C2C2E] px-3 py-2 text-[11px] text-[#B8A99A] dark:text-[#8E8E93] flex items-center justify-between">
+      <div className="border-t border-cream-200 px-3 py-2 text-[11px] text-cocoa-500 flex items-center justify-between">
         <span>↑↓ navegar · ↵ abrir · Esc fechar</span>
         <span className="font-mono">{isMac() ? "⌘" : "Ctrl"}+K</span>
       </div>

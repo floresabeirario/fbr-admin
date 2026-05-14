@@ -250,11 +250,11 @@ function Card({
 }) {
   const a = accent ? ACCENTS[accent] : null;
   return (
-    <div className={`rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""}`}>
-      <div className={`flex items-center justify-between gap-2 px-5 py-3 border-b border-[#F0EAE0] ${a ? a.bgSoft : ""}`}>
+    <div className={`rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""}`}>
+      <div className={`flex items-center justify-between gap-2 px-5 py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
         <div className="flex items-center gap-2">
-          {icon && <span className={a?.icon ?? "text-[#B8A99A]"}>{icon}</span>}
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8B7355]">{title}</p>
+          {icon && <span className={a?.icon ?? "text-cocoa-500"}>{icon}</span>}
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700">{title}</p>
           {badge}
         </div>
         {action}
@@ -271,9 +271,9 @@ function Grid2({ children }: { children: React.ReactNode }) {
 function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
   return (
     <div className={`space-y-1.5 ${span2 ? "col-span-2" : ""}`}>
-      <Label className="text-xs font-medium text-[#8B7355]">{label}</Label>
+      <Label className="text-xs font-medium text-cocoa-700">{label}</Label>
       {children}
-      {hint && <p className="text-[10px] text-[#B8A99A]">{hint}</p>}
+      {hint && <p className="text-[10px] text-cocoa-500">{hint}</p>}
     </div>
   );
 }
@@ -282,7 +282,7 @@ function Field({ label, children, span2, hint }: { label: string; children: Reac
 function HeroField({ label, children, span2 }: { label: string; children: React.ReactNode; span2?: boolean }) {
   return (
     <div className={`space-y-0.5 ${span2 ? "col-span-2" : ""}`}>
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#B8A99A]">{label}</Label>
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-cocoa-500">{label}</Label>
       {children}
     </div>
   );
@@ -294,34 +294,34 @@ function CheckRow({ label, checked, onChange }: { label: string; checked: boolea
       <Checkbox
         checked={checked}
         onCheckedChange={(v) => onChange(!!v)}
-        className="border-[#C4A882] data-[state=checked]:bg-[#3D2B1F] data-[state=checked]:border-[#3D2B1F]"
+        className="border-cocoa-500 data-[state=checked]:bg-btn-primary data-[state=checked]:border-btn-primary"
       />
-      <span className="text-sm text-[#3D2B1F]">{label}</span>
+      <span className="text-sm text-cocoa-900">{label}</span>
     </label>
   );
 }
 
 function PlaceholderBox({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-4 py-5 text-center">
-      <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#C4A882] border border-[#E8E0D5]">
+    <div className="rounded-xl border border-dashed border-[#E0D5C2] bg-cream-50 px-4 py-5 text-center">
+      <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-[#C4A882] border border-cream-200">
         {icon}
       </div>
-      <p className="text-sm font-medium text-[#3D2B1F]">{title}</p>
-      <p className="mt-0.5 text-xs text-[#8B7355] leading-relaxed max-w-md mx-auto">{description}</p>
+      <p className="text-sm font-medium text-cocoa-900">{title}</p>
+      <p className="mt-0.5 text-xs text-cocoa-700 leading-relaxed max-w-md mx-auto">{description}</p>
     </div>
   );
 }
 
-const inp = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg";
-const sel = "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-lg";
+const inp = "h-9 text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg";
+const sel = "h-9 text-sm border-cream-200 bg-cream-50 text-cocoa-900 rounded-lg";
 
 // Variantes "discretas" para o hero: parecem texto estático, revelam-se editáveis ao hover/focus.
 // Placeholders em itálico + cinza muito claro para nunca se confundirem com dados reais.
 const subtlePlaceholder = "placeholder:italic placeholder:text-[#D4C8B8] placeholder:font-normal";
-const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
-const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-white data-[state=open]:border-[#C4A882] transition-colors";
-const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-[#3D2B1F] rounded-lg hover:bg-[#F4EFE8] focus:bg-white focus:border-[#C4A882] transition-colors ${subtlePlaceholder}`;
+const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-[#F4EFE8] focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
+const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-surface data-[state=open]:border-cocoa-500 transition-colors";
+const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-[#F4EFE8] focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
 
 // ── Post-it amarelo flutuante (sticky note) ─────────────────
 // Aparece sempre no header. Vazio = amarelo claro com ícone +; com texto
@@ -343,7 +343,7 @@ function InventorySection({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium text-[#8B7355]">Inventário de flores</Label>
+        <Label className="text-xs font-medium text-cocoa-700">Inventário de flores</Label>
         <button
           type="button"
           onClick={() => onChange([...items, { qty: 1, name: "" }])}
@@ -353,7 +353,7 @@ function InventorySection({
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="text-[11px] text-[#B8A99A] italic px-1.5 py-2 rounded-lg bg-[#FAF8F5] border border-dashed border-[#E8E0D5]">
+        <p className="text-[11px] text-cocoa-500 italic px-1.5 py-2 rounded-lg bg-cream-50 border border-dashed border-cream-200">
           Ex.: 7 rosas laranja · 3 papoilas vermelhas · 2 dálias brancas
         </p>
       ) : (
@@ -385,7 +385,7 @@ function InventorySection({
               <button
                 type="button"
                 onClick={() => onChange(items.filter((_, i) => i !== idx))}
-                className="shrink-0 p-1.5 rounded-lg text-[#B8A99A] hover:bg-red-50 hover:text-red-600 transition-colors"
+                className="shrink-0 p-1.5 rounded-lg text-cocoa-500 hover:bg-red-50 hover:text-red-600 transition-colors"
                 title="Remover"
               >
                 <X className="h-3.5 w-3.5" />
@@ -777,26 +777,26 @@ export default function WorkbenchClient({
       <fieldset disabled={!canEdit} className="contents">
 
       {/* ── Header fixo ──────────────────────────────────────── */}
-      <header className="shrink-0 sticky top-0 z-20 bg-white border-b border-[#E8E0D5] shadow-sm">
+      <header className="shrink-0 sticky top-0 z-20 bg-surface border-b border-cream-200 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3">
           <Link
             href="/preservacao"
-            className="flex items-center gap-1.5 text-sm text-[#8B7355] hover:text-[#3D2B1F] transition-colors shrink-0"
+            className="flex items-center gap-1.5 text-sm text-cocoa-700 hover:text-cocoa-900 transition-colors shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Preservação</span>
           </Link>
 
-          <Separator orientation="vertical" className="h-5 bg-[#E8E0D5]" />
+          <Separator orientation="vertical" className="h-5 bg-cream-200" />
 
           <div className="flex-1 min-w-0">
-            <h1 className="text-base font-semibold text-[#3D2B1F] truncate leading-tight">
+            <h1 className="text-base font-semibold text-cocoa-900 truncate leading-tight">
               {local.client_name}
             </h1>
             <div className="flex items-center gap-2 leading-tight">
               <button
                 onClick={copyId}
-                className="font-mono text-[10px] text-[#B8A99A] hover:text-[#3D2B1F] transition-colors flex items-center gap-1"
+                className="font-mono text-[10px] text-cocoa-500 hover:text-cocoa-900 transition-colors flex items-center gap-1"
                 title="Copiar ID"
               >
                 #{local.order_id}
@@ -807,13 +807,13 @@ export default function WorkbenchClient({
                 onOpenChange={(v) => { setOrderIdPopoverOpen(v); if (v) setOrderIdDraft(local.order_id); }}
               >
                 <PopoverTrigger
-                  className="text-[#B8A99A] hover:text-[#3D2B1F] transition-colors"
+                  className="text-cocoa-500 hover:text-cocoa-900 transition-colors"
                   title="Editar ID"
                 >
                   <Pencil className="h-3 w-3" />
                 </PopoverTrigger>
                 <PopoverContent className="w-80 p-3 space-y-2">
-                  <Label className="text-xs font-medium text-[#8B7355]">ID da encomenda</Label>
+                  <Label className="text-xs font-medium text-cocoa-700">ID da encomenda</Label>
                   <Input
                     className={inp + " font-mono uppercase tracking-wider"}
                     value={orderIdDraft}
@@ -822,19 +822,19 @@ export default function WorkbenchClient({
                     autoFocus
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveOrderId(); } }}
                   />
-                  <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+                  <p className="text-[10px] text-cocoa-500 leading-relaxed">
                     Útil para encomendas antigas que já têm um ID atribuído. Tem de ser único.
                   </p>
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       onClick={() => setOrderIdPopoverOpen(false)}
-                      className="h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs text-[#8B7355] hover:bg-[#FAF8F5]"
+                      className="h-8 px-3 rounded-lg border border-cream-200 bg-surface text-xs text-cocoa-700 hover:bg-cream-50"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={saveOrderId}
-                      className="h-8 px-3 rounded-lg bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15] transition-colors"
+                      className="h-8 px-3 rounded-lg bg-btn-primary text-btn-primary-fg text-xs font-medium hover:bg-btn-primary-hover transition-colors"
                     >
                       Guardar
                     </button>
@@ -863,7 +863,7 @@ export default function WorkbenchClient({
 
           <div className="w-24 shrink-0 text-right text-xs">
             {saveState === "saving" && (
-              <span className="flex items-center justify-end gap-1 text-[#B8A99A]">
+              <span className="flex items-center justify-end gap-1 text-cocoa-500">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 A guardar…
               </span>
@@ -889,7 +889,7 @@ export default function WorkbenchClient({
             <button
               type="button"
               onClick={() => setArchiveDialogOpen(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-white text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-surface text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
               title="Arquivar esta encomenda"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -927,10 +927,10 @@ export default function WorkbenchClient({
                   {local.email && (
                     <a
                       href={`mailto:${local.email}`}
-                      className={`flex items-center gap-1.5 text-[12px] hover:text-[#3D2B1F] transition-colors ${
+                      className={`flex items-center gap-1.5 text-[12px] hover:text-cocoa-900 transition-colors ${
                         local.contact_preference === "email"
                           ? "text-blue-700 font-medium"
-                          : "text-[#8B7355]"
+                          : "text-cocoa-700"
                       }`}
                       title={local.contact_preference === "email" ? "Contacto preferido" : "Email"}
                     >
@@ -946,10 +946,10 @@ export default function WorkbenchClient({
                       href={`https://wa.me/${phoneToWaMe(local.phone)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`flex items-center gap-1.5 text-[12px] hover:text-[#3D2B1F] transition-colors ${
+                      className={`flex items-center gap-1.5 text-[12px] hover:text-cocoa-900 transition-colors ${
                         local.contact_preference === "whatsapp"
                           ? "text-green-700 font-medium"
-                          : "text-[#8B7355]"
+                          : "text-cocoa-700"
                       }`}
                       title={local.contact_preference === "whatsapp" ? "Contacto preferido" : "WhatsApp"}
                     >
@@ -962,14 +962,14 @@ export default function WorkbenchClient({
                   )}
                   {/* Toggle minimalista para mudar a preferência */}
                   <div className="flex items-center gap-1 pt-1">
-                    <span className="text-[10px] text-[#B8A99A] uppercase tracking-wider">Prefere:</span>
+                    <span className="text-[10px] text-cocoa-500 uppercase tracking-wider">Prefere:</span>
                     <button
                       type="button"
                       onClick={() => clientUpdate("contact_preference", "whatsapp", "Contacto preferido", (v) => v === "whatsapp" ? "WhatsApp" : v === "email" ? "Email" : "—")}
                       className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
                         local.contact_preference === "whatsapp"
                           ? "text-green-700 font-medium bg-green-50"
-                          : "text-[#B8A99A] hover:text-[#8B7355]"
+                          : "text-cocoa-500 hover:text-cocoa-700"
                       }`}
                     >
                       WhatsApp
@@ -981,7 +981,7 @@ export default function WorkbenchClient({
                       className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
                         local.contact_preference === "email"
                           ? "text-blue-700 font-medium bg-blue-50"
-                          : "text-[#B8A99A] hover:text-[#8B7355]"
+                          : "text-cocoa-500 hover:text-cocoa-700"
                       }`}
                     >
                       Email
@@ -990,12 +990,12 @@ export default function WorkbenchClient({
                 </div>
 
                 <Tabs defaultValue="email">
-                  <TabsList className="bg-[#FAF8F5] border border-[#E8E0D5] w-full">
-                    <TabsTrigger value="email" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                  <TabsList className="bg-cream-50 border border-cream-200 w-full">
+                    <TabsTrigger value="email" className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-blue-700">
                       <Mail className="h-3.5 w-3.5 mr-1.5" />
                       Email
                     </TabsTrigger>
-                    <TabsTrigger value="whatsapp" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:text-green-700">
+                    <TabsTrigger value="whatsapp" className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-green-700">
                       <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
                       WhatsApp
                     </TabsTrigger>
@@ -1023,11 +1023,11 @@ export default function WorkbenchClient({
                     disabled
                     rows={4}
                     placeholder="Em breve: descreve o tipo de resposta (ex: 'agradecer feedback' ou 'confirmar agendamento') e a IA gera um rascunho com o tom da marca, em PT ou EN, baseado no contexto desta encomenda."
-                    className="text-sm border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] rounded-lg resize-none italic"
+                    className="text-sm border-cream-200 bg-cream-50 text-cocoa-700 rounded-lg resize-none italic"
                   />
                   <button
                     disabled
-                    className="w-full h-9 inline-flex items-center justify-center gap-2 rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#B8A99A] text-xs font-medium cursor-not-allowed"
+                    className="w-full h-9 inline-flex items-center justify-center gap-2 rounded-lg border border-cream-200 bg-cream-50 text-cocoa-500 text-xs font-medium cursor-not-allowed"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Sugerir resposta (em breve)
@@ -1071,7 +1071,7 @@ export default function WorkbenchClient({
                       {gallery.map((item, idx) => {
                         const embedUrl = toEmbeddableImageUrl(item.url);
                         return (
-                          <div key={idx} className="group relative aspect-square rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] overflow-hidden">
+                          <div key={idx} className="group relative aspect-square rounded-lg border border-cream-200 bg-cream-50 overflow-hidden">
                             {item.type === "image" && embedUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={embedUrl} alt={item.label ?? ""} className="w-full h-full object-cover" />
@@ -1110,10 +1110,10 @@ export default function WorkbenchClient({
             <main className="lg:col-span-6 space-y-5">
 
               {/* Hero unificado: foto + dados do cliente + dados do evento */}
-              <div className="rounded-2xl border border-[#E8E0D5] bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
+              <div className="rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
                 <div className="grid grid-cols-12 gap-0">
                   {/* Foto 3:4 vertical */}
-                  <div className="col-span-5 relative group bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
+                  <div className="col-span-5 relative group bg-gradient-to-br from-cream-50 to-cream-100">
                     <div className="aspect-[3/4]">
                       {photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -1125,11 +1125,11 @@ export default function WorkbenchClient({
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882] mb-2">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface border border-cream-200 text-[#C4A882] mb-2">
                             <ImageIcon className="h-5 w-5" />
                           </div>
-                          <p className="text-sm font-medium text-[#3D2B1F]">Foto da encomenda</p>
-                          <p className="text-[11px] text-[#8B7355] mt-1">
+                          <p className="text-sm font-medium text-cocoa-900">Foto da encomenda</p>
+                          <p className="text-[11px] text-cocoa-700 mt-1">
                             Cole o link partilhável (Drive, Imgur, …).
                           </p>
                         </div>
@@ -1137,7 +1137,7 @@ export default function WorkbenchClient({
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5">
                       <Input
-                        className="h-8 text-xs bg-white/95 border-white/40 placeholder:text-[#8B7355]"
+                        className="h-8 text-xs bg-surface/95 border-white/40 placeholder:text-cocoa-700"
                         placeholder="URL da foto"
                         value={local.flowers_photo_url ?? ""}
                         onChange={(e) => update("flowers_photo_url", e.target.value || null)}
@@ -1158,7 +1158,7 @@ export default function WorkbenchClient({
                       />
                       <div className="flex flex-col items-stretch gap-1.5 shrink-0 pt-1.5">
                         {local.drive_folder_url ? (
-                          <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-[#E8E0D5] bg-white">
+                          <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-cream-200 bg-surface">
                             <a
                               href={local.drive_folder_url}
                               target="_blank"
@@ -1172,7 +1172,7 @@ export default function WorkbenchClient({
                             </a>
                             <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(local.drive_folder_url ?? ""); }}>
                               <PopoverTrigger
-                                className="px-1.5 border-l border-[#E8E0D5] text-[#8B7355] hover:bg-[#FAF8F5] transition-colors"
+                                className="px-1.5 border-l border-cream-200 text-cocoa-700 hover:bg-cream-50 transition-colors"
                                 title="Editar URL da pasta"
                               >
                                 <Pencil className="h-3 w-3" />
@@ -1183,7 +1183,7 @@ export default function WorkbenchClient({
                         ) : (
                           <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(""); }}>
                             <PopoverTrigger
-                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-2.5 py-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F] hover:border-[#C4A882] transition-colors"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
                               title="Definir pasta Drive"
                             >
                               <FolderOpen className="h-3.5 w-3.5" />
@@ -1206,7 +1206,7 @@ export default function WorkbenchClient({
                           href={publicStatusLink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#E8E0D5] bg-white px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-cream-200 bg-surface px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
                           title="Abrir status público"
                         >
                           <Globe className="h-3.5 w-3.5" />
@@ -1216,7 +1216,7 @@ export default function WorkbenchClient({
                       </div>
                     </div>
 
-                    <Separator className="bg-[#F0EAE0]" />
+                    <Separator className="bg-cream-100" />
 
                     {/* DADOS DO EVENTO */}
                     <div>
@@ -1239,7 +1239,7 @@ export default function WorkbenchClient({
                             onChange={(e) => clientUpdate("event_date", e.target.value || null, "Data do evento", (v) => v ? format(parseISO(v as string), "dd/MM/yyyy") : "—")}
                           />
                           {eventRelative && (
-                            <p className={`text-[10px] px-2 ${urgentEvent ? "text-red-600 font-medium" : "text-[#B8A99A]"}`}>
+                            <p className={`text-[10px] px-2 ${urgentEvent ? "text-red-600 font-medium" : "text-cocoa-500"}`}>
                               {urgentEvent && "⚠ "}{eventRelative}
                             </p>
                           )}
@@ -1263,13 +1263,13 @@ export default function WorkbenchClient({
                               placeholder="—"
                             />
                             {local.estimated_delivery_date && (
-                              <span className="text-[11px] text-[#B8A99A] capitalize whitespace-nowrap">
+                              <span className="text-[11px] text-cocoa-500 capitalize whitespace-nowrap">
                                 {formatPublicEstimatedDelivery(local.estimated_delivery_date, "pt")}
                               </span>
                             )}
                           </div>
                           {!local.estimated_delivery_date && (
-                            <p className="text-[10px] text-[#B8A99A] italic px-1.5">
+                            <p className="text-[10px] text-cocoa-500 italic px-1.5">
                               Gerada automaticamente quando passa para <em>Flores na prensa</em>. Editável aqui ou na aba <Link href="/status" className="underline">Status</Link>.
                             </p>
                           )}
@@ -1319,7 +1319,7 @@ export default function WorkbenchClient({
                     <button
                       type="button"
                       onClick={() => update("approval_responded", true)}
-                      className="shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-white border border-current text-xs font-medium hover:bg-current/5 transition-colors"
+                      className="shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-lg bg-surface border border-current text-xs font-medium hover:bg-current/5 transition-colors"
                     >
                       <Check className="h-3 w-3" />
                       Cliente já respondeu
@@ -1374,7 +1374,7 @@ export default function WorkbenchClient({
                   </Field>
                 </Grid2>
 
-                <Separator className="bg-[#F0EAE0]" />
+                <Separator className="bg-cream-100" />
 
                 {/* Extras a incluir no quadro */}
                 <div className="space-y-3">
@@ -1394,7 +1394,7 @@ export default function WorkbenchClient({
                   {extras.options.includes(EXTRAS_OTHER) && (
                     <Field label='Especifique "Outro"'>
                       <Textarea
-                        className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                        className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                         rows={2}
                         value={extras.notes}
                         onChange={(e) => setExtraNotes(e.target.value)}
@@ -1404,7 +1404,7 @@ export default function WorkbenchClient({
                   )}
                 </div>
 
-                <Separator className="bg-[#F0EAE0]" />
+                <Separator className="bg-cream-100" />
 
                 {/* Peças extra — compactas, qty estreito (max 2 algarismos típicos) */}
                 <div className="space-y-2">
@@ -1492,7 +1492,7 @@ export default function WorkbenchClient({
                               onChange={(e) => update("pickup_time_from", e.target.value || null)}
                               placeholder="—"
                             />
-                            <span className="text-xs text-[#8B7355]">→</span>
+                            <span className="text-xs text-cocoa-700">→</span>
                             <Input
                               className={inp}
                               type="time"
@@ -1507,7 +1507,7 @@ export default function WorkbenchClient({
                   )}
                 </div>
 
-                <Separator className="bg-[#F0EAE0]" />
+                <Separator className="bg-cream-100" />
 
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-orange-700">Receção do quadro (FBR → cliente)</p>
@@ -1578,7 +1578,7 @@ export default function WorkbenchClient({
                   )}
                   <Field label="Notas adicionais">
                     <Textarea
-                      className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                      className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                       rows={4}
                       value={local.additional_notes ?? ""}
                       onChange={(e) => update("additional_notes", e.target.value || null)}
@@ -1603,7 +1603,7 @@ export default function WorkbenchClient({
                       hint={local.pricing_snapshot ? "Calculado automaticamente — editável." : "Inserido manualmente."}
                     >
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
                         <Input
                           className={inp + " pl-7"}
                           type="number" min={0} step={0.01}
@@ -1634,7 +1634,7 @@ export default function WorkbenchClient({
 
                   {/* Pediu fatura — Sim/Não com NIF inline à direita do Sim */}
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-[#8B7355]">Cliente pediu fatura com NIF?</Label>
+                    <Label className="text-xs font-medium text-cocoa-700">Cliente pediu fatura com NIF?</Label>
                     <div className="flex gap-2 items-stretch">
                       <Select
                         value={local.needs_invoice ? "sim" : "nao"}
@@ -1672,7 +1672,7 @@ export default function WorkbenchClient({
                             href={local.invoice_attachment_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
                           >
                             <Paperclip className="h-3.5 w-3.5" />
                           </a>
@@ -1716,7 +1716,7 @@ export default function WorkbenchClient({
                       {local.partner_id && (
                         <Link
                           href={`/parcerias/${local.partner_id}`}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
                           title="Abrir parceiro"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -1728,7 +1728,7 @@ export default function WorkbenchClient({
                     <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-3">
                       <Field label="Comissão (€)">
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
                           <Input
                             className={inp + " pl-7"}
                             type="number" min={0} step={0.01}
@@ -1829,12 +1829,12 @@ export default function WorkbenchClient({
                 </div>
               </Card>
 
-              <div className="rounded-xl border border-[#E8E0D5] bg-white px-4 py-3 space-y-1">
-                <p className="text-[10px] text-[#B8A99A]">
+              <div className="rounded-xl border border-cream-200 bg-surface px-4 py-3 space-y-1">
+                <p className="text-[10px] text-cocoa-500">
                   Criada em {local.created_at ? format(parseISO(local.created_at), "dd/MM/yyyy, HH:mm", { locale: pt }) : "—"}
                 </p>
                 {local.updated_at && local.updated_at !== local.created_at && (
-                  <p className="text-[10px] text-[#B8A99A]">
+                  <p className="text-[10px] text-cocoa-500">
                     Actualizada em {format(parseISO(local.updated_at), "dd/MM/yyyy, HH:mm", { locale: pt })}
                   </p>
                 )}
@@ -1851,13 +1851,13 @@ export default function WorkbenchClient({
       <Dialog open={!!paymentDialog} onOpenChange={(open) => !open && setPaymentDialog(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+            <DialogTitle className="flex items-center gap-2 text-cocoa-900">
               <Receipt className="h-4 w-4 text-emerald-600" />
               Pagamento atualizado
             </DialogTitle>
-            <DialogDescription className="text-[#8B7355]">
+            <DialogDescription className="text-cocoa-700">
               Vais marcar este pagamento como{" "}
-              <strong className="text-[#3D2B1F]">
+              <strong className="text-cocoa-900">
                 {paymentDialog ? PAYMENT_STATUS_LABELS[paymentDialog.newStatus] : ""}
               </strong>
               . Antes de confirmar, vê estas duas coisas:
@@ -1868,9 +1868,9 @@ export default function WorkbenchClient({
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-3 space-y-2">
               <div className="flex items-start gap-2">
                 <Paperclip className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-                <div className="flex-1 text-sm text-[#3D2B1F]">
+                <div className="flex-1 text-sm text-cocoa-900">
                   <p className="font-medium">Anexa o comprovativo à pasta Drive</p>
-                  <p className="text-xs text-[#8B7355] mt-0.5">
+                  <p className="text-xs text-cocoa-700 mt-0.5">
                     Guarda o screenshot/PDF da transferência na pasta desta encomenda.
                   </p>
                 </div>
@@ -1894,7 +1894,7 @@ export default function WorkbenchClient({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-[#8B7355]">O cliente pediu fatura com NIF?</Label>
+              <Label className="text-xs font-medium text-cocoa-700">O cliente pediu fatura com NIF?</Label>
               <div className="flex gap-2 items-stretch">
                 <Select
                   value={dialogNeedsInvoice ? "sim" : "nao"}
@@ -1924,13 +1924,13 @@ export default function WorkbenchClient({
           <DialogFooter className="gap-2 sm:gap-0">
             <button
               onClick={() => setPaymentDialog(null)}
-              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+              className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={confirmPaymentDialog}
-              className="h-9 px-4 rounded-lg bg-[#3D2B1F] text-sm text-white font-medium hover:bg-[#2C1F15] transition-colors"
+              className="h-9 px-4 rounded-lg bg-btn-primary text-sm text-btn-primary-fg font-medium hover:bg-btn-primary-hover transition-colors"
             >
               Confirmar
             </button>
@@ -1942,29 +1942,29 @@ export default function WorkbenchClient({
       <Dialog open={!!clientEditDialog} onOpenChange={(open) => !open && setClientEditDialog(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+            <DialogTitle className="flex items-center gap-2 text-cocoa-900">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               Confirmar alteração
             </DialogTitle>
-            <DialogDescription className="text-[#8B7355]">
-              Este campo foi preenchido pelo <strong className="text-[#3D2B1F]">cliente</strong> no formulário.
+            <DialogDescription className="text-cocoa-700">
+              Este campo foi preenchido pelo <strong className="text-cocoa-900">cliente</strong> no formulário.
               Tens a certeza que queres alterar?
             </DialogDescription>
           </DialogHeader>
 
           {clientEditDialog && (
             <div className="space-y-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B7355]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-cocoa-700">
                 {clientEditDialog.label}
               </p>
-              <div className="rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] divide-y divide-[#E8E0D5]">
+              <div className="rounded-lg border border-cream-200 bg-cream-50 divide-y divide-cream-200">
                 <div className="flex items-center gap-3 px-3 py-2">
-                  <span className="text-[10px] uppercase tracking-wider text-[#B8A99A] w-12">Antes</span>
-                  <span className="text-sm text-[#8B7355] line-through">{clientEditDialog.oldDisplay}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-cocoa-500 w-12">Antes</span>
+                  <span className="text-sm text-cocoa-700 line-through">{clientEditDialog.oldDisplay}</span>
                 </div>
                 <div className="flex items-center gap-3 px-3 py-2 bg-amber-50/50">
                   <span className="text-[10px] uppercase tracking-wider text-amber-700 w-12">Novo</span>
-                  <span className="text-sm font-medium text-[#3D2B1F]">{clientEditDialog.newDisplay}</span>
+                  <span className="text-sm font-medium text-cocoa-900">{clientEditDialog.newDisplay}</span>
                 </div>
               </div>
             </div>
@@ -1973,7 +1973,7 @@ export default function WorkbenchClient({
           <DialogFooter className="gap-2 sm:gap-0">
             <button
               onClick={() => setClientEditDialog(null)}
-              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+              className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
             >
               Cancelar
             </button>
@@ -1991,11 +1991,11 @@ export default function WorkbenchClient({
       <Dialog open={!!paymentReminderDialog} onOpenChange={(o) => { if (!o) setPaymentReminderDialog(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+            <DialogTitle className="flex items-center gap-2 text-cocoa-900">
               <Wallet className="h-4 w-4 text-amber-600" />
               {paymentReminderDialog?.kind === "40" ? "Pedir 40% ao cliente?" : "Pedir últimos 30% ao cliente?"}
             </DialogTitle>
-            <DialogDescription className="text-[#8B7355]">
+            <DialogDescription className="text-cocoa-700">
               {paymentReminderDialog?.kind === "40"
                 ? "As flores chegaram à FBR — é boa altura para pedir os 40% seguintes ao cliente. Já pediste?"
                 : "O quadro está praticamente pronto — é boa altura para pedir os últimos 30%. Já pediste?"}
@@ -2004,7 +2004,7 @@ export default function WorkbenchClient({
           <DialogFooter className="gap-2 sm:gap-0">
             <button
               onClick={() => confirmPaymentReminder(false)}
-              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+              className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
             >
               Ainda não — lembra-me depois
             </button>
@@ -2022,17 +2022,17 @@ export default function WorkbenchClient({
       <Dialog open={deliveryDialogOpen} onOpenChange={setDeliveryDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+            <DialogTitle className="flex items-center gap-2 text-cocoa-900">
               <Package className="h-4 w-4 text-purple-600" />
               Quadro recebido
             </DialogTitle>
-            <DialogDescription className="text-[#8B7355]">
+            <DialogDescription className="text-cocoa-700">
               Para fechar bem esta encomenda, indica em que dia o cliente recebeu o quadro.
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-2">
-            <Label className="text-xs font-medium text-[#8B7355]">Data de entrega do quadro</Label>
+            <Label className="text-xs font-medium text-cocoa-700">Data de entrega do quadro</Label>
             <Input
               className={inp + " mt-1.5"}
               type="date"
@@ -2040,7 +2040,7 @@ export default function WorkbenchClient({
               onChange={(e) => setDeliveryDateDraft(e.target.value)}
               autoFocus
             />
-            <p className="text-[10px] text-[#B8A99A] mt-2 leading-relaxed">
+            <p className="text-[10px] text-cocoa-500 mt-2 leading-relaxed">
               Esta data é usada para calcular a validade do cupão de 5%.
             </p>
           </div>
@@ -2048,13 +2048,13 @@ export default function WorkbenchClient({
           <DialogFooter className="gap-2 sm:gap-0">
             <button
               onClick={() => setDeliveryDialogOpen(false)}
-              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+              className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
             >
               Mais tarde
             </button>
             <button
               onClick={confirmDeliveryDialog}
-              className="h-9 px-4 rounded-lg bg-[#3D2B1F] text-sm text-white font-medium hover:bg-[#2C1F15] transition-colors disabled:opacity-50"
+              className="h-9 px-4 rounded-lg bg-btn-primary text-sm text-btn-primary-fg font-medium hover:bg-btn-primary-hover transition-colors disabled:opacity-50"
               disabled={!deliveryDateDraft}
             >
               Guardar data
@@ -2067,11 +2067,11 @@ export default function WorkbenchClient({
       <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#3D2B1F]">
+            <DialogTitle className="flex items-center gap-2 text-cocoa-900">
               <Trash2 className="h-4 w-4 text-red-600" />
               Arquivar esta encomenda?
             </DialogTitle>
-            <DialogDescription className="text-[#8B7355]">
+            <DialogDescription className="text-cocoa-700">
               A encomenda fica arquivada e deixa de aparecer na lista. Podes recuperá-la
               ou apagá-la definitivamente em <strong>Mostrar arquivados</strong> na listagem.
             </DialogDescription>
@@ -2079,7 +2079,7 @@ export default function WorkbenchClient({
           <DialogFooter className="gap-2 sm:gap-0">
             <button
               onClick={() => setArchiveDialogOpen(false)}
-              className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+              className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
               disabled={archiving}
             >
               Cancelar
@@ -2130,13 +2130,13 @@ function DriveUrlEditor({
       >
         {autoBusy ? "A criar pasta…" : "Criar automaticamente na Drive"}
       </button>
-      <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+      <p className="text-[10px] text-cocoa-500 leading-relaxed">
         Cria a pasta da encomenda (com as 8 subpastas por fase) dentro de
         FBR — Encomendas / Preservação de Flores. Requer integração Google conectada
         (Definições → Google).
       </p>
-      <div className="pt-1 border-t border-[#F0EAE0]">
-        <Label className="text-xs font-medium text-[#8B7355]">… ou cola um URL manualmente</Label>
+      <div className="pt-1 border-t border-cream-100">
+        <Label className="text-xs font-medium text-cocoa-700">… ou cola um URL manualmente</Label>
         <Input
           className={`${inp} mt-1`}
           value={draft}
@@ -2147,7 +2147,7 @@ function DriveUrlEditor({
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={onSave}
-            className="h-8 px-3 rounded-lg bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15] transition-colors"
+            className="h-8 px-3 rounded-lg bg-btn-primary text-btn-primary-fg text-xs font-medium hover:bg-btn-primary-hover transition-colors"
           >
             Guardar URL
           </button>
@@ -2177,7 +2177,7 @@ function CalendarEventShortcut({
   if (!eventDate) {
     return (
       <span
-        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-2.5 py-1.5 text-xs text-[#B8A99A] cursor-not-allowed"
+        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-500 cursor-not-allowed"
         title="Preenche a data do evento para poderes criar um evento no Calendar"
       >
         <CalendarPlus className="h-3.5 w-3.5" />
@@ -2188,7 +2188,7 @@ function CalendarEventShortcut({
 
   if (eventId) {
     return (
-      <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-[#E8E0D5] bg-white">
+      <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-cream-200 bg-surface">
         {link ? (
           <a
             href={link}
@@ -2212,7 +2212,7 @@ function CalendarEventShortcut({
         )}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger
-            className="px-1.5 border-l border-[#E8E0D5] text-[#8B7355] hover:bg-[#FAF8F5] transition-colors"
+            className="px-1.5 border-l border-cream-200 text-cocoa-700 hover:bg-cream-50 transition-colors"
             title="Gerir evento Calendar"
           >
             <Pencil className="h-3 w-3" />
@@ -2230,12 +2230,12 @@ function CalendarEventShortcut({
               type="button"
               onClick={() => { onDelete(); setOpen(false); }}
               disabled={busy}
-              className="w-full h-9 px-3 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs font-medium hover:bg-rose-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full h-9 px-3 rounded-lg border border-rose-200 bg-surface text-rose-700 text-xs font-medium hover:bg-rose-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Apagar evento
             </button>
-            <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+            <p className="text-[10px] text-cocoa-500 leading-relaxed">
               O evento actualiza-se automaticamente sempre que mudares
               a data, nome do cliente ou local. Re-sincroniza se algo
               parecer desalinhado.
@@ -2285,11 +2285,11 @@ function StatusSelect({
           }}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-[#E8E0D5]">
+      <SelectContent className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-cream-200">
         {STATUS_GROUPS.map((group, gi) => (
           <div key={group.label}>
-            {gi > 0 && <SelectSeparator className="bg-[#E8E0D5] my-0" />}
-            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#B8A99A]">
+            {gi > 0 && <SelectSeparator className="bg-cream-200 my-0" />}
+            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-cocoa-500">
               {group.label}
             </div>
             <div className="px-1 pb-1">
@@ -2297,7 +2297,7 @@ function StatusSelect({
                 const Icon = STATUS_ICONS[s];
                 return (
                   <SelectItem key={s} value={s} className="my-0.5">
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-cocoa-700" />
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
                       {STATUS_LABELS[s]}
                     </span>
@@ -2351,7 +2351,7 @@ function ShippingRow<M extends string>({
       </Field>
       <Field label="Custo (€)">
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
           <Input
             className={inp + " pl-7"}
             type="number" min={0} step={0.01}
@@ -2405,7 +2405,7 @@ function CouponCodeField({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-[#8B7355]">Código</Label>
+      <Label className="text-xs font-medium text-cocoa-700">Código</Label>
       {editing ? (
         <div className="flex gap-1.5">
           <Input
@@ -2422,7 +2422,7 @@ function CouponCodeField({
           />
           <button
             onClick={commit}
-            className="h-9 w-9 inline-flex shrink-0 items-center justify-center rounded-lg bg-[#3D2B1F] text-white hover:bg-[#2C1F15] transition-colors"
+            className="h-9 w-9 inline-flex shrink-0 items-center justify-center rounded-lg bg-btn-primary text-btn-primary-fg hover:bg-btn-primary-hover transition-colors"
             title="Guardar"
           >
             <Check className="h-3.5 w-3.5" />
@@ -2435,7 +2435,7 @@ function CouponCodeField({
           </span>
           <button
             onClick={startEdit}
-            className="h-7 w-7 inline-flex shrink-0 items-center justify-center rounded-md text-[#8B7355] hover:bg-[#F0EAE0] hover:text-[#3D2B1F] transition-colors"
+            className="h-7 w-7 inline-flex shrink-0 items-center justify-center rounded-md text-cocoa-700 hover:bg-cream-100 hover:text-cocoa-900 transition-colors"
             title="Editar código"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -2444,13 +2444,13 @@ function CouponCodeField({
       ) : (
         <button
           onClick={startEdit}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-3 py-1.5 text-xs text-[#8B7355] hover:text-[#3D2B1F] hover:border-[#C4A882] transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-cream-50 px-3 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
         >
           <Pencil className="h-3 w-3" />
           Definir código manualmente
         </button>
       )}
-      <p className="text-[10px] text-[#B8A99A]">
+      <p className="text-[10px] text-cocoa-500">
         Gerado automaticamente em &lsquo;A ser emoldurado&rsquo;.
       </p>
     </div>
@@ -2473,9 +2473,9 @@ function ExtraPieceRow({
   const showQty = value === "sim" || value === "mais_info";
   return (
     <div className="flex items-center gap-2">
-      <Label className="flex-1 text-xs text-[#3D2B1F] truncate">{label}</Label>
+      <Label className="flex-1 text-xs text-cocoa-900 truncate">{label}</Label>
       <Select value={value ?? ""} onValueChange={(v) => onValue((v || null) as "sim" | "nao" | "mais_info" | null)}>
-        <SelectTrigger className="h-7 w-[7.5rem] text-xs border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-md px-2"><SelectValue placeholder="—" labels={YES_NO_INFO_LABELS} /></SelectTrigger>
+        <SelectTrigger className="h-7 w-[7.5rem] text-xs border-cream-200 bg-cream-50 text-cocoa-900 rounded-md px-2"><SelectValue placeholder="—" labels={YES_NO_INFO_LABELS} /></SelectTrigger>
         <SelectContent>
           <SelectItem value="sim">Sim</SelectItem>
           <SelectItem value="nao">Não</SelectItem>
@@ -2483,7 +2483,7 @@ function ExtraPieceRow({
         </SelectContent>
       </Select>
       <Input
-        className="h-7 w-12 text-xs text-center border-[#E8E0D5] bg-[#FAF8F5] text-[#3D2B1F] rounded-md px-1 disabled:opacity-30"
+        className="h-7 w-12 text-xs text-center border-cream-200 bg-cream-50 text-cocoa-900 rounded-md px-1 disabled:opacity-30"
         type="number"
         min={0}
         max={99}
@@ -2575,18 +2575,18 @@ function BudgetSnapshotBadge({
           {snapshot.lines.map((l, i) => (
             <div key={i} className="flex items-center justify-between gap-2 text-xs">
               <div className="flex-1 truncate">
-                <span className="text-[#3D2B1F]">{l.label}</span>
+                <span className="text-cocoa-900">{l.label}</span>
                 {l.qty > 1 && (
-                  <span className="text-[#8B7355]"> × {l.qty}</span>
+                  <span className="text-cocoa-700"> × {l.qty}</span>
                 )}
               </div>
-              <span className="text-[#8B7355] tabular-nums">
+              <span className="text-cocoa-700 tabular-nums">
                 {l.subtotal.toFixed(2).replace(".", ",")}€
               </span>
             </div>
           ))}
-          <div className="border-t border-[#E8E0D5] pt-1.5 mt-1.5 flex items-center justify-between text-sm font-semibold">
-            <span className="text-[#3D2B1F]">Total calculado</span>
+          <div className="border-t border-cream-200 pt-1.5 mt-1.5 flex items-center justify-between text-sm font-semibold">
+            <span className="text-cocoa-900">Total calculado</span>
             <span className="text-emerald-700 tabular-nums">
               {snapshot.total.toFixed(2).replace(".", ",")}€
             </span>
@@ -2598,7 +2598,7 @@ function BudgetSnapshotBadge({
           )}
         </div>
         {canEdit && (
-          <div className="border-t border-[#E8E0D5] p-2 flex gap-2">
+          <div className="border-t border-cream-200 p-2 flex gap-2">
             <button
               type="button"
               onClick={recompute}

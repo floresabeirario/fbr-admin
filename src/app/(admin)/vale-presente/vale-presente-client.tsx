@@ -92,7 +92,7 @@ export function PaymentSelect({
           <SelectValue labels={VOUCHER_PAYMENT_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent className="rounded-md border border-[#E8E0D5]">
+      <SelectContent className="rounded-md border border-cream-200">
         {(Object.keys(VOUCHER_PAYMENT_STATUS_LABELS) as VoucherPaymentStatus[]).map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_PAYMENT_STATUS_COLORS[k]}`}>
@@ -128,7 +128,7 @@ export function SendSelect({
           <SelectValue labels={VOUCHER_SEND_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent className="rounded-md border border-[#E8E0D5]">
+      <SelectContent className="rounded-md border border-cream-200">
         {(Object.keys(VOUCHER_SEND_STATUS_LABELS) as VoucherSendStatus[]).map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_SEND_STATUS_COLORS[k]}`}>
@@ -164,7 +164,7 @@ export function UsageSelect({
           <SelectValue labels={VOUCHER_USAGE_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent className="rounded-md border border-[#E8E0D5]">
+      <SelectContent className="rounded-md border border-cream-200">
         {(Object.keys(VOUCHER_USAGE_STATUS_LABELS) as VoucherUsageStatus[]).map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_USAGE_STATUS_COLORS[k]}`}>
@@ -191,11 +191,11 @@ function CodeBadge({ code }: { code: string }) {
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="inline-flex items-center gap-1.5 rounded-md border border-[#E8E0D5] bg-[#FAF8F5] px-2 py-1 font-mono text-[11px] font-semibold tracking-wider text-[#3D2B1F] hover:border-[#3D2B1F] transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-md border border-cream-200 bg-cream-50 px-2 py-1 font-mono text-[11px] font-semibold tracking-wider text-cocoa-900 hover:border-cocoa-900 transition-colors"
       title="Copiar código"
     >
       {code}
-      {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-[#B8A99A]" />}
+      {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-cocoa-500" />}
     </button>
   );
 }
@@ -273,8 +273,8 @@ function VoucherRow({
 
   return (
     <tr
-      className={`border-b border-[#F0EAE0] cursor-pointer transition-colors ${
-        isLoading ? "bg-[#F0EAE0]/60" : "hover:bg-[#FDFAF7]"
+      className={`border-b border-cream-100 cursor-pointer transition-colors ${
+        isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
       }`}
       onClick={() => onOpen(voucher)}
     >
@@ -286,12 +286,12 @@ function VoucherRow({
       </td>
       <td className="px-4 py-1.5">
         <div className="flex flex-col min-w-0">
-          <span className="text-sm font-medium text-[#3D2B1F] truncate">{voucher.sender_name || "—"}</span>
-          <span className="text-[11px] text-[#8B7355] truncate">→ {voucher.recipient_name || "—"}</span>
+          <span className="text-sm font-medium text-cocoa-900 truncate">{voucher.sender_name || "—"}</span>
+          <span className="text-[11px] text-cocoa-700 truncate">→ {voucher.recipient_name || "—"}</span>
         </div>
       </td>
       <td className="px-4 py-1.5 text-right">
-        <span className="text-sm font-semibold text-[#3D2B1F]">{formatEuro(voucher.amount)}</span>
+        <span className="text-sm font-semibold text-cocoa-900">{formatEuro(voucher.amount)}</span>
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <PaymentSelect value={currentPayment} onChange={changePayment} busy={isPending && !!optimistic.payment} disabled={!canEdit} />
@@ -307,7 +307,7 @@ function VoucherRow({
           className={`text-sm ${
             expired ? "text-red-600 font-semibold"
               : expiringSoon ? "text-amber-700 font-medium"
-              : "text-[#3D2B1F]"
+              : "text-cocoa-900"
           }`}
           title={expired ? "Expirado" : expiringSoon ? `Expira em ${months} mês(es)` : undefined}
         >
@@ -318,7 +318,7 @@ function VoucherRow({
       </td>
       <td className="px-4 py-1.5 text-right">
         <button
-          className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
+          className="text-[#C4A882] hover:text-cocoa-900 transition-colors"
           onClick={(e) => { e.stopPropagation(); onOpen(voucher); }}
           title="Abrir workbench"
         >
@@ -353,23 +353,23 @@ function GroupSection({
   const isEmpty = vouchers.length === 0;
 
   return (
-    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty && isCollapsed ? "opacity-60" : ""}`}>
+    <div className={`rounded-xl border border-cream-200 bg-surface overflow-hidden ${isEmpty && isCollapsed ? "opacity-60" : ""}`}>
       <button
-        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-cream-50 transition-colors"
         onClick={onToggle}
       >
         {isCollapsed
-          ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
-          : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
+          ? <ChevronRight className="h-4 w-4 text-cocoa-700 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-cocoa-700 shrink-0" />
         }
         <span className={`text-sm font-semibold ${colorClass}`}>{title}</span>
-        <span className="ml-1 rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+        <span className="ml-1 rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
           {vouchers.length}
         </span>
-        {isEmpty && <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem vales</span>}
+        {isEmpty && <span className="ml-2 text-[11px] text-cocoa-500 italic">sem vales</span>}
       </button>
       {!isCollapsed && isEmpty && (
-        <div className="px-4 py-4 text-center text-[11px] text-[#B8A99A] italic border-t border-[#F0EAE0]">
+        <div className="px-4 py-4 text-center text-[11px] text-cocoa-500 italic border-t border-cream-100">
           Nenhum vale neste grupo.
         </div>
       )}
@@ -387,9 +387,9 @@ function GroupSection({
               <col className="w-[4%]" />
             </colgroup>
             <thead>
-              <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
+              <tr className="border-t border-cream-100 bg-cream-50">
                 {["Código", "Remetente / Destinatário", "Valor", "Pagamento", "Envio", "Utilização", "Validade", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide ${i === 2 ? "text-right" : ""}`}>
+                  <th key={i} className={`px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide ${i === 2 ? "text-right" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -483,26 +483,26 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-cream-200 bg-surface shrink-0">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Vale-Presente</h1>
-          <p className="text-xs text-[#8B7355] mt-0.5">
+          <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Vale-Presente</h1>
+          <p className="text-xs text-cocoa-700 mt-0.5">
             {totalActive} vale{totalActive !== 1 ? "s" : ""} · {totalPagos} pago{totalPagos !== 1 ? "s" : ""} · {formatEuro(totalValor)} faturado
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none min-w-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
             <Input
               placeholder="Pesquisar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-cream-200 bg-cream-50 focus:bg-surface"
             />
           </div>
           <button
             onClick={() => exportVouchersToCsv(initialVouchers)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-cream-200 bg-surface text-xs font-medium text-cocoa-900 hover:bg-cream-50 transition-colors"
             title="Exportar todos os vales para Excel/CSV"
           >
             <Download className="h-3.5 w-3.5" />
@@ -514,7 +514,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
               className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
                 showArchived
                   ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
-                  : "border-[#E8E0D5] bg-white text-[#3D2B1F] hover:bg-[#FAF8F5]"
+                  : "border-cream-200 bg-surface text-cocoa-900 hover:bg-cream-50"
               }`}
               title={showArchived ? "Voltar aos vales activos" : "Mostrar vales arquivados"}
             >
@@ -524,7 +524,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
               </span>
               {archivedVouchers.length > 0 && (
                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                  showArchived ? "bg-red-200 text-red-800" : "bg-[#F0EAE0] text-[#8B7355]"
+                  showArchived ? "bg-red-200 text-red-800" : "bg-cream-100 text-cocoa-700"
                 }`}>
                   {archivedVouchers.length}
                 </span>
@@ -534,7 +534,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
           {canEdit && !showArchived && (
             <Button
               size="sm"
-              className="h-8 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
+              className="h-8 bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg gap-1.5"
               onClick={() => setSheetOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -674,10 +674,10 @@ function ArchivedVouchersView({
 
   if (vouchers.length === 0) {
     return (
-      <div className="rounded-xl border border-[#E8E0D5] bg-white p-12 text-center">
+      <div className="rounded-xl border border-cream-200 bg-surface p-12 text-center">
         <Archive className="h-8 w-8 mx-auto text-[#C4A882] mb-3" />
-        <p className="text-sm font-medium text-[#3D2B1F]">Nenhum vale arquivado</p>
-        <p className="text-xs text-[#8B7355] mt-1">
+        <p className="text-sm font-medium text-cocoa-900">Nenhum vale arquivado</p>
+        <p className="text-xs text-cocoa-700 mt-1">
           Vales arquivados aparecem aqui. Podes restaurá-los ou apagá-los definitivamente.
         </p>
       </div>
@@ -693,15 +693,15 @@ function ArchivedVouchersView({
         </p>
       </div>
 
-      <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+      <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-[#F0EAE0] bg-[#FAF8F5]">
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Código</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Remetente / Destinatário</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide text-right">Valor</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Arquivado em</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide text-right">Acções</th>
+            <tr className="border-b border-cream-100 bg-cream-50">
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Código</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Remetente / Destinatário</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right">Valor</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Arquivado em</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right">Acções</th>
             </tr>
           </thead>
           <tbody>
@@ -710,7 +710,7 @@ function ArchivedVouchersView({
               return (
                 <tr
                   key={v.id}
-                  className="border-b border-[#F0EAE0] last:border-0 hover:bg-[#FDFAF7] cursor-pointer"
+                  className="border-b border-cream-100 last:border-0 hover:bg-cream-50 cursor-pointer"
                   onClick={() => onOpen(v)}
                 >
                   <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
@@ -718,22 +718,22 @@ function ArchivedVouchersView({
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-medium text-[#3D2B1F] truncate">{v.sender_name || "—"}</span>
-                      <span className="text-[11px] text-[#8B7355] truncate">→ {v.recipient_name || "—"}</span>
+                      <span className="text-sm font-medium text-cocoa-900 truncate">{v.sender_name || "—"}</span>
+                      <span className="text-[11px] text-cocoa-700 truncate">→ {v.recipient_name || "—"}</span>
                     </div>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <span className="text-sm font-semibold text-[#3D2B1F]">{formatEuro(v.amount)}</span>
+                    <span className="text-sm font-semibold text-cocoa-900">{formatEuro(v.amount)}</span>
                   </td>
                   <td className="px-4 py-2">
-                    <span className="text-sm text-[#8B7355]">{formatDate(v.deleted_at)}</span>
+                    <span className="text-sm text-cocoa-700">{formatDate(v.deleted_at)}</span>
                   </td>
                   <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleRestore(v)}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-[#E8E0D5] bg-white text-[11px] font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-cream-200 bg-surface text-[11px] font-medium text-cocoa-900 hover:bg-cream-50 disabled:opacity-50 transition-colors"
                         title="Restaurar"
                       >
                         {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArchiveRestore className="h-3 w-3" />}
@@ -742,7 +742,7 @@ function ArchivedVouchersView({
                       <button
                         onClick={() => setHardDeleteTarget(v)}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-red-300 bg-white text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-red-300 bg-surface text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
                         title="Apagar definitivamente"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -779,13 +779,13 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 to-rose-100 mb-4">
         <Gift className="h-8 w-8 text-amber-600" />
       </div>
-      <h2 className="text-lg font-semibold text-[#3D2B1F] mb-1">Ainda não há vales-presente</h2>
-      <p className="text-sm text-[#8B7355] max-w-sm">
+      <h2 className="text-lg font-semibold text-cocoa-900 mb-1">Ainda não há vales-presente</h2>
+      <p className="text-sm text-cocoa-700 max-w-sm">
         Os vales aparecem aqui quando alguém os compra através do site ou quando os crias manualmente.
       </p>
       {onCreate && (
         <Button
-          className="mt-6 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
+          className="mt-6 bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg gap-1.5"
           onClick={onCreate}
         >
           <Plus className="h-4 w-4" />

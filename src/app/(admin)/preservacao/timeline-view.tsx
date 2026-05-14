@@ -120,15 +120,15 @@ export default function TimelineView({ orders, onOpenOrder, loadingOrderId }: Pr
       {/* Próximos eventos */}
       <section>
         <header className="flex items-center gap-2 mb-3">
-          <CalendarDays className="h-4 w-4 text-[#3D2B1F]" />
-          <h2 className="text-sm font-semibold text-[#3D2B1F]">Próximos eventos</h2>
-          <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+          <CalendarDays className="h-4 w-4 text-cocoa-900" />
+          <h2 className="text-sm font-semibold text-cocoa-900">Próximos eventos</h2>
+          <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
             {future.length}
           </span>
         </header>
 
         {!hasFuture ? (
-          <p className="rounded-xl border border-dashed border-[#E8E0D5] bg-white px-4 py-6 text-center text-xs text-[#B8A99A] italic">
+          <p className="rounded-xl border border-dashed border-cream-200 bg-surface px-4 py-6 text-center text-xs text-cocoa-500 italic">
             Sem eventos futuros agendados.
           </p>
         ) : (
@@ -154,12 +154,12 @@ export default function TimelineView({ orders, onOpenOrder, loadingOrderId }: Pr
             className="w-full flex items-center gap-2 mb-3 text-left"
           >
             {showPast ? (
-              <ChevronDown className="h-4 w-4 text-[#8B7355]" />
+              <ChevronDown className="h-4 w-4 text-cocoa-700" />
             ) : (
-              <ChevronRight className="h-4 w-4 text-[#8B7355]" />
+              <ChevronRight className="h-4 w-4 text-cocoa-700" />
             )}
-            <h2 className="text-sm font-semibold text-[#8B7355]">Eventos passados</h2>
-            <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+            <h2 className="text-sm font-semibold text-cocoa-700">Eventos passados</h2>
+            <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
               {past.length}
             </span>
           </button>
@@ -188,17 +188,17 @@ export default function TimelineView({ orders, onOpenOrder, loadingOrderId }: Pr
             className="w-full flex items-center gap-2 mb-3 text-left"
           >
             {showMissing ? (
-              <ChevronDown className="h-4 w-4 text-[#8B7355]" />
+              <ChevronDown className="h-4 w-4 text-cocoa-700" />
             ) : (
-              <ChevronRight className="h-4 w-4 text-[#8B7355]" />
+              <ChevronRight className="h-4 w-4 text-cocoa-700" />
             )}
-            <h2 className="text-sm font-semibold text-[#8B7355]">Sem data de evento</h2>
-            <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+            <h2 className="text-sm font-semibold text-cocoa-700">Sem data de evento</h2>
+            <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
               {missingDate.length}
             </span>
           </button>
           {showMissing && (
-            <div className="rounded-xl border border-[#E8E0D5] bg-white divide-y divide-[#F0EAE0]">
+            <div className="rounded-xl border border-cream-200 bg-surface divide-y divide-cream-100">
               {missingDate.map((o) => (
                 <TimelineRow
                   key={o.id}
@@ -236,16 +236,16 @@ function BucketSection({
       <div className="flex items-center gap-2 mb-2 px-1">
         <span
           className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${
-            past ? "text-[#B8A99A]" : "text-[#8B7355]"
+            past ? "text-cocoa-500" : "text-cocoa-700"
           } capitalize`}
         >
           {bucket.label}
         </span>
-        <span className="text-[10px] text-[#B8A99A]">
+        <span className="text-[10px] text-cocoa-500">
           · {bucket.orders.length} evento{bucket.orders.length === 1 ? "" : "s"}
         </span>
       </div>
-      <div className="rounded-xl border border-[#E8E0D5] bg-white divide-y divide-[#F0EAE0] overflow-hidden">
+      <div className="rounded-xl border border-cream-200 bg-surface divide-y divide-cream-100 overflow-hidden">
         {bucket.orders.map((o) => (
           <TimelineRow
             key={o.id}
@@ -288,7 +288,7 @@ function TimelineRow({
     <button
       onClick={() => onOpenOrder(order)}
       className={`w-full flex items-stretch gap-3 px-3 py-2.5 text-left transition-colors ${
-        isLoading ? "bg-[#FAF3E8]" : "hover:bg-[#FDFAF7]"
+        isLoading ? "bg-[#FAF3E8]" : "hover:bg-cream-50"
       }`}
     >
       {/* Coluna data */}
@@ -299,7 +299,7 @@ function TimelineRow({
               ? "bg-stone-100 text-stone-500"
               : urgent
               ? "bg-red-50 text-red-700 border border-red-200"
-              : "bg-[#FAF8F5] text-[#3D2B1F] border border-[#E8E0D5]"
+              : "bg-cream-50 text-cocoa-900 border border-cream-200"
           }`}
         >
           <span className="text-[9px] uppercase font-semibold tracking-wider opacity-70">
@@ -313,7 +313,7 @@ function TimelineRow({
           </span>
         </div>
       ) : (
-        <div className="flex items-center justify-center w-14 shrink-0 rounded-lg bg-[#F0EAE0] text-[#B8A99A]">
+        <div className="flex items-center justify-center w-14 shrink-0 rounded-lg bg-cream-100 text-cocoa-500">
           <CalendarDays className="h-4 w-4" />
         </div>
       )}
@@ -321,11 +321,11 @@ function TimelineRow({
       {/* Coluna info */}
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-[#3D2B1F] truncate">
+          <span className="text-sm font-semibold text-cocoa-900 truncate">
             {order.client_name}
           </span>
           {order.event_type && (
-            <span className="text-xs text-[#8B7355]">
+            <span className="text-xs text-cocoa-700">
               {EVENT_TYPE_LABELS[order.event_type]}
             </span>
           )}
@@ -337,7 +337,7 @@ function TimelineRow({
           )}
         </div>
         {order.event_location && (
-          <div className="flex items-center gap-1 text-[11px] text-[#8B7355] truncate">
+          <div className="flex items-center gap-1 text-[11px] text-cocoa-700 truncate">
             <MapPin className="h-3 w-3 shrink-0" />
             <span className="truncate">{order.event_location}</span>
           </div>

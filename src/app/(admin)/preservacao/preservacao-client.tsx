@@ -142,12 +142,12 @@ export function StatusSelect({
       </SelectTrigger>
       <SelectContent
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-[#E8E0D5]"
+        className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-cream-200"
       >
         {STATUS_GROUPS.map((group, gi) => (
           <div key={group.label}>
-            {gi > 0 && <SelectSeparator className="bg-[#E8E0D5] my-0" />}
-            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#B8A99A]">
+            {gi > 0 && <SelectSeparator className="bg-cream-200 my-0" />}
+            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-cocoa-500">
               {group.label}
             </div>
             <div className="px-1 pb-1">
@@ -155,7 +155,7 @@ export function StatusSelect({
                 const Icon = STATUS_ICONS[s];
                 return (
                   <SelectItem key={s} value={s} className="my-0.5">
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-[#8B7355]" />
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-cocoa-700" />
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
                       {STATUS_LABELS[s]}
                     </span>
@@ -197,7 +197,7 @@ export function PaymentSelect({
           <SelectValue labels={PAYMENT_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent className="rounded-md border border-[#E8E0D5]">
+      <SelectContent className="rounded-md border border-cream-200">
         {(Object.keys(PAYMENT_STATUS_LABELS) as PaymentStatus[]).map((s) => (
           <SelectItem key={s} value={s} className="text-xs font-medium rounded-md">
             <span className={`h-2 w-2 rounded-full shrink-0 ${PAYMENT_DOT_COLORS[s]}`} />
@@ -341,8 +341,8 @@ function OrderRow({
     <tr
       ref={setDragNodeRef}
       {...attributes}
-      className={`border-b border-[#F0EAE0] cursor-pointer transition-colors ${
-        isLoading ? "bg-[#F0EAE0]/60" : "hover:bg-[#FDFAF7]"
+      className={`border-b border-cream-100 cursor-pointer transition-colors ${
+        isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
       } ${isDraggingThis || isDragging ? "opacity-40" : ""}`}
       onClick={() => onOpen(order)}
     >
@@ -353,7 +353,7 @@ function OrderRow({
             type="button"
             title="Arrastar para mudar de grupo"
             aria-label={`Arrastar encomenda ${order.client_name}`}
-            className="flex h-6 w-6 items-center justify-center rounded text-[#C4A882] hover:bg-[#FAF8F5] hover:text-[#3D2B1F] cursor-grab active:cursor-grabbing touch-none"
+            className="flex h-6 w-6 items-center justify-center rounded text-[#C4A882] hover:bg-cream-50 hover:text-cocoa-900 cursor-grab active:cursor-grabbing touch-none"
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
@@ -366,7 +366,7 @@ function OrderRow({
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
+              <span className="text-sm font-medium text-cocoa-900">{order.client_name}</span>
               {/* Ícone presente: aparece quando a encomenda veio de um vale-presente
                   cujo código existe ainda nos vales activos. Click → abre o vale. */}
               {order.gift_voucher_code && voucherCodeToId[order.gift_voucher_code] && (
@@ -388,7 +388,7 @@ function OrderRow({
               )}
             </div>
             {order.event_type && (
-              <span className="text-xs text-[#8B7355]">
+              <span className="text-xs text-cocoa-700">
                 {EVENT_TYPE_LABELS[order.event_type]}
               </span>
             )}
@@ -398,25 +398,25 @@ function OrderRow({
       <td className="px-4 py-1.5">
         {order.event_date ? (
           <span
-            className={`text-sm ${urgentEvent ? "text-red-600 font-semibold" : "text-[#3D2B1F]"}`}
+            className={`text-sm ${urgentEvent ? "text-red-600 font-semibold" : "text-cocoa-900"}`}
           >
             {urgentEvent && "⚠ "}
             {formatDate(order.event_date)}
           </span>
         ) : (
-          <span className="text-sm text-[#B8A99A]">—</span>
+          <span className="text-sm text-cocoa-500">—</span>
         )}
       </td>
       <td className="px-4 py-1.5">
         <span
-          className="text-sm text-[#3D2B1F] block max-w-[200px] truncate"
+          className="text-sm text-cocoa-900 block max-w-[200px] truncate"
           title={order.event_location ?? undefined}
         >
-          {order.event_location || <span className="text-[#B8A99A]">—</span>}
+          {order.event_location || <span className="text-cocoa-500">—</span>}
         </span>
       </td>
       <td className="px-4 py-1.5">
-        <span className="text-sm text-[#3D2B1F]">{shippingLabel}</span>
+        <span className="text-sm text-cocoa-900">{shippingLabel}</span>
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <StatusSelect
@@ -427,7 +427,7 @@ function OrderRow({
         />
       </td>
       <td className="px-4 py-1.5 text-right">
-        <span className="text-sm text-[#3D2B1F]">{formatEuro(order.budget)}</span>
+        <span className="text-sm text-cocoa-900">{formatEuro(order.budget)}</span>
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <PaymentSelect
@@ -443,7 +443,7 @@ function OrderRow({
             <button
               onClick={(e) => { e.stopPropagation(); markContacted(); }}
               disabled={isPending}
-              className="inline-flex items-center gap-1 rounded-full border border-[#E8E0D5] bg-white px-2 py-1 text-[11px] font-medium text-[#3D2B1F] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded-full border border-cream-200 bg-surface px-2 py-1 text-[11px] font-medium text-cocoa-900 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary disabled:opacity-50 transition-colors"
               title="Marcar como contactada"
             >
               {isPending && optimisticContacted ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
@@ -454,7 +454,7 @@ function OrderRow({
             <button
               onClick={(e) => { e.stopPropagation(); moveToSemResposta(); }}
               disabled={isPending}
-              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-surface px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
               title="Mover para Sem resposta"
             >
               <Clock className="h-3 w-3" />
@@ -465,7 +465,7 @@ function OrderRow({
             <button
               onClick={(e) => { e.stopPropagation(); moveOutOfSemResposta(); }}
               disabled={isPending}
-              className="inline-flex items-center gap-1 rounded-full border border-[#E8E0D5] bg-white px-2 py-1 text-[11px] font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1 rounded-full border border-cream-200 bg-surface px-2 py-1 text-[11px] font-medium text-cocoa-900 hover:bg-cream-50 disabled:opacity-50 transition-colors"
               title="Voltar para Pré-reservas"
             >
               <Undo2 className="h-3 w-3" />
@@ -473,7 +473,7 @@ function OrderRow({
             </button>
           )}
           <button
-            className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
+            className="text-[#C4A882] hover:text-cocoa-900 transition-colors"
             onClick={(e) => { e.stopPropagation(); onOpen(order); }}
             title="Abrir workbench"
           >
@@ -519,10 +519,10 @@ function GroupSection({
   return (
     <div
       ref={setDropNodeRef}
-      className={`rounded-xl border bg-white overflow-hidden transition-all ${
+      className={`rounded-xl border bg-surface overflow-hidden transition-all ${
         isOver
-          ? "border-[#C4A882] ring-2 ring-[#C4A882]/40 shadow-[0_0_0_3px_rgba(196,168,130,0.15)]"
-          : "border-[#E8E0D5]"
+          ? "border-cocoa-500 ring-2 ring-[#C4A882]/40 shadow-[0_0_0_3px_rgba(196,168,130,0.15)]"
+          : "border-cream-200"
       } ${isEmpty && isCollapsed && !isOver ? "opacity-60" : ""}`}
     >
       {isOver && droppableId && (
@@ -532,24 +532,24 @@ function GroupSection({
         </div>
       )}
       <button
-        className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors`}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-cream-50 transition-colors`}
         onClick={onToggle}
       >
         {isCollapsed
-          ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
-          : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
+          ? <ChevronRight className="h-4 w-4 text-cocoa-700 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-cocoa-700 shrink-0" />
         }
         {alert && !isEmpty && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
         <span className={`text-sm font-semibold ${colorClass}`}>{title}</span>
-        <span className="ml-1 rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+        <span className="ml-1 rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
           {orders.length}
         </span>
         {isEmpty && (
-          <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem encomendas</span>
+          <span className="ml-2 text-[11px] text-cocoa-500 italic">sem encomendas</span>
         )}
       </button>
       {!isCollapsed && isEmpty && (
-        <div className="px-4 py-4 text-center text-[11px] text-[#B8A99A] italic border-t border-[#F0EAE0]">
+        <div className="px-4 py-4 text-center text-[11px] text-cocoa-500 italic border-t border-cream-100">
           Nenhuma encomenda neste grupo.
         </div>
       )}
@@ -568,9 +568,9 @@ function GroupSection({
               <col className="w-[6%]" />
             </colgroup>
             <thead>
-              <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
+              <tr className="border-t border-cream-100 bg-cream-50">
                 {["", "Cliente", "Data evento", "Localização", shippingHeader, "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide ${i === 6 ? "text-right" : ""}`}>
+                  <th key={i} className={`px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide ${i === 6 ? "text-right" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -784,33 +784,33 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-cream-200 bg-surface shrink-0">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Preservação de Flores</h1>
-          <p className="text-xs text-[#8B7355] mt-0.5">
+          <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Preservação de Flores</h1>
+          <p className="text-xs text-cocoa-700 mt-0.5">
             {totalActive} encomenda{totalActive !== 1 ? "s" : ""} em curso ·{" "}
             {initialOrders.length} total
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none min-w-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
             <Input
               placeholder="Pesquisar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-cream-200 bg-cream-50 focus:bg-surface"
             />
           </div>
-          <div className="flex items-center rounded-lg border border-[#E8E0D5] overflow-hidden">
+          <div className="flex items-center rounded-lg border border-cream-200 overflow-hidden">
             {VIEW_BUTTONS.map(({ id, label, icon }) => (
               <button
                 key={id}
                 onClick={() => setActiveView(id)}
                 className={`flex items-center gap-1.5 px-3 h-8 text-xs font-medium transition-colors ${
                   activeView === id
-                    ? "bg-[#3D2B1F] text-white"
-                    : "text-[#8B7355] hover:bg-[#FAF8F5]"
+                    ? "bg-btn-primary text-btn-primary-fg"
+                    : "text-cocoa-700 hover:bg-cream-50"
                 }`}
                 title={label}
               >
@@ -821,7 +821,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
           </div>
           <button
             onClick={() => exportOrdersToCsv(initialOrders)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-cream-200 bg-surface text-xs font-medium text-cocoa-900 hover:bg-cream-50 transition-colors"
             title="Exportar todas as encomendas para Excel/CSV"
           >
             <Download className="h-3.5 w-3.5" />
@@ -833,7 +833,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
               className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
                 showArchived
                   ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
-                  : "border-[#E8E0D5] bg-white text-[#3D2B1F] hover:bg-[#FAF8F5]"
+                  : "border-cream-200 bg-surface text-cocoa-900 hover:bg-cream-50"
               }`}
               title={showArchived ? "Voltar às encomendas activas" : "Mostrar encomendas arquivadas"}
             >
@@ -843,7 +843,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
               </span>
               {archivedOrders.length > 0 && (
                 <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                  showArchived ? "bg-red-200 text-red-800" : "bg-[#F0EAE0] text-[#8B7355]"
+                  showArchived ? "bg-red-200 text-red-800" : "bg-cream-100 text-cocoa-700"
                 }`}>
                   {archivedOrders.length}
                 </span>
@@ -853,7 +853,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
           {canEdit && !showArchived && (
             <Button
               size="sm"
-              className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-8 gap-1.5"
+              className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-8 gap-1.5"
               onClick={() => setSheetOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -912,8 +912,8 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
               <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="cancelamentos"       draggingOrderId={draggingOrder?.id ?? null} />
 
               {filteredOrders.length === 0 && initialOrders.length > 0 && (
-                <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">
-                  <p className="text-sm text-[#8B7355]">
+                <div className="rounded-xl border border-cream-200 bg-surface p-8 text-center">
+                  <p className="text-sm text-cocoa-700">
                     Nenhum resultado para <strong>&ldquo;{search}&rdquo;</strong>
                   </p>
                 </div>
@@ -921,11 +921,11 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
             </div>
             <DragOverlay dropAnimation={null}>
               {draggingOrder && (
-                <div className="rounded-lg border border-[#C4A882] bg-white shadow-lg px-3 py-2 flex items-center gap-2 max-w-[280px] cursor-grabbing">
+                <div className="rounded-lg border border-cocoa-500 bg-surface shadow-lg px-3 py-2 flex items-center gap-2 max-w-[280px] cursor-grabbing">
                   <GripVertical className="h-3.5 w-3.5 text-[#C4A882] shrink-0" />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-semibold text-[#3D2B1F] truncate">{draggingOrder.client_name}</span>
-                    <span className="text-[11px] text-[#8B7355] truncate">{draggingOrder.order_id}</span>
+                    <span className="text-sm font-semibold text-cocoa-900 truncate">{draggingOrder.client_name}</span>
+                    <span className="text-[11px] text-cocoa-700 truncate">{draggingOrder.order_id}</span>
                   </div>
                 </div>
               )}
@@ -1003,11 +1003,11 @@ function CardGroup({
       <div className="flex items-center gap-2 mb-3">
         {alert && !isEmpty && <AlertTriangle className="h-4 w-4 text-red-500" />}
         <h2 className={`text-sm font-semibold ${colorClass}`}>{title}</h2>
-        <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+        <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
           {orders.length}
         </span>
         {isEmpty && (
-          <span className="ml-1 text-[11px] text-[#B8A99A] italic">sem encomendas</span>
+          <span className="ml-1 text-[11px] text-cocoa-500 italic">sem encomendas</span>
         )}
       </div>
       {!isEmpty && (
@@ -1043,12 +1043,12 @@ function OrderCard({
   return (
     <button
       onClick={() => onOpen(order)}
-      className={`group text-left rounded-2xl border bg-white overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md transition-all ${
-        isLoading ? "border-[#C4A882] ring-2 ring-[#C4A882]/30" : "border-[#E8E0D5] hover:border-[#C4A882]"
+      className={`group text-left rounded-2xl border bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md transition-all ${
+        isLoading ? "border-cocoa-500 ring-2 ring-[#C4A882]/30" : "border-cream-200 hover:border-cocoa-500"
       }`}
     >
       {showPhoto && (
-        <div className="relative aspect-square bg-gradient-to-br from-[#FAF8F5] to-[#F0E8DC]">
+        <div className="relative aspect-square bg-gradient-to-br from-cream-50 to-cream-100">
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -1058,7 +1058,7 @@ function OrderCard({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white border border-[#E8E0D5] text-[#C4A882]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface border border-cream-200 text-[#C4A882]">
                 <ImageIcon className="h-4 w-4" />
               </div>
             </div>
@@ -1071,7 +1071,7 @@ function OrderCard({
           )}
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-              <Loader2 className="h-6 w-6 animate-spin text-[#3D2B1F]" />
+              <Loader2 className="h-6 w-6 animate-spin text-cocoa-900" />
             </div>
           )}
         </div>
@@ -1084,12 +1084,12 @@ function OrderCard({
           </div>
         )}
         {!showPhoto && isLoading && (
-          <Loader2 className="h-4 w-4 animate-spin text-[#3D2B1F] mb-1" />
+          <Loader2 className="h-4 w-4 animate-spin text-cocoa-900 mb-1" />
         )}
-        <p className="text-sm font-semibold text-[#3D2B1F] truncate">
+        <p className="text-sm font-semibold text-cocoa-900 truncate">
           {order.client_name}
         </p>
-        <p className="text-[11px] text-[#8B7355] truncate mt-0.5">
+        <p className="text-[11px] text-cocoa-700 truncate mt-0.5">
           {order.event_date ? formatDate(order.event_date) : "Sem data"}
           {order.event_type && ` · ${EVENT_TYPE_LABELS[order.event_type]}`}
         </p>
@@ -1132,10 +1132,10 @@ function ArchivedOrdersView({
 
   if (orders.length === 0) {
     return (
-      <div className="rounded-xl border border-[#E8E0D5] bg-white p-12 text-center">
+      <div className="rounded-xl border border-cream-200 bg-surface p-12 text-center">
         <Archive className="h-8 w-8 mx-auto text-[#C4A882] mb-3" />
-        <p className="text-sm font-medium text-[#3D2B1F]">Nenhuma encomenda arquivada</p>
-        <p className="text-xs text-[#8B7355] mt-1">
+        <p className="text-sm font-medium text-cocoa-900">Nenhuma encomenda arquivada</p>
+        <p className="text-xs text-cocoa-700 mt-1">
           Encomendas arquivadas aparecem aqui. Podes restaurá-las ou apagá-las definitivamente.
         </p>
       </div>
@@ -1151,15 +1151,15 @@ function ArchivedOrdersView({
         </p>
       </div>
 
-      <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+      <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-[#F0EAE0] bg-[#FAF8F5]">
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Cliente</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Data evento</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Estado antes</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide">Arquivada em</th>
-              <th className="px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide text-right">Acções</th>
+            <tr className="border-b border-cream-100 bg-cream-50">
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Cliente</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Data evento</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Estado antes</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Arquivada em</th>
+              <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right">Acções</th>
             </tr>
           </thead>
           <tbody>
@@ -1168,17 +1168,17 @@ function ArchivedOrdersView({
               return (
                 <tr
                   key={order.id}
-                  className="border-b border-[#F0EAE0] last:border-0 hover:bg-[#FDFAF7] cursor-pointer"
+                  className="border-b border-cream-100 last:border-0 hover:bg-cream-50 cursor-pointer"
                   onClick={() => onOpenOrder(order)}
                 >
                   <td className="px-4 py-2">
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-medium text-[#3D2B1F]">{order.client_name}</span>
-                      <span className="font-mono text-[10px] text-[#B8A99A]">#{order.order_id}</span>
+                      <span className="text-sm font-medium text-cocoa-900">{order.client_name}</span>
+                      <span className="font-mono text-[10px] text-cocoa-500">#{order.order_id}</span>
                     </div>
                   </td>
                   <td className="px-4 py-2">
-                    <span className="text-sm text-[#3D2B1F]">{formatDate(order.event_date)}</span>
+                    <span className="text-sm text-cocoa-900">{formatDate(order.event_date)}</span>
                   </td>
                   <td className="px-4 py-2">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${STATUS_COLORS[order.status] ?? ""}`}>
@@ -1186,14 +1186,14 @@ function ArchivedOrdersView({
                     </span>
                   </td>
                   <td className="px-4 py-2">
-                    <span className="text-sm text-[#8B7355]">{formatDate(order.deleted_at)}</span>
+                    <span className="text-sm text-cocoa-700">{formatDate(order.deleted_at)}</span>
                   </td>
                   <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleRestore(order)}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-[#E8E0D5] bg-white text-[11px] font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-cream-200 bg-surface text-[11px] font-medium text-cocoa-900 hover:bg-cream-50 disabled:opacity-50 transition-colors"
                         title="Restaurar para a lista activa"
                       >
                         {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArchiveRestore className="h-3 w-3" />}
@@ -1202,7 +1202,7 @@ function ArchivedOrdersView({
                       <button
                         onClick={() => setHardDeleteTarget(order)}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-red-300 bg-white text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-red-300 bg-surface text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
                         title="Apagar definitivamente"
                       >
                         <Trash2 className="h-3 w-3" />

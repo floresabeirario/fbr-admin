@@ -150,7 +150,7 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="font-['TanMemories'] text-[#3D2B1F]">
+          <SheetTitle className="font-['TanMemories'] text-cocoa-900">
             Novo {PARTNER_CATEGORY_LABELS[defaultCategory].toLowerCase().replace(/s$/, "")}
           </SheetTitle>
           <SheetDescription>
@@ -235,14 +235,14 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
               <Label>Telemóveis</Label>
               {(form.phones ?? []).map((p, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-[#8B7355]" />
+                  <Phone className="h-3.5 w-3.5 text-cocoa-700" />
                   <span className="flex-1 text-sm">
-                    {p.label && <span className="text-[#8B7355]">{p.label}: </span>}
+                    {p.label && <span className="text-cocoa-700">{p.label}: </span>}
                     {p.number}
                   </span>
                   <button
                     type="button"
-                    className="text-[#B8A99A] hover:text-rose-600"
+                    className="text-cocoa-500 hover:text-rose-600"
                     onClick={() => removePhone(i)}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -275,11 +275,11 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
               <Label>Links (site, Instagram, etc.)</Label>
               {(form.links ?? []).map((l, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <LinkIcon className="h-3.5 w-3.5 text-[#8B7355]" />
+                  <LinkIcon className="h-3.5 w-3.5 text-cocoa-700" />
                   <span className="flex-1 text-sm truncate">{l}</span>
                   <button
                     type="button"
-                    className="text-[#B8A99A] hover:text-rose-600"
+                    className="text-cocoa-500 hover:text-rose-600"
                     onClick={() => removeLink(i)}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -329,7 +329,7 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
                   </span>
                 </p>
               )}
-              <p className="text-[11px] text-[#B8A99A]">
+              <p className="text-[11px] text-cocoa-500">
                 Os resultados vêm do OpenStreetMap. Limitado a 1 sugestão por
                 segundo (debounce de 400ms).
               </p>
@@ -374,12 +374,12 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-[#E8E0D5]">
+          <div className="flex justify-end gap-2 pt-2 border-t border-cream-200">
             <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>
               Cancelar
             </Button>
             <Button
-              className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white"
+              className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg"
               onClick={handleSubmit}
               disabled={saving}
             >
@@ -394,7 +394,7 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
 
 function SectionTitle({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8B7355]">
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cocoa-700">
       <Icon className="h-3.5 w-3.5" />
       {label}
     </div>

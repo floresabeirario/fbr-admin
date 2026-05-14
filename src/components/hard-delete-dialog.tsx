@@ -64,15 +64,15 @@ export default function HardDeleteDialog({ open, onOpenChange, itemLabel, onConf
             <AlertTriangle className="h-4 w-4" />
             Apagar definitivamente?
           </DialogTitle>
-          <DialogDescription className="text-[#8B7355]">
-            Vais apagar <strong className="text-[#3D2B1F]">{itemLabel}</strong> para sempre.
+          <DialogDescription className="text-cocoa-700">
+            Vais apagar <strong className="text-cocoa-900">{itemLabel}</strong> para sempre.
             Esta acção não pode ser desfeita. Os dados ficam no audit log mas o registo é removido da BD.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
           <div>
-            <Label className="text-xs font-medium text-[#8B7355]">
+            <Label className="text-xs font-medium text-cocoa-700">
               Escreve <span className="font-mono font-bold text-red-700">{CONFIRM_WORD}</span> para confirmar
             </Label>
             <Input
@@ -85,7 +85,7 @@ export default function HardDeleteDialog({ open, onOpenChange, itemLabel, onConf
           </div>
 
           <div>
-            <Label className="text-xs font-medium text-[#8B7355]">
+            <Label className="text-xs font-medium text-cocoa-700">
               Justificação <span className="text-red-700">*</span>
             </Label>
             <Textarea
@@ -95,7 +95,7 @@ export default function HardDeleteDialog({ open, onOpenChange, itemLabel, onConf
               className="mt-1.5 min-h-[60px]"
               maxLength={500}
             />
-            <p className="text-[10px] text-[#B8A99A] mt-1">
+            <p className="text-[10px] text-cocoa-500 mt-1">
               Fica registada no audit log. Mínimo 3 caracteres.
             </p>
           </div>
@@ -111,7 +111,7 @@ export default function HardDeleteDialog({ open, onOpenChange, itemLabel, onConf
           <button
             onClick={() => onOpenChange(false)}
             disabled={busy}
-            className="h-9 px-4 rounded-lg border border-[#E8E0D5] bg-white text-sm text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors disabled:opacity-50"
+            className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>

@@ -19,10 +19,14 @@ interface Platform {
 }
 
 const TONE_STYLES: Record<Platform["tone"], string> = {
-  primary: "from-[#3D2B1F] to-[#5C3D26] text-white border-[#3D2B1F]",
-  public: "from-emerald-50 to-green-100 border-emerald-300 text-emerald-900",
-  external: "from-sky-50 to-blue-100 border-sky-300 text-sky-900",
-  integration: "from-violet-50 to-purple-100 border-violet-300 text-violet-900",
+  primary:
+    "from-[#3D2B1F] to-[#5C3D26] text-white border-[#3D2B1F] dark:from-[#E8D5B5] dark:to-[#C4A882] dark:text-[#1B1611] dark:border-[#D4C19F]",
+  public:
+    "from-emerald-50 to-green-100 border-emerald-300 text-emerald-900 dark:from-emerald-950/40 dark:to-emerald-900/30 dark:border-emerald-800 dark:text-emerald-100",
+  external:
+    "from-sky-50 to-blue-100 border-sky-300 text-sky-900 dark:from-sky-950/40 dark:to-sky-900/30 dark:border-sky-800 dark:text-sky-100",
+  integration:
+    "from-violet-50 to-purple-100 border-violet-300 text-violet-900 dark:from-violet-950/40 dark:to-violet-900/30 dark:border-violet-800 dark:text-violet-100",
 };
 
 const INPUTS_PUBLIC: Platform[] = [
@@ -135,24 +139,24 @@ export default function EcossistemaPage() {
           <Globe className="h-6 w-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="text-2xl font-semibold text-cocoa-900">
             Ecossistema
           </h1>
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <p className="text-sm text-cocoa-700">
             Mapa das plataformas e integrações que alimentam ou são alimentadas pelo admin
           </p>
         </div>
       </div>
 
       {/* Fluxo: input público → admin → output público */}
-      <div className="rounded-3xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B7355] mb-4">
+      <div className="rounded-3xl border border-cream-200 bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-cocoa-700 mb-4">
           Fluxo principal
         </h2>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-4">
           {/* Inputs */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-[#8B7355] text-center">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-700 text-center">
               Entrada
             </div>
             {INPUTS_PUBLIC.map((p) => (
@@ -165,7 +169,7 @@ export default function EcossistemaPage() {
 
           {/* Admin */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-[#8B7355] text-center">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-700 text-center">
               Núcleo
             </div>
             <PlatformCard platform={ADMIN_CORE} />
@@ -176,7 +180,7 @@ export default function EcossistemaPage() {
 
           {/* Outputs */}
           <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-[#8B7355] text-center">
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-700 text-center">
               Saída pública
             </div>
             {OUTPUTS_PUBLIC.map((p) => (
@@ -187,8 +191,8 @@ export default function EcossistemaPage() {
       </div>
 
       {/* Integrações */}
-      <div className="rounded-3xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-[#8B7355] mb-4">
+      <div className="rounded-3xl border border-cream-200 bg-surface p-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-cocoa-700 mb-4">
           Integrações
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -199,9 +203,9 @@ export default function EcossistemaPage() {
       </div>
 
       {/* Nota sobre privacidade */}
-      <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1A1A1A] p-4 flex gap-3">
-        <Lock className="h-5 w-5 text-[#8B7355] shrink-0 mt-0.5" />
-        <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] leading-relaxed">
+      <div className="rounded-2xl border border-cream-200 bg-cream-50 p-4 flex gap-3">
+        <Lock className="h-5 w-5 text-cocoa-700 shrink-0 mt-0.5" />
+        <p className="text-sm text-cocoa-700 leading-relaxed">
           Dados sensíveis (PII, NIF, anexos) <strong>nunca</strong> deixam o
           Supabase. As integrações externas só recebem o estritamente necessário
           (datas de eventos para o Calendar, ficheiros que a Maria upload-ar
@@ -235,7 +239,7 @@ function PlatformCard({ platform }: { platform: Platform }) {
 
 function FlowArrow() {
   return (
-    <div className="hidden lg:flex flex-col items-center justify-center text-[#B8A99A]">
+    <div className="hidden lg:flex flex-col items-center justify-center text-cocoa-500">
       <ArrowRight className="h-8 w-8" />
     </div>
   );
@@ -248,11 +252,11 @@ function IntegrationCard({
 }) {
   const Icon = integration.icon;
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] p-4 space-y-2 bg-white dark:bg-[#141414]">
+    <div className="rounded-2xl border border-cream-200 p-4 space-y-2 bg-surface">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-violet-500" />
-          <span className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <span className="text-sm font-semibold text-cocoa-900">
             {integration.name}
           </span>
         </div>
@@ -266,10 +270,10 @@ function IntegrationCard({
           {integration.status === "active" ? "Activo" : "Pendente"}
         </span>
       </div>
-      <p className="text-xs text-[#8B7355] dark:text-[#8E8E93] leading-relaxed">
+      <p className="text-xs text-cocoa-700 leading-relaxed">
         {integration.description}
       </p>
-      <p className="text-[11px] italic text-[#B8A99A] dark:text-[#6E6E6E]">
+      <p className="text-[11px] italic text-cocoa-500 dark:text-[#6E6E6E]">
         {integration.statusNote}
       </p>
     </div>

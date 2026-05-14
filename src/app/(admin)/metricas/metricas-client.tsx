@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useTheme } from "next-themes";
 import {
   LineChart as LineChartIcon,
   TrendingUp,
@@ -135,7 +136,7 @@ function HeroKpiCard({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-[#3D2B1F]/70 dark:text-[#E8D5B5]/70">
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-900/70 dark:text-[#E8D5B5]/70">
           {label}
         </div>
         <div
@@ -148,13 +149,13 @@ function HeroKpiCard({
         </div>
       </div>
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-3xl font-bold text-[#3D2B1F] dark:text-[#E8D5B5] tabular-nums">
+        <span className="text-3xl font-bold text-cocoa-900 tabular-nums">
           {value}
         </span>
         {pct !== undefined && <PctBadge pct={pct} />}
       </div>
       {sub && (
-        <div className="text-[11px] text-[#3D2B1F]/60 dark:text-[#E8D5B5]/60">
+        <div className="text-[11px] text-cocoa-900/60 dark:text-[#E8D5B5]/60">
           {sub}
         </div>
       )}
@@ -177,18 +178,18 @@ function MiniKpi({
   color: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-5 space-y-1.5">
+    <div className="rounded-2xl border border-cream-200 bg-surface p-5 space-y-1.5">
       <div className="flex items-center gap-2">
         <Icon className={cn("h-4 w-4", color)} />
-        <div className="text-xs uppercase tracking-wider text-[#8B7355] dark:text-[#8E8E93] font-medium">
+        <div className="text-xs uppercase tracking-wider text-cocoa-700 font-medium">
           {label}
         </div>
       </div>
-      <div className="text-xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] tabular-nums">
+      <div className="text-xl font-semibold text-cocoa-900 tabular-nums">
         {value}
       </div>
       {sub && (
-        <div className="text-[11px] text-[#8B7355] dark:text-[#8E8E93]">{sub}</div>
+        <div className="text-[11px] text-cocoa-700">{sub}</div>
       )}
     </div>
   );
@@ -210,11 +211,11 @@ function ChartCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-5 space-y-3",
+        "rounded-2xl border border-cream-200 bg-surface p-5 space-y-3",
         className,
       )}
     >
-      <h3 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-cocoa-900 flex items-center gap-2">
         {Icon && <Icon className={cn("h-4 w-4", iconColor)} />}
         {title}
       </h3>
@@ -239,6 +240,20 @@ export default function MetricasClient({
   const [preset, setPreset] = useState<RangePreset>("este_mes");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
+
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const chartGrid = isDark ? "#322821" : "#E8E0D5";
+  const chartTooltipBg = isDark ? "#1B1611" : "#FFFFFF";
+  const chartTooltipBorder = isDark ? "#322821" : "#E8E0D5";
+  const chartTooltipText = isDark ? "#E8D5B5" : "#3D2B1F";
+  const tooltipStyle = {
+    borderRadius: 8,
+    border: `1px solid ${chartTooltipBorder}`,
+    background: chartTooltipBg,
+    color: chartTooltipText,
+    fontSize: 12,
+  } as const;
 
   const range: DateRange | null = useMemo(() => {
     if (preset === "personalizado") {
@@ -267,21 +282,21 @@ export default function MetricasClient({
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header com fundo gradiente subtil */}
-      <div className="rounded-2xl bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 dark:from-rose-950/30 dark:via-amber-950/20 dark:to-emerald-950/30 border border-[#E8E0D5] dark:border-[#2C2C2E] p-4 lg:p-5 flex flex-wrap items-center gap-3">
-        <div className="h-11 w-11 rounded-xl bg-white/80 dark:bg-[#141414]/80 shadow-sm flex items-center justify-center">
+      <div className="rounded-2xl bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 dark:from-rose-950/30 dark:via-amber-950/20 dark:to-emerald-950/30 border border-cream-200 p-4 lg:p-5 flex flex-wrap items-center gap-3">
+        <div className="h-11 w-11 rounded-xl bg-surface/80/80 shadow-sm flex items-center justify-center">
           <LineChartIcon className="h-6 w-6 text-rose-500" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="text-2xl font-semibold text-cocoa-900">
             Métricas
           </h1>
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <p className="text-sm text-cocoa-700">
             Última actualização: {format(parseISO(loadedAt), "dd/MM/yyyy, HH:mm", { locale: pt })}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Select value={preset} onValueChange={(v) => v && setPreset(v as RangePreset)}>
-            <SelectTrigger className="h-9 min-w-[180px] bg-white dark:bg-[#141414]">
+            <SelectTrigger className="h-9 min-w-[180px] bg-surface">
               <SelectValue labels={RANGE_PRESET_LABELS} />
             </SelectTrigger>
             <SelectContent>
@@ -295,7 +310,7 @@ export default function MetricasClient({
           <Button
             size="sm"
             variant="outline"
-            className="bg-white dark:bg-[#141414]"
+            className="bg-surface"
             onClick={() => window.location.reload()}
             title="Actualizar dados"
           >
@@ -306,8 +321,8 @@ export default function MetricasClient({
       </div>
 
       {preset === "personalizado" && (
-        <div className="flex items-center gap-3 bg-[#FAF8F5] dark:bg-[#1A1A1A] border border-[#E8E0D5] dark:border-[#2C2C2E] rounded-xl p-3">
-          <span className="text-xs text-[#8B7355] dark:text-[#8E8E93]">
+        <div className="flex items-center gap-3 bg-cream-50 border border-cream-200 rounded-xl p-3">
+          <span className="text-xs text-cocoa-700">
             Período personalizado:
           </span>
           <Input
@@ -316,7 +331,7 @@ export default function MetricasClient({
             onChange={(e) => setCustomStart(e.target.value)}
             className="h-8 w-auto text-xs"
           />
-          <span className="text-xs text-[#8B7355]">→</span>
+          <span className="text-xs text-cocoa-700">→</span>
           <Input
             type="date"
             value={customEnd}
@@ -410,16 +425,12 @@ export default function MetricasClient({
                     <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D5" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} />
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={(v) => formatEuro(Number(v))} tick={{ fontSize: 11 }} />
                 <Tooltip
                   formatter={(v: unknown) => formatEuro(Number(v))}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: "1px solid #E8E0D5",
-                    fontSize: 12,
-                  }}
+                  contentStyle={tooltipStyle}
                 />
                 <Area
                   type="monotone"
@@ -455,13 +466,7 @@ export default function MetricasClient({
                     width={180}
                     tick={{ fontSize: 11 }}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid #E8E0D5",
-                      fontSize: 12,
-                    }}
-                  />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="count" radius={[0, 6, 6, 0]}>
                     {metrics.ordersByStatus.map((row) => (
                       <Cell
@@ -543,13 +548,7 @@ export default function MetricasClient({
                 >
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid #E8E0D5",
-                      fontSize: 12,
-                    }}
-                  />
+                  <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="count" radius={[0, 6, 6, 0]}>
                     {metrics.topAcquisition.map((_, idx) => (
                       <Cell key={idx} fill={ACQ_PALETTE[idx % ACQ_PALETTE.length]} />
@@ -568,7 +567,7 @@ export default function MetricasClient({
               iconColor="text-amber-500"
             >
               <table className="w-full text-sm">
-                <thead className="text-xs uppercase tracking-wider text-[#8B7355] dark:text-[#8E8E93]">
+                <thead className="text-xs uppercase tracking-wider text-cocoa-700">
                   <tr>
                     <th className="text-left py-2">#</th>
                     <th className="text-left py-2">Parceiro</th>
@@ -585,22 +584,22 @@ export default function MetricasClient({
                           ? "text-stone-500"
                           : idx === 2
                             ? "text-orange-600"
-                            : "text-[#8B7355]";
+                            : "text-cocoa-700";
                     const podiumIcon = idx < 3 ? <Trophy className={cn("h-4 w-4", podiumColor)} /> : null;
                     return (
                       <tr
                         key={p.partner_id}
-                        className="border-t border-[#F0EAE0] dark:border-[#1F1F1F] hover:bg-[#FAF8F5] dark:hover:bg-[#1A1A1A] transition-colors"
+                        className="border-t border-cream-100 hover:bg-cream-50 transition-colors"
                       >
                         <td className="py-2 w-10">
                           <div className="flex items-center gap-1.5">
                             {podiumIcon}
-                            <span className="text-xs font-semibold text-[#8B7355]">
+                            <span className="text-xs font-semibold text-cocoa-700">
                               {idx + 1}
                             </span>
                           </div>
                         </td>
-                        <td className="py-2 text-[#3D2B1F] dark:text-[#E8D5B5] font-medium">
+                        <td className="py-2 text-cocoa-900 font-medium">
                           <a
                             href={`/parcerias/${p.partner_id}`}
                             className="hover:underline"
@@ -634,9 +633,11 @@ function PieDist({
   data: Array<{ label: string; count: number }>;
   palette: string[];
 }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   if (data.length === 0) {
     return (
-      <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] py-12 text-center">
+      <p className="text-sm text-cocoa-700 py-12 text-center">
         Sem dados no período.
       </p>
     );
@@ -663,7 +664,9 @@ function PieDist({
         <Tooltip
           contentStyle={{
             borderRadius: 8,
-            border: "1px solid #E8E0D5",
+            border: `1px solid ${isDark ? "#322821" : "#E8E0D5"}`,
+            background: isDark ? "#1B1611" : "#FFFFFF",
+            color: isDark ? "#E8D5B5" : "#3D2B1F",
             fontSize: 12,
           }}
         />

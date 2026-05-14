@@ -114,17 +114,17 @@ export default function DashboardClient({
       <div className="flex items-center gap-3">
         <LayoutDashboard className="h-6 w-6 text-[#C4A882]" />
         <div>
-          <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="text-2xl font-semibold text-cocoa-900">
             Dashboard
           </h1>
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <p className="text-sm text-cocoa-700">
             Bem-vinda, {memberName(currentEmail)} 👋
           </p>
         </div>
         <div className="ml-auto">
           <Link
             href="/metricas"
-            className="inline-flex items-center gap-2 rounded-lg border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] px-3 py-1.5 text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-cream-200 bg-surface px-3 py-1.5 text-sm font-medium text-cocoa-900 hover:bg-cream-50 transition-colors"
           >
             Ver métricas
             <ChevronRight className="h-4 w-4" />
@@ -172,10 +172,10 @@ function SectionCard({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] overflow-hidden flex flex-col">
-      <header className="flex items-center gap-2 px-5 py-3 border-b border-[#E8E0D5] dark:border-[#2C2C2E]">
+    <section className="rounded-2xl border border-cream-200 bg-surface overflow-hidden flex flex-col">
+      <header className="flex items-center gap-2 px-5 py-3 border-b border-cream-200">
         <Icon className={cn("h-4 w-4 shrink-0", iconColor)} />
-        <h2 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] flex-1">
+        <h2 className="text-sm font-semibold text-cocoa-900 flex-1">
           {title}
         </h2>
         {action}
@@ -292,7 +292,7 @@ function ChecklistCard({
                   className={cn(
                     "relative h-8 w-8 rounded-full overflow-hidden transition-all",
                     active
-                      ? "ring-2 ring-emerald-600 ring-offset-2 ring-offset-white dark:ring-offset-[#141414]"
+                      ? "ring-2 ring-emerald-600 ring-offset-2 ring-offset-white"
                       : "opacity-50 hover:opacity-100",
                   )}
                 >
@@ -312,7 +312,7 @@ function ChecklistCard({
     >
       <div className="px-5 py-4 space-y-1.5 max-h-[420px] overflow-y-auto">
         {visibleItems.length === 0 && (
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] py-6 text-center">
+          <p className="text-sm text-cocoa-700 py-6 text-center">
             {canWrite
               ? "A tua lista está vazia. Acrescenta o primeiro item abaixo."
               : `${memberName(viewingEmail)} ainda não tem itens.`}
@@ -321,7 +321,7 @@ function ChecklistCard({
         {visibleItems.map((item) => (
           <div
             key={item.id}
-            className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-[#FAF8F5] dark:hover:bg-[#1F1F1F] transition-colors"
+            className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors"
           >
             <button
               type="button"
@@ -333,15 +333,15 @@ function ChecklistCard({
               {item.done ? (
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               ) : (
-                <Circle className="h-4 w-4 text-[#C4A882] group-hover:text-[#8B7355]" />
+                <Circle className="h-4 w-4 text-[#C4A882] group-hover:text-cocoa-700" />
               )}
             </button>
             <span
               className={cn(
                 "flex-1 text-sm leading-snug",
                 item.done
-                  ? "text-[#B8A99A] dark:text-[#6E6E73] line-through"
-                  : "text-[#3D2B1F] dark:text-[#E8D5B5]",
+                  ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
+                  : "text-cocoa-900",
               )}
             >
               {item.text}
@@ -363,7 +363,7 @@ function ChecklistCard({
       {canWrite && (
         <form
           onSubmit={handleAdd}
-          className="border-t border-[#E8E0D5] dark:border-[#2C2C2E] px-5 py-3 flex gap-2"
+          className="border-t border-cream-200 px-5 py-3 flex gap-2"
         >
           <Input
             placeholder="Acrescentar item…"
@@ -543,7 +543,7 @@ function TasksCard({
       {showNew && (
         <form
           onSubmit={handleCreate}
-          className="border-b border-[#E8E0D5] dark:border-[#2C2C2E] px-5 py-3 space-y-2 bg-[#FAF8F5] dark:bg-[#1A1A1A]"
+          className="border-b border-cream-200 px-5 py-3 space-y-2 bg-cream-50"
         >
           <Input
             placeholder="Título da tarefa…"
@@ -600,7 +600,7 @@ function TasksCard({
 
       <div className="px-5 py-3 space-y-2 max-h-[420px] overflow-y-auto">
         {visibleTasks.length === 0 && (
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] py-6 text-center">
+          <p className="text-sm text-cocoa-700 py-6 text-center">
             Sem tarefas {filter === "minhas" ? "atribuídas a ti" : filter === "feitas" ? "concluídas" : ""}.
           </p>
         )}
@@ -612,7 +612,7 @@ function TasksCard({
           return (
             <div
               key={task.id}
-              className="group flex items-start gap-2 py-2 px-1 border-b border-[#F0EAE0] dark:border-[#1F1F1F] last:border-0"
+              className="group flex items-start gap-2 py-2 px-1 border-b border-cream-100 last:border-0"
             >
               <button
                 type="button"
@@ -623,7 +623,7 @@ function TasksCard({
                 {task.done ? (
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 ) : (
-                  <Circle className="h-4 w-4 text-[#C4A882] hover:text-[#8B7355]" />
+                  <Circle className="h-4 w-4 text-[#C4A882] hover:text-cocoa-700" />
                 )}
               </button>
               <div className="flex-1 min-w-0 space-y-1">
@@ -631,8 +631,8 @@ function TasksCard({
                   className={cn(
                     "text-sm leading-snug",
                     task.done
-                      ? "text-[#B8A99A] dark:text-[#6E6E73] line-through"
-                      : "text-[#3D2B1F] dark:text-[#E8D5B5]",
+                      ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
+                      : "text-cocoa-900",
                   )}
                 >
                   {task.title}
@@ -731,7 +731,7 @@ function PickupsCard({ pickups }: { pickups: PickupItem[] }) {
       action={
         <Link
           href="/entregas-recolhas"
-          className="text-xs text-[#8B7355] hover:text-[#3D2B1F] dark:text-[#8E8E93] dark:hover:text-[#E8D5B5]"
+          className="text-xs text-cocoa-700 hover:text-cocoa-900"
         >
           Ver tudo →
         </Link>
@@ -739,7 +739,7 @@ function PickupsCard({ pickups }: { pickups: PickupItem[] }) {
     >
       <div className="px-5 py-3 max-h-[420px] overflow-y-auto">
         {pickups.length === 0 && (
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] py-6 text-center">
+          <p className="text-sm text-cocoa-700 py-6 text-center">
             Nada agendado nos próximos 30 dias.
           </p>
         )}
@@ -748,24 +748,24 @@ function PickupsCard({ pickups }: { pickups: PickupItem[] }) {
             <Link
               key={`${p.order.id}-${p.kind}`}
               href={`/preservacao/${p.order.order_id ?? p.order.id}`}
-              className="flex items-start gap-3 p-2.5 rounded-lg border border-[#F0EAE0] dark:border-[#1F1F1F] hover:border-[#E8E0D5] dark:hover:border-[#2C2C2E] hover:bg-[#FAF8F5] dark:hover:bg-[#1F1F1F] transition-colors"
+              className="flex items-start gap-3 p-2.5 rounded-lg border border-cream-100 hover:border-cream-200 hover:bg-cream-50 transition-colors"
             >
               <div className="shrink-0 text-center">
                 <div className="text-xs font-semibold text-[#C4A882] uppercase">
                   {format(parseISO(p.date), "MMM", { locale: pt })}
                 </div>
-                <div className="text-lg font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] leading-none">
+                <div className="text-lg font-semibold text-cocoa-900 leading-none">
                   {format(parseISO(p.date), "dd")}
                 </div>
-                <div className="text-[10px] text-[#8B7355] dark:text-[#8E8E93] uppercase">
+                <div className="text-[10px] text-cocoa-700 uppercase">
                   {format(parseISO(p.date), "EEE", { locale: pt })}
                 </div>
               </div>
               <div className="flex-1 min-w-0 space-y-1">
-                <div className="text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] truncate">
+                <div className="text-sm font-medium text-cocoa-900 truncate">
                   {p.order.client_name}
                 </div>
-                <div className="text-xs text-[#8B7355] dark:text-[#8E8E93] truncate">
+                <div className="text-xs text-cocoa-700 truncate">
                   📍 {p.location}
                 </div>
                 <div className="flex items-center gap-2">
@@ -778,7 +778,7 @@ function PickupsCard({ pickups }: { pickups: PickupItem[] }) {
                   >
                     {PICKUP_KIND_LABELS[p.kind]}
                   </Badge>
-                  <span className="text-[11px] text-[#8B7355] dark:text-[#8E8E93]">
+                  <span className="text-[11px] text-cocoa-700">
                     {formatRelativeDays(p.date)}
                   </span>
                 </div>
@@ -810,7 +810,7 @@ function AlertsCard({ alerts }: { alerts: DashboardAlert[] }) {
     >
       <div className="px-5 py-3 max-h-[420px] overflow-y-auto">
         {alerts.length === 0 && (
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] py-6 text-center">
+          <p className="text-sm text-cocoa-700 py-6 text-center">
             Sem alertas. Tudo em dia ✨
           </p>
         )}

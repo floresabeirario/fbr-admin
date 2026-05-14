@@ -30,10 +30,10 @@ const CATEGORY_META: Record<HealthCheck["category"], { label: string; icon: Reac
 };
 
 const STATUS_META: Record<HealthCheck["status"], { label: string; icon: React.ComponentType<{ className?: string }>; bg: string; text: string; border: string }> = {
-  ok:      { label: "OK",       icon: Check,         bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-  warning: { label: "Atenção",  icon: AlertTriangle, bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200" },
-  error:   { label: "Erro",     icon: XCircle,       bg: "bg-rose-50",    text: "text-rose-700",    border: "border-rose-200" },
-  info:    { label: "Info",     icon: Info,          bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200" },
+  ok:      { label: "OK",       icon: Check,         bg: "bg-emerald-50 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-900" },
+  warning: { label: "Atenção",  icon: AlertTriangle, bg: "bg-amber-50 dark:bg-amber-950/40",     text: "text-amber-700 dark:text-amber-300",     border: "border-amber-200 dark:border-amber-900" },
+  error:   { label: "Erro",     icon: XCircle,       bg: "bg-rose-50 dark:bg-rose-950/40",       text: "text-rose-700 dark:text-rose-300",       border: "border-rose-200 dark:border-rose-900" },
+  info:    { label: "Info",     icon: Info,          bg: "bg-sky-50 dark:bg-sky-950/40",         text: "text-sky-700 dark:text-sky-300",         border: "border-sky-200 dark:border-sky-900" },
 };
 
 export default function HealthchecksClient({
@@ -78,8 +78,8 @@ export default function HealthchecksClient({
             <HeartPulse className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-[#3D2B1F]">Healthchecks</h1>
-            <p className="text-sm text-[#8B7355]">
+            <h1 className="text-2xl font-semibold text-cocoa-900">Healthchecks</h1>
+            <p className="text-sm text-cocoa-700">
               Verificações operacionais — base de dados, configuração, integridade e integrações.
             </p>
           </div>
@@ -117,13 +117,13 @@ export default function HealthchecksClient({
               key={s}
               onClick={() => setFilter(filter === s ? "todos" : s)}
               className={cn(
-                "rounded-lg border bg-white px-3 py-2 text-left transition-all hover:shadow-sm",
+                "rounded-lg border bg-surface px-3 py-2 text-left transition-all hover:shadow-sm",
                 filter === s ? "ring-2 ring-offset-1" : "",
                 STATUS_META[s].border,
                 filter === s && STATUS_META[s].text.replace("text", "ring"),
               )}
             >
-              <p className="text-[10px] uppercase tracking-wider text-[#8B7355] font-medium">
+              <p className="text-[10px] uppercase tracking-wider text-cocoa-700 font-medium">
                 {STATUS_META[s].label}
               </p>
               <p className={cn("text-2xl font-semibold", STATUS_META[s].text)}>
@@ -132,7 +132,7 @@ export default function HealthchecksClient({
             </button>
           ))}
         </div>
-        <p className="text-xs text-[#8B7355]">
+        <p className="text-xs text-cocoa-700">
           Verificado em {format(parseISO(generatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: pt })}.
         </p>
       </div>
@@ -140,11 +140,11 @@ export default function HealthchecksClient({
       {/* Filtro indicator */}
       {filter !== "todos" && (
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-[#8B7355]">A mostrar apenas:</span>
+          <span className="text-cocoa-700">A mostrar apenas:</span>
           <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border", STATUS_META[filter].border, STATUS_META[filter].text, STATUS_META[filter].bg)}>
             {STATUS_META[filter].label}
           </span>
-          <button onClick={() => setFilter("todos")} className="text-xs text-[#8B7355] hover:text-[#3D2B1F] underline">
+          <button onClick={() => setFilter("todos")} className="text-xs text-cocoa-700 hover:text-cocoa-900 underline">
             limpar filtro
           </button>
         </div>
@@ -158,12 +158,12 @@ export default function HealthchecksClient({
           <section key={category} className="space-y-2">
             <div className="flex items-center gap-2">
               <Icon className={cn("h-4 w-4", meta.color)} />
-              <h3 className="text-sm font-semibold text-[#3D2B1F] uppercase tracking-wider">
+              <h3 className="text-sm font-semibold text-cocoa-900 uppercase tracking-wider">
                 {meta.label}
               </h3>
-              <span className="text-xs text-[#B8A99A]">({items.length})</span>
+              <span className="text-xs text-cocoa-500">({items.length})</span>
             </div>
-            <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden divide-y divide-[#F0EAE0]">
+            <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden divide-y divide-cream-100">
               {items.map((check) => (
                 <CheckRow key={check.id} check={check} />
               ))}
@@ -183,17 +183,17 @@ function CheckRow({ check }: { check: HealthCheck }) {
       <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", meta.text)} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-medium text-[#3D2B1F]">{check.label}</p>
+          <p className="text-sm font-medium text-cocoa-900">{check.label}</p>
           <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border", meta.bg, meta.text, meta.border)}>
             {meta.label}
           </span>
           {check.count !== undefined && (
-            <span className="text-[10px] text-[#B8A99A]">{check.count} registos</span>
+            <span className="text-[10px] text-cocoa-500">{check.count} registos</span>
           )}
         </div>
-        <p className="text-xs text-[#8B7355] mt-0.5">{check.details}</p>
+        <p className="text-xs text-cocoa-700 mt-0.5">{check.details}</p>
         {check.hint && (
-          <p className="text-xs text-[#3D2B1F] mt-1 italic">💡 {check.hint}</p>
+          <p className="text-xs text-cocoa-900 mt-1 italic">💡 {check.hint}</p>
         )}
       </div>
     </div>

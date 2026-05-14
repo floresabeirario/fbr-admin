@@ -162,10 +162,10 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
           <Truck className="h-6 w-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="text-2xl font-semibold text-cocoa-900">
             Entregas e Recolhas
           </h1>
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <p className="text-sm text-cocoa-700">
             Vista completa de recolhas no local e envios CTT (flores + quadros)
           </p>
         </div>
@@ -209,7 +209,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
 
       {/* Search */}
       <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#B8A99A]" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -247,16 +247,16 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
       </div>
 
       {/* Calculadora de transporte — placeholder */}
-      <div className="rounded-2xl border border-dashed border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1A1A1A] p-6 mt-8">
+      <div className="rounded-2xl border border-dashed border-cream-200 bg-cream-50 p-6 mt-8">
         <div className="flex items-start gap-3">
           <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
             <Construction className="h-5 w-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+            <h3 className="text-sm font-semibold text-cocoa-900">
               Calculadora de transporte
             </h3>
-            <p className="text-sm text-[#8B7355] dark:text-[#8E8E93] leading-relaxed">
+            <p className="text-sm text-cocoa-700 leading-relaxed">
               Ferramenta para estimar custos CTT a partir do peso, destino e tipo
               de embalagem — em desenvolvimento. Por enquanto, os custos são
               registados manualmente em cada encomenda.
@@ -290,16 +290,16 @@ function KindFilterCard({
       className={cn(
         "rounded-2xl border bg-gradient-to-br p-4 text-left transition-all hover:shadow-sm",
         color,
-        active && "ring-2 ring-offset-2 ring-[#3D2B1F]/40 shadow-sm",
+        active && "ring-2 ring-offset-2 ring-cocoa-900/40 shadow-sm",
       )}
     >
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-[#3D2B1F]/70" />
-        <span className="text-xs uppercase tracking-wider font-semibold text-[#3D2B1F]/80">
+        <Icon className="h-4 w-4 text-cocoa-900/70" />
+        <span className="text-xs uppercase tracking-wider font-semibold text-cocoa-900/80">
           {label}
         </span>
       </div>
-      <div className="text-2xl font-semibold text-[#3D2B1F] mt-2">{count}</div>
+      <div className="text-2xl font-semibold text-cocoa-900 mt-2">{count}</div>
     </button>
   );
 }
@@ -318,26 +318,26 @@ function BucketSection({
   const toneStyles: Record<typeof tone, string> = {
     danger: "border-red-200 bg-red-50/40 dark:bg-red-950/20",
     warning: "border-amber-200 bg-amber-50/40 dark:bg-amber-950/20",
-    normal: "border-[#E8E0D5] bg-white dark:bg-[#141414] dark:border-[#2C2C2E]",
-    muted: "border-[#E8E0D5] bg-[#FAF8F5] dark:bg-[#1A1A1A] dark:border-[#2C2C2E]",
+    normal: "border-cream-200 bg-surface",
+    muted: "border-cream-200 bg-cream-50",
   };
   return (
     <div className={cn("rounded-2xl border overflow-hidden", toneStyles[tone])}>
       <div className="px-4 py-2.5 border-b border-inherit flex items-baseline justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h2 className="text-sm font-semibold text-cocoa-900">
             {title}
           </h2>
-          <p className="text-[11px] text-[#8B7355] dark:text-[#8E8E93]">{subtitle}</p>
+          <p className="text-[11px] text-cocoa-700">{subtitle}</p>
         </div>
-        <span className="text-xs font-medium text-[#8B7355]">
+        <span className="text-xs font-medium text-cocoa-700">
           {items.length === 0 ? "Nenhum" : items.length}
         </span>
       </div>
       {items.length === 0 ? (
-        <div className="p-6 text-center text-xs text-[#B8A99A]">—</div>
+        <div className="p-6 text-center text-xs text-cocoa-500">—</div>
       ) : (
-        <div className="divide-y divide-[#F0EAE0] dark:divide-[#2C2C2E]">
+        <div className="divide-y divide-cream-100">
           {items.map((i, idx) => (
             <LogisticsRow key={`${i.order.id}-${i.kind}-${idx}`} item={i} />
           ))}
@@ -353,7 +353,7 @@ function LogisticsRow({ item }: { item: LogisticsItem }) {
   return (
     <Link
       href={orderUrl}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-[#FAF8F5] dark:hover:bg-[#1A1A1A] transition-colors"
+      className="flex items-center gap-3 px-4 py-3 hover:bg-cream-50 transition-colors"
     >
       <div
         className={cn(
@@ -364,13 +364,13 @@ function LogisticsRow({ item }: { item: LogisticsItem }) {
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] truncate">
+        <div className="flex items-center gap-2 text-sm font-medium text-cocoa-900 truncate">
           {item.order.client_name}
-          <span className="text-[10px] uppercase tracking-wider rounded-full bg-[#F0EAE0] dark:bg-[#2C2C2E] text-[#8B7355] px-1.5 py-0.5 font-mono">
+          <span className="text-[10px] uppercase tracking-wider rounded-full bg-cream-100 text-cocoa-700 px-1.5 py-0.5 font-mono">
             {item.order.order_id}
           </span>
         </div>
-        <div className="text-xs text-[#8B7355] dark:text-[#8E8E93] flex items-center gap-3 mt-0.5">
+        <div className="text-xs text-cocoa-700 flex items-center gap-3 mt-0.5">
           <span className="inline-flex items-center gap-1">
             <CalendarClock className="h-3 w-3" />
             {format(parseISO(item.date), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: pt })}
@@ -388,10 +388,10 @@ function LogisticsRow({ item }: { item: LogisticsItem }) {
           </span>
         </div>
       </div>
-      <span className="text-[10px] uppercase tracking-wider text-[#8B7355] shrink-0 hidden sm:inline">
+      <span className="text-[10px] uppercase tracking-wider text-cocoa-700 shrink-0 hidden sm:inline">
         {KIND_LABELS[item.kind]}
       </span>
-      <ChevronRight className="h-4 w-4 text-[#B8A99A] shrink-0" />
+      <ChevronRight className="h-4 w-4 text-cocoa-500 shrink-0" />
     </Link>
   );
 }

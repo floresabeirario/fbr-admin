@@ -78,7 +78,7 @@ function StatusSelect({
           <SelectValue labels={PARTNER_STATUS_LABELS} />
         )}
       </SelectTrigger>
-      <SelectContent className="rounded-md border border-[#E8E0D5]">
+      <SelectContent className="rounded-md border border-cream-200">
         {PARTNER_STATUS_ORDER.map((k) => (
           <SelectItem key={k} value={k} className="my-0.5">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_STATUS_COLORS[k]}`}>
@@ -131,8 +131,8 @@ function PartnerRow({
   return (
     <tr
       className={cn(
-        "border-b border-[#F0EAE0] cursor-pointer transition-colors",
-        isLoading ? "bg-[#F0EAE0]/60" : "hover:bg-[#FDFAF7]"
+        "border-b border-cream-100 cursor-pointer transition-colors",
+        isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
       )}
       onClick={() => onOpen(partner)}
     >
@@ -140,20 +140,20 @@ function PartnerRow({
         <div className="flex items-start gap-2">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0 mt-1" />}
           <div className="min-w-0">
-            <div className="font-medium text-sm text-[#3D2B1F] truncate">{partner.name || "—"}</div>
+            <div className="font-medium text-sm text-cocoa-900 truncate">{partner.name || "—"}</div>
             {partner.contact_person && (
-              <div className="text-[11px] text-[#8B7355] truncate">{partner.contact_person}</div>
+              <div className="text-[11px] text-cocoa-700 truncate">{partner.contact_person}</div>
             )}
           </div>
         </div>
       </td>
       <td className="px-4 py-1.5">
-        <div className="flex flex-col gap-0.5 text-xs text-[#8B7355]">
+        <div className="flex flex-col gap-0.5 text-xs text-cocoa-700">
           {partner.email && (
             <a
               href={`mailto:${partner.email}`}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 hover:text-[#3D2B1F] truncate"
+              className="inline-flex items-center gap-1 hover:text-cocoa-900 truncate"
             >
               <Mail className="h-3 w-3 shrink-0" />
               <span className="truncate">{partner.email}</span>
@@ -163,11 +163,11 @@ function PartnerRow({
             <span className="inline-flex items-center gap-1">
               <Phone className="h-3 w-3" />
               {partner.phones[0].label && (
-                <span className="text-[#8B7355]">{partner.phones[0].label}:</span>
+                <span className="text-cocoa-700">{partner.phones[0].label}:</span>
               )}
               {partner.phones[0].number}
               {partner.phones.length > 1 && (
-                <span className="text-[10px] text-[#B8A99A]">+{partner.phones.length - 1}</span>
+                <span className="text-[10px] text-cocoa-500">+{partner.phones.length - 1}</span>
               )}
             </span>
           )}
@@ -175,12 +175,12 @@ function PartnerRow({
       </td>
       <td className="px-4 py-1.5">
         {partner.location_label ? (
-          <span className="inline-flex items-center gap-1 text-xs text-[#3D2B1F]">
-            <MapPin className="h-3 w-3 text-[#B8A99A]" />
+          <span className="inline-flex items-center gap-1 text-xs text-cocoa-900">
+            <MapPin className="h-3 w-3 text-cocoa-500" />
             {partner.location_label}
           </span>
         ) : (
-          <span className="text-xs text-[#B8A99A]">—</span>
+          <span className="text-xs text-cocoa-500">—</span>
         )}
       </td>
       <td className="px-4 py-1.5">
@@ -192,7 +192,7 @@ function PartnerRow({
             {PARTNER_ACCEPTS_COMMISSION_LABELS[partner.accepts_commission]}
           </span>
         ) : (
-          <span className="text-xs text-[#B8A99A]">—</span>
+          <span className="text-xs text-cocoa-500">—</span>
         )}
       </td>
       <td className="px-4 py-1.5 text-center">
@@ -202,7 +202,7 @@ function PartnerRow({
             {recommended}
           </span>
         ) : (
-          <span className="text-xs text-[#B8A99A]">—</span>
+          <span className="text-xs text-cocoa-500">—</span>
         )}
       </td>
       <td className="px-4 py-1.5 text-center">
@@ -212,7 +212,7 @@ function PartnerRow({
             {pendingActions}
           </span>
         ) : (
-          <span className="text-xs text-[#B8A99A]">—</span>
+          <span className="text-xs text-cocoa-500">—</span>
         )}
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -224,7 +224,7 @@ function PartnerRow({
       </td>
       <td className="px-4 py-1.5 text-right">
         <button
-          className="text-[#C4A882] hover:text-[#3D2B1F] transition-colors"
+          className="text-[#C4A882] hover:text-cocoa-900 transition-colors"
           onClick={(e) => { e.stopPropagation(); onOpen(partner); }}
           title="Abrir workbench"
         >
@@ -259,25 +259,25 @@ function GroupSection({
   const isEmpty = partners.length === 0;
 
   return (
-    <div className={cn("rounded-xl border border-[#E8E0D5] bg-white overflow-hidden", isEmpty && isCollapsed && "opacity-60")}>
+    <div className={cn("rounded-xl border border-cream-200 bg-surface overflow-hidden", isEmpty && isCollapsed && "opacity-60")}>
       <button
-        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-cream-50 transition-colors"
         onClick={onToggle}
       >
         {isCollapsed
-          ? <ChevronRight className="h-4 w-4 text-[#8B7355] shrink-0" />
-          : <ChevronDown className="h-4 w-4 text-[#8B7355] shrink-0" />
+          ? <ChevronRight className="h-4 w-4 text-cocoa-700 shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-cocoa-700 shrink-0" />
         }
         <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border", PARTNER_STATUS_COLORS[status])}>
           {PARTNER_STATUS_LABELS[status]}
         </span>
-        <span className="rounded-full bg-[#F0EAE0] px-2 py-0.5 text-xs font-medium text-[#8B7355]">
+        <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
           {partners.length}
         </span>
-        {isEmpty && <span className="ml-2 text-[11px] text-[#B8A99A] italic">sem parceiros</span>}
+        {isEmpty && <span className="ml-2 text-[11px] text-cocoa-500 italic">sem parceiros</span>}
       </button>
       {!isCollapsed && isEmpty && (
-        <div className="px-4 py-4 text-center text-[11px] text-[#B8A99A] italic border-t border-[#F0EAE0]">
+        <div className="px-4 py-4 text-center text-[11px] text-cocoa-500 italic border-t border-cream-100">
           Nenhum parceiro neste estado.
         </div>
       )}
@@ -285,10 +285,10 @@ function GroupSection({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[780px] text-left">
             <thead>
-              <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
+              <tr className="border-t border-cream-100 bg-cream-50">
                 {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
                   <th key={i} className={cn(
-                    "px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide",
+                    "px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide",
                     (i === 4 || i === 5) && "text-center"
                   )}>
                     {h}
@@ -333,7 +333,7 @@ function OrfasGroupSection({
   loadingId: string | null;
 }) {
   return (
-    <div className="rounded-xl border-2 border-red-400 bg-white overflow-hidden">
+    <div className="rounded-xl border-2 border-red-400 bg-surface overflow-hidden">
       <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-red-50">
         <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
         <span className="text-xs font-semibold text-red-800 uppercase tracking-wide">
@@ -346,10 +346,10 @@ function OrfasGroupSection({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[780px] text-left">
           <thead>
-            <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
+            <tr className="border-t border-cream-100 bg-cream-50">
               {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
                 <th key={i} className={cn(
-                  "px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide",
+                  "px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide",
                   (i === 4 || i === 5) && "text-center"
                 )}>
                   {h}
@@ -456,10 +456,10 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-cream-200 bg-surface shrink-0">
         <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-[#3D2B1F]">Parcerias</h1>
-          <p className="text-xs text-[#8B7355] mt-0.5">
+          <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Parcerias</h1>
+          <p className="text-xs text-cocoa-700 mt-0.5">
             {stats.total} parceiro{stats.total !== 1 ? "s" : ""} ·{" "}
             {stats.ativos} activo{stats.ativos !== 1 ? "s" : ""}
             {stats.pendingActions > 0 && (
@@ -469,17 +469,17 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none min-w-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
             <Input
               placeholder="Pesquisar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
+              className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-cream-200 bg-cream-50 focus:bg-surface"
             />
           </div>
           <button
             onClick={() => exportPartnersToCsv(inCategory, activeCategory)}
-            className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-lg border border-cream-200 bg-surface text-xs font-medium text-cocoa-900 hover:bg-cream-50 transition-colors"
             title="Exportar parceiros desta categoria para Excel/CSV"
           >
             <Download className="h-3.5 w-3.5" />
@@ -487,7 +487,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
           </button>
           <Button
             size="sm"
-            className="h-9 sm:h-8 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
+            className="h-9 sm:h-8 bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg gap-1.5"
             onClick={() => setSheetOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -498,7 +498,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
 
       {/* Sub-tabs (categorias) + view switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 pt-3 sm:pt-4 shrink-0">
-        <div className="flex items-center gap-1 rounded-lg border border-[#E8E0D5] bg-white p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-cream-200 bg-surface p-1">
           {PARTNER_CATEGORY_ORDER.map((c) => {
             const active = c === activeCategory;
             return (
@@ -508,14 +508,14 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   active
-                    ? "bg-[#3D2B1F] text-white"
-                    : "text-[#8B7355] hover:bg-[#FAF8F5] hover:text-[#3D2B1F]"
+                    ? "bg-btn-primary text-btn-primary-fg"
+                    : "text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900"
                 )}
               >
                 {PARTNER_CATEGORY_LABELS[c]}
                 <span className={cn(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                  active ? "bg-white/20 text-white" : "bg-[#F0EAE0] text-[#8B7355]"
+                  active ? "bg-white/20 text-white" : "bg-cream-100 text-cocoa-700"
                 )}>
                   {countByCategory[c]}
                 </span>
@@ -524,14 +524,14 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
           })}
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg border border-[#E8E0D5] bg-white p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-cream-200 bg-surface p-1">
           <button
             onClick={() => setViewMode("tabela")}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
               viewMode === "tabela"
-                ? "bg-[#F0EAE0] text-[#3D2B1F]"
-                : "text-[#8B7355] hover:text-[#3D2B1F]"
+                ? "bg-cream-100 text-cocoa-900"
+                : "text-cocoa-700 hover:text-cocoa-900"
             )}
           >
             <TableIcon className="h-3.5 w-3.5" />
@@ -542,8 +542,8 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
               viewMode === "mapa"
-                ? "bg-[#F0EAE0] text-[#3D2B1F]"
-                : "text-[#8B7355] hover:text-[#3D2B1F]"
+                ? "bg-cream-100 text-cocoa-900"
+                : "text-cocoa-700 hover:text-cocoa-900"
             )}
           >
             <Map className="h-3.5 w-3.5" />
@@ -604,19 +604,19 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
                 />
               ))}
               {search.trim() && filtered.length === 0 && (
-                <div className="text-center py-12 text-sm text-[#8B7355]">
+                <div className="text-center py-12 text-sm text-cocoa-700">
                   Sem resultados para &ldquo;{search}&rdquo;.
                 </div>
               )}
             </>
           )
         ) : (
-          <div className="rounded-xl border border-[#E8E0D5] bg-white p-6">
+          <div className="rounded-xl border border-cream-200 bg-surface p-6">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#3D2B1F]">
+              <h2 className="text-sm font-semibold text-cocoa-900">
                 Parceiros — {PARTNER_CATEGORY_LABELS[activeCategory]}
               </h2>
-              <span className="text-[11px] text-[#8B7355]">{inCategory.length} parceiro{inCategory.length !== 1 ? "s" : ""}</span>
+              <span className="text-[11px] text-cocoa-700">{inCategory.length} parceiro{inCategory.length !== 1 ? "s" : ""}</span>
             </div>
             <PortugalMap partners={inCategory} onSelect={openPartner} selectedId={navigatingId} />
           </div>
@@ -645,12 +645,12 @@ function EmptyState({ category, onCreate }: { category: PartnerCategory; onCreat
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-rose-100 to-amber-100 mb-4">
         <Handshake className="h-8 w-8 text-rose-600" />
       </div>
-      <h2 className="text-lg font-semibold text-[#3D2B1F] mb-1">Ainda não há parcerias</h2>
-      <p className="text-sm text-[#8B7355] max-w-sm">
+      <h2 className="text-lg font-semibold text-cocoa-900 mb-1">Ainda não há parcerias</h2>
+      <p className="text-sm text-cocoa-700 max-w-sm">
         Adiciona wedding planners, floristas, quintas e outros parceiros recomendadores para acompanhar a relação e a comissão.
       </p>
       <Button
-        className="mt-6 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"
+        className="mt-6 bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg gap-1.5"
         onClick={onCreate}
       >
         <Plus className="h-4 w-4" />
@@ -662,9 +662,9 @@ function EmptyState({ category, onCreate }: { category: PartnerCategory; onCreat
 
 function EmptyCategory({ category, onCreate }: { category: PartnerCategory; onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-[#E8E0D5] bg-white">
-      <CheckCircle2 className="h-8 w-8 text-[#B8A99A] mb-2" />
-      <p className="text-sm text-[#8B7355] max-w-sm mb-4">
+    <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-dashed border-cream-200 bg-surface">
+      <CheckCircle2 className="h-8 w-8 text-cocoa-500 mb-2" />
+      <p className="text-sm text-cocoa-700 max-w-sm mb-4">
         Ainda não há {PARTNER_CATEGORY_LABELS[category].toLowerCase()} cadastrados.
       </p>
       <Button

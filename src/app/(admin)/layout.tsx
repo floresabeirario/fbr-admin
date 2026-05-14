@@ -122,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (!interactive) setCollapsed((c) => !c);
       }}
       className={cn(
-        "flex flex-col h-full bg-white dark:bg-[#141414] border-r border-[#E8E0D5] dark:border-[#2C2C2E] transition-all duration-200 shrink-0",
+        "flex flex-col h-full bg-surface border-r border-cream-200 transition-all duration-200 shrink-0",
         // Desktop: largura controlada por collapsed; pointer cursor
         isDesktop && (collapsed ? "w-16" : "w-56"),
         isDesktop && "cursor-pointer",
@@ -132,21 +132,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       title={isDesktop ? (collapsed ? "Click para expandir" : "Click para recolher") : undefined}
     >
       {/* Logo */}
-      <div className={cn("flex items-center h-14 px-4 border-b border-[#E8E0D5] dark:border-[#2C2C2E] shrink-0 justify-between", isDesktop && collapsed && "justify-center")}>
+      <div className={cn("flex items-center h-14 px-4 border-b border-cream-200 shrink-0 justify-between", isDesktop && collapsed && "justify-center")}>
         {(!isDesktop || !collapsed) && (
-          <span className="font-['TanMemories'] text-lg text-[#3D2B1F] dark:text-[#E8D5B5] truncate">
+          <span className="font-['TanMemories'] text-lg text-cocoa-900 truncate">
             FBR Admin
           </span>
         )}
         {isDesktop && collapsed && (
-          <span className="font-['TanMemories'] text-lg text-[#3D2B1F] dark:text-[#E8D5B5]">F</span>
+          <span className="font-['TanMemories'] text-lg text-cocoa-900">F</span>
         )}
         {!isDesktop && (
           <button
             type="button"
             onClick={() => setDrawerOpen(false)}
             aria-label="Fechar menu"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-[#8B7355] hover:bg-[#FAF8F5] hover:text-[#3D2B1F] dark:text-[#8E8E93] dark:hover:bg-[#2C2C2E] dark:hover:text-[#F5F5F5]"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900"
           >
             <X className="h-5 w-5" />
           </button>
@@ -159,7 +159,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           type="button"
           onClick={openGlobalSearch}
           className={cn(
-            "w-full flex items-center gap-2 rounded-lg border border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1C1C1E] px-2.5 py-1.5 text-sm text-[#8B7355] dark:text-[#8E8E93] hover:bg-white dark:hover:bg-[#2C2C2E] hover:border-[#D9CDB9] dark:hover:border-[#3C3C3E] transition-colors",
+            "w-full flex items-center gap-2 rounded-lg border border-cream-200 bg-cream-50 px-2.5 py-1.5 text-sm text-cocoa-700 hover:bg-surface hover:border-cocoa-500 transition-colors",
             isDesktop && collapsed && "justify-center px-0",
           )}
           title="Pesquisar (Ctrl+K)"
@@ -168,7 +168,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {(!isDesktop || !collapsed) && (
             <>
               <span className="flex-1 text-left text-[13px]">Procurar…</span>
-              <span className="text-[10px] font-mono text-[#B8A99A] dark:text-[#8E8E93] rounded border border-[#E8E0D5] dark:border-[#2C2C2E] px-1">
+              <span className="text-[10px] font-mono text-cocoa-500 rounded border border-cream-200 px-1">
                 Ctrl K
               </span>
             </>
@@ -195,11 +195,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 // Mobile: tap target maior
                 isDesktop ? "py-2" : "py-2.5",
                 isSub && !isCollapsedOnDesktop
-                  ? "pl-7 pr-2 ml-2 border-l border-[#E8E0D5] dark:border-[#2C2C2E] text-[13px]"
+                  ? "pl-7 pr-2 ml-2 border-l border-cream-200 text-[13px]"
                   : "px-2",
                 active
-                  ? "bg-[#F0EAE0] dark:bg-[#2C2C2E] text-[#3D2B1F] dark:text-[#E8D5B5]"
-                  : "text-[#8B7355] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5]",
+                  ? "bg-cream-100 text-cocoa-900"
+                  : "text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900",
               )}
               title={isCollapsedOnDesktop ? label : undefined}
             >
@@ -211,7 +211,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
 
       {/* Bottom */}
-      <div className="p-2 border-t border-[#E8E0D5] dark:border-[#2C2C2E] flex flex-col gap-0.5">
+      <div className="p-2 border-t border-cream-200 flex flex-col gap-0.5">
         {profile && (
           <div className={cn("flex items-center gap-2.5 px-2 py-1.5 rounded-lg", isDesktop && collapsed && "justify-center")}>
             <div className="w-7 h-7 rounded-full overflow-hidden relative shrink-0">
@@ -219,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             {(!isDesktop || !collapsed) && (
               <div className="flex flex-col min-w-0 leading-tight">
-                <span className="text-sm font-medium text-[#3D2B1F] dark:text-[#E8D5B5] truncate">{profile.name}</span>
+                <span className="text-sm font-medium text-cocoa-900 truncate">{profile.name}</span>
                 {profile.role === "viewer" && (
                   <span className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold">
                     {ROLE_LABELS.viewer}
@@ -232,7 +232,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <button
           onClick={handleLogout}
           className={cn(
-            "flex items-center gap-3 rounded-lg px-2 text-sm font-medium text-[#8B7355] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5] transition-colors w-full",
+            "flex items-center gap-3 rounded-lg px-2 text-sm font-medium text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900 transition-colors w-full",
             isDesktop ? "py-2" : "py-2.5",
             isDesktop && collapsed && "justify-center",
           )}
@@ -248,7 +248,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {!collapsed && <ThemeToggle />}
               <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="flex items-center justify-center rounded-lg p-2 text-[#B8A99A] dark:text-[#8E8E93] hover:bg-[#FAF8F5] dark:hover:bg-[#2C2C2E] hover:text-[#3D2B1F] dark:hover:text-[#F5F5F5] transition-colors"
+                className="flex items-center justify-center rounded-lg p-2 text-cocoa-500 hover:bg-cream-50 hover:text-cocoa-900 transition-colors"
                 title={collapsed ? "Expandir" : "Recolher"}
               >
                 {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -266,25 +266,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-[#FAF8F5] dark:bg-[#0D0D0D]">
+    <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-cream-50">
       {/* Top bar — só mobile */}
-      <header className="lg:hidden flex items-center justify-between h-14 px-3 border-b border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] shrink-0">
+      <header className="lg:hidden flex items-center justify-between h-14 px-3 border-b border-cream-200 bg-surface shrink-0">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
           aria-label="Abrir menu"
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-[#3D2B1F] hover:bg-[#FAF8F5] dark:text-[#E8D5B5] dark:hover:bg-[#2C2C2E]"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-cocoa-900 hover:bg-cream-50 dark:text-[#E8D5B5]"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="font-['TanMemories'] text-lg text-[#3D2B1F] dark:text-[#E8D5B5]">
+        <span className="font-['TanMemories'] text-lg text-cocoa-900">
           FBR Admin
         </span>
         <button
           type="button"
           onClick={openGlobalSearch}
           aria-label="Pesquisar"
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-[#3D2B1F] hover:bg-[#FAF8F5] dark:text-[#E8D5B5] dark:hover:bg-[#2C2C2E]"
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-cocoa-900 hover:bg-cream-50 dark:text-[#E8D5B5]"
         >
           <Search className="h-5 w-5" />
         </button>

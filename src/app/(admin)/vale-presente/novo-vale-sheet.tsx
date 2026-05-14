@@ -165,23 +165,23 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
   }
 
   const inputCls =
-    "h-10 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg";
+    "h-10 text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg";
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto bg-[#FAF8F5] p-0">
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto bg-cream-50 p-0">
         {/* Hero do header */}
-        <div className="sticky top-0 z-10 bg-gradient-to-br from-[#FFFCF7] via-white to-[#FAF3E8] border-b border-[#E8E0D5] px-6 py-5">
+        <div className="sticky top-0 z-10 bg-gradient-to-br from-[#FFFCF7] via-white to-[#FAF3E8] border-b border-cream-200 px-6 py-5">
           <SheetHeader className="space-y-2">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-sm">
                 <Gift className="h-5 w-5" />
               </div>
               <div>
-                <SheetTitle className="font-['TanMemories'] text-2xl text-[#3D2B1F] leading-tight">
+                <SheetTitle className="font-['TanMemories'] text-2xl text-cocoa-900 leading-tight">
                   Novo vale-presente
                 </SheetTitle>
-                <SheetDescription className="text-[#8B7355] text-xs leading-snug mt-0.5">
+                <SheetDescription className="text-cocoa-700 text-xs leading-snug mt-0.5">
                   Mínimo 300€. O código é gerado automaticamente.
                 </SheetDescription>
               </div>
@@ -239,7 +239,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                 placeholder="email@exemplo.pt"
                 className={`${inputCls} ${fieldErrors.sender_email ? "border-red-300" : ""}`}
               />
-              <p className="text-[11px] text-[#B8A99A] mt-1">
+              <p className="text-[11px] text-cocoa-500 mt-1">
                 Pedimos um e-mail como contacto alternativo.
               </p>
             </Field>
@@ -265,14 +265,14 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                 placeholder="Ex: João e Maria"
                 className={`${inputCls} ${fieldErrors.recipient_name ? "border-red-300" : ""}`}
               />
-              <p className="text-[11px] text-[#B8A99A] mt-1">
+              <p className="text-[11px] text-cocoa-500 mt-1">
                 Este nome será utilizado para personalizar o vale.
               </p>
             </Field>
 
             <Field label="Valor do vale (€) *" error={fieldErrors.amount}>
               <div className="relative">
-                <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+                <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
                 <Input
                   type="number"
                   min={300}
@@ -282,7 +282,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                   className={`${inputCls} pl-9 ${fieldErrors.amount ? "border-red-300" : ""}`}
                 />
               </div>
-              <p className="text-[11px] text-[#B8A99A] mt-1">
+              <p className="text-[11px] text-cocoa-500 mt-1">
                 Valor mínimo: 300€, correspondente ao quadro mais pequeno.
               </p>
             </Field>
@@ -294,9 +294,9 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                 placeholder="Mensagem que aparecerá no vale…"
                 rows={3}
                 maxLength={1000}
-                className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
               />
-              <p className="text-[11px] text-[#B8A99A] mt-1 text-right">
+              <p className="text-[11px] text-cocoa-500 mt-1 text-right">
                 {(form.message ?? "").length}/1000
               </p>
             </Field>
@@ -366,7 +366,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                   placeholder={form.delivery_channel === "whatsapp" ? "+351 9XX XXX XXX" : "email@exemplo.pt"}
                   className={`${inputCls} ${fieldErrors.recipient_contact ? "border-red-300" : ""}`}
                 />
-                <p className="text-[11px] text-[#B8A99A] mt-1">
+                <p className="text-[11px] text-cocoa-500 mt-1">
                   Utilizado apenas para enviar o vale.
                 </p>
               </Field>
@@ -379,7 +379,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                   onChange={(e) => set("recipient_address", e.target.value)}
                   placeholder="Rua, número, código-postal, localidade…"
                   rows={2}
-                  className={`text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none ${fieldErrors.recipient_address ? "border-red-300" : ""}`}
+                  className={`text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none ${fieldErrors.recipient_address ? "border-red-300" : ""}`}
                 />
               </Field>
             )}
@@ -392,7 +392,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                   onChange={(e) => set("ideal_send_date", e.target.value || null)}
                   className={`${inputCls} ${fieldErrors.ideal_send_date ? "border-red-300" : ""}`}
                 />
-                <p className="text-[11px] text-[#B8A99A] mt-1">
+                <p className="text-[11px] text-cocoa-500 mt-1">
                   Deixe em branco se for indiferente.
                 </p>
               </Field>
@@ -401,7 +401,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
             {form.delivery_format === "fisico" && (
               <Field label="Custo de envio (€)">
                 <div className="relative">
-                  <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+                  <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
                   <Input
                     type="number"
                     min={0}
@@ -411,7 +411,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                     className={`${inputCls} pl-9`}
                   />
                 </div>
-                <p className="text-[11px] text-[#B8A99A] mt-1">
+                <p className="text-[11px] text-cocoa-500 mt-1">
                   Base {VOUCHER_PHYSICAL_BASE_COST}€ + portes adicionais.
                 </p>
               </Field>
@@ -471,9 +471,9 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
               placeholder="Pedidos especiais, informações relevantes…"
               rows={3}
               maxLength={1000}
-              className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+              className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
             />
-            <p className="text-[11px] text-[#B8A99A] mt-1">
+            <p className="text-[11px] text-cocoa-500 mt-1">
               Caso necessite de receber o vale em menos de 3 dias úteis, informe-nos aqui para que possamos priorizar o seu pedido.
             </p>
           </Section>
@@ -486,11 +486,11 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
         </form>
 
         {/* Footer fixo de acções */}
-        <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-[#E8E0D5] px-6 py-3 flex gap-3">
+        <div className="sticky bottom-0 bg-surface/95 backdrop-blur border-t border-cream-200 px-6 py-3 flex gap-3">
           <Button
             type="button"
             variant="outline"
-            className="flex-1 border-[#E8E0D5] text-[#8B7355] h-10"
+            className="flex-1 border-cream-200 text-cocoa-700 h-10"
             onClick={handleClose}
             disabled={saving}
           >
@@ -499,7 +499,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
           <Button
             type="button"
             onClick={handleSubmit as unknown as (e: React.MouseEvent) => void}
-            className="flex-1 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-10 gap-2"
+            className="flex-1 bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-10 gap-2"
             disabled={saving}
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -536,12 +536,12 @@ function Section({
 }) {
   const a = ACCENT_STYLES[accent];
   return (
-    <div className={`rounded-2xl border border-[#E8E0D5] bg-white border-l-4 ${a.border} shadow-[0_1px_2px_rgba(61,43,31,0.04)] overflow-hidden`}>
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#F0EAE0]">
+    <div className={`rounded-2xl border border-cream-200 bg-surface border-l-4 ${a.border} shadow-[0_1px_2px_rgba(61,43,31,0.04)] overflow-hidden`}>
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cream-100">
         <span className={`flex h-6 w-6 items-center justify-center rounded-full ${a.iconBg} ${a.iconColor}`}>
           {icon}
         </span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8B7355]">
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700">
           {title}
         </p>
       </div>
@@ -561,7 +561,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-[#8B7355]">{label}</Label>
+      <Label className="text-xs font-medium text-cocoa-700">{label}</Label>
       {children}
       {error && <p className="text-[11px] text-red-600">{error}</p>}
     </div>
@@ -586,7 +586,7 @@ function ChoiceButton({
       type="button"
       onClick={onClick}
       className={`flex items-center justify-center gap-2 h-10 rounded-lg border transition-colors text-sm font-medium ${
-        active ? activeClass : "border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-white"
+        active ? activeClass : "border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-surface"
       }`}
     >
       {icon}

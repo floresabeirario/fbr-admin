@@ -100,10 +100,10 @@ export default function IdeiasClient({
             <Lightbulb className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+            <h1 className="text-2xl font-semibold text-cocoa-900">
               Ideias Futuras
             </h1>
-            <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+            <p className="text-sm text-cocoa-700">
               {initialIdeas.length} ideia(s) registada(s)
             </p>
           </div>
@@ -121,7 +121,7 @@ export default function IdeiasClient({
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#B8A99A]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -129,7 +129,7 @@ export default function IdeiasClient({
             className="pl-9 h-9"
           />
         </div>
-        <div className="flex items-center rounded-lg border border-[#E8E0D5] overflow-hidden">
+        <div className="flex items-center rounded-lg border border-cream-200 overflow-hidden">
           {(["importance", "theme", "status"] as const).map((g) => (
             <button
               key={g}
@@ -137,8 +137,8 @@ export default function IdeiasClient({
               className={cn(
                 "px-3 h-9 text-xs font-medium transition-colors",
                 groupBy === g
-                  ? "bg-[#3D2B1F] text-white"
-                  : "text-[#8B7355] hover:bg-[#FAF8F5]",
+                  ? "bg-btn-primary text-btn-primary-fg"
+                  : "text-cocoa-700 hover:bg-cream-50",
               )}
             >
               {g === "importance" ? "Importância" : g === "theme" ? "Tema" : "Estado"}
@@ -151,7 +151,7 @@ export default function IdeiasClient({
             "h-9 px-3 rounded-lg border text-xs font-medium transition-colors",
             showCompleted
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-[#E8E0D5] bg-white text-[#3D2B1F] hover:bg-[#FAF8F5]",
+              : "border-cream-200 bg-surface text-cocoa-900 hover:bg-cream-50",
           )}
         >
           {showCompleted ? "Esconder concluídas" : "Mostrar concluídas"}
@@ -197,10 +197,10 @@ function GroupSection({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+        <h2 className="text-sm font-semibold text-cocoa-900">
           {label}
         </h2>
-        <span className="text-[10px] uppercase tracking-wider rounded-full bg-[#F0EAE0] dark:bg-[#2C2C2E] text-[#8B7355] px-2 py-0.5 font-bold">
+        <span className="text-[10px] uppercase tracking-wider rounded-full bg-cream-100 text-cocoa-700 px-2 py-0.5 font-bold">
           {count}
         </span>
       </div>
@@ -245,7 +245,7 @@ function IdeaCard({ idea }: { idea: Idea }) {
   }
 
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-4 space-y-2.5">
+    <div className="rounded-2xl border border-cream-200 bg-surface p-4 space-y-2.5">
       {editing ? (
         <EditableTitle
           initial={idea.title}
@@ -259,14 +259,14 @@ function IdeaCard({ idea }: { idea: Idea }) {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="text-left w-full text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] hover:underline"
+          className="text-left w-full text-sm font-semibold text-cocoa-900 hover:underline"
         >
           {idea.title}
         </button>
       )}
 
       {idea.description && (
-        <p className="text-xs text-[#8B7355] dark:text-[#8E8E93] leading-relaxed whitespace-pre-wrap">
+        <p className="text-xs text-cocoa-700 leading-relaxed whitespace-pre-wrap">
           {idea.description}
         </p>
       )}
@@ -284,7 +284,7 @@ function IdeaCard({ idea }: { idea: Idea }) {
         </Select>
 
         <Select value={idea.theme} onValueChange={(v) => update("theme", v as IdeaTheme)}>
-          <SelectTrigger className="h-7 text-[10px] font-medium rounded-md uppercase tracking-wider w-auto px-2 border bg-[#FAF8F5] text-[#8B7355] border-[#E8E0D5]">
+          <SelectTrigger className="h-7 text-[10px] font-medium rounded-md uppercase tracking-wider w-auto px-2 border bg-cream-50 text-cocoa-700 border-cream-200">
             <SelectValue labels={IDEA_THEME_LABELS} />
           </SelectTrigger>
           <SelectContent>
@@ -311,14 +311,14 @@ function IdeaCard({ idea }: { idea: Idea }) {
           type="button"
           onClick={archive}
           disabled={busy}
-          className="text-[#B8A99A] hover:text-red-500 transition-colors disabled:opacity-40"
+          className="text-cocoa-500 hover:text-red-500 transition-colors disabled:opacity-40"
           title="Apagar"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      <div className="text-[10px] text-[#B8A99A] pt-1 border-t border-[#F0EAE0] dark:border-[#2C2C2E] flex items-center gap-1.5">
+      <div className="text-[10px] text-cocoa-500 pt-1 border-t border-cream-100 flex items-center gap-1.5">
         {idea.created_by_email && (
           <span className="font-medium">{shortName(idea.created_by_email)}</span>
         )}
@@ -368,7 +368,7 @@ function EditableTitle({
       <button
         type="button"
         onClick={onCancel}
-        className="h-8 px-2 rounded-md border border-[#E8E0D5] text-[#8B7355] hover:bg-[#FAF8F5]"
+        className="h-8 px-2 rounded-md border border-cream-200 text-cocoa-700 hover:bg-cream-50"
       >
         <X className="h-3.5 w-3.5" />
       </button>
@@ -417,8 +417,8 @@ function NewIdeaForm({
   return (
     <div className="rounded-2xl border-2 border-amber-300 bg-amber-50/40 dark:bg-amber-950/20 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-[#3D2B1F]">Nova ideia</h3>
-        <button onClick={onClose} className="text-[#8B7355] hover:text-[#3D2B1F]">
+        <h3 className="text-sm font-semibold text-cocoa-900">Nova ideia</h3>
+        <button onClick={onClose} className="text-cocoa-700 hover:text-cocoa-900">
           <X className="h-4 w-4" />
         </button>
       </div>

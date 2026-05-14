@@ -143,10 +143,10 @@ export default function StatusClient({
       {/* Header */}
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-['TanMemories'] text-3xl text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="font-['TanMemories'] text-3xl text-cocoa-900">
             Status
           </h1>
-          <p className="mt-1 text-sm text-[#8B7355] dark:text-[#8E8E93] max-w-2xl">
+          <p className="mt-1 text-sm text-cocoa-700 max-w-2xl">
             Gere o que cada cliente vê em{" "}
             <a
               href="https://status.floresabeirario.pt"
@@ -173,12 +173,12 @@ export default function StatusClient({
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#B8A99A]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Pesquisar nome, ID, email…"
-            className="pl-9 bg-white"
+            className="pl-9 bg-surface"
           />
         </div>
 
@@ -188,7 +188,7 @@ export default function StatusClient({
             setPhaseFilter(v === "todas" ? "todas" : (isNaN(Number(v)) ? (v as PublicPhase) : (Number(v) as PublicPhase)))
           }
         >
-          <SelectTrigger className="w-[260px] bg-white">
+          <SelectTrigger className="w-[260px] bg-surface">
             <SelectValue placeholder="Filtrar por fase" />
           </SelectTrigger>
           <SelectContent>
@@ -202,7 +202,7 @@ export default function StatusClient({
                 </span>
                 <span className="text-xs">{PUBLIC_PHASE_LABEL_PT[p]}</span>
                 {phaseCounts.has(p) && (
-                  <span className="ml-auto text-[10px] text-[#B8A99A]">
+                  <span className="ml-auto text-[10px] text-cocoa-500">
                     {phaseCounts.get(p)}
                   </span>
                 )}
@@ -221,17 +221,17 @@ export default function StatusClient({
           {hideArchived ? "Mostrar concluídas/canceladas" : "Esconder concluídas/canceladas"}
         </Button>
 
-        <span className="ml-auto text-xs text-[#B8A99A]">
+        <span className="ml-auto text-xs text-cocoa-500">
           {filtered.length} {filtered.length === 1 ? "encomenda" : "encomendas"}
         </span>
       </div>
 
       {/* Tabela */}
-      <div className="rounded-lg border border-[#E8E0D5] bg-white overflow-hidden">
+      <div className="rounded-lg border border-cream-200 bg-surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-sm">
-            <thead className="bg-[#FAF8F5] border-b border-[#E8E0D5]">
-              <tr className="text-[10px] font-bold uppercase tracking-wider text-[#8B7355]">
+            <thead className="bg-cream-50 border-b border-cream-200">
+              <tr className="text-[10px] font-bold uppercase tracking-wider text-cocoa-700">
                 <th className="text-left px-4 py-2.5">ID / Cliente</th>
                 <th className="text-left px-3 py-2.5">Fase pública</th>
                 <th className="text-left px-3 py-2.5">Idioma</th>
@@ -245,7 +245,7 @@ export default function StatusClient({
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-sm text-[#B8A99A]">
+                  <td colSpan={8} className="text-center py-12 text-sm text-cocoa-500">
                     Sem encomendas para mostrar.
                   </td>
                 </tr>
@@ -331,10 +331,10 @@ function StatusRow({
   const enIsCustom = !!order.public_status_message_en?.trim();
 
   return (
-    <tr className="border-b border-[#F0EAE0] hover:bg-[#FDFAF7] transition-colors">
+    <tr className="border-b border-cream-100 hover:bg-cream-50 transition-colors">
       {/* ID + Cliente */}
       <td className="px-4 py-3 align-top">
-        <div className="font-medium text-[#3D2B1F]">{order.client_name || "—"}</div>
+        <div className="font-medium text-cocoa-900">{order.client_name || "—"}</div>
         <a
           href={publicStatusUrl(order.order_id)}
           target="_blank"
@@ -360,7 +360,7 @@ function StatusRow({
       {/* Idioma */}
       <td className="px-3 py-3 align-top">
         <Select value={lang} onValueChange={(v) => changeLang(v as PublicStatusLanguage)} disabled={isPending || !canEdit}>
-          <SelectTrigger className="h-7 text-xs w-[130px] bg-white">
+          <SelectTrigger className="h-7 text-xs w-[130px] bg-surface">
             {isPending && optimisticLang !== null ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
@@ -382,7 +382,7 @@ function StatusRow({
         <button
           onClick={onEdit}
           disabled={!canEdit}
-          className="text-left text-xs text-[#3D2B1F] hover:text-sky-700 transition-colors flex items-start gap-1.5 group disabled:hover:text-[#3D2B1F] disabled:cursor-default"
+          className="text-left text-xs text-cocoa-900 hover:text-sky-700 transition-colors flex items-start gap-1.5 group disabled:hover:text-cocoa-900 disabled:cursor-default"
           title={canEdit ? "Editar mensagens" : "Modo leitura"}
         >
           <span className="leading-relaxed">{preview(order.public_status_message_pt, ptDefault)}</span>
@@ -400,7 +400,7 @@ function StatusRow({
         <button
           onClick={onEdit}
           disabled={!canEdit}
-          className="text-left text-xs text-[#3D2B1F] hover:text-sky-700 transition-colors flex items-start gap-1.5 group disabled:hover:text-[#3D2B1F] disabled:cursor-default"
+          className="text-left text-xs text-cocoa-900 hover:text-sky-700 transition-colors flex items-start gap-1.5 group disabled:hover:text-cocoa-900 disabled:cursor-default"
           title={canEdit ? "Editar mensagens" : "Modo leitura"}
         >
           <span className="leading-relaxed">{preview(order.public_status_message_en, enDefault)}</span>
@@ -419,21 +419,21 @@ function StatusRow({
           type="date"
           value={toDateInput(estDate)}
           onChange={(e) => changeDate(e.target.value)}
-          className="h-7 text-xs w-[140px] bg-white"
+          className="h-7 text-xs w-[140px] bg-surface"
           disabled={isPending || !canEdit}
         />
         {estDate && (
           <p
-            className="mt-1 text-[10px] text-[#B8A99A]"
+            className="mt-1 text-[10px] text-cocoa-500"
             title="Cliente vê só mês e ano"
           >
-            Cliente vê: <span className="text-[#8B7355] font-medium">{formatPublicEstimatedDelivery(estDate, "pt")}</span>
+            Cliente vê: <span className="text-cocoa-700 font-medium">{formatPublicEstimatedDelivery(estDate, "pt")}</span>
           </p>
         )}
       </td>
 
       {/* Última atualização */}
-      <td className="px-3 py-3 align-top text-xs text-[#8B7355] whitespace-nowrap">
+      <td className="px-3 py-3 align-top text-xs text-cocoa-700 whitespace-nowrap">
         {formatDate(order.public_status_updated_at)}
       </td>
 
@@ -444,14 +444,14 @@ function StatusRow({
             href={publicStatusUrl(order.order_id)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-[#8B7355] hover:bg-sky-50 hover:text-sky-700 transition-colors"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-cocoa-700 hover:bg-sky-50 hover:text-sky-700 transition-colors"
             title="Ver página pública"
           >
             <Globe className="h-3.5 w-3.5" />
           </a>
           <Link
             href={`/preservacao/${order.order_id}`}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-[#8B7355] hover:bg-[#F0EAE0] hover:text-[#3D2B1F] transition-colors"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-cocoa-700 hover:bg-cream-100 hover:text-cocoa-900 transition-colors"
             title="Abrir workbench"
           >
             <ExternalLink className="h-3.5 w-3.5" />
@@ -525,13 +525,13 @@ function EditMessagesDialog({
           {/* PT */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#8B7355]">
+              <label className="text-xs font-bold uppercase tracking-wider text-cocoa-700">
                 🇵🇹 Português
               </label>
               {ptOverride && (
                 <button
                   onClick={() => setPt("")}
-                  className="text-[11px] text-[#8B7355] hover:text-rose-600 inline-flex items-center gap-1"
+                  className="text-[11px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
                 >
                   <RotateCcw className="h-3 w-3" />
                   Voltar ao default
@@ -546,8 +546,8 @@ function EditMessagesDialog({
               className="text-sm"
             />
             {!ptOverride && (
-              <p className="mt-1.5 text-[11px] text-[#B8A99A] italic">
-                A usar default: <span className="text-[#8B7355]">{ptDefault}</span>
+              <p className="mt-1.5 text-[11px] text-cocoa-500 italic">
+                A usar default: <span className="text-cocoa-700">{ptDefault}</span>
               </p>
             )}
           </div>
@@ -555,13 +555,13 @@ function EditMessagesDialog({
           {/* EN */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#8B7355]">
+              <label className="text-xs font-bold uppercase tracking-wider text-cocoa-700">
                 🇬🇧 English
               </label>
               {enOverride && (
                 <button
                   onClick={() => setEn("")}
-                  className="text-[11px] text-[#8B7355] hover:text-rose-600 inline-flex items-center gap-1"
+                  className="text-[11px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
                 >
                   <RotateCcw className="h-3 w-3" />
                   Back to default
@@ -576,8 +576,8 @@ function EditMessagesDialog({
               className="text-sm"
             />
             {!enOverride && (
-              <p className="mt-1.5 text-[11px] text-[#B8A99A] italic">
-                Using default: <span className="text-[#8B7355]">{enDefault}</span>
+              <p className="mt-1.5 text-[11px] text-cocoa-500 italic">
+                Using default: <span className="text-cocoa-700">{enDefault}</span>
               </p>
             )}
           </div>

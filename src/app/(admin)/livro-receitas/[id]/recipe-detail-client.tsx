@@ -124,7 +124,7 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
     update("photos", data.photos.filter((_, i) => i !== idx));
   }
 
-  const inp = "h-9 text-sm border-[#E8E0D5] bg-white";
+  const inp = "h-9 text-sm border-cream-200 bg-surface";
 
   return (
     <div className="max-w-[1100px] mx-auto p-3 sm:p-6 lg:p-8 space-y-6">
@@ -132,13 +132,13 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/livro-receitas"
-          className="inline-flex items-center gap-1.5 text-sm text-[#8B7355] hover:text-[#3D2B1F] transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-cocoa-700 hover:text-cocoa-900 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Voltar
         </Link>
         <div className="flex items-center gap-2">
-          {saving && <span className="text-xs text-[#B8A99A]">A guardar...</span>}
+          {saving && <span className="text-xs text-cocoa-500">A guardar...</span>}
           <Button
             variant="outline"
             size="sm"
@@ -169,13 +169,13 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
               value={data.scientific_name ?? ""}
               onChange={(e) => update("scientific_name", e.target.value || null)}
               placeholder="Nome científico (opcional)"
-              className="italic text-sm text-[#8B7355] border-0 bg-transparent px-0 focus-visible:ring-0 h-auto"
+              className="italic text-sm text-cocoa-700 border-0 bg-transparent px-0 focus-visible:ring-0 h-auto"
             />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-[#8B7355] block mb-1">
+            <label className="text-[10px] uppercase tracking-wider text-cocoa-700 block mb-1">
               Dificuldade
             </label>
             <Select value={data.difficulty} onValueChange={(v) => update("difficulty", v as RecipeDifficulty)}>
@@ -192,7 +192,7 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-[#8B7355] block mb-1">
+            <label className="text-[10px] uppercase tracking-wider text-cocoa-700 block mb-1">
               Prensa mínima (dias)
             </label>
             <Input
@@ -204,7 +204,7 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-[#8B7355] block mb-1">
+            <label className="text-[10px] uppercase tracking-wider text-cocoa-700 block mb-1">
               Prensa máxima (dias)
             </label>
             <Input
@@ -219,8 +219,8 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       </div>
 
       {/* Apresentação */}
-      <section className="rounded-xl border border-[#E8E0D5] bg-white p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-[#3D2B1F] uppercase tracking-wider">
+      <section className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-cocoa-900 uppercase tracking-wider">
           Apresentação
         </h2>
         <Textarea
@@ -233,9 +233,9 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       </section>
 
       {/* Passos */}
-      <section className="rounded-xl border border-[#E8E0D5] bg-white p-5 space-y-3">
+      <section className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#3D2B1F] uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-cocoa-900 uppercase tracking-wider">
             Passos da preservação
           </h2>
           <Button size="sm" variant="outline" onClick={addStep} className="h-7 gap-1">
@@ -244,13 +244,13 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
           </Button>
         </div>
         {data.steps.length === 0 ? (
-          <p className="text-sm text-[#B8A99A] italic">
+          <p className="text-sm text-cocoa-500 italic">
             Ainda sem passos. Adiciona o primeiro para registar o processo.
           </p>
         ) : (
           <ol className="space-y-3">
             {data.steps.map((step, idx) => (
-              <li key={idx} className="rounded-lg border border-[#F0EAE0] bg-[#FDFCFB] p-3 space-y-2">
+              <li key={idx} className="rounded-lg border border-cream-100 bg-[#FDFCFB] p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-rose-100 text-rose-700 text-xs font-semibold shrink-0">
                     {step.order}
@@ -263,7 +263,7 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
                   />
                   <button
                     onClick={() => removeStep(idx)}
-                    className="text-[#B8A99A] hover:text-rose-600 transition-colors"
+                    className="text-cocoa-500 hover:text-rose-600 transition-colors"
                     title="Remover passo"
                   >
                     <X className="h-4 w-4" />
@@ -283,8 +283,8 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       </section>
 
       {/* Observações */}
-      <section className="rounded-xl border border-[#E8E0D5] bg-white p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-[#3D2B1F] uppercase tracking-wider">
+      <section className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-cocoa-900 uppercase tracking-wider">
           Observações
         </h2>
         <Textarea
@@ -297,9 +297,9 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       </section>
 
       {/* Fotos */}
-      <section className="rounded-xl border border-[#E8E0D5] bg-white p-5 space-y-3">
+      <section className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#3D2B1F] uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-cocoa-900 uppercase tracking-wider">
             Fotos
           </h2>
           <Button size="sm" variant="outline" onClick={addPhoto} className="h-7 gap-1">
@@ -308,14 +308,14 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
           </Button>
         </div>
         {data.photos.length === 0 ? (
-          <p className="text-sm text-[#B8A99A] italic">
+          <p className="text-sm text-cocoa-500 italic">
             Sem fotos. Adiciona URLs do Drive ou directas.
           </p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {data.photos.map((photo, idx) => (
               <div key={idx} className="space-y-1.5">
-                <div className="relative aspect-square rounded-lg overflow-hidden border border-[#E8E0D5] bg-pink-50/40">
+                <div className="relative aspect-square rounded-lg overflow-hidden border border-cream-200 bg-pink-50/40">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={toEmbeddableImageUrl(photo.url) ?? photo.url}
@@ -343,7 +343,7 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       </section>
 
       {/* Metadata */}
-      <div className="text-xs text-[#B8A99A] flex flex-wrap gap-4 pt-2 border-t border-[#F0EAE0]">
+      <div className="text-xs text-cocoa-500 flex flex-wrap gap-4 pt-2 border-t border-cream-100">
         <span>Criada em {formatTimestamp(data.created_at)}</span>
         <span>Última edição {formatTimestamp(data.updated_at)}</span>
         {data.created_by_email && (

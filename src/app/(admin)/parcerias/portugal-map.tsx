@@ -172,7 +172,7 @@ export default function PortugalMap({ partners, onSelect, selectedId, className 
       {/* Legenda + lista de não-localizados */}
       <div className="w-44 shrink-0 space-y-4">
         <div>
-          <div className="text-[11px] uppercase tracking-wider font-semibold text-[#8B7355] mb-2">
+          <div className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-700 mb-2">
             Estado
           </div>
           <div className="space-y-1">
@@ -181,8 +181,8 @@ export default function PortugalMap({ partners, onSelect, selectedId, className 
               return (
                 <div key={s} className="flex items-center gap-2 text-xs">
                   <span className={`h-2.5 w-2.5 rounded-full ${PARTNER_STATUS_DOT[s]}`} />
-                  <span className="flex-1 text-[#3D2B1F]">{PARTNER_STATUS_LABELS[s]}</span>
-                  <span className="text-[#B8A99A] tabular-nums">{count}</span>
+                  <span className="flex-1 text-cocoa-900">{PARTNER_STATUS_LABELS[s]}</span>
+                  <span className="text-cocoa-500 tabular-nums">{count}</span>
                 </div>
               );
             })}

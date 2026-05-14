@@ -178,29 +178,29 @@ export default function PartnerWorkbenchClient({
   const doneActions = partner.actions.filter((a) => a.done);
 
   return (
-    <div className="flex flex-col h-full bg-[#FAF8F5]">
+    <div className="flex flex-col h-full bg-cream-50">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-cream-200 bg-surface shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href="/parcerias"
-            className="inline-flex items-center gap-1 text-sm text-[#8B7355] hover:text-[#3D2B1F] shrink-0"
+            className="inline-flex items-center gap-1 text-sm text-cocoa-700 hover:text-cocoa-900 shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Voltar</span>
           </Link>
-          <span className="text-[#E8E0D5]">·</span>
+          <span className="text-cream-200">·</span>
           <span className={cn(
             "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gradient-to-r",
             PARTNER_CATEGORY_COLORS[partner.category],
           )}>
             {PARTNER_CATEGORY_LABELS[partner.category]}
           </span>
-          <h1 className="font-['TanMemories'] text-xl text-[#3D2B1F] truncate">
+          <h1 className="font-['TanMemories'] text-xl text-cocoa-900 truncate">
             {partner.name || "Sem nome"}
           </h1>
           {savingField && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-[#8B7355]">
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-cocoa-700">
               <Loader2 className="h-3 w-3 animate-spin" />
               A guardar…
             </span>
@@ -440,10 +440,10 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("rounded-xl border border-[#E8E0D5] bg-white border-l-4 overflow-hidden", color)}>
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#F0EAE0] bg-[#FDFAF7]">
-        <Icon className="h-3.5 w-3.5 text-[#8B7355]" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-[#8B7355]">
+    <div className={cn("rounded-xl border border-cream-200 bg-surface border-l-4 overflow-hidden", color)}>
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
+        <Icon className="h-3.5 w-3.5 text-cocoa-700" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-cocoa-700">
           {title}
         </span>
       </div>
@@ -455,7 +455,7 @@ function Card({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-[11px] uppercase tracking-wider text-[#8B7355]">{label}</Label>
+      <Label className="text-[11px] uppercase tracking-wider text-cocoa-700">{label}</Label>
       {children}
     </div>
   );
@@ -464,8 +464,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between text-xs">
-      <span className="text-[#8B7355]">{label}</span>
-      <span className="text-[#3D2B1F] font-medium">{value}</span>
+      <span className="text-cocoa-700">{label}</span>
+      <span className="text-cocoa-900 font-medium">{value}</span>
     </div>
   );
 }
@@ -510,9 +510,9 @@ function PhonesField({
         {phones.map((p, i) => (
           <div
             key={i}
-            className="flex items-center gap-1.5 rounded-md border border-[#E8E0D5] bg-[#FAF8F5] px-2 py-1.5"
+            className="flex items-center gap-1.5 rounded-md border border-cream-200 bg-cream-50 px-2 py-1.5"
           >
-            <Phone className="h-3 w-3 text-[#8B7355] shrink-0" />
+            <Phone className="h-3 w-3 text-cocoa-700 shrink-0" />
             <Input
               defaultValue={p.label ?? ""}
               onBlur={(e) => {
@@ -533,7 +533,7 @@ function PhonesField({
             />
             <button
               type="button"
-              className="text-[#B8A99A] hover:text-rose-600 shrink-0"
+              className="text-cocoa-500 hover:text-rose-600 shrink-0"
               onClick={() => remove(i)}
               aria-label="Remover"
             >
@@ -592,8 +592,8 @@ function LinksField({
     <Field label="Links">
       <div className="space-y-1.5">
         {links.map((l, i) => (
-          <div key={i} className="flex items-center gap-2 rounded-md border border-[#E8E0D5] bg-[#FAF8F5] px-2.5 py-1.5">
-            <LinkIcon className="h-3 w-3 text-[#8B7355] shrink-0" />
+          <div key={i} className="flex items-center gap-2 rounded-md border border-cream-200 bg-cream-50 px-2.5 py-1.5">
+            <LinkIcon className="h-3 w-3 text-cocoa-700 shrink-0" />
             <a
               href={l.startsWith("http") ? l : `https://${l}`}
               target="_blank"
@@ -604,7 +604,7 @@ function LinksField({
             </a>
             <button
               type="button"
-              className="text-[#B8A99A] hover:text-rose-600"
+              className="text-cocoa-500 hover:text-rose-600"
               onClick={() => remove(i)}
             >
               <X className="h-3.5 w-3.5" />
@@ -668,11 +668,11 @@ function InteractionsCard({
   }
 
   return (
-    <div className="rounded-xl border border-[#E8E0D5] bg-white border-l-4 border-l-violet-400 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#F0EAE0] bg-[#FDFAF7]">
+    <div className="rounded-xl border border-cream-200 bg-surface border-l-4 border-l-violet-400 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-3.5 w-3.5 text-[#8B7355]" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#8B7355]">
+          <MessageSquare className="h-3.5 w-3.5 text-cocoa-700" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-cocoa-700">
             Histórico de interações
           </span>
         </div>
@@ -688,7 +688,7 @@ function InteractionsCard({
       </div>
 
       {open && (
-        <div className="border-b border-[#F0EAE0] bg-violet-50/40 p-3 space-y-2.5">
+        <div className="border-b border-cream-100 bg-violet-50/40 p-3 space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
             <Select value={channel} onValueChange={(v) => setChannel(v as InteractionChannel)}>
               <SelectTrigger className="h-8 text-xs">
@@ -725,13 +725,13 @@ function InteractionsCard({
 
       <div className="max-h-[420px] overflow-y-auto">
         {interactions.length === 0 ? (
-          <div className="p-6 text-center text-xs text-[#B8A99A]">
+          <div className="p-6 text-center text-xs text-cocoa-500">
             Sem interações registadas.
           </div>
         ) : (
-          <ol className="divide-y divide-[#F0EAE0]">
+          <ol className="divide-y divide-cream-100">
             {interactions.map((i) => (
-              <li key={i.id} className="p-3 group hover:bg-[#FDFAF7]">
+              <li key={i.id} className="p-3 group hover:bg-cream-50">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className={cn(
                     "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border",
@@ -739,17 +739,17 @@ function InteractionsCard({
                   )}>
                     {INTERACTION_CHANNEL_LABELS[i.channel]}
                   </span>
-                  <span className="text-[10px] text-[#B8A99A]">{formatDateTime(i.date)}</span>
+                  <span className="text-[10px] text-cocoa-500">{formatDateTime(i.date)}</span>
                   <button
                     onClick={() => remove(i.id)}
-                    className="opacity-0 group-hover:opacity-100 text-[#B8A99A] hover:text-rose-600 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 text-cocoa-500 hover:text-rose-600 transition-opacity"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
-                <p className="text-xs text-[#3D2B1F] whitespace-pre-wrap">{i.summary}</p>
+                <p className="text-xs text-cocoa-900 whitespace-pre-wrap">{i.summary}</p>
                 {i.by && (
-                  <p className="mt-1 text-[10px] text-[#B8A99A]">por {nameForEmail(i.by)}</p>
+                  <p className="mt-1 text-[10px] text-cocoa-500">por {nameForEmail(i.by)}</p>
                 )}
               </li>
             ))}
@@ -810,11 +810,11 @@ function ActionsCard({
   }
 
   return (
-    <div className="rounded-xl border border-[#E8E0D5] bg-white border-l-4 border-l-amber-400 overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#F0EAE0] bg-[#FDFAF7]">
+    <div className="rounded-xl border border-cream-200 bg-surface border-l-4 border-l-amber-400 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
         <div className="flex items-center gap-2">
-          <ListChecks className="h-3.5 w-3.5 text-[#8B7355]" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#8B7355]">
+          <ListChecks className="h-3.5 w-3.5 text-cocoa-700" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-cocoa-700">
             Acções
           </span>
           {pending.length > 0 && (
@@ -835,7 +835,7 @@ function ActionsCard({
       </div>
 
       {open && (
-        <div className="border-b border-[#F0EAE0] bg-amber-50/40 p-3 space-y-2.5">
+        <div className="border-b border-cream-100 bg-amber-50/40 p-3 space-y-2.5">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -872,12 +872,12 @@ function ActionsCard({
 
       <div>
         {pending.length === 0 && done.length === 0 ? (
-          <div className="p-6 text-center text-xs text-[#B8A99A]">
+          <div className="p-6 text-center text-xs text-cocoa-500">
             Sem acções pendentes.
           </div>
         ) : (
           <>
-            <ul className="divide-y divide-[#F0EAE0]">
+            <ul className="divide-y divide-cream-100">
               {pending.map((a) => (
                 <ActionItem
                   key={a.id}
@@ -891,12 +891,12 @@ function ActionsCard({
               <>
                 <button
                   onClick={() => setShowDone((s) => !s)}
-                  className="w-full px-4 py-2 text-left text-[11px] text-[#8B7355] hover:bg-[#FDFAF7] border-t border-[#F0EAE0]"
+                  className="w-full px-4 py-2 text-left text-[11px] text-cocoa-700 hover:bg-cream-50 border-t border-cream-100"
                 >
                   {showDone ? "Esconder" : "Mostrar"} {done.length} feita{done.length !== 1 ? "s" : ""}
                 </button>
                 {showDone && (
-                  <ul className="divide-y divide-[#F0EAE0]">
+                  <ul className="divide-y divide-cream-100">
                     {done.map((a) => (
                       <ActionItem
                         key={a.id}
@@ -927,10 +927,10 @@ function ActionItem({
 }) {
   const overdue = !action.done && action.due_date && new Date(action.due_date) < new Date();
   return (
-    <li className="p-3 group hover:bg-[#FDFAF7] flex items-start gap-2">
+    <li className="p-3 group hover:bg-cream-50 flex items-start gap-2">
       <button
         onClick={() => onToggle(!action.done)}
-        className="mt-0.5 shrink-0 text-[#B8A99A] hover:text-emerald-600"
+        className="mt-0.5 shrink-0 text-cocoa-500 hover:text-emerald-600"
       >
         {action.done ? (
           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -941,11 +941,11 @@ function ActionItem({
       <div className="flex-1 min-w-0">
         <p className={cn(
           "text-xs",
-          action.done ? "text-[#B8A99A] line-through" : "text-[#3D2B1F]"
+          action.done ? "text-cocoa-500 line-through" : "text-cocoa-900"
         )}>
           {action.title}
         </p>
-        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[#8B7355]">
+        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-cocoa-700">
           {action.assignee_email && (
             <span className="inline-flex items-center gap-0.5">
               <User className="h-2.5 w-2.5" />
@@ -966,7 +966,7 @@ function ActionItem({
       </div>
       <button
         onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 text-[#B8A99A] hover:text-rose-600 transition-opacity shrink-0"
+        className="opacity-0 group-hover:opacity-100 text-cocoa-500 hover:text-rose-600 transition-opacity shrink-0"
       >
         <Trash2 className="h-3 w-3" />
       </button>
@@ -991,50 +991,50 @@ function RecommendedClients({
       .reduce((s, v) => s + (v.amount ?? 0), 0);
 
   return (
-    <div className="rounded-xl border border-[#E8E0D5] bg-white border-l-4 border-l-emerald-400 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#F0EAE0] bg-[#FDFAF7]">
-        <Users className="h-3.5 w-3.5 text-[#8B7355]" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-[#8B7355]">
+    <div className="rounded-xl border border-cream-200 bg-surface border-l-4 border-l-emerald-400 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
+        <Users className="h-3.5 w-3.5 text-cocoa-700" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-cocoa-700">
           Clientes recomendados
         </span>
       </div>
 
       {total === 0 ? (
-        <div className="p-4 text-center text-xs text-[#B8A99A]">
+        <div className="p-4 text-center text-xs text-cocoa-500">
           Ainda nenhum cliente recomendado.
         </div>
       ) : (
         <>
-          <div className="px-4 py-3 border-b border-[#F0EAE0] bg-emerald-50/30">
-            <div className="text-[11px] text-[#8B7355] uppercase tracking-wider">Total</div>
+          <div className="px-4 py-3 border-b border-cream-100 bg-emerald-50/30">
+            <div className="text-[11px] text-cocoa-700 uppercase tracking-wider">Total</div>
             <div className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold text-[#3D2B1F]">{total}</span>
-              <span className="text-[11px] text-[#8B7355]">·</span>
+              <span className="text-lg font-semibold text-cocoa-900">{total}</span>
+              <span className="text-[11px] text-cocoa-700">·</span>
               <span className="text-sm font-medium text-emerald-700">{formatEuro(totalRevenue)}</span>
             </div>
           </div>
 
           {orders.length > 0 && (
-            <div className="border-b border-[#F0EAE0]">
-              <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#8B7355] bg-[#FAF8F5]">
+            <div className="border-b border-cream-100">
+              <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-cocoa-700 bg-cream-50">
                 Encomendas ({orders.length})
               </div>
-              <ul className="divide-y divide-[#F0EAE0]">
+              <ul className="divide-y divide-cream-100">
                 {orders.map((o) => (
                   <li key={o.id}>
                     <Link
                       href={`/preservacao/${o.order_id}`}
-                      className="flex items-start gap-2 p-3 hover:bg-[#FDFAF7] group"
+                      className="flex items-start gap-2 p-3 hover:bg-cream-50 group"
                     >
                       <span className={cn(
                         "h-2 w-2 mt-1 rounded-full shrink-0",
                         ORDER_STATUS_DOTS[o.status as OrderStatus],
                       )} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-[#3D2B1F] truncate">
+                        <div className="text-xs font-medium text-cocoa-900 truncate">
                           {o.client_name}
                         </div>
-                        <div className="text-[10px] text-[#8B7355]">
+                        <div className="text-[10px] text-cocoa-700">
                           {ORDER_STATUS_LABELS[o.status as OrderStatus]}
                           {o.event_date && ` · ${formatDate(o.event_date)}`}
                         </div>
@@ -1044,7 +1044,7 @@ function RecommendedClients({
                           </div>
                         )}
                       </div>
-                      <ExternalLink className="h-3 w-3 text-[#B8A99A] opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
+                      <ExternalLink className="h-3 w-3 text-cocoa-500 opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
                     </Link>
                   </li>
                 ))}
@@ -1054,22 +1054,22 @@ function RecommendedClients({
 
           {vouchers.length > 0 && (
             <div>
-              <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#8B7355] bg-[#FAF8F5]">
+              <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-cocoa-700 bg-cream-50">
                 Vales ({vouchers.length})
               </div>
-              <ul className="divide-y divide-[#F0EAE0]">
+              <ul className="divide-y divide-cream-100">
                 {vouchers.map((v) => (
                   <li key={v.id}>
                     <Link
                       href={`/vale-presente/${v.code}`}
-                      className="flex items-start gap-2 p-3 hover:bg-[#FDFAF7] group"
+                      className="flex items-start gap-2 p-3 hover:bg-cream-50 group"
                     >
                       <Gift className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-[#3D2B1F] truncate">
+                        <div className="text-xs font-medium text-cocoa-900 truncate">
                           {v.sender_name} → {v.recipient_name}
                         </div>
-                        <div className="text-[10px] text-[#8B7355]">
+                        <div className="text-[10px] text-cocoa-700">
                           {v.payment_status === "100_pago" ? "Pago" : "Por pagar"}
                           {" · "}
                           {v.usage_status === "preservacao_agendada" ? "Agendado" : "Por usar"}
@@ -1078,7 +1078,7 @@ function RecommendedClients({
                           {formatEuro(v.amount)}
                         </div>
                       </div>
-                      <ExternalLink className="h-3 w-3 text-[#B8A99A] opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
+                      <ExternalLink className="h-3 w-3 text-cocoa-500 opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />
                     </Link>
                   </li>
                 ))}
@@ -1139,7 +1139,7 @@ function LocationCard({
       <button
         type="button"
         onClick={() => setShowAdvanced((v) => !v)}
-        className="text-[11px] text-[#8B7355] hover:text-[#3D2B1F] underline"
+        className="text-[11px] text-cocoa-700 hover:text-cocoa-900 underline"
       >
         {showAdvanced ? "Esconder edição manual" : "Editar coordenadas manualmente"}
       </button>

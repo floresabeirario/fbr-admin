@@ -46,7 +46,7 @@ export function PartnerCombobox({
   partners,
   value,
   onChange,
-  triggerCls = "h-9 rounded-md border border-[#E8E0D5] bg-white text-sm",
+  triggerCls = "h-9 rounded-md border border-cream-200 bg-surface text-sm",
 }: PartnerComboboxProps) {
   const [open, setOpen] = useState(false);
   const selected = value ? partners.find((p) => p.id === value) ?? null : null;
@@ -60,14 +60,14 @@ export function PartnerCombobox({
         {selected ? (
           <span className="flex items-center gap-1.5 truncate">
             <span className="text-sm">{selected.name}</span>
-            <span className="text-[10px] text-[#B8A99A] shrink-0">
+            <span className="text-[10px] text-cocoa-500 shrink-0">
               · {PARTNER_CATEGORY_LABELS[selected.category] ?? selected.category}
             </span>
           </span>
         ) : (
-          <span className="text-[#B8A99A]">Sem parceiro</span>
+          <span className="text-cocoa-500">Sem parceiro</span>
         )}
-        <Search className="h-3.5 w-3.5 text-[#B8A99A] shrink-0" />
+        <Search className="h-3.5 w-3.5 text-cocoa-500 shrink-0" />
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-0" align="start">
         <Command>
@@ -82,7 +82,7 @@ export function PartnerCombobox({
                   setOpen(false);
                 }}
               >
-                <span className="text-[#8B7355] italic">Nenhum parceiro</span>
+                <span className="text-cocoa-700 italic">Nenhum parceiro</span>
               </CommandItem>
               {partners.map((p) => (
                 <CommandItem
@@ -95,7 +95,7 @@ export function PartnerCombobox({
                 >
                   <span className="flex items-center gap-1.5">
                     <span className="text-sm">{p.name}</span>
-                    <span className="text-[10px] text-[#B8A99A]">
+                    <span className="text-[10px] text-cocoa-500">
                       · {PARTNER_CATEGORY_LABELS[p.category] ?? p.category}
                     </span>
                   </span>

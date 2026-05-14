@@ -55,6 +55,18 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Tokens de marca FBR — fazem swap automático em .dark */
+  --color-cream-50: var(--cream-50);
+  --color-cream-100: var(--cream-100);
+  --color-cream-200: var(--cream-200);
+  --color-cocoa-500: var(--cocoa-500);
+  --color-cocoa-700: var(--cocoa-700);
+  --color-cocoa-900: var(--cocoa-900);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-btn-primary: var(--btn-primary);
+  --color-btn-primary-hover: var(--btn-primary-hover);
+  --color-btn-primary-fg: var(--btn-primary-fg);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -97,40 +109,65 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Tokens de marca FBR — Light */
+  --cream-50: #FAF8F5;
+  --cream-100: #F0EAE0;
+  --cream-200: #E8E0D5;
+  --cocoa-500: #B8A99A;
+  --cocoa-700: #8B7355;
+  --cocoa-900: #3D2B1F;
+  --surface: #FFFFFF;
+  --surface-hover: #FAF8F5;
+  --btn-primary: #3D2B1F;
+  --btn-primary-hover: #2C1F15;
+  --btn-primary-fg: #FFFFFF;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Palette dark FBR — warm browns em vez de cinzas neutros */
+  --background: oklch(0.13 0.008 60);
+  --foreground: oklch(0.93 0.035 80);
+  --card: oklch(0.175 0.01 60);
+  --card-foreground: oklch(0.93 0.035 80);
+  --popover: oklch(0.175 0.01 60);
+  --popover-foreground: oklch(0.93 0.035 80);
+  --primary: oklch(0.85 0.06 75);
+  --primary-foreground: oklch(0.175 0.01 60);
+  --secondary: oklch(0.235 0.012 60);
+  --secondary-foreground: oklch(0.93 0.035 80);
+  --muted: oklch(0.21 0.01 60);
+  --muted-foreground: oklch(0.7 0.025 70);
+  --accent: oklch(0.255 0.012 60);
+  --accent-foreground: oklch(0.93 0.035 80);
+  --destructive: oklch(0.68 0.18 22);
+  --border: oklch(0.32 0.012 60);
+  --input: oklch(0.28 0.012 60);
+  --ring: oklch(0.55 0.04 70);
+  --chart-1: oklch(0.8 0.06 75);
+  --chart-2: oklch(0.65 0.05 80);
+  --chart-3: oklch(0.55 0.04 70);
+  --chart-4: oklch(0.45 0.03 65);
+  --chart-5: oklch(0.35 0.02 60);
+  --sidebar: oklch(0.155 0.01 60);
+  --sidebar-foreground: oklch(0.93 0.035 80);
+  --sidebar-primary: oklch(0.85 0.06 75);
+  --sidebar-primary-foreground: oklch(0.175 0.01 60);
+  --sidebar-accent: oklch(0.255 0.012 60);
+  --sidebar-accent-foreground: oklch(0.93 0.035 80);
+  --sidebar-border: oklch(0.32 0.012 60);
+  --sidebar-ring: oklch(0.55 0.04 70);
+  /* Tokens de marca FBR — Dark (warm browns/creams) */
+  --cream-50: #15110D;
+  --cream-100: #221C16;
+  --cream-200: #322821;
+  --cocoa-500: #6E6356;
+  --cocoa-700: #A89878;
+  --cocoa-900: #E8D5B5;
+  --surface: #1B1611;
+  --surface-hover: #261F18;
+  --btn-primary: #E8D5B5;
+  --btn-primary-hover: #D6BD96;
+  --btn-primary-fg: #1B1611;
 }
 
 @layer base {

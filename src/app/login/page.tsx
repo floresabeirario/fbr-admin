@@ -66,7 +66,7 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="text-center mb-10">
           <h1
-            className="text-[40px] leading-tight text-[#3D2B1F] dark:text-[#E8D5B5]"
+            className="text-[40px] leading-tight text-cocoa-900"
             style={{ fontFamily: "TanMemories" }}
           >
             Flores à Beira Rio
@@ -79,7 +79,7 @@ export default function LoginPage() {
         {!selected ? (
           /* Perfis — sem caixa */
           <div className="flex flex-col items-center gap-6">
-            <p className="text-[13px] text-[#8B8B8B] dark:text-[#8E8E93]">
+            <p className="text-[13px] text-[#8B8B8B]">
               Quem está a entrar?
             </p>
             <div className="flex gap-8 justify-center">
@@ -92,7 +92,7 @@ export default function LoginPage() {
                   <div className="w-[72px] h-[72px] rounded-full overflow-hidden relative ring-2 ring-transparent group-hover:ring-[#C4A882] group-focus-visible:ring-[#C4A882] transition-all duration-150">
                     <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
                   </div>
-                  <span className="text-[13px] font-medium text-[#3D2B1F]/50 dark:text-white/50 group-hover:text-[#3D2B1F] dark:group-hover:text-white transition-colors">
+                  <span className="text-[13px] font-medium text-cocoa-900/50 dark:text-white/50 group-hover:text-cocoa-900 dark:group-hover:text-white transition-colors">
                     {profile.name}
                   </span>
                 </button>
@@ -101,11 +101,11 @@ export default function LoginPage() {
           </div>
         ) : (
           /* Card com password */
-          <div className="w-full max-w-[360px] bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.07)] dark:shadow-[0_2px_30px_rgba(0,0,0,0.5)]">
+          <div className="w-full max-w-[360px] bg-surface rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.07)] dark:shadow-[0_2px_30px_rgba(0,0,0,0.5)]">
             <div className="p-8 flex flex-col gap-5">
               <button
                 onClick={handleBack}
-                className="flex items-center gap-1.5 text-[12px] text-[#3D2B1F]/35 dark:text-white/35 hover:text-[#3D2B1F] dark:hover:text-white transition-colors w-fit outline-none"
+                className="flex items-center gap-1.5 text-[12px] text-cocoa-900/35 dark:text-white/35 hover:text-cocoa-900 dark:hover:text-white transition-colors w-fit outline-none"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Mudar perfil
@@ -129,12 +129,12 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoFocus
                     required
-                    className="w-full rounded-xl px-4 py-3 text-[15px] pr-11 bg-[#F2F2F7] dark:bg-[#2C2C2E] text-[#1C1C1E] dark:text-white placeholder:text-[#8E8E93] outline-none focus:ring-2 focus:ring-[#C4A882]/50 transition-all"
+                    className="w-full rounded-xl px-4 py-3 text-[15px] pr-11 bg-[#F2F2F7] text-[#1C1C1E] dark:text-white placeholder:text-[#8E8E93] outline-none focus:ring-2 focus:ring-[#C4A882]/50 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] hover:text-[#3D2B1F] dark:hover:text-white transition-colors outline-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8E93] hover:text-cocoa-900 dark:hover:text-white transition-colors outline-none"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>

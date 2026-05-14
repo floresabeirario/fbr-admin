@@ -21,22 +21,22 @@ import {
 import type { OrderStatus, PaymentStatus } from "@/types/database";
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
-  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300",
-  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300",
-  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300",
-  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300",
-  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300",
-  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300",
-  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300",
-  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300",
-  a_finalizar_quadro:     "bg-cyan-100 text-cyan-900 border-cyan-300",
-  a_ser_emoldurado:       "bg-teal-100 text-teal-900 border-teal-300",
-  emoldurado:             "bg-emerald-100 text-emerald-900 border-emerald-300",
-  a_ser_fotografado:      "bg-lime-100 text-lime-900 border-lime-300",
-  quadro_pronto:          "bg-yellow-100 text-yellow-900 border-yellow-300",
-  quadro_enviado:         "bg-orange-100 text-orange-900 border-orange-300",
-  quadro_recebido:        "bg-green-100 text-green-900 border-green-300",
-  cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
+  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900",
+  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300 dark:bg-pink-950/40 dark:text-pink-200 dark:border-pink-900",
+  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-900",
+  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/40 dark:text-purple-200 dark:border-purple-900",
+  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-900",
+  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-900",
+  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900",
+  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-900",
+  a_finalizar_quadro:     "bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-200 dark:border-cyan-900",
+  a_ser_emoldurado:       "bg-teal-100 text-teal-900 border-teal-300 dark:bg-teal-950/40 dark:text-teal-200 dark:border-teal-900",
+  emoldurado:             "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900",
+  a_ser_fotografado:      "bg-lime-100 text-lime-900 border-lime-300 dark:bg-lime-950/40 dark:text-lime-200 dark:border-lime-900",
+  quadro_pronto:          "bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-200 dark:border-yellow-900",
+  quadro_enviado:         "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200 dark:border-orange-900",
+  quadro_recebido:        "bg-green-100 text-green-900 border-green-300 dark:bg-green-950/40 dark:text-green-200 dark:border-green-900",
+  cancelado:              "bg-stone-200 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
 };
 
 // Cor hexadecimal correspondente (para uso em SVG/charts onde não dá para
@@ -153,10 +153,10 @@ export const STATUS_GROUPS: Array<{ label: StatusGroupLabel; statuses: OrderStat
 
 // Gradiente vermelho → âmbar → lime → verde, conforme a quantia já paga
 export const PAYMENT_COLORS: Record<PaymentStatus, string> = {
-  "100_pago":      "bg-green-100 text-green-800 border-green-300",
-  "70_pago":       "bg-lime-100 text-lime-800 border-lime-300",
-  "30_pago":       "bg-amber-100 text-amber-900 border-amber-300",
-  "100_por_pagar": "bg-red-100 text-red-700 border-red-300",
+  "100_pago":      "bg-green-100 text-green-800 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900",
+  "70_pago":       "bg-lime-100 text-lime-800 border-lime-300 dark:bg-lime-950/40 dark:text-lime-300 dark:border-lime-900",
+  "30_pago":       "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
+  "100_por_pagar": "bg-red-100 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900",
 };
 
 export const PAYMENT_DOT_COLORS: Record<PaymentStatus, string> = {

@@ -83,16 +83,16 @@ export function RgpdClient({
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-5">
       <div>
-        <h1 className="font-['TanMemories'] text-3xl text-[#3D2B1F] dark:text-[#E8D5B5] flex items-center gap-2">
+        <h1 className="font-['TanMemories'] text-3xl text-cocoa-900 flex items-center gap-2">
           <Shield className="h-7 w-7 text-emerald-600" />
           RGPD
         </h1>
-        <p className="text-sm text-[#8B7355] mt-1">
+        <p className="text-sm text-cocoa-700 mt-1">
           Exportação de dados pessoais (Art. 15 RGPD) e retenção fiscal de 10 anos.
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-[#E8E0D5]">
+      <div className="flex gap-1 border-b border-cream-200">
         <TabButton active={tab === "exportar"} onClick={() => setTab("exportar")}>
           <Download className="h-4 w-4 mr-1.5" />
           Exportar dados de um cliente
@@ -139,7 +139,7 @@ function TabButton({
       className={`inline-flex items-center px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
         active
           ? "border-emerald-600 text-emerald-700"
-          : "border-transparent text-[#8B7355] hover:text-[#3D2B1F]"
+          : "border-transparent text-cocoa-700 hover:text-cocoa-900"
       }`}
     >
       {children}
@@ -176,7 +176,7 @@ function ExportSection({
       <CardContent className="space-y-4">
         <form onSubmit={onSearch} className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#B8A99A]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -188,14 +188,14 @@ function ExportSection({
         </form>
 
         {!query && (
-          <p className="text-sm text-[#8B7355]">
+          <p className="text-sm text-cocoa-700">
             Introduz o email ou telemóvel do cliente e clica em Pesquisar para ver todos os dados
             que temos sobre ele (encomendas + vales-presente).
           </p>
         )}
 
         {query && !hasResults && (
-          <div className="rounded-lg border border-dashed border-[#E8E0D5] bg-[#FAF8F5] px-4 py-6 text-center text-sm text-[#8B7355]">
+          <div className="rounded-lg border border-dashed border-cream-200 bg-cream-50 px-4 py-6 text-center text-sm text-cocoa-700">
             Nenhuma encomenda ou vale encontrado para <span className="font-mono">{searchResult.query}</span>.
           </div>
         )}
@@ -235,14 +235,14 @@ function ExportSection({
                 </a>
               )}
             </div>
-            <p className="text-xs text-[#8B7355]">
+            <p className="text-xs text-cocoa-700">
               💡 &quot;Descarregar PDF&quot; abre o diálogo de impressão automaticamente — escolhe
               &quot;Guardar como PDF&quot; como destino.
             </p>
 
             {searchResult.orders.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-[#3D2B1F] mb-2">Encomendas</h3>
+                <h3 className="text-sm font-semibold text-cocoa-900 mb-2">Encomendas</h3>
                 <ul className="space-y-2">
                   {searchResult.orders.map((o) => (
                     <ResultRow
@@ -259,7 +259,7 @@ function ExportSection({
 
             {searchResult.vouchers.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-[#3D2B1F] mb-2">Vales-presente</h3>
+                <h3 className="text-sm font-semibold text-cocoa-900 mb-2">Vales-presente</h3>
                 <ul className="space-y-2">
                   {searchResult.vouchers.map((v) => (
                     <ResultRow
@@ -295,11 +295,11 @@ function ResultRow({
     <li>
       <Link
         href={href}
-        className="block rounded-lg border border-[#E8E0D5] bg-white px-3 py-2 hover:border-emerald-300 hover:bg-emerald-50/40 transition-colors"
+        className="block rounded-lg border border-cream-200 bg-surface px-3 py-2 hover:border-emerald-300 hover:bg-emerald-50/40 transition-colors"
       >
-        <div className="font-medium text-sm text-[#3D2B1F]">{title}</div>
-        <div className="text-xs text-[#8B7355] font-mono">{subtitle}</div>
-        <div className="text-[11px] text-[#B8A99A] mt-0.5">{meta}</div>
+        <div className="font-medium text-sm text-cocoa-900">{title}</div>
+        <div className="text-xs text-cocoa-700 font-mono">{subtitle}</div>
+        <div className="text-[11px] text-cocoa-500 mt-0.5">{meta}</div>
       </Link>
     </li>
   );
@@ -317,26 +317,26 @@ function RetentionSection({ rows }: { rows: RetentionRow[] }) {
         <CardHeader>
           <CardTitle className="text-base">Política de retenção</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-[#8B7355] space-y-2">
+        <CardContent className="text-sm text-cocoa-700 space-y-2">
           <p>
             Por obrigação fiscal portuguesa, as encomendas concluídas são guardadas durante{" "}
             <strong>10 anos</strong> a partir da data de entrega do quadro. Após esse prazo, o RGPD
             obriga a apagar ou anonimizar os dados pessoais.
           </p>
           <p>
-            <strong className="text-[#3D2B1F]">Anonimizar</strong> (recomendado): mantém a linha
+            <strong className="text-cocoa-900">Anonimizar</strong> (recomendado): mantém a linha
             para métricas e relatórios fiscais agregados, mas apaga nome, email, telefone, morada,
             NIF e notas. A operação é definitiva.
           </p>
           <p>
-            <strong className="text-[#3D2B1F]">Apagar definitivamente</strong>: remove a linha por
+            <strong className="text-cocoa-900">Apagar definitivamente</strong>: remove a linha por
             completo. Usar apenas em pedidos explícitos do titular dos dados (Art. 17 RGPD).
           </p>
         </CardContent>
       </Card>
 
       {expired.length === 0 && dueSoon.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[#E8E0D5] bg-[#FAF8F5] px-4 py-8 text-center text-sm text-[#8B7355]">
+        <div className="rounded-lg border border-dashed border-cream-200 bg-cream-50 px-4 py-8 text-center text-sm text-cocoa-700">
           Não há encomendas concluídas a aproximarem-se do prazo de retenção.
         </div>
       ) : (
@@ -416,15 +416,15 @@ function RetentionRowItem({ row }: { row: RetentionRow }) {
 
   return (
     <>
-      <div className="flex items-center gap-3 rounded-lg border border-[#E8E0D5] bg-white px-3 py-2">
+      <div className="flex items-center gap-3 rounded-lg border border-cream-200 bg-surface px-3 py-2">
         <div className="flex-1 min-w-0">
           <Link
             href={`/preservacao/${row.order.order_id}`}
-            className="block font-medium text-sm text-[#3D2B1F] hover:underline truncate"
+            className="block font-medium text-sm text-cocoa-900 hover:underline truncate"
           >
             {row.order.client_name} · {row.order.order_id}
           </Link>
-          <div className="text-xs text-[#8B7355]">
+          <div className="text-xs text-cocoa-700">
             Entregue em {formatDate(row.reference)} · prazo {formatDate(row.deadline)}
           </div>
         </div>

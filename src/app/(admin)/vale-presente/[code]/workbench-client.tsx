@@ -118,15 +118,15 @@ function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave:
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setDraft(currentCode); }}>
       <PopoverTrigger
-        className="h-7 w-7 flex items-center justify-center rounded-md border border-[#E8E0D5] bg-white text-[#B8A99A] hover:text-[#3D2B1F] hover:border-[#3D2B1F] transition-colors"
+        className="h-7 w-7 flex items-center justify-center rounded-md border border-cream-200 bg-surface text-cocoa-500 hover:text-cocoa-900 hover:border-cocoa-900 transition-colors"
         title="Editar código"
       >
         <Pencil className="h-3 w-3" />
       </PopoverTrigger>
       <PopoverContent className="w-80 p-3 space-y-2" align="start">
-        <Label className="text-xs font-medium text-[#8B7355]">Código do vale</Label>
+        <Label className="text-xs font-medium text-cocoa-700">Código do vale</Label>
         <Input
-          className="h-9 text-sm font-mono uppercase tracking-wider border-[#E8E0D5] bg-[#FAF8F5]"
+          className="h-9 text-sm font-mono uppercase tracking-wider border-cream-200 bg-cream-50"
           value={draft}
           onChange={(e) => setDraft(e.target.value.toUpperCase())}
           maxLength={20}
@@ -140,14 +140,14 @@ function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave:
             }
           }}
         />
-        <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+        <p className="text-[10px] text-cocoa-500 leading-relaxed">
           O código aparece em <code>voucher.floresabeirario.pt</code>. Tem de ser único.
         </p>
         <div className="flex justify-end gap-2 pt-1">
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="h-7 px-3 rounded-md border border-[#E8E0D5] bg-white text-xs text-[#8B7355] hover:bg-[#FAF8F5]"
+            className="h-7 px-3 rounded-md border border-cream-200 bg-surface text-xs text-cocoa-700 hover:bg-cream-50"
           >
             Cancelar
           </button>
@@ -158,7 +158,7 @@ function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave:
               if (v && v !== currentCode) onSave(v);
               setOpen(false);
             }}
-            className="h-7 px-3 rounded-md bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15]"
+            className="h-7 px-3 rounded-md bg-btn-primary text-btn-primary-fg text-xs font-medium hover:bg-btn-primary-hover"
           >
             Guardar
           </button>
@@ -255,33 +255,33 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
   const monthsLeft = monthsUntilExpiry(data.expiry_date);
 
   const inputCls =
-    "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg";
+    "h-9 text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg";
   const triggerCls =
-    "h-9 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg";
+    "h-9 text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg";
 
   return (
     <div className="flex flex-col h-full bg-[#F7F4F0]">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-[#E8E0D5] bg-white shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-cream-200 bg-surface shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href="/vale-presente"
-            className="flex items-center gap-1.5 text-sm text-[#8B7355] hover:text-[#3D2B1F] transition-colors shrink-0"
+            className="flex items-center gap-1.5 text-sm text-cocoa-700 hover:text-cocoa-900 transition-colors shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Vales</span>
           </Link>
-          <div className="h-6 w-px bg-[#E8E0D5]" />
+          <div className="h-6 w-px bg-cream-200" />
           <button
             onClick={copyCode}
-            className="flex items-center gap-2 rounded-md border border-[#E8E0D5] bg-[#FAF8F5] px-2.5 py-1 font-mono text-sm font-bold tracking-wider text-[#3D2B1F] hover:border-[#3D2B1F] transition-colors"
+            className="flex items-center gap-2 rounded-md border border-cream-200 bg-cream-50 px-2.5 py-1 font-mono text-sm font-bold tracking-wider text-cocoa-900 hover:border-cocoa-900 transition-colors"
             title="Copiar código"
           >
             {data.code}
             {copiedCode ? (
               <Check className="h-3.5 w-3.5 text-green-600" />
             ) : (
-              <Copy className="h-3.5 w-3.5 text-[#B8A99A]" />
+              <Copy className="h-3.5 w-3.5 text-cocoa-500" />
             )}
           </button>
           {/* Editar código */}
@@ -299,7 +299,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
             href={`https://voucher.floresabeirario.pt/${data.code}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 rounded-md border border-sky-200 bg-white px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+            className="flex items-center gap-1 rounded-md border border-sky-200 bg-surface px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-50 transition-colors"
             title="Abrir o vale digital (voucher.floresabeirario.pt)"
           >
             <Globe className="h-3 w-3" />
@@ -386,7 +386,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                     {data.sender_email && (
                       <a
                         href={`mailto:${data.sender_email}`}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8E0D5] bg-white text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-cream-200 bg-surface text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
                         title="Enviar email"
                       >
                         <Mail className="h-4 w-4" />
@@ -408,7 +408,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                         href={`https://wa.me/${data.sender_phone.replace(/\D/g, "")}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8E0D5] bg-white text-green-600 hover:bg-green-50 transition-colors shrink-0"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-cream-200 bg-surface text-green-600 hover:bg-green-50 transition-colors shrink-0"
                         title="Abrir WhatsApp"
                       >
                         <MessageCircle className="h-4 w-4" />
@@ -484,7 +484,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                     onChange={(e) => setData((d) => ({ ...d, message: e.target.value }))}
                     onBlur={(e) => updateField("message", e.target.value.trim() || null)}
                     rows={4}
-                    className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                    className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                   />
                 </Field>
 
@@ -500,7 +500,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-9 border-[#E8E0D5] text-xs"
+                      className="h-9 border-cream-200 text-xs"
                       onClick={() => {
                         const newDate = new Date();
                         newDate.setFullYear(newDate.getFullYear() + 2);
@@ -595,7 +595,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                       onBlur={(e) => updateField("recipient_address", e.target.value.trim() || null)}
                       rows={2}
                       placeholder="Rua, número, código-postal, localidade…"
-                      className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                      className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                     />
                   </Field>
                 )}
@@ -632,7 +632,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                   onChange={(e) => setData((d) => ({ ...d, comments: e.target.value }))}
                   onBlur={(e) => updateField("comments", e.target.value.trim() || null)}
                   rows={4}
-                  className="text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white text-[#3D2B1F] rounded-lg resize-none"
+                  className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                   placeholder="Pedidos especiais, observações…"
                 />
               </Section>
@@ -664,7 +664,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                   </Select>
                 </Field>
 
-                <div className="h-px bg-[#F0EAE0] -mx-4" />
+                <div className="h-px bg-cream-100 -mx-4" />
 
                 <Field label="Cliente pediu fatura com NIF?">
                   <Select
@@ -765,7 +765,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-[#B8A99A] mt-1">
+                  <p className="text-[11px] text-cocoa-500 mt-1">
                     {data.usage_status === "preservacao_agendada"
                       ? "Não conta para faturação (evita duplicação com a Preservação)."
                       : "Conta para faturação."}
@@ -807,7 +807,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                     {data.partner_id && (
                       <Link
                         href={`/parcerias/${data.partner_id}`}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E8E0D5] bg-[#FAF8F5] text-[#8B7355] hover:bg-[#3D2B1F] hover:text-white hover:border-[#3D2B1F] transition-colors"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
                         title="Abrir parceiro"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
@@ -815,7 +815,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                     )}
                   </div>
                   {partners.length === 0 && (
-                    <p className="text-[10px] text-[#B8A99A] mt-1">
+                    <p className="text-[10px] text-cocoa-500 mt-1">
                       Adiciona parceiros na aba Parcerias.
                     </p>
                   )}
@@ -825,7 +825,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
                   <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
                     <Field label="Comissão (€)">
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
                         <Input
                           className={`${inputCls} pl-7`}
                           type="number"
@@ -865,29 +865,29 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
               <Section title="Metadata" icon={<CalendarDays className="h-3.5 w-3.5" />} accent="slate">
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-[10px] uppercase text-[#B8A99A] tracking-wider">Criado</p>
-                    <p className="text-[#3D2B1F]">{formatDate(data.created_at)}</p>
+                    <p className="text-[10px] uppercase text-cocoa-500 tracking-wider">Criado</p>
+                    <p className="text-cocoa-900">{formatDate(data.created_at)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase text-[#B8A99A] tracking-wider">Última edição</p>
-                    <p className="text-[#3D2B1F]">{formatDate(data.updated_at)}</p>
+                    <p className="text-[10px] uppercase text-cocoa-500 tracking-wider">Última edição</p>
+                    <p className="text-cocoa-900">{formatDate(data.updated_at)}</p>
                   </div>
                 </div>
 
                 {/* Info de RGPD — só preenchida em vales criados pelo form público (a partir da Fase 5) */}
                 {data.consent_at && (
-                  <div className="pt-2 mt-1 border-t border-[#F0EAE0]">
-                    <div className="flex items-start gap-1.5 text-[11px] text-[#8B7355]">
+                  <div className="pt-2 mt-1 border-t border-cream-100">
+                    <div className="flex items-start gap-1.5 text-[11px] text-cocoa-700">
                       <ShieldCheck className="h-3 w-3 mt-0.5 text-emerald-600 shrink-0" />
                       <div>
                         <p>
-                          Consentimento RGPD em <span className="text-[#3D2B1F]">{formatDate(data.consent_at)}</span>
+                          Consentimento RGPD em <span className="text-cocoa-900">{formatDate(data.consent_at)}</span>
                           {data.consent_version && (
                             <> · v{data.consent_version}</>
                           )}
                         </p>
                         {data.consent_ip && (
-                          <p className="text-[10px] text-[#B8A99A] font-mono">IP {data.consent_ip}</p>
+                          <p className="text-[10px] text-cocoa-500 font-mono">IP {data.consent_ip}</p>
                         )}
                       </div>
                     </div>
@@ -898,7 +898,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
           </div>
 
           {isPending && (
-            <div className="fixed bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/95 backdrop-blur border border-[#E8E0D5] px-3 py-1.5 shadow-md text-xs text-[#8B7355]">
+            <div className="fixed bottom-4 right-4 flex items-center gap-2 rounded-full bg-surface/95 backdrop-blur border border-cream-200 px-3 py-1.5 shadow-md text-xs text-cocoa-700">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               A guardar…
             </div>
@@ -917,7 +917,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label className="text-xs font-medium text-[#8B7355]">Cliente pediu fatura com NIF?</Label>
+              <Label className="text-xs font-medium text-cocoa-700">Cliente pediu fatura com NIF?</Label>
               <Select value={tempNeedsInvoice} onValueChange={(v) => setTempNeedsInvoice(v as "sim" | "nao")}>
                 <SelectTrigger className="mt-1.5">
                   <SelectValue labels={SIM_NAO_LABELS} />
@@ -930,7 +930,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
             </div>
             {tempNeedsInvoice === "sim" && (
               <div>
-                <Label className="text-xs font-medium text-[#8B7355]">NIF</Label>
+                <Label className="text-xs font-medium text-cocoa-700">NIF</Label>
                 <Input
                   value={tempNif}
                   onChange={(e) => setTempNif(e.target.value)}
@@ -942,7 +942,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={confirmPaymentChange} className="bg-[#3D2B1F] hover:bg-[#2C1F15]">
+            <Button onClick={confirmPaymentChange} className="bg-btn-primary text-btn-primary-fg hover:bg-btn-primary-hover">
               Confirmar
             </Button>
           </DialogFooter>
@@ -985,22 +985,22 @@ function Hero({
   monthsLeft: number;
 }) {
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] bg-gradient-to-br from-amber-50 via-rose-50 to-white p-5 overflow-hidden">
+    <div className="rounded-2xl border border-cream-200 bg-gradient-to-br from-amber-50 via-rose-50 to-white p-5 overflow-hidden">
       <div className="flex items-start gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-md shrink-0">
           <Gift className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-[0.15em] text-[#8B7355] font-bold">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-cocoa-700 font-bold">
             Vale-Presente
           </p>
-          <p className="font-['TanMemories'] text-3xl text-[#3D2B1F] leading-tight mt-0.5">
+          <p className="font-['TanMemories'] text-3xl text-cocoa-900 leading-tight mt-0.5">
             {formatEuro(voucher.amount)}
           </p>
-          <p className="text-xs text-[#8B7355] mt-1 truncate">
-            de <span className="font-semibold text-[#3D2B1F]">{voucher.sender_name || "—"}</span>
+          <p className="text-xs text-cocoa-700 mt-1 truncate">
+            de <span className="font-semibold text-cocoa-900">{voucher.sender_name || "—"}</span>
             {" "}para{" "}
-            <span className="font-semibold text-[#3D2B1F]">{voucher.recipient_name || "—"}</span>
+            <span className="font-semibold text-cocoa-900">{voucher.recipient_name || "—"}</span>
           </p>
         </div>
       </div>
@@ -1060,12 +1060,12 @@ function Section({
 }) {
   const a = ACCENT_STYLES[accent];
   return (
-    <div className={`rounded-2xl border border-[#E8E0D5] bg-white border-l-4 ${a.border} shadow-[0_1px_2px_rgba(61,43,31,0.04)] overflow-hidden`}>
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#F0EAE0]">
+    <div className={`rounded-2xl border border-cream-200 bg-surface border-l-4 ${a.border} shadow-[0_1px_2px_rgba(61,43,31,0.04)] overflow-hidden`}>
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cream-100">
         <span className={`flex h-6 w-6 items-center justify-center rounded-full ${a.iconBg} ${a.iconColor}`}>
           {icon}
         </span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#8B7355]">
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700">
           {title}
         </p>
       </div>
@@ -1083,7 +1083,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-[#8B7355]">{label}</Label>
+      <Label className="text-xs font-medium text-cocoa-700">{label}</Label>
       {children}
     </div>
   );

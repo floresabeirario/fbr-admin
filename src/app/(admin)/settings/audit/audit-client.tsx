@@ -112,10 +112,10 @@ export default function AuditClient({
           <History className="h-6 w-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h1 className="text-2xl font-semibold text-cocoa-900">
             Histórico de alterações
           </h1>
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <p className="text-sm text-cocoa-700">
             Quem alterou o quê e quando — últimas {entries.length} entradas (máx. 200)
           </p>
         </div>
@@ -134,8 +134,8 @@ export default function AuditClient({
       )}
 
       {/* Filtros */}
-      <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-4 space-y-3">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-semibold text-[#8B7355]">
+      <div className="rounded-2xl border border-cream-200 bg-surface p-4 space-y-3">
+        <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-semibold text-cocoa-700">
           <Filter className="h-3.5 w-3.5" />
           Filtros
         </div>
@@ -174,14 +174,14 @@ export default function AuditClient({
             <button
               type="button"
               onClick={applyFilters}
-              className="flex-1 h-9 px-3 rounded-lg bg-[#3D2B1F] text-white text-sm font-medium hover:bg-[#2C1F15] transition-colors"
+              className="flex-1 h-9 px-3 rounded-lg bg-btn-primary text-btn-primary-fg text-sm font-medium hover:bg-btn-primary-hover transition-colors"
             >
               Aplicar
             </button>
             <button
               type="button"
               onClick={clearFilters}
-              className="h-9 px-3 rounded-lg border border-[#E8E0D5] text-sm text-[#8B7355] hover:bg-[#FAF8F5] transition-colors"
+              className="h-9 px-3 rounded-lg border border-cream-200 text-sm text-cocoa-700 hover:bg-cream-50 transition-colors"
             >
               Limpar
             </button>
@@ -190,7 +190,7 @@ export default function AuditClient({
 
         {/* Search inline */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#B8A99A]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -202,9 +202,9 @@ export default function AuditClient({
 
       {/* Lista */}
       {filteredEntries.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1A1A1A] p-12 text-center space-y-2">
-          <History className="h-8 w-8 text-[#B8A99A] mx-auto" />
-          <p className="text-sm text-[#8B7355]">
+        <div className="rounded-2xl border border-dashed border-cream-200 bg-cream-50 p-12 text-center space-y-2">
+          <History className="h-8 w-8 text-cocoa-500 mx-auto" />
+          <p className="text-sm text-cocoa-700">
             Sem entradas para estes filtros.
           </p>
         </div>
@@ -226,28 +226,28 @@ function AuditEntry({ entry }: { entry: AuditLogEntry }) {
   const tableLabel = AUDIT_TABLE_LABELS[entry.table_name] ?? entry.table_name;
 
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] overflow-hidden">
+    <div className="rounded-2xl border border-cream-200 bg-surface overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#FAF8F5] dark:hover:bg-[#1A1A1A] transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-cream-50 transition-colors text-left"
       >
         <div className={cn("h-8 w-8 rounded-lg border flex items-center justify-center shrink-0", AUDIT_ACTION_COLORS[entry.action])}>
           <ActionIcon className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium text-[#3D2B1F] dark:text-[#E8D5B5]">
+            <span className="font-medium text-cocoa-900">
               {AUDIT_ACTION_LABELS[entry.action]}
             </span>
-            <span className="text-[10px] uppercase tracking-wider rounded-full bg-[#F0EAE0] dark:bg-[#2C2C2E] text-[#8B7355] px-1.5 py-0.5 font-bold">
+            <span className="text-[10px] uppercase tracking-wider rounded-full bg-cream-100 text-cocoa-700 px-1.5 py-0.5 font-bold">
               {tableLabel}
             </span>
-            <span className="text-[10px] text-[#B8A99A] font-mono truncate">
+            <span className="text-[10px] text-cocoa-500 font-mono truncate">
               {entry.record_id.slice(0, 8)}…
             </span>
           </div>
-          <div className="text-xs text-[#8B7355] dark:text-[#8E8E93] flex items-center gap-2 mt-0.5">
+          <div className="text-xs text-cocoa-700 flex items-center gap-2 mt-0.5">
             <User className="h-3 w-3" />
             <span>{shortName(entry.changed_by_email)}</span>
             <span>·</span>
@@ -262,23 +262,23 @@ function AuditEntry({ entry }: { entry: AuditLogEntry }) {
         </div>
         <ChevronRight
           className={cn(
-            "h-4 w-4 text-[#B8A99A] shrink-0 transition-transform",
+            "h-4 w-4 text-cocoa-500 shrink-0 transition-transform",
             open && "rotate-90",
           )}
         />
       </button>
 
       {open && (
-        <div className="border-t border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1A1A1A] p-4 text-xs space-y-2">
+        <div className="border-t border-cream-200 bg-cream-50 p-4 text-xs space-y-2">
           {entry.action === "UPDATE" && diffs.length > 0 ? (
             <>
-              <div className="text-[10px] uppercase tracking-wider font-semibold text-[#8B7355]">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-cocoa-700">
                 Alterações
               </div>
               <div className="space-y-1.5">
                 {diffs.map(({ key, old, new: newV }) => (
-                  <div key={key} className="rounded-md bg-white dark:bg-[#141414] border border-[#E8E0D5] dark:border-[#2C2C2E] p-2">
-                    <div className="font-mono font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] text-[11px]">
+                  <div key={key} className="rounded-md bg-surface border border-cream-200 p-2">
+                    <div className="font-mono font-semibold text-cocoa-900 text-[11px]">
                       {key}
                     </div>
                     <div className="grid grid-cols-2 gap-2 mt-1.5">
@@ -301,19 +301,19 @@ function AuditEntry({ entry }: { entry: AuditLogEntry }) {
             </>
           ) : entry.action === "INSERT" ? (
             <>
-              <div className="text-[10px] uppercase tracking-wider font-semibold text-[#8B7355]">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-cocoa-700">
                 Novo registo
               </div>
-              <pre className="whitespace-pre-wrap break-all text-[11px] text-[#3D2B1F] dark:text-[#E8D5B5] font-mono bg-white dark:bg-[#141414] border border-[#E8E0D5] dark:border-[#2C2C2E] rounded p-2">
+              <pre className="whitespace-pre-wrap break-all text-[11px] text-cocoa-900 font-mono bg-surface border border-cream-200 rounded p-2">
                 {JSON.stringify(entry.new_values, null, 2)}
               </pre>
             </>
           ) : entry.action === "DELETE" ? (
             <>
-              <div className="text-[10px] uppercase tracking-wider font-semibold text-[#8B7355]">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-cocoa-700">
                 Registo apagado
               </div>
-              <pre className="whitespace-pre-wrap break-all text-[11px] text-[#3D2B1F] dark:text-[#E8D5B5] font-mono bg-white dark:bg-[#141414] border border-rose-200 dark:border-rose-900 rounded p-2">
+              <pre className="whitespace-pre-wrap break-all text-[11px] text-cocoa-900 font-mono bg-surface border border-rose-200 dark:border-rose-900 rounded p-2">
                 {JSON.stringify(entry.old_values, null, 2)}
               </pre>
             </>

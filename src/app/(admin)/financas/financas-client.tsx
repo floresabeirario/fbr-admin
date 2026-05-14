@@ -104,7 +104,7 @@ export default function FinancasClient({
         <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-sm flex items-center justify-center">
           <Euro className="h-6 w-6 text-white" />
         </div>
-        <h1 className="text-2xl font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+        <h1 className="text-2xl font-semibold text-cocoa-900">
           Finanças
         </h1>
       </div>
@@ -122,11 +122,11 @@ export default function FinancasClient({
               className={cn(
                 "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors",
                 active
-                  ? "bg-[#3D2B1F] text-white border-[#3D2B1F] dark:bg-[#E8D5B5] dark:text-[#1A1A1A] dark:border-[#E8D5B5]"
-                  : "bg-white dark:bg-[#141414] text-[#3D2B1F] dark:text-[#E8D5B5] border-[#E8E0D5] dark:border-[#2C2C2E] hover:border-[#C4A882]",
+                  ? "bg-btn-primary text-btn-primary-fg border-btn-primary"
+                  : "bg-surface text-cocoa-900 border-cream-200 hover:border-cocoa-500",
               )}
             >
-              <Icon className={cn("h-4 w-4", active ? "text-white dark:text-[#1A1A1A]" : t.color)} />
+              <Icon className={cn("h-4 w-4", active ? "text-btn-primary-fg" : t.color)} />
               {t.label}
             </button>
           );
@@ -253,16 +253,16 @@ function PrecosTab({
             )}
           >
             <div>
-              <h2 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+              <h2 className="text-sm font-semibold text-cocoa-900">
                 {PRICING_CATEGORY_LABELS[cat]}
               </h2>
-              <p className="text-xs text-[#8B7355] dark:text-[#8E8E93] mt-0.5">
+              <p className="text-xs text-cocoa-700 mt-0.5">
                 {PRICING_CATEGORY_HELPER[cat]}
               </p>
             </div>
-            <div className="rounded-xl bg-white dark:bg-[#141414] overflow-hidden border border-white/40">
+            <div className="rounded-xl bg-surface overflow-hidden border border-white/40">
               <table className="w-full text-sm">
-                <thead className="bg-[#FAF8F5] dark:bg-[#1A1A1A] text-xs uppercase tracking-wide text-[#8B7355] dark:text-[#8E8E93]">
+                <thead className="bg-cream-50 text-xs uppercase tracking-wide text-cocoa-700">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">Item</th>
                     <th className="text-left px-3 py-2 font-medium w-32">Preço (€)</th>
@@ -318,10 +318,10 @@ function PriceRow({
   }
 
   return (
-    <tr className="border-t border-[#F0EAE0] dark:border-[#2C2C2E]">
+    <tr className="border-t border-cream-100">
       <td className="px-3 py-2 align-middle">
-        <div className="font-medium text-[#3D2B1F] dark:text-[#E8D5B5]">{item.label}</div>
-        <div className="text-[10px] uppercase tracking-wider text-[#B8A99A] mt-0.5">
+        <div className="font-medium text-cocoa-900">{item.label}</div>
+        <div className="text-[10px] uppercase tracking-wider text-cocoa-500 mt-0.5">
           {item.key}
         </div>
       </td>
@@ -446,7 +446,7 @@ function DespesasTab({
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
           <Input
             placeholder="Pesquisar fornecedor ou descrição..."
             value={search}
@@ -468,7 +468,7 @@ function DespesasTab({
           </SelectContent>
         </Select>
         {canEdit && (
-          <Button onClick={() => setCreating((v) => !v)} className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-9 gap-1.5">
+          <Button onClick={() => setCreating((v) => !v)} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-9 gap-1.5">
             <Plus className="h-3.5 w-3.5" />
             Nova despesa
           </Button>
@@ -501,7 +501,7 @@ function DespesasTab({
               </SelectContent>
             </Select>
             <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
               <Input
                 type="number"
                 step="0.01"
@@ -519,7 +519,7 @@ function DespesasTab({
             rows={2}
           />
           <div className="flex gap-2">
-            <Button onClick={handleCreate} className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white">Registar</Button>
+            <Button onClick={handleCreate} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg">Registar</Button>
             <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
           </div>
         </div>
@@ -527,20 +527,20 @@ function DespesasTab({
 
       {/* Tabela */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#E8E0D5] bg-white p-12 text-center">
+        <div className="rounded-xl border border-dashed border-cream-200 bg-surface p-12 text-center">
           <Receipt className="h-12 w-12 mx-auto text-rose-200 mb-3" />
-          <p className="text-sm text-[#8B7355]">
+          <p className="text-sm text-cocoa-700">
             {expenses.length === 0
               ? "Ainda não há despesas registadas."
               : "Nenhuma despesa corresponde aos filtros."}
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+        <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[820px]">
-              <thead className="bg-[#FAF8F5]">
-                <tr className="text-left text-xs uppercase tracking-wide text-[#8B7355]">
+              <thead className="bg-cream-50">
+                <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
                   <th className="px-3 py-2 font-medium">Data</th>
                   <th className="px-3 py-2 font-medium">Fornecedor</th>
                   <th className="px-3 py-2 font-medium">Categoria</th>
@@ -592,11 +592,11 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
   }
 
   return (
-    <tr className="border-t border-[#F0EAE0] hover:bg-[#FAF8F5]/60">
-      <td className="px-3 py-2 text-[#3D2B1F] whitespace-nowrap">
+    <tr className="border-t border-cream-100 hover:bg-cream-50/60">
+      <td className="px-3 py-2 text-cocoa-900 whitespace-nowrap">
         {format(parseISO(expense.expense_date), "dd/MM/yyyy")}
       </td>
-      <td className="px-3 py-2 text-[#3D2B1F] font-medium">{expense.supplier}</td>
+      <td className="px-3 py-2 text-cocoa-900 font-medium">{expense.supplier}</td>
       <td className="px-3 py-2">
         <span className={cn(
           "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border",
@@ -605,7 +605,7 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
           {EXPENSE_CATEGORY_LABELS[expense.category]}
         </span>
       </td>
-      <td className="px-3 py-2 text-[#8B7355] text-xs max-w-[300px] truncate">
+      <td className="px-3 py-2 text-cocoa-700 text-xs max-w-[300px] truncate">
         {expense.description ?? ""}
       </td>
       <td className="px-3 py-2 text-right font-semibold text-rose-700 whitespace-nowrap">
@@ -627,7 +627,7 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
             </SelectContent>
           </Select>
         ) : (
-          <span className="text-xs text-[#8B7355]">
+          <span className="text-xs text-cocoa-700">
             {expense.payment_method ? EXPENSE_PAYMENT_METHOD_LABELS[expense.payment_method] : "—"}
           </span>
         )}
@@ -636,7 +636,7 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
         {canEdit && (
           <button
             onClick={handleArchive}
-            className="text-[#B8A99A] hover:text-rose-600 transition-colors"
+            className="text-cocoa-500 hover:text-rose-600 transition-colors"
             title="Arquivar"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -770,12 +770,12 @@ function FaturacaoTab({
       </div>
 
       {/* Bar chart manual: últimos 12 meses */}
-      <div className="rounded-xl border border-[#E8E0D5] bg-white p-5 space-y-3">
+      <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[#3D2B1F]">
+          <h3 className="text-sm font-semibold text-cocoa-900">
             Receita vs despesas (últimos 12 meses)
           </h3>
-          <div className="flex items-center gap-3 text-xs text-[#8B7355]">
+          <div className="flex items-center gap-3 text-xs text-cocoa-700">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-emerald-400" />Receita
             </span>
@@ -799,13 +799,13 @@ function FaturacaoTab({
                   title={`Despesas: ${formatEuro(m.expenses)}`}
                 />
               </div>
-              <span className="text-[10px] text-[#8B7355] capitalize">{m.label}</span>
+              <span className="text-[10px] text-cocoa-700 capitalize">{m.label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <p className="text-xs text-[#8B7355] italic px-1">
+      <p className="text-xs text-cocoa-700 italic px-1">
         Receita = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos que ainda não foram convertidos em preservação (evita dupla contagem). Para métricas mais detalhadas, ver a aba Métricas.
       </p>
     </div>
@@ -905,7 +905,7 @@ function CompeticaoTab({
       {/* Toolbar: search + novo */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#B8A99A]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -927,9 +927,9 @@ function CompeticaoTab({
 
       {/* Lista */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1A1A1A] p-12 text-center space-y-2">
+        <div className="rounded-2xl border border-dashed border-cream-200 bg-cream-50 p-12 text-center space-y-2">
           <Swords className="h-8 w-8 text-violet-400 mx-auto" />
-          <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
+          <p className="text-sm text-cocoa-700">
             {search.trim()
               ? `Nenhum concorrente corresponde a "${search}".`
               : "Ainda não há concorrentes registados."}
@@ -962,10 +962,10 @@ function StatCard({
         color,
       )}
     >
-      <div className="text-[10px] uppercase tracking-wider font-semibold text-[#3D2B1F]/60 dark:text-[#E8D5B5]/60">
+      <div className="text-[10px] uppercase tracking-wider font-semibold text-cocoa-900/60 dark:text-[#E8D5B5]/60">
         {label}
       </div>
-      <div className="text-xl font-bold text-[#3D2B1F] dark:text-[#E8D5B5] tabular-nums">
+      <div className="text-xl font-bold text-cocoa-900 tabular-nums">
         {value}
       </div>
     </div>
@@ -1006,20 +1006,20 @@ function NewCompetitorForm({ onClose }: { onClose: () => void }) {
       onSubmit={submit}
       className="rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-violet-50/30 dark:bg-violet-950/20 p-4 space-y-3"
     >
-      <h3 className="text-sm font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+      <h3 className="text-sm font-semibold text-cocoa-900">
         Novo concorrente
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
-          <label className="text-xs text-[#8B7355] dark:text-[#8E8E93]">Nome *</label>
+          <label className="text-xs text-cocoa-700">Nome *</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: PressedFlowers Co." />
         </div>
         <div>
-          <label className="text-xs text-[#8B7355] dark:text-[#8E8E93]">Site principal</label>
+          <label className="text-xs text-cocoa-700">Site principal</label>
           <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://…" />
         </div>
         <div>
-          <label className="text-xs text-[#8B7355] dark:text-[#8E8E93]">Localização</label>
+          <label className="text-xs text-cocoa-700">Localização</label>
           <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex.: Lisboa / PT" />
         </div>
       </div>
@@ -1074,14 +1074,14 @@ function CompetitorCard({
   }
 
   return (
-    <div className="rounded-2xl border border-[#E8E0D5] dark:border-[#2C2C2E] bg-white dark:bg-[#141414] p-5 space-y-3">
+    <div className="rounded-2xl border border-cream-200 bg-surface p-5 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-0.5">
-          <h3 className="text-base font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
+          <h3 className="text-base font-semibold text-cocoa-900">
             {competitor.name}
           </h3>
           {competitor.location_label && (
-            <div className="inline-flex items-center gap-1 text-xs text-[#8B7355] dark:text-[#8E8E93]">
+            <div className="inline-flex items-center gap-1 text-xs text-cocoa-700">
               <MapPin className="h-3 w-3" />
               {competitor.location_label}
               {competitor.country && competitor.country !== "PT" && (
@@ -1094,7 +1094,7 @@ function CompetitorCard({
         </div>
         {minPrice !== null && (
           <div className="text-right shrink-0">
-            <div className="text-[10px] uppercase tracking-wider text-[#8B7355]">A partir de</div>
+            <div className="text-[10px] uppercase tracking-wider text-cocoa-700">A partir de</div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
               {formatEuro(minPrice)}
             </div>
@@ -1122,26 +1122,26 @@ function CompetitorCard({
 
       {competitor.prices.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] uppercase tracking-wider font-semibold text-[#8B7355]">
+          <div className="text-[10px] uppercase tracking-wider font-semibold text-cocoa-700">
             Tabela de preços
           </div>
           <div className="space-y-1">
             {competitor.prices.map((p, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between text-sm py-1 border-b border-[#F0EAE0] dark:border-[#1F1F1F] last:border-0"
+                className="flex items-center justify-between text-sm py-1 border-b border-cream-100 last:border-0"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-[#3D2B1F] dark:text-[#E8D5B5] truncate">
+                  <div className="text-cocoa-900 truncate">
                     {p.product || "—"}
                   </div>
                   {p.notes && (
-                    <div className="text-[11px] text-[#8B7355] truncate">
+                    <div className="text-[11px] text-cocoa-700 truncate">
                       {p.notes}
                     </div>
                   )}
                 </div>
-                <div className="tabular-nums font-semibold text-[#3D2B1F] dark:text-[#E8D5B5] shrink-0">
+                <div className="tabular-nums font-semibold text-cocoa-900 shrink-0">
                   {formatEuro(p.price)}
                 </div>
               </div>
@@ -1151,13 +1151,13 @@ function CompetitorCard({
       )}
 
       {competitor.notes && (
-        <div className="text-xs text-[#8B7355] dark:text-[#8E8E93] italic border-l-2 border-amber-300 pl-2">
+        <div className="text-xs text-cocoa-700 italic border-l-2 border-amber-300 pl-2">
           {competitor.notes}
         </div>
       )}
 
       {canEdit && (
-        <div className="flex gap-2 pt-1 border-t border-[#F0EAE0] dark:border-[#1F1F1F]">
+        <div className="flex gap-2 pt-1 border-t border-cream-100">
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             Editar
           </Button>
@@ -1221,23 +1221,23 @@ function EditCompetitorCard({
     <div className="rounded-2xl border border-violet-300 dark:border-violet-900/60 bg-violet-50/30 dark:bg-violet-950/20 p-5 space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-[#8B7355]">Nome</label>
+          <label className="text-xs text-cocoa-700">Nome</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="col-span-2">
-            <label className="text-xs text-[#8B7355]">Localização</label>
+            <label className="text-xs text-cocoa-700">Localização</label>
             <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex.: Porto" />
           </div>
           <div>
-            <label className="text-xs text-[#8B7355]">País</label>
+            <label className="text-xs text-cocoa-700">País</label>
             <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="PT" />
           </div>
         </div>
       </div>
 
       <div>
-        <label className="text-xs text-[#8B7355]">Sites / redes</label>
+        <label className="text-xs text-cocoa-700">Sites / redes</label>
         <div className="space-y-1.5 mt-1">
           {websites.map((w, idx) => (
             <div key={idx} className="flex gap-2">
@@ -1274,7 +1274,7 @@ function EditCompetitorCard({
       </div>
 
       <div>
-        <label className="text-xs text-[#8B7355]">Tabela de preços</label>
+        <label className="text-xs text-cocoa-700">Tabela de preços</label>
         <div className="space-y-1.5 mt-1">
           {prices.map((p, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2">
@@ -1338,7 +1338,7 @@ function EditCompetitorCard({
       </div>
 
       <div>
-        <label className="text-xs text-[#8B7355]">Notas</label>
+        <label className="text-xs text-cocoa-700">Notas</label>
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
       </div>
 
