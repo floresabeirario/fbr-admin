@@ -22,15 +22,39 @@ export function filterByCategory(
 
 // ── Agrupamento por estado (dentro de uma categoria) ─────────
 
-export type GroupedByStatus = Record<PartnerStatus, Partner[]>;
+export type GroupedByStatus = Record<PartnerStatus, Partner[]> & {
+  // Parceiros com estado desconhecido (BD↔código fora de sincronia).
+  // Mesma rede de segurança das encomendas e vales — nunca esconder
+  // silenciosamente. A UI mostra-os num grupo "Sem grupo" vermelho.
+  orfas: Partner[];
+};
 
 export function groupByStatus(partners: Partner[]): GroupedByStatus {
-  const result = Object.fromEntries(
-    PARTNER_STATUS_ORDER.map((s) => [s, [] as Partner[]]),
-  ) as GroupedByStatus;
+  // PARTNER_STATUS_ORDER é `PartnerStatus[]` — o cast abaixo confia que
+  // está sincronizado com o tipo. Se algum dia for adicionado um
+  // PartnerStatus novo e esquecido em PARTNER_STATUS_ORDER, o
+  // `Record<PartnerStatus, …>` cá em baixo dá erro de compilação por
+  // chaves em falta. Não substituir por Partial.
+  const knownStatuses = new Set<string>(PARTNER_STATUS_ORDER);
+  const result: GroupedByStatus = {
+    ...(Object.fromEntries(
+      PARTNER_STATUS_ORDER.map((s) => [s, [] as Partner[]]),
+    ) as Record<PartnerStatus, Partner[]>),
+    orfas: [],
+  };
 
   const sorted = [...partners].sort(byNameAsc);
   for (const p of sorted) {
+    if (!knownStatuses.has(p.status)) {
+      result.orfas.push(p);
+      if (typeof window !== "undefined" && typeof console !== "undefined") {
+        console.error(
+          `[partners] Parceiro ${p.name} tem estado desconhecido "${p.status}". ` +
+            `Adicione-o a PARTNER_STATUS_ORDER em types/partner.ts.`,
+        );
+      }
+      continue;
+    }
     result[p.status].push(p);
   }
   return result;

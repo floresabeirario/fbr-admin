@@ -549,9 +549,12 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<ViewType>("tabela");
   // Grupos vazios começam colapsados por default; o utilizador pode abrir.
-  // Excepção: "orfas" (encomendas com estado desconhecido) começa SEMPRE
-  // aberta e nunca é incluída em `collapsedGroups` — é a rede de segurança,
-  // tem de ser visível imediatamente quando aparece.
+  // "Concluídos" e "Cancelamentos" começam SEMPRE colapsados (mesmo com
+  // encomendas dentro) — são grupos de fim-de-linha, raramente precisam
+  // de atenção diária. Para os ver, abre-se manualmente.
+  // Excepção: "orfas" (encomendas com estado desconhecido) é renderizada
+  // sempre expandida fora deste set — é a rede de segurança e tem de
+  // ser visível imediatamente quando aparece.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const empty = new Set<string>();
     if (initialGrouped.sem_resposta.length === 0) empty.add("sem_resposta");
@@ -559,8 +562,8 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
     if (initialGrouped.reservas.length === 0) empty.add("reservas");
     if (initialGrouped.preservacao_design.length === 0) empty.add("preservacao_design");
     if (initialGrouped.finalizacao.length === 0) empty.add("finalizacao");
-    if (initialGrouped.concluidos.length === 0) empty.add("concluidos");
-    if (initialGrouped.cancelamentos.length === 0) empty.add("cancelamentos");
+    empty.add("concluidos");
+    empty.add("cancelamentos");
     return empty;
   });
   const [sheetOpen, setSheetOpen] = useState(false);

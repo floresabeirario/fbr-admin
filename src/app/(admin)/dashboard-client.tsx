@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   LayoutDashboard,
   CheckCircle2,
@@ -56,9 +57,9 @@ import {
 } from "./actions";
 
 const TEAM_MEMBERS = [
-  { email: "info+antonio@floresabeirario.pt", name: "António" },
-  { email: "info+mj@floresabeirario.pt", name: "MJ" },
-  { email: "info+ana@floresabeirario.pt", name: "Ana" },
+  { email: "info+antonio@floresabeirario.pt", name: "António", photo: "/userphotos/antonio.webp" },
+  { email: "info+mj@floresabeirario.pt", name: "MJ", photo: "/userphotos/mj.webp" },
+  { email: "info+ana@floresabeirario.pt", name: "Ana", photo: "/userphotos/ana.webp" },
 ];
 
 function memberName(email: string | null | undefined): string {
@@ -278,22 +279,34 @@ function ChecklistCard({
       iconColor="text-emerald-600"
       action={
         canSwitchOwner ? (
-          <Select value={viewingEmail} onValueChange={(v) => v && setViewingEmail(v as string)}>
-            <SelectTrigger className="h-7 text-xs px-2 py-1 w-auto min-w-[120px]">
-              <SelectValue
-                labels={Object.fromEntries(
-                  TEAM_MEMBERS.map((m) => [m.email, `Lista de ${m.name}`]),
-                )}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {TEAM_MEMBERS.map((m) => (
-                <SelectItem key={m.email} value={m.email}>
-                  Lista de {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1.5">
+            {TEAM_MEMBERS.map((m) => {
+              const active = m.email === viewingEmail;
+              return (
+                <button
+                  key={m.email}
+                  type="button"
+                  onClick={() => setViewingEmail(m.email)}
+                  title={`Lista de ${m.name}`}
+                  aria-pressed={active}
+                  className={cn(
+                    "relative h-8 w-8 rounded-full overflow-hidden transition-all",
+                    active
+                      ? "ring-2 ring-emerald-600 ring-offset-2 ring-offset-white dark:ring-offset-[#141414]"
+                      : "opacity-50 hover:opacity-100",
+                  )}
+                >
+                  <Image
+                    src={m.photo}
+                    alt={m.name}
+                    fill
+                    sizes="32px"
+                    className="object-cover"
+                  />
+                </button>
+              );
+            })}
+          </div>
         ) : null
       }
     >

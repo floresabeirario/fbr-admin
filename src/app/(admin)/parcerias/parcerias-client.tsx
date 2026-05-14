@@ -18,6 +18,7 @@ import {
   ListChecks,
   Sparkles,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -312,6 +313,66 @@ function GroupSection({
   );
 }
 
+// ── Grupo "Sem grupo" (rede de segurança para estados desconhecidos) ──
+// Renderiza a mesma tabela do GroupSection mas com um cabeçalho
+// vermelho de alerta em vez do badge de status colorido. Está sempre
+// expandido — é deliberadamente impossível esconder.
+function OrfasGroupSection({
+  partners,
+  onOpen,
+  ordersCount,
+  vouchersCount,
+  loadingId,
+}: {
+  partners: Partner[];
+  onOpen: (p: Partner) => void;
+  ordersCount: Record<string, number>;
+  vouchersCount: Record<string, number>;
+  loadingId: string | null;
+}) {
+  return (
+    <div className="rounded-xl border-2 border-red-400 bg-white overflow-hidden">
+      <div className="w-full flex items-center gap-3 px-4 py-2.5 bg-red-50">
+        <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+        <span className="text-xs font-semibold text-red-800 uppercase tracking-wide">
+          Sem grupo (estado desconhecido)
+        </span>
+        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+          {partners.length}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
+              {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
+                <th key={i} className={cn(
+                  "px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide",
+                  (i === 4 || i === 5) && "text-center"
+                )}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {partners.map((p) => (
+              <PartnerRow
+                key={p.id}
+                partner={p}
+                onOpen={onOpen}
+                ordersCount={ordersCount[p.id] ?? 0}
+                vouchersCount={vouchersCount[p.id] ?? 0}
+                isLoading={loadingId === p.id}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Componente principal ─────────────────────────────────────
 
 interface Props {
@@ -328,6 +389,10 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   const [viewMode, setViewMode] = useState<ViewMode>("tabela");
   const [search, setSearch] = useState("");
   // Grupos vazios começam colapsados por default (o utilizador pode abrir).
+  // "rejeitado" também começa colapsado mesmo quando tem parceiros: é o
+  // fim-de-linha desta vista — só interessa quando especificamente
+  // procurado. Mesmo princípio que "Cancelamentos"/"Concluídos" na
+  // Preservação e na Vale-Presente.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const inThisCategory = filterByCategory(initialPartners, "wedding_planners");
     const byStatus = groupByStatus(inThisCategory);
@@ -335,6 +400,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
     for (const s of PARTNER_STATUS_ORDER) {
       if (byStatus[s].length === 0) empty.add(s);
     }
+    empty.add("rejeitado");
     return empty;
   });
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -355,6 +421,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
     for (const s of PARTNER_STATUS_ORDER) {
       if (byStatus[s].length === 0) empty.add(s);
     }
+    empty.add("rejeitado");
     setActiveCategory(c);
     setCollapsedGroups(empty);
   }
@@ -475,6 +542,26 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
         </div>
       </div>
 
+      {/* Rede de segurança: banner global se houver parceiros com estado
+          desconhecido (mesmo padrão da Preservação e da Vale-Presente). */}
+      {grouped.orfas.length > 0 && (
+        <div className="mx-6 mt-4 rounded-xl border-2 border-red-400 bg-red-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-900">
+                {grouped.orfas.length} parceiro{grouped.orfas.length !== 1 ? "s" : ""} com estado desconhecido nesta categoria
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                Estes parceiros têm um estado na base de dados que o código
+                ainda não reconhece. Continuam visíveis abaixo em &ldquo;Sem
+                grupo&rdquo; para nunca se perderem. Avisa o programador.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto px-6 py-6 space-y-4">
         {initialPartners.length === 0 ? (
@@ -484,6 +571,15 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
             <EmptyCategory category={activeCategory} onCreate={() => setSheetOpen(true)} />
           ) : (
             <>
+              {grouped.orfas.length > 0 && (
+                <OrfasGroupSection
+                  partners={grouped.orfas}
+                  onOpen={openPartner}
+                  ordersCount={ordersCount}
+                  vouchersCount={vouchersCount}
+                  loadingId={navigatingId}
+                />
+              )}
               {PARTNER_STATUS_ORDER.map((s) => (
                 <GroupSection
                   key={s}

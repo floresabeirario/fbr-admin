@@ -551,6 +551,26 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
         </div>
       )}
 
+      {/* Rede de segurança: aviso global se houver vales com estado de
+          pagamento desconhecido (mesmo padrão da Preservação). */}
+      {!showArchived && grouped.orfas.length > 0 && (
+        <div className="mx-6 mt-4 rounded-xl border-2 border-red-400 bg-red-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-900">
+                {grouped.orfas.length} vale{grouped.orfas.length !== 1 ? "s" : ""} com estado de pagamento desconhecido
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                Estes vales têm um estado na base de dados que o código ainda
+                não reconhece. Continuam visíveis abaixo em &ldquo;Sem
+                grupo&rdquo; para nunca se perderem. Avisa o programador.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto px-6 py-6 space-y-4">
         {showArchived ? (
@@ -559,6 +579,18 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
           <EmptyState onCreate={canEdit ? () => setSheetOpen(true) : undefined} />
         ) : (
           <>
+            {grouped.orfas.length > 0 && (
+              <GroupSection
+                title="Sem grupo (estado desconhecido)"
+                vouchers={grouped.orfas}
+                colorClass="text-red-700"
+                isCollapsed={false}
+                onToggle={() => {}}
+                onOpen={openVoucher}
+                loadingId={navigatingId}
+                canEdit={canEdit}
+              />
+            )}
             <GroupSection
               title="Pré-reservas"
               vouchers={grouped.pre_reservas}
