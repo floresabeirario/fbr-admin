@@ -94,6 +94,9 @@ export interface Voucher {
   // ── Drive (Fase 6 — auto-criação ao 1º pagamento) ───────────
   drive_folder_url: string | null;
   drive_folder_id: string | null;
+
+  // ── RGPD (anonimização) ────────────────────────────────────
+  anonymized_at: string | null;
 }
 
 // Tipo para criar — code é gerado pelo trigger, expiry pelo default

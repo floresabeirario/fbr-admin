@@ -193,6 +193,11 @@ export interface Order {
   // Quando true, deixa de aparecer o alerta de "cliente em silêncio"
   // mesmo que estejam ≥4 dias no estado a_aguardar_aprovacao.
   approval_responded: boolean;
+
+  // ── RGPD (anonimização) ────────────────────────────────────
+  // Timestamp em que a encomenda foi anonimizada (PII removida,
+  // linha mantida para métricas agregadas). NULL = não anonimizada.
+  anonymized_at: string | null;
 }
 
 // Tipo para criar uma nova encomenda (campos obrigatórios mínimos)

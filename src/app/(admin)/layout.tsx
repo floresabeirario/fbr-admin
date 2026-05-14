@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Settings,
+  Shield,
   Menu,
   X,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const navItems: NavItem[] = [
   { href: "/healthchecks", label: "Healthchecks", icon: HeartPulse },
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
   { href: "/settings/google", label: "Definições Google", icon: Settings },
+  { href: "/settings/rgpd", label: "RGPD", icon: Shield },
 ];
 
 function useIsDesktop(): boolean {
