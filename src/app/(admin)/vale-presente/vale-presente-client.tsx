@@ -18,8 +18,10 @@ import {
   Archive,
   ArchiveRestore,
   Trash2,
+  Download,
 } from "lucide-react";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
+import { exportVouchersToCsv } from "@/lib/export-csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -498,6 +500,14 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
               className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
             />
           </div>
+          <button
+            onClick={() => exportVouchersToCsv(initialVouchers)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            title="Exportar todos os vales para Excel/CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
           {canEdit && (
             <button
               onClick={() => setShowArchived((v) => !v)}

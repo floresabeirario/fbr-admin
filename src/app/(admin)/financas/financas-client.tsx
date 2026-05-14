@@ -16,11 +16,24 @@ import {
   Save,
   X,
   Search,
+  ArrowUpRight,
+  ArrowDownRight,
+  CreditCard,
+  FileText,
 } from "lucide-react";
+import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
+import { pt } from "date-fns/locale";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -30,11 +43,21 @@ import {
   PRICING_CATEGORY_LABELS,
   PRICING_CATEGORY_HELPER,
 } from "@/types/pricing";
+import type { Expense, ExpenseCategory, ExpensePaymentMethod } from "@/types/expense";
+import {
+  EXPENSE_CATEGORY_LABELS,
+  EXPENSE_CATEGORY_COLORS,
+  EXPENSE_CATEGORY_ORDER,
+  EXPENSE_PAYMENT_METHOD_LABELS,
+} from "@/types/expense";
 import {
   createCompetitorAction,
   updateCompetitorAction,
   archiveCompetitorAction,
   updatePricingItemAction,
+  createExpenseAction,
+  updateExpenseAction,
+  archiveExpenseAction,
 } from "./actions";
 
 type TabKey = "precos" | "despesas" | "faturacao" | "competicao";
@@ -58,10 +81,20 @@ function formatEuro(value: number | null): string {
 interface Props {
   initialCompetitors: Competitor[];
   initialPricing: PricingItem[];
+  initialExpenses: Expense[];
+  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">>;
+  vouchers: Array<Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">>;
   canEdit: boolean;
 }
 
-export default function FinancasClient({ initialCompetitors, initialPricing, canEdit }: Props) {
+export default function FinancasClient({
+  initialCompetitors,
+  initialPricing,
+  initialExpenses,
+  orders,
+  vouchers,
+  canEdit,
+}: Props) {
   const [tab, setTab] = useState<TabKey>("precos");
 
   return (
@@ -104,8 +137,8 @@ export default function FinancasClient({ initialCompetitors, initialPricing, can
         <CompeticaoTab competitors={initialCompetitors} canEdit={canEdit} />
       )}
       {tab === "precos"    && <PrecosTab pricing={initialPricing} canEdit={canEdit} />}
-      {tab === "despesas"  && <PlaceholderTab title="Despesas" />}
-      {tab === "faturacao" && <PlaceholderTab title="Faturação" />}
+      {tab === "despesas"  && <DespesasTab expenses={initialExpenses} canEdit={canEdit} />}
+      {tab === "faturacao" && <FaturacaoTab orders={orders} vouchers={vouchers} expenses={initialExpenses} />}
     </div>
   );
 }
@@ -320,15 +353,498 @@ function PriceRow({
   );
 }
 
-function PlaceholderTab({ title }: { title: string }) {
+// ============================================================
+// DESPESAS
+// ============================================================
+
+function DespesasTab({
+  expenses,
+  canEdit,
+}: {
+  expenses: Expense[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [creating, setCreating] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<ExpenseCategory | "todas">("todas");
+  const [search, setSearch] = useState("");
+  const [newExpense, setNewExpense] = useState({
+    expense_date: format(new Date(), "yyyy-MM-dd"),
+    supplier: "",
+    category: "outros" as ExpenseCategory,
+    amount: "",
+    description: "",
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return expenses.filter((e) => {
+      if (categoryFilter !== "todas" && e.category !== categoryFilter) return false;
+      if (!q) return true;
+      return (
+        e.supplier.toLowerCase().includes(q) ||
+        (e.description ?? "").toLowerCase().includes(q) ||
+        (e.notes ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [expenses, search, categoryFilter]);
+
+  const totalFiltered = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalAll = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const thisMonth = useMemo(() => {
+    const start = startOfMonth(new Date());
+    const end = endOfMonth(new Date());
+    return expenses
+      .filter((e) => {
+        const d = parseISO(e.expense_date);
+        return d >= start && d <= end;
+      })
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+  }, [expenses]);
+
+  function handleCreate() {
+    const amount = parseFloat(newExpense.amount.replace(",", "."));
+    if (!newExpense.supplier.trim() || !amount || amount <= 0) {
+      toast.error("Preenche fornecedor e valor válido.");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await createExpenseAction({
+          expense_date: newExpense.expense_date,
+          supplier: newExpense.supplier.trim(),
+          category: newExpense.category,
+          amount,
+          description: newExpense.description.trim() || null,
+        });
+        toast.success("Despesa registada.");
+        setCreating(false);
+        setNewExpense({
+          expense_date: format(new Date(), "yyyy-MM-dd"),
+          supplier: "",
+          category: "outros",
+          amount: "",
+          description: "",
+        });
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao registar.");
+      }
+    });
+  }
+
   return (
-    <div className="rounded-2xl border border-dashed border-[#E8E0D5] dark:border-[#2C2C2E] bg-[#FAF8F5] dark:bg-[#1A1A1A] p-12 text-center space-y-2">
-      <h2 className="text-lg font-semibold text-[#3D2B1F] dark:text-[#E8D5B5]">
-        {title}
-      </h2>
-      <p className="text-sm text-[#8B7355] dark:text-[#8E8E93]">
-        Em construção — esta secção vai ser desenvolvida numa fase seguinte.
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <KpiBox label="Total registado" value={formatEuro(totalAll)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+        <KpiBox label="Este mês" value={formatEuro(thisMonth)} icon={<TrendingUp className="h-4 w-4" />} color="amber" />
+        <KpiBox label={`Filtrado (${filtered.length})`} value={formatEuro(totalFiltered)} icon={<FileText className="h-4 w-4" />} color="slate" />
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#B8A99A]" />
+          <Input
+            placeholder="Pesquisar fornecedor ou descrição..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-9"
+          />
+        </div>
+        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as ExpenseCategory | "todas")}>
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as categorias</SelectItem>
+            {EXPENSE_CATEGORY_ORDER.map((c) => (
+              <SelectItem key={c} value={c}>
+                {EXPENSE_CATEGORY_LABELS[c]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {canEdit && (
+          <Button onClick={() => setCreating((v) => !v)} className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white h-9 gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Nova despesa
+          </Button>
+        )}
+      </div>
+
+      {/* Form criar */}
+      {creating && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-rose-900">Registar nova despesa</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr_180px_120px] gap-2">
+            <Input
+              type="date"
+              value={newExpense.expense_date}
+              onChange={(e) => setNewExpense((p) => ({ ...p, expense_date: e.target.value }))}
+            />
+            <Input
+              placeholder="Fornecedor"
+              value={newExpense.supplier}
+              onChange={(e) => setNewExpense((p) => ({ ...p, supplier: e.target.value }))}
+            />
+            <Select value={newExpense.category} onValueChange={(v) => setNewExpense((p) => ({ ...p, category: v as ExpenseCategory }))}>
+              <SelectTrigger>
+                <SelectValue labels={EXPENSE_CATEGORY_LABELS} />
+              </SelectTrigger>
+              <SelectContent>
+                {EXPENSE_CATEGORY_ORDER.map((c) => (
+                  <SelectItem key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[#8B7355]">€</span>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0,00"
+                className="pl-6"
+                value={newExpense.amount}
+                onChange={(e) => setNewExpense((p) => ({ ...p, amount: e.target.value }))}
+              />
+            </div>
+          </div>
+          <Textarea
+            placeholder="Descrição (opcional)"
+            value={newExpense.description}
+            onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))}
+            rows={2}
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleCreate} className="bg-[#3D2B1F] hover:bg-[#2C1F15] text-white">Registar</Button>
+            <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela */}
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[#E8E0D5] bg-white p-12 text-center">
+          <Receipt className="h-12 w-12 mx-auto text-rose-200 mb-3" />
+          <p className="text-sm text-[#8B7355]">
+            {expenses.length === 0
+              ? "Ainda não há despesas registadas."
+              : "Nenhuma despesa corresponde aos filtros."}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-[#E8E0D5] bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[820px]">
+              <thead className="bg-[#FAF8F5]">
+                <tr className="text-left text-xs uppercase tracking-wide text-[#8B7355]">
+                  <th className="px-3 py-2 font-medium">Data</th>
+                  <th className="px-3 py-2 font-medium">Fornecedor</th>
+                  <th className="px-3 py-2 font-medium">Categoria</th>
+                  <th className="px-3 py-2 font-medium">Descrição</th>
+                  <th className="px-3 py-2 font-medium text-right">Valor</th>
+                  <th className="px-3 py-2 font-medium">Pagamento</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((e) => (
+                  <ExpenseRow key={e.id} expense={e} canEdit={canEdit} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+
+  function handleField<K extends keyof Expense>(key: K, value: Expense[K]) {
+    if (!canEdit) return;
+    startTransition(async () => {
+      try {
+        await updateExpenseAction(expense.id, { [key]: value } as Partial<Expense>);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao guardar.");
+      }
+    });
+  }
+
+  function handleArchive() {
+    if (!confirm("Arquivar esta despesa?")) return;
+    startTransition(async () => {
+      try {
+        await archiveExpenseAction(expense.id);
+        toast.success("Despesa arquivada.");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao arquivar.");
+      }
+    });
+  }
+
+  return (
+    <tr className="border-t border-[#F0EAE0] hover:bg-[#FAF8F5]/60">
+      <td className="px-3 py-2 text-[#3D2B1F] whitespace-nowrap">
+        {format(parseISO(expense.expense_date), "dd/MM/yyyy")}
+      </td>
+      <td className="px-3 py-2 text-[#3D2B1F] font-medium">{expense.supplier}</td>
+      <td className="px-3 py-2">
+        <span className={cn(
+          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border",
+          EXPENSE_CATEGORY_COLORS[expense.category]
+        )}>
+          {EXPENSE_CATEGORY_LABELS[expense.category]}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-[#8B7355] text-xs max-w-[300px] truncate">
+        {expense.description ?? ""}
+      </td>
+      <td className="px-3 py-2 text-right font-semibold text-rose-700 whitespace-nowrap">
+        {formatEuro(Number(expense.amount))}
+      </td>
+      <td className="px-3 py-2">
+        {canEdit ? (
+          <Select
+            value={expense.payment_method ?? ""}
+            onValueChange={(v) => handleField("payment_method", (v || null) as ExpensePaymentMethod | null)}
+          >
+            <SelectTrigger className="h-7 text-xs w-32">
+              <SelectValue placeholder="—" labels={EXPENSE_PAYMENT_METHOD_LABELS} />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(EXPENSE_PAYMENT_METHOD_LABELS) as ExpensePaymentMethod[]).map((m) => (
+                <SelectItem key={m} value={m}>{EXPENSE_PAYMENT_METHOD_LABELS[m]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-xs text-[#8B7355]">
+            {expense.payment_method ? EXPENSE_PAYMENT_METHOD_LABELS[expense.payment_method] : "—"}
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-right">
+        {canEdit && (
+          <button
+            onClick={handleArchive}
+            className="text-[#B8A99A] hover:text-rose-600 transition-colors"
+            title="Arquivar"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ============================================================
+// FATURAÇÃO
+// ============================================================
+
+type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">;
+type FaturacaoVoucher = Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">;
+
+function FaturacaoTab({
+  orders,
+  vouchers,
+  expenses,
+}: {
+  orders: FaturacaoOrder[];
+  vouchers: FaturacaoVoucher[];
+  expenses: Expense[];
+}) {
+  // Receita = orders com pagamento ≥ 30% + vales pagos não convertidos (evitar dupla contagem)
+  const revenueFromOrder = (o: FaturacaoOrder): number => {
+    if (!o.budget) return 0;
+    switch (o.payment_status) {
+      case "100_pago": return o.budget;
+      case "70_pago":  return o.budget * 0.7;
+      case "30_pago":  return o.budget * 0.3;
+      default: return 0;
+    }
+  };
+  const revenueFromVoucher = (v: FaturacaoVoucher): number => {
+    if (v.payment_status !== "100_pago") return 0;
+    if (v.usage_status === "preservacao_agendada") return 0; // evita dupla contagem com a encomenda
+    return Number(v.amount);
+  };
+
+  // KPIs por período
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const yearStart = startOfYear(now);
+  const prevMonthStart = startOfMonth(subMonths(now, 1));
+  const prevMonthEnd = endOfMonth(subMonths(now, 1));
+
+  const inRange = (iso: string | null, start: Date, end: Date): boolean => {
+    if (!iso) return false;
+    const d = parseISO(iso);
+    return d >= start && d <= end;
+  };
+
+  const revenueOrdersMonth = orders
+    .filter((o) => inRange(o.created_at, monthStart, monthEnd))
+    .reduce((s, o) => s + revenueFromOrder(o), 0);
+  const revenueVouchersMonth = vouchers
+    .filter((v) => inRange(v.created_at, monthStart, monthEnd))
+    .reduce((s, v) => s + revenueFromVoucher(v), 0);
+  const revenueMonth = revenueOrdersMonth + revenueVouchersMonth;
+
+  const revenuePrevMonth =
+    orders.filter((o) => inRange(o.created_at, prevMonthStart, prevMonthEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+    vouchers.filter((v) => inRange(v.created_at, prevMonthStart, prevMonthEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
+
+  const revenueYear =
+    orders.filter((o) => inRange(o.created_at, yearStart, now)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+    vouchers.filter((v) => inRange(v.created_at, yearStart, now)).reduce((s, v) => s + revenueFromVoucher(v), 0);
+
+  const expensesMonth = expenses
+    .filter((e) => inRange(e.expense_date, monthStart, monthEnd))
+    .reduce((s, e) => s + Number(e.amount), 0);
+  const expensesYear = expenses
+    .filter((e) => inRange(e.expense_date, yearStart, now))
+    .reduce((s, e) => s + Number(e.amount), 0);
+
+  const profitMonth = revenueMonth - expensesMonth;
+  const profitYear = revenueYear - expensesYear;
+  const monthDelta = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : null;
+
+  // Receita por mês (últimos 12)
+  const monthlyData = useMemo(() => {
+    const buckets: { month: string; label: string; revenue: number; expenses: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const start = startOfMonth(subMonths(now, i));
+      const end = endOfMonth(subMonths(now, i));
+      const rev =
+        orders.filter((o) => inRange(o.created_at, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+        vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
+      const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
+      buckets.push({
+        month: format(start, "yyyy-MM"),
+        label: format(start, "MMM yy", { locale: pt }),
+        revenue: rev,
+        expenses: exp,
+      });
+    }
+    return buckets;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, vouchers, expenses]);
+
+  const maxBarValue = Math.max(...monthlyData.map((m) => Math.max(m.revenue, m.expenses)), 1);
+
+  return (
+    <div className="space-y-4">
+      {/* KPIs principais */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiBox
+          label="Receita do mês"
+          value={formatEuro(revenueMonth)}
+          icon={<TrendingUp className="h-4 w-4" />}
+          color="emerald"
+          delta={monthDelta}
+        />
+        <KpiBox label="Receita do ano" value={formatEuro(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+        <KpiBox label="Despesas do mês" value={formatEuro(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
+        <KpiBox
+          label="Lucro do mês"
+          value={formatEuro(profitMonth)}
+          icon={<CreditCard className="h-4 w-4" />}
+          color={profitMonth >= 0 ? "emerald" : "rose"}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <KpiBox label="Despesas do ano" value={formatEuro(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+        <KpiBox label="Lucro do ano" value={formatEuro(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+      </div>
+
+      {/* Bar chart manual: últimos 12 meses */}
+      <div className="rounded-xl border border-[#E8E0D5] bg-white p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-[#3D2B1F]">
+            Receita vs despesas (últimos 12 meses)
+          </h3>
+          <div className="flex items-center gap-3 text-xs text-[#8B7355]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-emerald-400" />Receita
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-rose-400" />Despesas
+            </span>
+          </div>
+        </div>
+        <div className="flex items-end gap-1 h-48">
+          {monthlyData.map((m) => (
+            <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full flex items-end justify-center gap-0.5 h-40">
+                <div
+                  className="w-2.5 sm:w-3 bg-emerald-400 rounded-t transition-all"
+                  style={{ height: `${(m.revenue / maxBarValue) * 100}%` }}
+                  title={`Receita: ${formatEuro(m.revenue)}`}
+                />
+                <div
+                  className="w-2.5 sm:w-3 bg-rose-400 rounded-t transition-all"
+                  style={{ height: `${(m.expenses / maxBarValue) * 100}%` }}
+                  title={`Despesas: ${formatEuro(m.expenses)}`}
+                />
+              </div>
+              <span className="text-[10px] text-[#8B7355] capitalize">{m.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs text-[#8B7355] italic px-1">
+        Receita = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos que ainda não foram convertidos em preservação (evita dupla contagem). Para métricas mais detalhadas, ver a aba Métricas.
       </p>
+    </div>
+  );
+}
+
+function KpiBox({
+  label,
+  value,
+  icon,
+  color,
+  delta,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  color: "emerald" | "rose" | "sky" | "amber" | "slate" | "violet";
+  delta?: number | null;
+}) {
+  const palette: Record<string, string> = {
+    emerald: "from-emerald-50 to-emerald-100/60 border-emerald-200 text-emerald-800",
+    rose:    "from-rose-50 to-rose-100/60 border-rose-200 text-rose-800",
+    sky:     "from-sky-50 to-sky-100/60 border-sky-200 text-sky-800",
+    amber:   "from-amber-50 to-amber-100/60 border-amber-200 text-amber-800",
+    slate:   "from-slate-50 to-slate-100/60 border-slate-200 text-slate-800",
+    violet:  "from-violet-50 to-violet-100/60 border-violet-200 text-violet-800",
+  };
+  return (
+    <div className={cn("rounded-xl border bg-gradient-to-br p-4 space-y-1", palette[color])}>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wider opacity-80 font-medium">{label}</p>
+        {icon}
+      </div>
+      <p className="text-2xl font-semibold">{value}</p>
+      {delta !== undefined && delta !== null && (
+        <p className={cn("text-xs font-medium", delta >= 0 ? "text-emerald-700" : "text-rose-700")}>
+          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}% vs. mês anterior
+        </p>
+      )}
     </div>
   );
 }

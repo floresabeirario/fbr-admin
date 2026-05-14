@@ -19,9 +19,11 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { exportPartnersToCsv } from "@/lib/export-csv";
 import {
   Select,
   SelectContent,
@@ -475,6 +477,14 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
               className="pl-8 h-9 sm:h-8 w-full sm:w-52 text-sm border-[#E8E0D5] bg-[#FAF8F5] focus:bg-white"
             />
           </div>
+          <button
+            onClick={() => exportPartnersToCsv(inCategory, activeCategory)}
+            className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-lg border border-[#E8E0D5] bg-white text-xs font-medium text-[#3D2B1F] hover:bg-[#FAF8F5] transition-colors"
+            title="Exportar parceiros desta categoria para Excel/CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
           <Button
             size="sm"
             className="h-9 sm:h-8 bg-[#3D2B1F] hover:bg-[#2C1F15] text-white gap-1.5"

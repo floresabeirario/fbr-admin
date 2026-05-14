@@ -166,6 +166,7 @@ function ExportSection({
 }) {
   const exportUrlJson = query ? `/api/rgpd/export/json?q=${encodeURIComponent(query)}` : null;
   const exportUrlHtml = query ? `/rgpd-print?q=${encodeURIComponent(query)}` : null;
+  const exportUrlPdf = query ? `/rgpd-print?q=${encodeURIComponent(query)}&autoprint=1` : null;
 
   return (
     <Card>
@@ -209,9 +210,17 @@ function ExportSection({
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {exportUrlPdf && (
+                <a href={exportUrlPdf} target="_blank" rel="noopener noreferrer">
+                  <Button>
+                    <Download className="h-4 w-4 mr-1.5" />
+                    Descarregar PDF
+                  </Button>
+                </a>
+              )}
               {exportUrlJson && (
                 <a href={exportUrlJson} download>
-                  <Button>
+                  <Button variant="outline">
                     <FileText className="h-4 w-4 mr-1.5" />
                     Exportar JSON
                   </Button>
@@ -221,11 +230,15 @@ function ExportSection({
                 <a href={exportUrlHtml} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline">
                     <ExternalLink className="h-4 w-4 mr-1.5" />
-                    Abrir versão para imprimir / PDF
+                    Abrir para visualizar
                   </Button>
                 </a>
               )}
             </div>
+            <p className="text-xs text-[#8B7355]">
+              💡 &quot;Descarregar PDF&quot; abre o diálogo de impressão automaticamente — escolhe
+              &quot;Guardar como PDF&quot; como destino.
+            </p>
 
             {searchResult.orders.length > 0 && (
               <div>

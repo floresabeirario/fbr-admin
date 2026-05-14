@@ -20,6 +20,21 @@ import {
   COUPON_STATUS_LABELS,
   CLIENT_FEEDBACK_STATUS_LABELS,
 } from "@/types/database";
+import {
+  type Voucher,
+  VOUCHER_PAYMENT_STATUS_LABELS,
+  VOUCHER_SEND_STATUS_LABELS,
+  VOUCHER_USAGE_STATUS_LABELS,
+  VOUCHER_DELIVERY_RECIPIENT_LABELS,
+  VOUCHER_DELIVERY_FORMAT_LABELS,
+  VOUCHER_DELIVERY_CHANNEL_LABELS,
+} from "@/types/voucher";
+import {
+  type Partner,
+  PARTNER_CATEGORY_LABELS,
+  PARTNER_STATUS_LABELS,
+  PARTNER_ACCEPTS_COMMISSION_LABELS,
+} from "@/types/partner";
 import { format, parseISO } from "date-fns";
 
 function fmtDate(value: string | null): string {
@@ -104,22 +119,94 @@ function escapeCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-export function exportOrdersToCsv(orders: Order[]): void {
-  const sep = ";"; // Excel pt-PT
-  const headerLine = COLUMNS.map((c) => escapeCell(c.header)).join(sep);
-  const lines = orders.map((o) =>
-    COLUMNS.map((c) => escapeCell(c.get(o) ?? "")).join(sep)
-  );
-  const csv = "﻿" + [headerLine, ...lines].join("\r\n"); // BOM para Excel
-
+function downloadCsv(filename: string, rows: string[][]): void {
+  const sep = ";";
+  const csv = "﻿" + rows.map((r) => r.map(escapeCell).join(sep)).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
   a.href = url;
-  a.download = `fbr-encomendas_${stamp}.csv`;
+  a.download = `${filename}_${stamp}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export function exportOrdersToCsv(orders: Order[]): void {
+  const headerLine = COLUMNS.map((c) => c.header);
+  const lines = orders.map((o) => COLUMNS.map((c) => c.get(o) ?? ""));
+  downloadCsv("fbr-encomendas", [headerLine, ...lines]);
+}
+
+// ── Vales ───────────────────────────────────────────────────────
+
+const VOUCHER_COLUMNS: Array<{ header: string; get: (v: Voucher) => string }> = [
+  { header: "Código",                  get: (v) => v.code },
+  { header: "Criado em",               get: (v) => fmtDateTime(v.created_at) },
+  { header: "Remetente",               get: (v) => v.sender_name },
+  { header: "Email remetente",         get: (v) => v.sender_email ?? "" },
+  { header: "Telemóvel remetente",     get: (v) => v.sender_phone ?? "" },
+  { header: "Destinatário",            get: (v) => v.recipient_name },
+  { header: "Mensagem",                get: (v) => v.message ?? "" },
+  { header: "Valor (€)",               get: (v) => fmtEuro(v.amount) },
+  { header: "Entrega para",            get: (v) => lookup(v.delivery_recipient, VOUCHER_DELIVERY_RECIPIENT_LABELS) },
+  { header: "Formato",                 get: (v) => lookup(v.delivery_format, VOUCHER_DELIVERY_FORMAT_LABELS) },
+  { header: "Canal digital",           get: (v) => lookup(v.delivery_channel, VOUCHER_DELIVERY_CHANNEL_LABELS) },
+  { header: "Custo envio (€)",         get: (v) => fmtEuro(v.delivery_shipping_cost) },
+  { header: "Contacto destinatário",   get: (v) => v.recipient_contact ?? "" },
+  { header: "Morada destinatário",     get: (v) => v.recipient_address ?? "" },
+  { header: "Data ideal envio",        get: (v) => fmtDate(v.ideal_send_date) },
+  { header: "Comentários",             get: (v) => v.comments ?? "" },
+  { header: "Pagamento",               get: (v) => lookup(v.payment_status, VOUCHER_PAYMENT_STATUS_LABELS) },
+  { header: "Envio do vale",           get: (v) => lookup(v.send_status, VOUCHER_SEND_STATUS_LABELS) },
+  { header: "Data envio agendada",     get: (v) => fmtDate(v.scheduled_send_date) },
+  { header: "Utilização",              get: (v) => lookup(v.usage_status, VOUCHER_USAGE_STATUS_LABELS) },
+  { header: "Validade",                get: (v) => fmtDate(v.expiry_date) },
+  { header: "Cliente pediu fatura",    get: (v) => fmtBool(v.needs_invoice) },
+  { header: "NIF",                     get: (v) => v.nif ?? "" },
+  { header: "Anexo fatura",            get: (v) => v.invoice_attachment_url ?? "" },
+  { header: "Como conheceu FBR",       get: (v) => lookup(v.how_found_fbr, HOW_FOUND_FBR_LABELS) },
+  { header: "Origem (outro)",          get: (v) => v.how_found_fbr_other ?? "" },
+  { header: "Idioma do form",          get: (v) => (v.form_language === "en" ? "EN" : "PT") },
+  { header: "Parceiro (id)",           get: (v) => v.partner_id ?? "" },
+  { header: "Comissão (€)",            get: (v) => fmtEuro(v.partner_commission) },
+  { header: "Estado comissão",         get: (v) => lookup(v.partner_commission_status, PARTNER_COMMISSION_STATUS_LABELS) },
+  { header: "Sticky note",             get: (v) => v.sticky_note ?? "" },
+  { header: "Pasta Drive",             get: (v) => v.drive_folder_url ?? "" },
+];
+
+export function exportVouchersToCsv(vouchers: Voucher[]): void {
+  const headerLine = VOUCHER_COLUMNS.map((c) => c.header);
+  const lines = vouchers.map((v) => VOUCHER_COLUMNS.map((c) => c.get(v) ?? ""));
+  downloadCsv("fbr-vales", [headerLine, ...lines]);
+}
+
+// ── Parceiros ───────────────────────────────────────────────────
+
+const PARTNER_COLUMNS: Array<{ header: string; get: (p: Partner) => string }> = [
+  { header: "Nome",                    get: (p) => p.name },
+  { header: "Categoria",               get: (p) => lookup(p.category, PARTNER_CATEGORY_LABELS) },
+  { header: "Estado",                  get: (p) => lookup(p.status, PARTNER_STATUS_LABELS) },
+  { header: "Responsável",             get: (p) => p.contact_person ?? "" },
+  { header: "Email",                   get: (p) => p.email ?? "" },
+  { header: "Telemóveis",              get: (p) => (p.phones ?? []).map((ph) => (ph.label ? `${ph.label}: ${ph.number}` : ph.number)).join(" | ") },
+  { header: "Links",                   get: (p) => (p.links ?? []).join(" | ") },
+  { header: "Localização",             get: (p) => p.location_label ?? "" },
+  { header: "Latitude",                get: (p) => p.latitude?.toString() ?? "" },
+  { header: "Longitude",               get: (p) => p.longitude?.toString() ?? "" },
+  { header: "Aceita comissão",         get: (p) => lookup(p.accepts_commission, PARTNER_ACCEPTS_COMMISSION_LABELS) },
+  { header: "Notas",                   get: (p) => p.notes ?? "" },
+  { header: "Nº de interações",        get: (p) => (p.interactions?.length ?? 0).toString() },
+  { header: "Acções pendentes",        get: (p) => (p.actions?.filter((a) => !a.done).length ?? 0).toString() },
+  { header: "Criado em",               get: (p) => fmtDateTime(p.created_at) },
+  { header: "Última edição",           get: (p) => fmtDateTime(p.updated_at) },
+];
+
+export function exportPartnersToCsv(partners: Partner[], filenameSuffix?: string): void {
+  const headerLine = PARTNER_COLUMNS.map((c) => c.header);
+  const lines = partners.map((p) => PARTNER_COLUMNS.map((c) => c.get(p) ?? ""));
+  const filename = filenameSuffix ? `fbr-parceiros-${filenameSuffix}` : "fbr-parceiros";
+  downloadCsv(filename, [headerLine, ...lines]);
 }
