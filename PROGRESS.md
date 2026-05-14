@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 5.5 (parte 1) ✅ — afinações pré-Fase 6
+## Fase actual: FASE 6 (parte 1) — site público status.floresabeirario.pt ligado ao Supabase
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -13,8 +13,8 @@
 - [x] **Fase 3** — Vale-Presente (admin + site público voucher.floresabeirario.pt) + Status ✅
 - [x] **Fase 4** — Dashboard + Tarefas + Métricas ✅
 - [x] **Fase 5** — Formulários públicos + Parcerias ✅
-- [~] **Fase 5.5** — Afinações pós-uso (sessão 28 cobre parte 1; parte 2 abaixo) ← **EM CURSO**
-- [ ] **Fase 6** — Integrações (Gmail, Drive, Calendar, AI) + PWA + RGPD completo
+- [~] **Fase 5.5** — Afinações pós-uso (parte 1 ✅; parte 2 quase fechada — falta `fbr-website`)
+- [~] **Fase 6** — Integrações + PWA + RGPD completo ← **EM CURSO (parte 1: status público)**
 
 ---
 
@@ -35,6 +35,15 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
+- **Sessão 35 ✅ Fase 6 parte 1 — site público `status.floresabeirario.pt` ligado ao Supabase (substituindo o Excel/Google Sheets manual).** O repo separado [`floresabeirario/fbr-tracking`](https://github.com/floresabeirario/fbr-tracking) (Next.js 13 Pages Router, deployado no Vercel) lia o Google Sheets via service account. Trocado para `@supabase/supabase-js`. **Migração `020_orders_public_status_read.sql`** (já no admin): (1) `GRANT SELECT` **column-level** em `orders` ao role `anon` só para os campos públicos (`id, order_id, customer_name, status, public_status_message_pt/en, public_status_language, estimated_delivery_date, public_status_updated_at`) — sem email, telemóvel, NIF, orçamento, comissão ou notas; (2) policy `orders_public_status_read` com `USING (deleted_at IS NULL AND payment_status <> '100_por_pagar')` — encomendas em pré-reserva continuam invisíveis (cliente nunca recebeu o link antes do 1º pagamento, conforme [[project-status-excel-coexistence]]); (3) `GRANT SELECT` + policy permissiva em `public_status_settings` (singleton com mensagens default globais, sem PII). **Pacote `_fbr-tracking-updates/`** (igual padrão da sessão 21 com fbr-voucher e da sessão 25 com fbr-website) com: (a) `utils/supabase.js` que substitui `utils/googleSheets.js` — mantém o **mesmo contrato de saída** que o sheets antigo (`{id, nome_encomenda, fase, fase_en, fase_numero, mensagem, mensagem_en, ultima_atualizacao, data_entrega}`), por isso `pages/[id].js` só precisa de mudar uma linha (o `import`); inclui port em JS puro de `STATUS_TO_PUBLIC_PHASE`, `PUBLIC_PHASE_LABEL_PT/EN` e `DEFAULT_MESSAGES_PT/EN` (espelho de `src/lib/public-status.ts`); resolve a mensagem efectiva via cadeia override→global default→hardcoded; formata `ultima_atualizacao` como `dd/MM/yyyy, HH:mm` ([[feedback-formato-datas]]) e `data_entrega` como "maio de 2026" / "May 2026" (mês+ano apenas, consistente com `formatPublicEstimatedDelivery` da plataforma); respeita `public_status_language` (pt/en/ambos) populando `fase_en`/`mensagem_en` só quando aplicável (a UI já tem o `isInternational = !fase && !!fase_en`); (b) `pages/api/tracking.js` actualizado (só muda o import path e a validação fica idêntica); (c) `package.json` com `@supabase/supabase-js` em vez de `googleapis`+`google-spreadsheet`; (d) `.env.example` com `SUPABASE_URL`+`SUPABASE_ANON_KEY`; (e) `README.md` com passo-a-passo: correr migração 020 → copiar 3 ficheiros → mudar 1 linha em `[id].js` → `npm install` → env vars no Vercel → push → smoke test (encomenda paga visível, pré-reserva invisível, ID inválido = 404), guia de coexistência com Excel durante a transição, mapping de campos admin→público, troubleshooting (URL com `/rest/v1` duplicado, chave errada, 42501). **Decisão arquitectural reforçada**: a URL pública `https://status.floresabeirario.pt/<order_id>` mantém-se igual; como o `order_id` é o mesmo formato de 16 chars que existia antes, os links já enviados aos clientes continuam a funcionar. **Coexistência**: enquanto houver encomendas activas só no Excel, o Excel continua arquivado para consulta — mas o switch do site é total (Excel deixa de alimentar). Maria precisa migrar manualmente cada encomenda antiga para a plataforma admin antes de descontinuar o Excel.
+
+  **Maria precisa de fazer manualmente quando aceitar este lote:**
+  1. **Correr migração 020 no Supabase SQL Editor** (`supabase/migrations/020_orders_public_status_read.sql`)
+  2. Clonar o repo `fbr-tracking` localmente; copiar os 3 ficheiros do pacote (`utils/supabase.js`, `pages/api/tracking.js`, `package.json`); apagar `utils/googleSheets.js`; corrigir a linha do import em `pages/[id].js`
+  3. `npm install` (substitui googleapis pelo supabase-js)
+  4. No Vercel do `fbr-tracking`: adicionar `SUPABASE_URL` (sem `/rest/v1`) e `SUPABASE_ANON_KEY`; remover as antigas `GOOGLE_*` se já não houver outro consumidor; **forçar redeploy** (Vercel não auto-redeploya ao mudar env vars)
+  5. Smoke test: encomenda paga visível, pré-reserva (`100_por_pagar`) dá 404, ID inválido dá 404
+
 - **Sessão 34 ✅ Fase 5.5 parte 2 — Métricas com mais cor + Finanças "Competição" + autocomplete de morada nas Parcerias.** Três itens da parte 2 num só passo. **(1) Métricas mais coloridas** ([metricas-client.tsx](src/app/(admin)/metricas/metricas-client.tsx)): header com fundo gradiente rose→amber→emerald; os 4 KPIs principais viraram "hero cards" — cada um com a sua cor temática (Receita do período = emerald, Receita do ano = sky, Encomendas novas = violet, Vales = amber), ícone branco em quadrado colorido, badge de % com cor (emerald/rose/stone consoante sinal). Insights ganham caixa amarela vibrante (gradiente amber→yellow). Receita mensal trocou linha simples por **AreaChart** com gradiente verde (`<defs><linearGradient id="revGradient">…</linearGradient></defs>`). Gráfico de "encomendas por estado" passa a usar **cor por estado** via novo `STATUS_HEX: Record<OrderStatus, string>` em [_styles.ts](src/app/(admin)/preservacao/_styles.ts) (hex correspondente aos `STATUS_DOT_COLORS` em tom 400/500). Os 3 pies (tamanho/fundo/evento) ganham donuts (`innerRadius={32}`, `paddingAngle={2}`) e cada um a sua palette própria (PIE_PALETTE_FRAME violeta→ciano, PIE_PALETTE_BG rosa→amber, PIE_PALETTE_EVENT verde→rosa). Novo gráfico de barras horizontais para "Top 5 canais de aquisição" (com palette ACQ_PALETTE). Mini-KPIs (tempo médio, %extras, canal #1) com ícone colorido (sky/amber/fuchsia). **Top parceiros agora mostra nomes** (não só `partner_id.slice(0,8)…`) — `page.tsx` carrega `partners` em paralelo (`{ id, name, category }`) e passa um `partnerNames: Record<string,string>` ao cliente, que faz lookup e cria link `/parcerias/<id>`. Linhas top-3 mostram ícone `Trophy` colorido (gold/silver/bronze). Tooltips com `borderRadius: 8` e `fontSize: 12`. **(2) Finanças — secção "Competição"** (nova): migração `019_competitors.sql` cria tabela `competitors` (name, websites text[], location_label, latitude/longitude, country default 'PT', prices JSONB com array de `{product, price, notes}`, notes), RLS no padrão admin-escreve/Ana-lê (espelha `vouchers`), audit log, `GRANT SELECT,INSERT,UPDATE,DELETE TO authenticated`. Tipos em [src/types/competitor.ts](src/types/competitor.ts). Server Actions em [src/app/(admin)/financas/actions.ts](src/app/(admin)/financas/actions.ts) com `requireAdmin()`. Página [financas-client.tsx](src/app/(admin)/financas/financas-client.tsx): pill-tabs no estilo Parcerias com 4 secções (Tabela de preços, Despesas, Faturação, Competição) — apenas **Competição** funcional, restantes mostram placeholder "Em construção" elegante; "Competição" abre como default. KPIs sumário (concorrentes registados, preço médio/min/max), search por nome/local/site, cards 2-col com nome+localização+websites (pills sky)+tabela de preços+notas, botão "A partir de" destacado em emerald. Edição inline com formulário expandido (websites múltiplos, lista de preços com produto+preço+notas, país opcional para concorrentes estrangeiros). Botão "Novo concorrente" em violet. Arquivar disponível em cada card. **(3) Parcerias — autocomplete de morada via Nominatim/OpenStreetMap** (gratuito, sem API key, ideal para o uso interno; alternativa pragmática ao Google Maps Places que exige conta de cobrança Google). Novo componente [src/components/ui/address-autocomplete.tsx](src/components/ui/address-autocomplete.tsx): debounce de 400ms (respeita o rate limit de 1/s do Nominatim), Accept-Language pt-PT, `countrycodes=pt` por default, AbortController para cancelar requests obsoletos. Devolve `{label, latitude, longitude}` ao seleccionar. **Padrão "store info from previous renders"** para sincronizar `query` com prop `value` (em vez de `useEffect+setState`, que violaria a regra `react-hooks/set-state-in-effect` — [[feedback-react-set-state-in-effect]]). Workbench da Parceria substitui o trio location_label+latitude+longitude por um único `<AddressAutocomplete>` (novo helper `LocationCard` no fim do file), com toggle "Editar coordenadas manualmente" escondido para casos avançados. Sheet "Novo parceiro" idem. Type check (`tsc --noEmit`) e ESLint limpos.
 
   **A FAZER NA PARTE 2 (continua):**
@@ -92,15 +101,24 @@
 - **Fase 5 fechada (sessão 25):** os formulários públicos do site `floresabeirario.pt` deixam de gravar no Monday e passam a gravar directamente no Supabase. ✅ Smoke test no preview (`fbr-website-git-develop-…vercel.app`) passou para ambos os forms — **Reserva** e **Vale-Presente**. Migrações 016 + 017 já estão em produção no Supabase. **Pendente** (decisão da Maria sobre o momento): merge `develop` → `main` no fbr-website para o switch ir a `floresabeirario.pt` em produção, smoke test em produção, e remover env vars do Monday.
 
 ## Próximo passo CONCRETO
-**Fase 5.5 parte 2 — quase fechada (sessão 35+)**
+**Fase 6 parte 1 (sessão 35) — aplicar manualmente no repo `fbr-tracking`**
 
-Já feito: sessão 29 (workbench Vale-Presente) + sessão 30 (alinhamento de colunas Vale/Parcerias) + sessão 32 (dashboard checklist com 3 caras) + sessão 33 (drag-and-drop entre grupos) + **sessão 34** (métricas mais coloridas + Finanças/Competição + autocomplete de morada nas Parcerias). Restantes:
-1. Aplicar manualmente as 6 mudanças do form público `fbr-website`
+Ver `_fbr-tracking-updates/README.md` para o passo-a-passo completo. Resumo:
+1. Correr `supabase/migrations/020_orders_public_status_read.sql` no Supabase SQL Editor
+2. No clone local de `fbr-tracking`: copiar `utils/supabase.js`, `pages/api/tracking.js`, `package.json`; apagar `utils/googleSheets.js`; mudar 1 linha em `pages/[id].js`
+3. `npm install`
+4. Vercel do `fbr-tracking`: adicionar `SUPABASE_URL`+`SUPABASE_ANON_KEY` e forçar redeploy
+5. Smoke test: encomenda paga visível; pré-reserva e ID inválido dão 404
+
+⚠ **Sessão 35:** correr `supabase/migrations/020_orders_public_status_read.sql`. Dá GRANT SELECT column-level aos campos públicos de `orders` ao role `anon` + policy `orders_public_status_read` (paga e não-arquivada) + leitura de `public_status_settings`.
+
+**Fase 5.5 parte 2 — falta apenas:**
+1. Aplicar manualmente as 6 mudanças do form público `fbr-website` (`_fbr-website-updates/PHASE_5_5_TODO.md`)
 2. Confirmar formato de datas em todo o `fbr-website` (PT + EN)
 
 ⚠ **Sessão 34:** correr `supabase/migrations/019_competitors.sql` no Supabase SQL Editor. Cria a tabela `competitors` (nome, websites, localização, prices JSONB, country, notes) com RLS admin-escreve/Ana-lê, audit log, e GRANTs ao role `authenticated`.
 
-Depois disso, segue-se a **Fase 6 — Integrações + PWA + RGPD completo**:
+**Fase 6 — restantes itens (a seguir ao status):**
 1. Gmail API — histórico de emails por encomenda no workbench (placeholder na sessão 5)
 2. Google Drive API — auto-criação da pasta do cliente ao 1º pagamento (memória `project_drive_auto_creation.md`)
 3. Google Calendar API — criar evento na data do evento ao confirmar pagamento
