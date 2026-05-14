@@ -9,13 +9,18 @@ import {
   FolderPlus,
   RefreshCcw,
   AlertTriangle,
+  CalendarPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { GoogleIntegrationRow } from "@/lib/google/oauth";
-import { disconnectGoogleAction, ensureRootFoldersAction } from "./actions";
+import {
+  disconnectGoogleAction,
+  ensureRootFoldersAction,
+  ensureCalendarAction,
+} from "./actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
   state_mismatch:
@@ -84,6 +89,17 @@ export function GoogleSettingsClient({
         toast.success("Pastas-mãe verificadas e criadas se necessário.");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro ao criar pastas.");
+      }
+    });
+  }
+
+  function onEnsureCalendar() {
+    startTransition(async () => {
+      try {
+        await ensureCalendarAction();
+        toast.success("Calendário verificado e criado se necessário.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao criar calendário.");
       }
     });
   }
@@ -262,6 +278,57 @@ export function GoogleSettingsClient({
             <p className="text-xs text-[#B8A99A]">
               Em geral isto é feito automaticamente da 1ª vez que uma encomenda recebe pagamento. Este botão
               é útil se quiseres preparar a estrutura agora ou se algo correu mal.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Calendário "Preservação de Flores" */}
+      {connected && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Calendário &ldquo;Preservação de Flores&rdquo;</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-sm text-[#8B7355]">
+              Ao 1º pagamento de uma encomenda, é criado automaticamente um evento all-day na
+              data do evento do cliente neste calendário dedicado. Vales não geram eventos.
+            </div>
+
+            <div className="flex items-center gap-2 text-sm">
+              {integration?.calendar_id ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-[#3D2B1F]">Calendário pronto</span>
+                  <a
+                    href={`https://calendar.google.com/calendar/u/0/r?cid=${encodeURIComponent(integration.calendar_id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-xs ml-auto"
+                  >
+                    abrir no Google Calendar
+                  </a>
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 text-stone-300 shrink-0" />
+                  <span className="text-[#3D2B1F]">Ainda não criado</span>
+                </>
+              )}
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={onEnsureCalendar}
+              disabled={pending}
+            >
+              <CalendarPlus className="h-4 w-4 mr-2" />
+              Verificar / criar calendário agora
+            </Button>
+            <p className="text-xs text-[#B8A99A]">
+              Cria o calendário (se ainda não existir) ou apenas confirma que está acessível.
+              É feito automaticamente no 1º evento — este botão é útil para preparar antes ou
+              recuperar caso o calendário tenha sido apagado.
             </p>
           </CardContent>
         </Card>

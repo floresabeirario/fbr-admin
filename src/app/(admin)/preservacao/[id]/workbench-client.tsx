@@ -84,7 +84,13 @@ import {
   MapPin,
   type LucideIcon,
 } from "lucide-react";
-import { updateOrderAction, deleteOrderAction, createOrderDriveFolderAction } from "../actions";
+import {
+  updateOrderAction,
+  deleteOrderAction,
+  createOrderDriveFolderAction,
+  createOrderCalendarEventAction,
+  deleteOrderCalendarEventAction,
+} from "../actions";
 import type {
   Order,
   OrderUpdate,
@@ -759,6 +765,51 @@ export default function WorkbenchClient({
     setDrivePopoverOpen(false);
   }
 
+  const [calendarBusy, setCalendarBusy] = useState(false);
+  const [calendarLink, setCalendarLink] = useState<string | null>(null);
+
+  async function createCalendarEvent() {
+    if (!local.event_date) {
+      toast.error("Preenche a data do evento primeiro.");
+      return;
+    }
+    setCalendarBusy(true);
+    try {
+      const res = await createOrderCalendarEventAction(local.id);
+      if (res) {
+        setCalendarLink(res.htmlLink);
+        // O ID fica persistido na BD; o `local` actualizar-se-á no próximo refresh.
+        // Para reflexo imediato, recarregar a página.
+        toast.success("Evento criado no Google Calendar.");
+        router.refresh();
+      } else {
+        toast.error(
+          "Não consegui criar o evento. Verifica em Definições → Google se a integração está conectada.",
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao criar evento.");
+    } finally {
+      setCalendarBusy(false);
+    }
+  }
+
+  async function deleteCalendarEvent() {
+    if (!local.calendar_event_id) return;
+    setCalendarBusy(true);
+    try {
+      await deleteOrderCalendarEventAction(local.id);
+      setCalendarLink(null);
+      setLocal((prev) => ({ ...prev, calendar_event_id: null }));
+      toast.success("Evento removido do Google Calendar.");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao apagar evento.");
+    } finally {
+      setCalendarBusy(false);
+    }
+  }
+
   const [driveAutoBusy, setDriveAutoBusy] = useState(false);
   async function autoCreateDriveFolder() {
     setDriveAutoBusy(true);
@@ -1280,6 +1331,15 @@ export default function WorkbenchClient({
                             <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} onAutoCreate={autoCreateDriveFolder} autoBusy={driveAutoBusy} />
                           </Popover>
                         )}
+
+                        <CalendarEventShortcut
+                          eventId={local.calendar_event_id}
+                          eventDate={local.event_date}
+                          link={calendarLink}
+                          busy={calendarBusy}
+                          onCreate={createCalendarEvent}
+                          onDelete={deleteCalendarEvent}
+                        />
 
                         <a
                           href={publicStatusLink}
@@ -2221,6 +2281,109 @@ function DriveUrlEditor({
         </div>
       </div>
     </PopoverContent>
+  );
+}
+
+function CalendarEventShortcut({
+  eventId,
+  eventDate,
+  link,
+  busy,
+  onCreate,
+  onDelete,
+}: {
+  eventId: string | null;
+  eventDate: string | null;
+  link: string | null;
+  busy: boolean;
+  onCreate: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // Sem data → não dá para criar; mostra estado neutro.
+  if (!eventDate) {
+    return (
+      <span
+        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-[#FAF8F5] px-2.5 py-1.5 text-xs text-[#B8A99A] cursor-not-allowed"
+        title="Preenche a data do evento para poderes criar um evento no Calendar"
+      >
+        <CalendarPlus className="h-3.5 w-3.5" />
+        Evento Calendar
+      </span>
+    );
+  }
+
+  if (eventId) {
+    return (
+      <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-[#E8E0D5] bg-white">
+        {link ? (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 transition-colors"
+            title="Abrir evento no Google Calendar"
+          >
+            <CalendarCheck className="h-3.5 w-3.5" />
+            No Calendar
+            <ExternalLink className="h-3 w-3 opacity-60" />
+          </a>
+        ) : (
+          <span
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-violet-700"
+            title="Evento criado. Recarrega para obter o link directo."
+          >
+            <CalendarCheck className="h-3.5 w-3.5" />
+            No Calendar
+          </span>
+        )}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger
+            className="px-1.5 border-l border-[#E8E0D5] text-[#8B7355] hover:bg-[#FAF8F5] transition-colors"
+            title="Gerir evento Calendar"
+          >
+            <Pencil className="h-3 w-3" />
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => { onCreate(); setOpen(false); }}
+              disabled={busy}
+              className="w-full h-9 px-3 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {busy ? "A actualizar…" : "Re-sincronizar evento"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { onDelete(); setOpen(false); }}
+              disabled={busy}
+              className="w-full h-9 px-3 rounded-lg border border-rose-200 bg-white text-rose-700 text-xs font-medium hover:bg-rose-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Apagar evento
+            </button>
+            <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+              O evento actualiza-se automaticamente sempre que mudares
+              a data, nome do cliente ou local. Re-sincroniza se algo
+              parecer desalinhado.
+            </p>
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      disabled={busy}
+      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-violet-300 bg-violet-50/60 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 hover:border-violet-400 disabled:opacity-50 transition-colors"
+      title="Criar evento no Google Calendar"
+    >
+      <CalendarPlus className="h-3.5 w-3.5" />
+      {busy ? "A criar…" : "Criar no Calendar"}
+    </button>
   );
 }
 
