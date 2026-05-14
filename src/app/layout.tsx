@@ -3,6 +3,8 @@ import { Google_Sans } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { PwaRegister } from "@/components/pwa-register";
+import { InstallPrompt } from "@/components/install-prompt";
 import "./globals.css";
 
 const googleSans = Google_Sans({
@@ -14,7 +16,15 @@ const googleSans = Google_Sans({
 export const metadata: Metadata = {
   title: "FBR Admin",
   description: "Painel de administração — Flores à Beira Rio",
-  manifest: "/favicon/site.webmanifest",
+  applicationName: "FBR Admin",
+  appleWebApp: {
+    capable: true,
+    title: "FBR Admin",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: "/favicon/favicon.ico", sizes: "any" },
@@ -27,6 +37,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#FAF8F5",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -41,8 +54,10 @@ export default function RootLayout({
           <TooltipProvider>
             {children}
             <Toaster />
+            <InstallPrompt />
           </TooltipProvider>
         </Providers>
+        <PwaRegister />
       </body>
     </html>
   );
