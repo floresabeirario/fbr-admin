@@ -90,6 +90,10 @@ export interface Voucher {
 
   // ── Sticky note (post-it amarelo flutuante no workbench) ────
   sticky_note: string | null;
+
+  // ── Drive (Fase 6 — auto-criação ao 1º pagamento) ───────────
+  drive_folder_url: string | null;
+  drive_folder_id: string | null;
 }
 
 // Tipo para criar — code é gerado pelo trigger, expiry pelo default

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -83,7 +84,7 @@ import {
   MapPin,
   type LucideIcon,
 } from "lucide-react";
-import { updateOrderAction, deleteOrderAction } from "../actions";
+import { updateOrderAction, deleteOrderAction, createOrderDriveFolderAction } from "../actions";
 import type {
   Order,
   OrderUpdate,
@@ -758,6 +759,27 @@ export default function WorkbenchClient({
     setDrivePopoverOpen(false);
   }
 
+  const [driveAutoBusy, setDriveAutoBusy] = useState(false);
+  async function autoCreateDriveFolder() {
+    setDriveAutoBusy(true);
+    try {
+      const res = await createOrderDriveFolderAction(local.id);
+      if (res?.url) {
+        setLocal((prev) => ({ ...prev, drive_folder_url: res.url }));
+        toast.success("Pasta criada na Drive.");
+        setDrivePopoverOpen(false);
+      } else {
+        toast.error(
+          "Não consegui criar a pasta. Verifica em Definições → Google se a integração está conectada.",
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao criar pasta.");
+    } finally {
+      setDriveAutoBusy(false);
+    }
+  }
+
   function saveOrderId() {
     const v = orderIdDraft.trim().toUpperCase();
     if (!v || v === local.order_id) {
@@ -1243,7 +1265,7 @@ export default function WorkbenchClient({
                               >
                                 <Pencil className="h-3 w-3" />
                               </PopoverTrigger>
-                              <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} />
+                              <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} onAutoCreate={autoCreateDriveFolder} autoBusy={driveAutoBusy} />
                             </Popover>
                           </div>
                         ) : (
@@ -1255,7 +1277,7 @@ export default function WorkbenchClient({
                               <FolderOpen className="h-3.5 w-3.5" />
                               Definir pasta Drive
                             </PopoverTrigger>
-                            <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} />
+                            <DriveUrlEditor draft={driveUrlDraft} setDraft={setDriveUrlDraft} onSave={saveDriveUrl} onAutoCreate={autoCreateDriveFolder} autoBusy={driveAutoBusy} />
                           </Popover>
                         )}
 
@@ -2156,33 +2178,48 @@ function DriveUrlEditor({
   draft,
   setDraft,
   onSave,
+  onAutoCreate,
+  autoBusy,
 }: {
   draft: string;
   setDraft: (v: string) => void;
   onSave: () => void;
+  onAutoCreate: () => void;
+  autoBusy: boolean;
 }) {
   return (
     <PopoverContent className="w-80 p-3 space-y-2">
-      <Label className="text-xs font-medium text-[#8B7355]">URL da pasta Google Drive</Label>
-      <Input
-        className={inp}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder="https://drive.google.com/…"
-        autoFocus
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
-      />
-      <div className="flex justify-end gap-2 pt-1">
-        <button
-          onClick={onSave}
-          className="h-8 px-3 rounded-lg bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15] transition-colors"
-        >
-          Guardar
-        </button>
-      </div>
-      <p className="text-[10px] text-[#B8A99A] leading-relaxed pt-1 border-t border-[#F0EAE0]">
-        Em breve: a pasta vai ser criada automaticamente ao primeiro pagamento, com a estrutura de subpastas definida.
+      <button
+        type="button"
+        onClick={onAutoCreate}
+        disabled={autoBusy}
+        className="w-full h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+      >
+        {autoBusy ? "A criar pasta…" : "Criar automaticamente na Drive"}
+      </button>
+      <p className="text-[10px] text-[#B8A99A] leading-relaxed">
+        Cria a pasta da encomenda (com as 8 subpastas por fase) dentro de
+        FBR — Encomendas / Preservação de Flores. Requer integração Google conectada
+        (Definições → Google).
       </p>
+      <div className="pt-1 border-t border-[#F0EAE0]">
+        <Label className="text-xs font-medium text-[#8B7355]">… ou cola um URL manualmente</Label>
+        <Input
+          className={`${inp} mt-1`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="https://drive.google.com/…"
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
+        />
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            onClick={onSave}
+            className="h-8 px-3 rounded-lg bg-[#3D2B1F] text-white text-xs font-medium hover:bg-[#2C1F15] transition-colors"
+          >
+            Guardar URL
+          </button>
+        </div>
+      </div>
     </PopoverContent>
   );
 }

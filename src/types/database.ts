@@ -155,6 +155,7 @@ export interface Order {
   client_feedback_status: ClientFeedbackStatus;
   frame_delivery_date: string | null;
   drive_folder_url: string | null;
+  drive_folder_id: string | null;
   flowers_photo_url: string | null;
   inspiration_gallery: InspirationItem[];
 

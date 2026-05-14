@@ -19,6 +19,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Settings,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,7 @@ const navItems: NavItem[] = [
   { href: "/ecossistema", label: "Ecossistema", icon: Globe },
   { href: "/healthchecks", label: "Healthchecks", icon: HeartPulse },
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
+  { href: "/settings/google", label: "Definições Google", icon: Settings },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -104,7 +106,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-y-auto px-2">
-          {navItems.map(({ href, label, icon: Icon, parent }) => {
+          {navItems
+            .filter((item) =>
+              item.href.startsWith("/settings") ? profile?.role === "admin" : true,
+            )
+            .map(({ href, label, icon: Icon, parent }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             const isSub = !!parent;
             return (
