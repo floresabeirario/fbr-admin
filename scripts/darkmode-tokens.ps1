@@ -106,7 +106,12 @@ $replacements = @(
     @{ from = " dark:hover:bg-[#1F1F1F]"; to = "" },
     @{ from = " dark:hover:bg-[#1A1A1A]"; to = "" },
     @{ from = " dark:hover:border-[#2C2C2E]"; to = "" },
-    @{ from = " dark:ring-offset-[#141414]"; to = "" }
+    @{ from = " dark:ring-offset-[#141414]"; to = "" },
+    # cream extras detectados na revisão visual
+    @{ from = "bg-[#F7F4F0]"; to = "bg-cream-50" },
+    @{ from = "bg-[#F4EFE8]"; to = "bg-cream-100" },
+    @{ from = "hover:bg-[#F4EFE8]"; to = "hover:bg-cream-100" },
+    @{ from = "border-[#E0D5C2]"; to = "border-cream-200" }
 )
 
 $files = Get-ChildItem -Path "src" -Recurse -Include *.tsx,*.ts | Where-Object {

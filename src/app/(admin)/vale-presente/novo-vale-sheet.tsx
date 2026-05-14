@@ -516,11 +516,11 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
 type Accent = "rose" | "amber" | "emerald" | "indigo" | "slate";
 
 const ACCENT_STYLES: Record<Accent, { border: string; iconBg: string; iconColor: string }> = {
-  rose:    { border: "border-l-rose-300",    iconBg: "bg-rose-50",    iconColor: "text-rose-500" },
-  amber:   { border: "border-l-amber-300",   iconBg: "bg-amber-50",   iconColor: "text-amber-600" },
-  emerald: { border: "border-l-emerald-300", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-  indigo:  { border: "border-l-indigo-300",  iconBg: "bg-indigo-50",  iconColor: "text-indigo-600" },
-  slate:   { border: "border-l-slate-300",   iconBg: "bg-slate-50",   iconColor: "text-slate-500" },
+  rose:    { border: "border-l-rose-300 dark:border-l-rose-700",       iconBg: "bg-rose-50 dark:bg-rose-950/40",       iconColor: "text-rose-500 dark:text-rose-400" },
+  amber:   { border: "border-l-amber-300 dark:border-l-amber-700",     iconBg: "bg-amber-50 dark:bg-amber-950/40",     iconColor: "text-amber-600 dark:text-amber-400" },
+  emerald: { border: "border-l-emerald-300 dark:border-l-emerald-700", iconBg: "bg-emerald-50 dark:bg-emerald-950/40", iconColor: "text-emerald-600 dark:text-emerald-400" },
+  indigo:  { border: "border-l-indigo-300 dark:border-l-indigo-700",   iconBg: "bg-indigo-50 dark:bg-indigo-950/40",   iconColor: "text-indigo-600 dark:text-indigo-400" },
+  slate:   { border: "border-l-slate-300 dark:border-l-slate-600",     iconBg: "bg-slate-50 dark:bg-slate-900/40",     iconColor: "text-slate-500 dark:text-slate-400" },
 };
 
 function Section({

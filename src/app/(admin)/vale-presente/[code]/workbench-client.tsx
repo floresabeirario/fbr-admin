@@ -260,7 +260,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
     "h-9 text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg";
 
   return (
-    <div className="flex flex-col h-full bg-[#F7F4F0]">
+    <div className="flex flex-col h-full bg-cream-50">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-6 py-3 border-b border-cream-200 bg-surface shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
@@ -1037,14 +1037,14 @@ function Hero({
 type Accent = "rose" | "amber" | "emerald" | "indigo" | "slate" | "sky" | "violet" | "orange";
 
 const ACCENT_STYLES: Record<Accent, { border: string; iconBg: string; iconColor: string }> = {
-  rose:    { border: "border-l-rose-300",    iconBg: "bg-rose-50",    iconColor: "text-rose-500" },
-  amber:   { border: "border-l-amber-300",   iconBg: "bg-amber-50",   iconColor: "text-amber-600" },
-  emerald: { border: "border-l-emerald-300", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-  indigo:  { border: "border-l-indigo-300",  iconBg: "bg-indigo-50",  iconColor: "text-indigo-600" },
-  slate:   { border: "border-l-slate-300",   iconBg: "bg-slate-50",   iconColor: "text-slate-500" },
-  sky:     { border: "border-l-sky-300",     iconBg: "bg-sky-50",     iconColor: "text-sky-600" },
-  violet:  { border: "border-l-violet-300",  iconBg: "bg-violet-50",  iconColor: "text-violet-600" },
-  orange:  { border: "border-l-orange-300",  iconBg: "bg-orange-50",  iconColor: "text-orange-600" },
+  rose:    { border: "border-l-rose-300 dark:border-l-rose-700",       iconBg: "bg-rose-50 dark:bg-rose-950/40",       iconColor: "text-rose-500 dark:text-rose-400" },
+  amber:   { border: "border-l-amber-300 dark:border-l-amber-700",     iconBg: "bg-amber-50 dark:bg-amber-950/40",     iconColor: "text-amber-600 dark:text-amber-400" },
+  emerald: { border: "border-l-emerald-300 dark:border-l-emerald-700", iconBg: "bg-emerald-50 dark:bg-emerald-950/40", iconColor: "text-emerald-600 dark:text-emerald-400" },
+  indigo:  { border: "border-l-indigo-300 dark:border-l-indigo-700",   iconBg: "bg-indigo-50 dark:bg-indigo-950/40",   iconColor: "text-indigo-600 dark:text-indigo-400" },
+  slate:   { border: "border-l-slate-300 dark:border-l-slate-600",     iconBg: "bg-slate-50 dark:bg-slate-900/40",     iconColor: "text-slate-500 dark:text-slate-400" },
+  sky:     { border: "border-l-sky-300 dark:border-l-sky-700",         iconBg: "bg-sky-50 dark:bg-sky-950/40",         iconColor: "text-sky-600 dark:text-sky-400" },
+  violet:  { border: "border-l-violet-300 dark:border-l-violet-700",   iconBg: "bg-violet-50 dark:bg-violet-950/40",   iconColor: "text-violet-600 dark:text-violet-400" },
+  orange:  { border: "border-l-orange-300 dark:border-l-orange-700",   iconBg: "bg-orange-50 dark:bg-orange-950/40",   iconColor: "text-orange-600 dark:text-orange-400" },
 };
 
 function Section({

@@ -138,22 +138,22 @@ function toDateInput(val: string | null | undefined): string {
 // (Sincronizar com preservacao-client.tsx — devem coincidir.)
 
 const STATUS_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
-  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300",
-  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300",
-  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300",
-  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300",
-  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300",
-  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300",
-  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300",
-  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300",
-  a_finalizar_quadro:     "bg-cyan-100 text-cyan-900 border-cyan-300",
-  a_ser_emoldurado:       "bg-teal-100 text-teal-900 border-teal-300",
-  emoldurado:             "bg-emerald-100 text-emerald-900 border-emerald-300",
-  a_ser_fotografado:      "bg-lime-100 text-lime-900 border-lime-300",
-  quadro_pronto:          "bg-yellow-100 text-yellow-900 border-yellow-300",
-  quadro_enviado:         "bg-orange-100 text-orange-900 border-orange-300",
-  quadro_recebido:        "bg-green-100 text-green-900 border-green-300",
-  cancelado:              "bg-stone-200 text-stone-600 border-stone-300",
+  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900",
+  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300 dark:bg-pink-950/40 dark:text-pink-200 dark:border-pink-900",
+  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-900",
+  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/40 dark:text-purple-200 dark:border-purple-900",
+  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-900",
+  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-900",
+  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900",
+  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-900",
+  a_finalizar_quadro:     "bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-200 dark:border-cyan-900",
+  a_ser_emoldurado:       "bg-teal-100 text-teal-900 border-teal-300 dark:bg-teal-950/40 dark:text-teal-200 dark:border-teal-900",
+  emoldurado:             "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900",
+  a_ser_fotografado:      "bg-lime-100 text-lime-900 border-lime-300 dark:bg-lime-950/40 dark:text-lime-200 dark:border-lime-900",
+  quadro_pronto:          "bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-200 dark:border-yellow-900",
+  quadro_enviado:         "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200 dark:border-orange-900",
+  quadro_recebido:        "bg-green-100 text-green-900 border-green-300 dark:bg-green-950/40 dark:text-green-200 dark:border-green-900",
+  cancelado:              "bg-stone-200 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
 };
 
 const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
@@ -185,10 +185,10 @@ const STATUS_GROUPS: Array<{ label: string; statuses: Array<keyof typeof STATUS_
 ];
 
 const PAYMENT_COLORS: Record<string, string> = {
-  "100_pago":      "text-green-800 bg-green-100 border-green-300",
-  "70_pago":       "text-lime-800 bg-lime-100 border-lime-300",
-  "30_pago":       "text-amber-900 bg-amber-100 border-amber-300",
-  "100_por_pagar": "text-red-700 bg-red-100 border-red-300",
+  "100_pago":      "text-green-800 bg-green-100 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900",
+  "70_pago":       "text-lime-800 bg-lime-100 border-lime-300 dark:bg-lime-950/40 dark:text-lime-300 dark:border-lime-900",
+  "30_pago":       "text-amber-900 bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
+  "100_por_pagar": "text-red-700 bg-red-100 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900",
 };
 
 // Paleta de acentos por secção — discreta, só na borda esquerda + cor do ícone
@@ -198,19 +198,19 @@ type Accent =
   | "yellow" | "violet" | "blue";
 
 const ACCENTS: Record<Accent, { border: string; icon: string; bgSoft: string }> = {
-  rose:    { border: "border-l-rose-300",    icon: "text-rose-500",    bgSoft: "bg-rose-50/50" },
-  amber:   { border: "border-l-amber-300",   icon: "text-amber-500",   bgSoft: "bg-amber-50/50" },
-  emerald: { border: "border-l-emerald-300", icon: "text-emerald-500", bgSoft: "bg-emerald-50/50" },
-  orange:  { border: "border-l-orange-300",  icon: "text-orange-500",  bgSoft: "bg-orange-50/50" },
-  indigo:  { border: "border-l-indigo-300",  icon: "text-indigo-500",  bgSoft: "bg-indigo-50/50" },
-  pink:    { border: "border-l-pink-300",    icon: "text-pink-500",    bgSoft: "bg-pink-50/50" },
-  slate:   { border: "border-l-slate-300",   icon: "text-slate-500",   bgSoft: "bg-slate-50/50" },
-  green:   { border: "border-l-green-300",   icon: "text-green-600",   bgSoft: "bg-green-50/50" },
-  sky:     { border: "border-l-sky-300",     icon: "text-sky-500",     bgSoft: "bg-sky-50/50" },
-  purple:  { border: "border-l-purple-300",  icon: "text-purple-500",  bgSoft: "bg-purple-50/50" },
-  yellow:  { border: "border-l-yellow-400",  icon: "text-yellow-600",  bgSoft: "bg-yellow-50/50" },
-  violet:  { border: "border-l-violet-300",  icon: "text-violet-500",  bgSoft: "bg-violet-50/50" },
-  blue:    { border: "border-l-blue-300",    icon: "text-blue-500",    bgSoft: "bg-blue-50/50" },
+  rose:    { border: "border-l-rose-300 dark:border-l-rose-700",       icon: "text-rose-500 dark:text-rose-400",       bgSoft: "bg-rose-50/50 dark:bg-rose-950/30" },
+  amber:   { border: "border-l-amber-300 dark:border-l-amber-700",     icon: "text-amber-500 dark:text-amber-400",     bgSoft: "bg-amber-50/50 dark:bg-amber-950/30" },
+  emerald: { border: "border-l-emerald-300 dark:border-l-emerald-700", icon: "text-emerald-500 dark:text-emerald-400", bgSoft: "bg-emerald-50/50 dark:bg-emerald-950/30" },
+  orange:  { border: "border-l-orange-300 dark:border-l-orange-700",   icon: "text-orange-500 dark:text-orange-400",   bgSoft: "bg-orange-50/50 dark:bg-orange-950/30" },
+  indigo:  { border: "border-l-indigo-300 dark:border-l-indigo-700",   icon: "text-indigo-500 dark:text-indigo-400",   bgSoft: "bg-indigo-50/50 dark:bg-indigo-950/30" },
+  pink:    { border: "border-l-pink-300 dark:border-l-pink-700",       icon: "text-pink-500 dark:text-pink-400",       bgSoft: "bg-pink-50/50 dark:bg-pink-950/30" },
+  slate:   { border: "border-l-slate-300 dark:border-l-slate-600",     icon: "text-slate-500 dark:text-slate-400",     bgSoft: "bg-slate-50/50 dark:bg-slate-900/40" },
+  green:   { border: "border-l-green-300 dark:border-l-green-700",     icon: "text-green-600 dark:text-green-400",     bgSoft: "bg-green-50/50 dark:bg-green-950/30" },
+  sky:     { border: "border-l-sky-300 dark:border-l-sky-700",         icon: "text-sky-500 dark:text-sky-400",         bgSoft: "bg-sky-50/50 dark:bg-sky-950/30" },
+  purple:  { border: "border-l-purple-300 dark:border-l-purple-700",   icon: "text-purple-500 dark:text-purple-400",   bgSoft: "bg-purple-50/50 dark:bg-purple-950/30" },
+  yellow:  { border: "border-l-yellow-400 dark:border-l-yellow-700",   icon: "text-yellow-600 dark:text-yellow-400",   bgSoft: "bg-yellow-50/50 dark:bg-yellow-950/30" },
+  violet:  { border: "border-l-violet-300 dark:border-l-violet-700",   icon: "text-violet-500 dark:text-violet-400",   bgSoft: "bg-violet-50/50 dark:bg-violet-950/30" },
+  blue:    { border: "border-l-blue-300 dark:border-l-blue-700",       icon: "text-blue-500 dark:text-blue-400",       bgSoft: "bg-blue-50/50 dark:bg-blue-950/30" },
 };
 
 // Opções de extras tal como aparecem no formulário público.
@@ -303,7 +303,7 @@ function CheckRow({ label, checked, onChange }: { label: string; checked: boolea
 
 function PlaceholderBox({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#E0D5C2] bg-cream-50 px-4 py-5 text-center">
+    <div className="rounded-xl border border-dashed border-cream-200 bg-cream-50 px-4 py-5 text-center">
       <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-[#C4A882] border border-cream-200">
         {icon}
       </div>
@@ -319,9 +319,9 @@ const sel = "h-9 text-sm border-cream-200 bg-cream-50 text-cocoa-900 rounded-lg"
 // Variantes "discretas" para o hero: parecem texto estático, revelam-se editáveis ao hover/focus.
 // Placeholders em itálico + cinza muito claro para nunca se confundirem com dados reais.
 const subtlePlaceholder = "placeholder:italic placeholder:text-[#D4C8B8] placeholder:font-normal";
-const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-[#F4EFE8] focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
-const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-[#F4EFE8] data-[state=open]:bg-surface data-[state=open]:border-cocoa-500 transition-colors";
-const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-[#F4EFE8] focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
+const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-cream-100 focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
+const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-cream-100 data-[state=open]:bg-surface data-[state=open]:border-cocoa-500 transition-colors";
+const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-cream-100 focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
 
 // ── Post-it amarelo flutuante (sticky note) ─────────────────
 // Aparece sempre no header. Vazio = amarelo claro com ícone +; com texto
@@ -763,7 +763,7 @@ export default function WorkbenchClient({
   const showFrameShippingPaid  = local.frame_delivery_method  !== "maos" && local.frame_delivery_method  !== null;
 
   return (
-    <div className="flex flex-col h-full bg-[#F7F4F0]">
+    <div className="flex flex-col h-full bg-cream-50">
 
       {!canEdit && (
         <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-800 flex items-center gap-2">
@@ -1183,7 +1183,7 @@ export default function WorkbenchClient({
                         ) : (
                           <Popover open={drivePopoverOpen} onOpenChange={(v) => { setDrivePopoverOpen(v); if (v) setDriveUrlDraft(""); }}>
                             <PopoverTrigger
-                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-cream-200 bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
                               title="Definir pasta Drive"
                             >
                               <FolderOpen className="h-3.5 w-3.5" />
@@ -2177,7 +2177,7 @@ function CalendarEventShortcut({
   if (!eventDate) {
     return (
       <span
-        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-500 cursor-not-allowed"
+        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-cream-200 bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-500 cursor-not-allowed"
         title="Preenche a data do evento para poderes criar um evento no Calendar"
       >
         <CalendarPlus className="h-3.5 w-3.5" />
@@ -2444,7 +2444,7 @@ function CouponCodeField({
       ) : (
         <button
           onClick={startEdit}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[#E0D5C2] bg-cream-50 px-3 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-cream-200 bg-cream-50 px-3 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
         >
           <Pencil className="h-3 w-3" />
           Definir código manualmente
