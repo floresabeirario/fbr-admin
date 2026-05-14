@@ -156,6 +156,22 @@ const STATUS_TO_GROUP: Record<OrderStatus, OrderGroupKey> = {
 // mas pode acontecer se a BD tiver um valor que o TS não conhece —
 // ex.: migração nova que ainda não chegou ao código). A UI mostra-as
 // num grupo de alerta vermelho "Sem grupo" em vez de as esconder.
+// Estado "natural" de chegada quando uma encomenda é arrastada para um grupo.
+// Drag-and-drop entre grupos: ao largar uma encomenda em "Reservas", a encomenda
+// passa para `entrega_agendada` (primeiro estado do grupo). O mesmo para os outros.
+// `sem_resposta` é especial: é derivado de `entrega_flores_agendar` + flag manual
+// (ver `isWithoutResponse`); largar em `sem_resposta` activa a flag em vez de mudar
+// status. `orfas` não é um destino válido (é uma rede de segurança visual).
+export const GROUP_TO_TARGET_STATUS: Record<Exclude<OrderGroupKey, never>, OrderStatus> = {
+  pre_reservas:       "entrega_flores_agendar",
+  sem_resposta:       "entrega_flores_agendar", // mantém status, activa manually_no_response
+  reservas:           "entrega_agendada",
+  preservacao_design: "flores_na_prensa",
+  finalizacao:        "a_ser_emoldurado",
+  concluidos:         "quadro_recebido",
+  cancelamentos:      "cancelado",
+};
+
 export function groupOrders(orders: Order[]): Record<OrderGroupKey, Order[]> & { orfas: Order[] } {
   const sorted = [...orders].sort(byEventDateAsc);
 

@@ -25,7 +25,20 @@ import {
   ArchiveRestore,
   Trash2,
   Gift,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { groupOrders } from "@/lib/supabase/orders";
+import { groupOrders, GROUP_TO_TARGET_STATUS, type OrderGroupKey } from "@/lib/supabase/orders";
 import { exportOrdersToCsv } from "@/lib/export-csv";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import {
@@ -206,6 +219,7 @@ function OrderRow({
   canEdit,
   inSemResposta,
   voucherCodeToId,
+  isDragging = false,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
@@ -214,12 +228,27 @@ function OrderRow({
   canEdit: boolean;
   inSemResposta: boolean;
   voucherCodeToId: Record<string, string>;
+  isDragging?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useState<OrderStatus | null>(null);
   const [optimisticPayment, setOptimisticPayment] = useState<PaymentStatus | null>(null);
   const [optimisticContacted, setOptimisticContacted] = useState<boolean | null>(null);
+
+  // dnd-kit: o handle é o único elemento com listeners de pointer, para o resto
+  // da linha continuar clicável (abre o workbench). Activação por distância de
+  // 8px (configurada no sensor) evita que cliques sejam interpretados como drag.
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragNodeRef,
+    isDragging: isDraggingThis,
+  } = useDraggable({
+    id: order.id,
+    data: { order },
+    disabled: !canEdit,
+  });
 
   const currentStatus = optimisticStatus ?? order.status;
   const currentPayment = optimisticPayment ?? order.payment_status;
@@ -310,11 +339,28 @@ function OrderRow({
 
   return (
     <tr
+      ref={setDragNodeRef}
+      {...attributes}
       className={`border-b border-[#F0EAE0] cursor-pointer transition-colors ${
         isLoading ? "bg-[#F0EAE0]/60" : "hover:bg-[#FDFAF7]"
-      }`}
+      } ${isDraggingThis || isDragging ? "opacity-40" : ""}`}
       onClick={() => onOpen(order)}
     >
+      <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
+        {canEdit ? (
+          <button
+            {...listeners}
+            type="button"
+            title="Arrastar para mudar de grupo"
+            aria-label={`Arrastar encomenda ${order.client_name}`}
+            className="flex h-6 w-6 items-center justify-center rounded text-[#C4A882] hover:bg-[#FAF8F5] hover:text-[#3D2B1F] cursor-grab active:cursor-grabbing touch-none"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <div className="h-6 w-6" />
+        )}
+      </td>
       <td className="px-4 py-1.5">
         <div className="flex items-center gap-2">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
@@ -454,16 +500,37 @@ interface GroupSectionProps {
   isSemResposta?: boolean;
   alert?: boolean;
   voucherCodeToId: Record<string, string>;
+  /** Chave de grupo para drag-and-drop. Se omitida, a secção não é drop zone. */
+  droppableId?: OrderGroupKey;
+  /** ID da encomenda actualmente a ser arrastada (para opacificar a fonte). */
+  draggingOrderId?: string | null;
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId, droppableId, draggingOrderId,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   const isEmpty = orders.length === 0;
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
+    id: droppableId ?? `__non_droppable_${title}`,
+    disabled: !droppableId || !canEdit,
+  });
   // Empty groups: colapsados por default mas ABRÍVEIS (estado vem do pai).
   return (
-    <div className={`rounded-xl border border-[#E8E0D5] bg-white overflow-hidden ${isEmpty && isCollapsed ? "opacity-60" : ""}`}>
+    <div
+      ref={setDropNodeRef}
+      className={`rounded-xl border bg-white overflow-hidden transition-all ${
+        isOver
+          ? "border-[#C4A882] ring-2 ring-[#C4A882]/40 shadow-[0_0_0_3px_rgba(196,168,130,0.15)]"
+          : "border-[#E8E0D5]"
+      } ${isEmpty && isCollapsed && !isOver ? "opacity-60" : ""}`}
+    >
+      {isOver && droppableId && (
+        <div className="px-4 py-1.5 bg-[#FAF4EB] border-b border-[#E8DBC6] text-[11px] font-medium text-[#8B6F3F] flex items-center gap-1.5">
+          <ChevronRight className="h-3 w-3" />
+          Largar aqui para mover para &ldquo;{title}&rdquo;
+        </div>
+      )}
       <button
         className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#FDFAF7] transition-colors`}
         onClick={onToggle}
@@ -490,9 +557,10 @@ function GroupSection({
         <div className="overflow-x-auto">
           <table className="w-full text-left table-fixed">
             <colgroup>
-              <col className="w-[18%]" />
+              <col className="w-[3%]" />
+              <col className="w-[16%]" />
               <col className="w-[10%]" />
-              <col className="w-[14%]" />
+              <col className="w-[13%]" />
               <col className="w-[12%]" />
               <col className="w-[16%]" />
               <col className="w-[10%]" />
@@ -501,8 +569,8 @@ function GroupSection({
             </colgroup>
             <thead>
               <tr className="border-t border-[#F0EAE0] bg-[#FAF8F5]">
-                {["Cliente", "Data evento", "Localização", shippingHeader, "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide ${i === 5 ? "text-right" : ""}`}>
+                {["", "Cliente", "Data evento", "Localização", shippingHeader, "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
+                  <th key={i} className={`px-4 py-2 text-xs font-medium text-[#8B7355] uppercase tracking-wide ${i === 6 ? "text-right" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -519,6 +587,7 @@ function GroupSection({
                   canEdit={canEdit}
                   inSemResposta={isSemResposta}
                   voucherCodeToId={voucherCodeToId}
+                  isDragging={draggingOrderId === order.id}
                 />
               ))}
             </tbody>
@@ -570,6 +639,102 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
   const [showArchived, setShowArchived] = useState(false);
+  const [draggingOrder, setDraggingOrder] = useState<Order | null>(null);
+  const [, startDropTransition] = useTransition();
+
+  // Sensores: activação por distância (8px) deixa o click do row continuar a
+  // funcionar normalmente; KeyboardSensor dá acessibilidade básica (Space para
+  // pegar, setas para navegar entre droppables, Space para largar).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    const order = event.active.data.current?.order as Order | undefined;
+    if (order) setDraggingOrder(order);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDraggingOrder(null);
+    const { active, over } = event;
+    if (!over) return;
+    const order = active.data.current?.order as Order | undefined;
+    if (!order) return;
+
+    const targetGroup = String(over.id) as OrderGroupKey;
+    // Drop em zona não-droppable (orfas) ou em ID desconhecido: ignorar.
+    if (!(targetGroup in GROUP_TO_TARGET_STATUS)) return;
+
+    const targetStatus = GROUP_TO_TARGET_STATUS[targetGroup];
+
+    // sem_resposta: especial — não muda status, só activa a flag manual.
+    if (targetGroup === "sem_resposta") {
+      if (order.status !== "entrega_flores_agendar") {
+        // Para chegar a sem_resposta a partir de outro grupo, primeiro voltamos
+        // a entrega_flores_agendar (drop em pre_reservas seria mais intuitivo).
+        // Aqui forçamos o status base + activa flag manual num só update.
+        startDropTransition(async () => {
+          try {
+            await updateOrderAction(order.id, {
+              status: "entrega_flores_agendar",
+              manually_no_response: true,
+              contacted: false,
+            });
+            router.refresh();
+          } catch {
+            // silencioso — UI volta ao estado anterior no refresh
+          }
+        });
+        return;
+      }
+      if (order.manually_no_response) return; // já lá está
+      startDropTransition(async () => {
+        try {
+          await updateOrderAction(order.id, { manually_no_response: true });
+          router.refresh();
+        } catch {
+          // silencioso
+        }
+      });
+      return;
+    }
+
+    // pre_reservas: limpar flag manual se estava em sem_resposta; mudar status
+    // se vinha de outro grupo.
+    if (targetGroup === "pre_reservas") {
+      const updates: Parameters<typeof updateOrderAction>[1] = {};
+      if (order.status !== "entrega_flores_agendar") {
+        updates.status = "entrega_flores_agendar";
+      }
+      if (order.manually_no_response) updates.manually_no_response = false;
+      if (Object.keys(updates).length === 0) return; // já lá está
+      startDropTransition(async () => {
+        try {
+          await updateOrderAction(order.id, updates);
+          router.refresh();
+        } catch {
+          // silencioso
+        }
+      });
+      return;
+    }
+
+    // Outros grupos: status muda para o primeiro estado do grupo destino.
+    // Defensivo: limpa manually_no_response (só faz sentido em pré-reservas).
+    if (order.status === targetStatus && !order.manually_no_response) return;
+    startDropTransition(async () => {
+      try {
+        await updateOrderAction(order.id, {
+          status: targetStatus,
+          manually_no_response: false,
+        });
+        router.refresh();
+      } catch {
+        // silencioso
+      }
+    });
+  }
 
   const filteredOrders = search.trim()
     ? initialOrders.filter(
@@ -728,26 +893,44 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
         )}
 
         {!showArchived && activeView === "tabela" && (
-          <div className="space-y-3">
-            {grouped.orfas.length > 0 && (
-              <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} />
-            )}
-            <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} />
-            <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
-            <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
-            <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
-            <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
-            <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
-            <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} />
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => setDraggingOrder(null)}
+          >
+            <div className="space-y-3">
+              {grouped.orfas.length > 0 && (
+                <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} draggingOrderId={draggingOrder?.id ?? null} />
+              )}
+              <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} droppableId="sem_resposta"        draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="pre_reservas"        draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="reservas"            draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="preservacao_design"  draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="finalizacao"         draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="concluidos"          draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="cancelamentos"       draggingOrderId={draggingOrder?.id ?? null} />
 
-            {filteredOrders.length === 0 && initialOrders.length > 0 && (
-              <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">
-                <p className="text-sm text-[#8B7355]">
-                  Nenhum resultado para <strong>&ldquo;{search}&rdquo;</strong>
-                </p>
-              </div>
-            )}
-          </div>
+              {filteredOrders.length === 0 && initialOrders.length > 0 && (
+                <div className="rounded-xl border border-[#E8E0D5] bg-white p-8 text-center">
+                  <p className="text-sm text-[#8B7355]">
+                    Nenhum resultado para <strong>&ldquo;{search}&rdquo;</strong>
+                  </p>
+                </div>
+              )}
+            </div>
+            <DragOverlay dropAnimation={null}>
+              {draggingOrder && (
+                <div className="rounded-lg border border-[#C4A882] bg-white shadow-lg px-3 py-2 flex items-center gap-2 max-w-[280px] cursor-grabbing">
+                  <GripVertical className="h-3.5 w-3.5 text-[#C4A882] shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-[#3D2B1F] truncate">{draggingOrder.client_name}</span>
+                    <span className="text-[11px] text-[#8B7355] truncate">{draggingOrder.order_id}</span>
+                  </div>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
         )}
 
         {!showArchived && activeView === "cards" && (
