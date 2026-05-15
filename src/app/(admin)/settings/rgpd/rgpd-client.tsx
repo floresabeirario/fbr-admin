@@ -36,6 +36,7 @@ import {
   anonymizeVoucherAction,
   hardDeleteOrderForRgpdAction,
 } from "./actions";
+import SistemaTopbar from "@/components/sistema-topbar";
 
 type RetentionRow = {
   order: Order;
@@ -81,6 +82,8 @@ export function RgpdClient({
   const hasResults = searchResult.orders.length > 0 || searchResult.vouchers.length > 0;
 
   return (
+    <>
+    <SistemaTopbar />
     <div className="max-w-5xl mx-auto p-6 space-y-5">
       <div>
         <h1 className="font-['TanMemories'] text-3xl text-cocoa-900 flex items-center gap-2">
@@ -121,6 +124,7 @@ export function RgpdClient({
 
       {tab === "retencao" && <RetentionSection rows={retentionRows} />}
     </div>
+    </>
   );
 }
 

@@ -21,6 +21,7 @@ import {
   ensureRootFoldersAction,
   ensureCalendarAction,
 } from "./actions";
+import SistemaTopbar from "@/components/sistema-topbar";
 
 const ERROR_MESSAGES: Record<string, string> = {
   state_mismatch:
@@ -105,15 +106,17 @@ export function GoogleSettingsClient({
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-5">
-      <div>
-        <h1 className="font-['TanMemories'] text-3xl text-cocoa-900">
-          Integração Google
-        </h1>
-        <p className="text-sm text-cocoa-700 mt-1">
-          Conecta a conta info@floresabeirario.pt para autorizar acesso a Drive, Gmail e Google Calendar.
-        </p>
-      </div>
+    <>
+      <SistemaTopbar />
+      <div className="max-w-4xl mx-auto p-6 space-y-5">
+        <div>
+          <h1 className="font-['TanMemories'] text-3xl text-cocoa-900">
+            Integração Google
+          </h1>
+          <p className="text-sm text-cocoa-700 mt-1">
+            Conecta a conta info@floresabeirario.pt para autorizar acesso a Drive, Gmail e Google Calendar.
+          </p>
+        </div>
 
       {/* Banner OK */}
       {okFlag && (
@@ -376,7 +379,8 @@ export function GoogleSettingsClient({
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

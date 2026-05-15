@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import type { HealthCheck } from "./page";
+import SistemaTopbar from "@/components/sistema-topbar";
 
 const CATEGORY_META: Record<HealthCheck["category"], { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
   database:     { label: "Base de dados",  icon: Database, color: "text-sky-500" },
@@ -70,6 +71,8 @@ export default function HealthchecksClient({
   const overall: HealthCheck["status"] = counts.error > 0 ? "error" : counts.warning > 0 ? "warning" : "ok";
 
   return (
+    <>
+    <SistemaTopbar />
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -172,6 +175,7 @@ export default function HealthchecksClient({
         );
       })}
     </div>
+    </>
   );
 }
 

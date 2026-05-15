@@ -1,4 +1,6 @@
 import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye } from "lucide-react";
+import SistemaTopbar from "@/components/sistema-topbar";
+import { getCurrentRole } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -130,8 +132,11 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
   },
 ];
 
-export default function EcossistemaPage() {
+export default async function EcossistemaPage() {
+  const role = await getCurrentRole();
   return (
+    <>
+    <SistemaTopbar isAdmin={role === "admin"} />
     <div className="p-3 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -214,6 +219,7 @@ export default function EcossistemaPage() {
         </p>
       </div>
     </div>
+    </>
   );
 }
 

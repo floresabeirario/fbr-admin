@@ -86,6 +86,7 @@ import {
 import type { PricingSnapshot } from "@/types/pricing";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
+import AddressAutocomplete from "@/components/address-autocomplete";
 import type {
   Order,
   OrderUpdate,
@@ -1495,11 +1496,12 @@ export default function WorkbenchClient({
                         <MapPin className="h-3 w-3" /> Detalhes da recolha
                       </p>
                       <Field label="Morada da recolha" span2>
-                        <Input
-                          className={inp}
+                        <AddressAutocomplete
                           value={local.pickup_address ?? ""}
-                          onChange={(e) => update("pickup_address", e.target.value || null)}
-                          placeholder="Rua, número, código postal, localidade…"
+                          onChange={(v) => update("pickup_address", v || null)}
+                          placeholder="Começa a escrever a morada…"
+                          className={inp + " pr-7"}
+                          hint="Sugestões do Google Maps."
                         />
                       </Field>
                       <Grid2>

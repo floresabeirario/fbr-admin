@@ -12,8 +12,6 @@ import {
   Handshake,
   Euro,
   Truck,
-  Globe,
-  HeartPulse,
   Lightbulb,
   BookOpen,
   MessageCircle,
@@ -21,9 +19,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Settings,
-  Shield,
-  History,
+  Cog,
   Menu,
   X,
   Search,
@@ -45,6 +41,8 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   parent?: string;
+  /** Prefixos extra que activam o item (p.ex. "Sistema" abrange /settings, /healthchecks, /ecossistema). */
+  matchPaths?: string[];
 };
 
 const navItems: NavItem[] = [
@@ -58,12 +56,13 @@ const navItems: NavItem[] = [
   { href: "/financas", label: "Finanças", icon: Euro },
   { href: "/livro-receitas", label: "Livro de Receitas", icon: BookOpen },
   { href: "/chat", label: "Chat interno", icon: MessageCircle },
-  { href: "/ecossistema", label: "Ecossistema", icon: Globe },
-  { href: "/healthchecks", label: "Healthchecks", icon: HeartPulse },
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
-  { href: "/settings/google", label: "Definições Google", icon: Settings },
-  { href: "/settings/rgpd", label: "RGPD", icon: Shield },
-  { href: "/settings/audit", label: "Histórico", icon: History },
+  {
+    href: "/settings/google",
+    label: "Sistema",
+    icon: Cog,
+    matchPaths: ["/settings", "/healthchecks", "/ecossistema"],
+  },
 ];
 
 function useIsDesktop(): boolean {
@@ -192,8 +191,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           .filter((item) =>
             item.href.startsWith("/settings") ? profile?.role === "admin" : true,
           )
-          .map(({ href, label, icon: Icon, parent }) => {
-          const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+          .map(({ href, label, icon: Icon, parent, matchPaths }) => {
+          const active = href === "/"
+            ? pathname === "/"
+            : matchPaths
+              ? matchPaths.some((p) => pathname.startsWith(p))
+              : pathname.startsWith(href);
           const isSub = !!parent;
           const isCollapsedOnDesktop = isDesktop && collapsed;
           return (

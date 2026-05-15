@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { AuditLogEntry, AuditAction } from "@/types/audit";
+import SistemaTopbar from "@/components/sistema-topbar";
 import {
   AUDIT_TABLE_LABELS,
   AUDIT_ACTION_LABELS,
@@ -105,6 +106,8 @@ export default function AuditClient({
   ).sort();
 
   return (
+    <>
+    <SistemaTopbar />
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -216,6 +219,7 @@ export default function AuditClient({
         </div>
       )}
     </div>
+    </>
   );
 }
 
