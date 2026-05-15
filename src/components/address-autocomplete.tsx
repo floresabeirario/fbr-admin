@@ -55,6 +55,9 @@ export default function AddressAutocomplete({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  // Última query realmente enviada à API — usada para evitar re-pesquisar a
+  // mesma string (por ex. logo após o utilizador seleccionar uma sugestão).
+  const lastFetchedRef = useRef<string>(value.trim());
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -101,22 +104,26 @@ export default function AddressAutocomplete({
   }, []);
 
   // Filtragem derivada — não exibimos sugestões antigas quando a query é
-  // demasiado curta ou bate com o valor já confirmado (evita dropdown logo
-  // após selecionar uma).
+  // demasiado curta para pesquisar.
   const trimmedQuery = query.trim();
   const tooShort = trimmedQuery.length < 3;
-  const matchesValue = trimmedQuery === value.trim();
-  const displayedSuggestions = tooShort || matchesValue ? [] : suggestions;
+  const displayedSuggestions = tooShort ? [] : suggestions;
 
   // Pesquisa debounced — chama fetchAutocompleteSuggestions ao mudar query.
   useEffect(() => {
     if (!enabled) return;
-    if (tooShort || matchesValue) return;
+    if (tooShort) return;
+    // Evita repetir a mesma pesquisa (ex.: logo após seleccionar uma sugestão,
+    // setQuery+onChange disparam outra renderização com a mesma string).
+    if (trimmedQuery === lastFetchedRef.current) return;
 
     let cancelled = false;
 
     const handle = setTimeout(async () => {
       console.info("[AddressAutocomplete] A pedir sugestões para:", trimmedQuery);
+      // Marca imediatamente: mesmo que a chamada falhe, não queremos re-pedir
+      // exactamente a mesma query.
+      lastFetchedRef.current = trimmedQuery;
       try {
         const places = await loadPlaces();
         if (!sessionTokenRef.current) {
@@ -167,7 +174,7 @@ export default function AddressAutocomplete({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [trimmedQuery, country, enabled, tooShort, matchesValue]);
+  }, [trimmedQuery, country, enabled, tooShort]);
 
   async function handleSelect(suggestion: Suggestion) {
     setOpen(false);
@@ -177,6 +184,9 @@ export default function AddressAutocomplete({
       const addr =
         place.formattedAddress ??
         [suggestion.mainText, suggestion.secondaryText].filter(Boolean).join(", ");
+      // Marcar como "já pesquisado" para evitar que o efeito re-pesquise
+      // este endereço completo logo a seguir.
+      lastFetchedRef.current = addr.trim();
       setQuery(addr);
       onChangeRef.current(addr);
     } catch (err) {
@@ -184,6 +194,7 @@ export default function AddressAutocomplete({
       const fallback = [suggestion.mainText, suggestion.secondaryText]
         .filter(Boolean)
         .join(", ");
+      lastFetchedRef.current = fallback.trim();
       setQuery(fallback);
       onChangeRef.current(fallback);
     } finally {
