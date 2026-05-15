@@ -92,6 +92,7 @@ import type {
   ExtrasInFrame,
   InspirationItem,
   PaymentStatus,
+  FormLanguage,
 } from "@/types/database";
 import {
   STATUS_LABELS,
@@ -114,6 +115,7 @@ import {
   CLIENT_FEEDBACK_STATUS_LABELS,
   CLIENT_FEEDBACK_STATUS_COLORS,
   SIM_NAO_LABELS,
+  FORM_LANGUAGE_LABELS,
 } from "@/types/database";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -915,11 +917,22 @@ export default function WorkbenchClient({
                 icon={<MessageCircle className="h-3.5 w-3.5" />}
                 accent="blue"
                 action={
-                  <Flag
-                    lang={local.form_language}
-                    className="h-4 w-6"
-                    title={local.form_language === "pt" ? "Formulário preenchido em Português" : "Formulário preenchido em Inglês"}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next: FormLanguage = local.form_language === "pt" ? "en" : "pt";
+                      clientUpdate(
+                        "form_language",
+                        next,
+                        "Idioma do formulário",
+                        (v) => v ? FORM_LANGUAGE_LABELS[v as FormLanguage] : "—",
+                      );
+                    }}
+                    className="inline-flex items-center rounded-md p-0.5 hover:bg-cream-100 transition-colors"
+                    title={`Idioma do formulário: ${FORM_LANGUAGE_LABELS[local.form_language]}. Clica para trocar.`}
+                  >
+                    <Flag lang={local.form_language} className="h-4 w-6" />
+                  </button>
                 }
               >
                 {/* Contactos do cliente — discreto, sem caixa pesada */}
@@ -1015,6 +1028,26 @@ export default function WorkbenchClient({
                     />
                   </TabsContent>
                 </Tabs>
+              </Card>
+
+              {/* Inventário das flores — secção dedicada na coluna esquerda
+                  (anteriormente vivia dentro do card "Flores, quadro e extras") */}
+              <Card
+                title="Inventário das flores"
+                icon={<Flower2 className="h-3.5 w-3.5" />}
+                accent="green"
+                badge={
+                  (local.inventory?.length ?? 0) > 0 ? (
+                    <span className="text-[10px] text-green-700 font-semibold bg-green-100 px-1.5 py-0.5 rounded-full">
+                      {local.inventory!.length}
+                    </span>
+                  ) : undefined
+                }
+              >
+                <InventorySection
+                  items={local.inventory ?? []}
+                  onChange={(items) => update("inventory", items)}
+                />
               </Card>
 
               <Card title="Assistente de resposta" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet">
@@ -1329,17 +1362,12 @@ export default function WorkbenchClient({
               })()}
 
               {/* Card único: Flores, quadro, extras e peças extra */}
+              {/* Inventário das flores vive na coluna esquerda — secção própria */}
               <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
                 <Grid2>
                   <Field label="Tipo de flores" span2>
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />
                   </Field>
-                  <div className="col-span-2">
-                    <InventorySection
-                      items={local.inventory ?? []}
-                      onChange={(items) => update("inventory", items)}
-                    />
-                  </div>
                   <Field label="Tamanho da moldura">
                     <Select value={local.frame_size ?? ""} onValueChange={(v) => clientUpdate("frame_size", v as Order["frame_size"], "Tamanho da moldura", (val) => val ? FRAME_SIZE_LABELS[val] : "—")}>
                       <SelectTrigger

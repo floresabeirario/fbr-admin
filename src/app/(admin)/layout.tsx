@@ -52,10 +52,10 @@ const navItems: NavItem[] = [
   { href: "/metricas", label: "Métricas", icon: LineChart, parent: "/" },
   { href: "/preservacao", label: "Preservação de Flores", icon: Flower2 },
   { href: "/status", label: "Status", icon: Radio, parent: "/preservacao" },
+  { href: "/entregas-recolhas", label: "Entregas e Recolhas", icon: Truck, parent: "/preservacao" },
   { href: "/vale-presente", label: "Vale-Presente", icon: Gift },
   { href: "/parcerias", label: "Parcerias", icon: Handshake },
   { href: "/financas", label: "Finanças", icon: Euro },
-  { href: "/entregas-recolhas", label: "Entregas e Recolhas", icon: Truck },
   { href: "/livro-receitas", label: "Livro de Receitas", icon: BookOpen },
   { href: "/chat", label: "Chat interno", icon: MessageCircle },
   { href: "/ecossistema", label: "Ecossistema", icon: Globe },
@@ -134,12 +134,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Logo */}
       <div className={cn("flex items-center h-14 px-4 border-b border-cream-200 shrink-0 justify-between", isDesktop && collapsed && "justify-center")}>
         {(!isDesktop || !collapsed) && (
-          <span className="font-['TanMemories'] text-lg text-cocoa-900 truncate">
+          <Link
+            href="/"
+            className="font-['TanMemories'] text-lg text-cocoa-900 truncate hover:opacity-80 transition-opacity"
+            title="Ir para o Dashboard"
+          >
             FBR Admin
-          </span>
+          </Link>
         )}
         {isDesktop && collapsed && (
-          <span className="font-['TanMemories'] text-lg text-cocoa-900">F</span>
+          <Link
+            href="/"
+            className="font-['TanMemories'] text-lg text-cocoa-900 hover:opacity-80 transition-opacity"
+            title="Ir para o Dashboard"
+          >
+            F
+          </Link>
         )}
         {!isDesktop && (
           <button
@@ -277,9 +287,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="font-['TanMemories'] text-lg text-cocoa-900">
+        <Link
+          href="/"
+          className="font-['TanMemories'] text-lg text-cocoa-900 hover:opacity-80 transition-opacity"
+          title="Ir para o Dashboard"
+        >
           FBR Admin
-        </span>
+        </Link>
         <button
           type="button"
           onClick={openGlobalSearch}
