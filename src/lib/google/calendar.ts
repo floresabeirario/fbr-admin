@@ -254,12 +254,12 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   }
 
   // ID da encomenda + URL do workbench. O Google Calendar elimina tags
-  // <a> da descrição mas linkifica automaticamente URLs em texto puro.
-  // Colocar o URL na mesma linha que o ID dá uma área clicável grande.
+  // <a> da descrição mas linkifica URLs em texto puro — desde que estejam
+  // numa linha sozinha (caracteres não-ASCII colados ao URL quebram a
+  // detecção em alguns clientes). Por isso o URL fica na sua própria linha.
+  lines.push(`Encomenda #${order.order_id}`);
   if (workbenchUrl) {
-    lines.push(`Encomenda #${order.order_id} → ${workbenchUrl}`);
-  } else {
-    lines.push(`Encomenda #${order.order_id}`);
+    lines.push(workbenchUrl);
   }
 
   // Localização do evento Calendar: quando é recolha, usa a morada de
