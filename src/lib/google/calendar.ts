@@ -133,6 +133,15 @@ type OrderForEvent = Pick<
   | "contact_preference"
 >;
 
+// Normaliza um número de telefone para exibição: garante o "+" prefixo
+// (indicativo internacional). Retorna `null` quando vazio.
+function formatPhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("+") ? trimmed : `+${trimmed}`;
+}
+
 // Formata "YYYY-MM-DD" → "15 de Maio de 2026" (mês por extenso em PT).
 // Usado em sítios onde a data é a info principal da linha, como a data
 // da recolha na descrição do evento Calendar.
@@ -151,14 +160,6 @@ function formatDateLongPt(iso: string | null | undefined): string | null {
   return `${day} de ${month} de ${year}`;
 }
 
-// Escape mínimo para usar dentro de description HTML (atributos e texto).
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 // Formata HH:MM (descarta segundos vindos do Postgres TIME).
 function trimSeconds(t: string | null | undefined): string | null {
@@ -216,7 +217,7 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
       lines.push(`📅 Data de recolha: ${formatDateLongPt(order.pickup_date)}`);
     }
     if (order.pickup_contact_name || order.pickup_contact_phone) {
-      const parts = [order.pickup_contact_name, order.pickup_contact_phone]
+      const parts = [order.pickup_contact_name, formatPhone(order.pickup_contact_phone)]
         .filter(Boolean)
         .join(" — ");
       lines.push(`👥 Contacto no local: ${parts}`);
@@ -237,7 +238,8 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   // email e preferência de contacto são geridos no workbench)
   lines.push("👤 CLIENTE");
   lines.push(`Nome: ${order.client_name || "—"}`);
-  if (order.phone) lines.push(`📱 ${order.phone}`);
+  const phoneFmt = formatPhone(order.phone);
+  if (phoneFmt) lines.push(`📱 ${phoneFmt}`);
   lines.push("");
 
   // Evento (data + local) — só se diferente da info da recolha
@@ -251,11 +253,11 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
     lines.push("");
   }
 
-  // ID da encomenda — clicável para o workbench quando temos URL.
+  // ID da encomenda + URL do workbench. O Google Calendar elimina tags
+  // <a> da descrição mas linkifica automaticamente URLs em texto puro.
+  // Colocar o URL na mesma linha que o ID dá uma área clicável grande.
   if (workbenchUrl) {
-    lines.push(
-      `<a href="${escapeHtml(workbenchUrl)}">Encomenda #${escapeHtml(order.order_id)}</a>`,
-    );
+    lines.push(`Encomenda #${order.order_id} → ${workbenchUrl}`);
   } else {
     lines.push(`Encomenda #${order.order_id}`);
   }

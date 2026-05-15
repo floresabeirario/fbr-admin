@@ -712,14 +712,18 @@ function PickupContactLine({
       <span aria-hidden>👥</span>
       <span className="font-medium">Contacto no local:</span>
       {name && <span>{name}</span>}
-      {phone && (
-        <a
-          href={`tel:${phone.replace(/\s+/g, "")}`}
-          className="font-mono hover:underline"
-        >
-          {phone}
-        </a>
-      )}
+      {phone && (() => {
+        const trimmed = phone.trim();
+        const display = trimmed.startsWith("+") ? trimmed : `+${trimmed}`;
+        return (
+          <a
+            href={`tel:${display.replace(/\s+/g, "")}`}
+            className="font-mono hover:underline"
+          >
+            {display}
+          </a>
+        );
+      })()}
     </div>
   );
 }
