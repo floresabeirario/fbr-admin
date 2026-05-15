@@ -107,6 +107,7 @@ export default function StatusClient({
       if (!term) return true;
       return (
         o.client_name.toLowerCase().includes(term) ||
+        (o.couple_names ?? "").toLowerCase().includes(term) ||
         o.order_id.toLowerCase().includes(term) ||
         (o.email ?? "").toLowerCase().includes(term)
       );
@@ -297,6 +298,7 @@ function StatusRow({
   const phase = STATUS_TO_PUBLIC_PHASE[order.status];
   const lang = optimisticLang ?? order.public_status_language;
   const estDate = optimisticDate === undefined ? order.estimated_delivery_date : optimisticDate;
+  const displayName = order.couple_names?.trim() || order.client_name;
 
   function changeLang(v: PublicStatusLanguage) {
     if (v === lang) return;
@@ -334,7 +336,7 @@ function StatusRow({
     <tr className="border-b border-cream-100 hover:bg-cream-50 transition-colors">
       {/* ID + Cliente */}
       <td className="px-4 py-3 align-top">
-        <div className="font-medium text-cocoa-900">{order.client_name || "—"}</div>
+        <div className="font-medium text-cocoa-900">{displayName || "—"}</div>
         <a
           href={publicStatusUrl(order.order_id)}
           target="_blank"
@@ -479,6 +481,7 @@ function EditMessagesDialog({
 
   const ptDefault = resolveMessage(phase, "pt", null, defaults);
   const enDefault = resolveMessage(phase, "en", null, defaults);
+  const displayName = order.couple_names?.trim() || order.client_name;
 
   const [pt, setPt] = useState(order.public_status_message_pt ?? "");
   const [en, setEn] = useState(order.public_status_message_en ?? "");
@@ -507,7 +510,7 @@ function EditMessagesDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-4 w-4 text-sky-600" />
-            Mensagem pública — {order.client_name}
+            Mensagem pública — {displayName}
           </DialogTitle>
           <DialogDescription>
             Fase pública{" "}

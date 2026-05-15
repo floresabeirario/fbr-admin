@@ -161,6 +161,7 @@ async function getEncomendaById(id) {
     .select(`
       order_id,
       client_name,
+      couple_names,
       status,
       public_status_message_pt,
       public_status_message_en,
@@ -218,9 +219,17 @@ async function getEncomendaById(id) {
     ? `${dataEntregaPt} / ${dataEntregaEn}`
     : (dataEntregaPt || dataEntregaEn || '');
 
+  // 8. Nome a mostrar: prioriza nome dos noivos quando existe
+  //    (casamentos), caindo no nome da encomenda para os restantes
+  //    tipos de evento. Mantém o contrato `nome_encomenda` para o
+  //    resto do código (pages/[id].js) não precisar de mudar.
+  const nomeAExibir = (order.couple_names && order.couple_names.trim())
+    ? order.couple_names.trim()
+    : order.client_name;
+
   return {
     id: order.order_id,
-    nome_encomenda: order.client_name,
+    nome_encomenda: nomeAExibir,
     fase: showPt ? PUBLIC_PHASE_LABEL_PT[safePhase] : null,
     fase_en: showEn ? PUBLIC_PHASE_LABEL_EN[safePhase] : null,
     fase_numero,
