@@ -66,6 +66,8 @@ export default function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
 
   // Sincronização externa value → query (pattern "store info from previous renders").
   const [lastValue, setLastValue] = useState(value);
@@ -114,9 +116,9 @@ export default function AddressAutocomplete({
     let cancelled = false;
 
     const handle = setTimeout(async () => {
+      console.info("[AddressAutocomplete] A pedir sugestões para:", trimmedQuery);
       try {
         const places = await loadPlaces();
-        // Cria sessão token apenas quando começa uma nova pesquisa.
         if (!sessionTokenRef.current) {
           sessionTokenRef.current = new places.AutocompleteSessionToken();
         }
@@ -129,6 +131,12 @@ export default function AddressAutocomplete({
             region: country?.toUpperCase() ?? "PT",
           });
         if (cancelled) return;
+        console.info(
+          "[AddressAutocomplete] Recebidas",
+          results.length,
+          "sugestões para:",
+          trimmedQuery,
+        );
         const mapped: Suggestion[] = results
           .map((s) => s.placePrediction)
           .filter((p): p is google.maps.places.PlacePrediction => p !== null)
@@ -139,11 +147,16 @@ export default function AddressAutocomplete({
             prediction: p,
           }));
         setSuggestions(mapped);
-        setOpen(mapped.length > 0);
+        setOpen(true);
+        setFetchError(null);
+        setHasFetched(true);
       } catch (err) {
         if (!cancelled) {
-          console.warn("[AddressAutocomplete] fetchAutocompleteSuggestions falhou:", err);
+          console.error("[AddressAutocomplete] fetchAutocompleteSuggestions falhou:", err);
           setSuggestions([]);
+          setFetchError(err instanceof Error ? err.message : String(err));
+          setOpen(true);
+          setHasFetched(true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -237,29 +250,46 @@ export default function AddressAutocomplete({
         )}
       </div>
 
-      {open && displayedSuggestions.length > 0 && (
+      {open && !loading && (
         <div className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto rounded-md border border-cream-200 bg-surface shadow-lg">
-          {displayedSuggestions.map((s) => (
-            <button
-              key={s.placeId}
-              type="button"
-              onClick={() => handleSelect(s)}
-              className="w-full text-left px-3 py-2 hover:bg-cream-50 border-b border-cream-100 last:border-0 flex items-start gap-2"
-            >
-              <MapPin className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-sm text-cocoa-900 truncate">{s.mainText}</div>
-                {s.secondaryText && (
-                  <div className="text-[11px] text-cocoa-500 truncate">
-                    {s.secondaryText}
+          {fetchError ? (
+            <div className="px-3 py-2.5 text-xs text-amber-700">
+              <p className="font-medium">Erro ao consultar Google Maps:</p>
+              <p className="font-mono text-[10px] mt-1 break-words">{fetchError}</p>
+              <p className="text-[10px] mt-1.5 italic">
+                Verifica que a &quot;Places API (New)&quot; está activada no Google Cloud Console
+                e que a chave tem acesso.
+              </p>
+            </div>
+          ) : displayedSuggestions.length > 0 ? (
+            <>
+              {displayedSuggestions.map((s) => (
+                <button
+                  key={s.placeId}
+                  type="button"
+                  onClick={() => handleSelect(s)}
+                  className="w-full text-left px-3 py-2 hover:bg-cream-50 border-b border-cream-100 last:border-0 flex items-start gap-2"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-sm text-cocoa-900 truncate">{s.mainText}</div>
+                    {s.secondaryText && (
+                      <div className="text-[11px] text-cocoa-500 truncate">
+                        {s.secondaryText}
+                      </div>
+                    )}
                   </div>
-                )}
+                </button>
+              ))}
+              <div className="px-3 py-1.5 text-[10px] text-cocoa-500 italic border-t border-cream-100">
+                Sugestões do Google Maps
               </div>
-            </button>
-          ))}
-          <div className="px-3 py-1.5 text-[10px] text-cocoa-500 italic border-t border-cream-100">
-            Sugestões do Google Maps
-          </div>
+            </>
+          ) : hasFetched ? (
+            <div className="px-3 py-2.5 text-xs text-cocoa-700 italic">
+              Sem resultados para &ldquo;{trimmedQuery}&rdquo;.
+            </div>
+          ) : null}
         </div>
       )}
 
