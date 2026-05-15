@@ -460,6 +460,12 @@ export default function WorkbenchClient({
   const [orderIdDraft, setOrderIdDraft] = useState("");
   const [orderIdPopoverOpen, setOrderIdPopoverOpen] = useState(false);
 
+  // Edição do contacto do cliente (popover na coluna de comunicações)
+  // Os clientes às vezes dão um número errado e corrigem por mensagem.
+  const [contactDraftPhone, setContactDraftPhone] = useState("");
+  const [contactDraftEmail, setContactDraftEmail] = useState("");
+  const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
+
   // Confirmação ao alterar campos preenchidos pelo cliente — protege contra cliques acidentais.
   const [clientEditDialog, setClientEditDialog] = useState<null | {
     label: string;
@@ -761,9 +767,13 @@ export default function WorkbenchClient({
   const hasAnyPayment = ["100_pago", "70_pago", "30_pago"].includes(local.payment_status);
   const missingInvoice = hasAnyPayment && local.needs_invoice && !local.invoice_attachment_url;
 
-  // Esconder "pago" quando entrega/recolha é em mãos (não há custo de envio).
-  const showFlowerShippingPaid = local.flower_delivery_method !== "maos" && local.flower_delivery_method !== null;
-  const showFrameShippingPaid  = local.frame_delivery_method  !== "maos" && local.frame_delivery_method  !== null;
+  // Esconder custo e "pago" quando entrega/recolha é em mãos (sem custo) ou
+  // "não sei" (ainda indefinido). Só faz sentido pedir o custo quando o método
+  // implica transporte pago (CTT, recolha presencial).
+  const hasFlowerShippingCost = local.flower_delivery_method === "ctt" || local.flower_delivery_method === "recolha_evento";
+  const hasFrameShippingCost  = local.frame_delivery_method  === "ctt";
+  const showFlowerShippingPaid = hasFlowerShippingCost;
+  const showFrameShippingPaid  = hasFrameShippingCost;
 
   return (
     <div className="flex flex-col h-full bg-cream-50">
@@ -885,7 +895,7 @@ export default function WorkbenchClient({
             onSave={(v) => update("sticky_note", v.trim() || null)}
             title="Nota da encomenda"
             label="Nota da encomenda"
-            placeholder="Ex: cliente disse que o pendente é para deixar no caixão da mãe…"
+            placeholder="Detalhe importante sobre esta encomenda…"
           />
 
           {canEdit && (
@@ -938,42 +948,130 @@ export default function WorkbenchClient({
               >
                 {/* Contactos do cliente — discreto, sem caixa pesada */}
                 <div className="space-y-1.5">
-                  {local.email && (
-                    <a
-                      href={`mailto:${local.email}`}
-                      className={`flex items-center gap-1.5 text-[12px] hover:text-cocoa-900 transition-colors ${
-                        local.contact_preference === "email"
-                          ? "text-blue-700 font-medium"
-                          : "text-cocoa-700"
-                      }`}
-                      title={local.contact_preference === "email" ? "Contacto preferido" : "Email"}
-                    >
-                      <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                      <span className="truncate">{local.email}</span>
-                      {local.contact_preference === "email" && (
-                        <span className="ml-auto text-[10px] uppercase tracking-wider text-blue-600 shrink-0">★</span>
+                  <div className="flex items-start gap-1">
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      {local.email ? (
+                        <a
+                          href={`mailto:${local.email}`}
+                          className={`flex items-center gap-1.5 text-[12px] hover:text-cocoa-900 transition-colors ${
+                            local.contact_preference === "email"
+                              ? "text-blue-700 font-medium"
+                              : "text-cocoa-700"
+                          }`}
+                          title={local.contact_preference === "email" ? "Contacto preferido" : "Email"}
+                        >
+                          <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                          <span className="truncate">{local.email}</span>
+                          {local.contact_preference === "email" && (
+                            <span className="ml-auto text-[10px] uppercase tracking-wider text-blue-600 shrink-0">★</span>
+                          )}
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-[12px] text-cocoa-500 italic">
+                          <Mail className="h-3.5 w-3.5 text-blue-500/60 shrink-0" />
+                          <span>Sem email</span>
+                        </div>
                       )}
-                    </a>
-                  )}
-                  {local.phone && (
-                    <a
-                      href={`https://wa.me/${phoneToWaMe(local.phone)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`flex items-center gap-1.5 text-[12px] hover:text-cocoa-900 transition-colors ${
-                        local.contact_preference === "whatsapp"
-                          ? "text-green-700 font-medium"
-                          : "text-cocoa-700"
-                      }`}
-                      title={local.contact_preference === "whatsapp" ? "Contacto preferido" : "WhatsApp"}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      <span className="truncate font-mono">{formatPhone(local.phone)}</span>
-                      {local.contact_preference === "whatsapp" && (
-                        <span className="ml-auto text-[10px] uppercase tracking-wider text-green-600 shrink-0">★</span>
+                      {local.phone ? (
+                        <a
+                          href={`https://wa.me/${phoneToWaMe(local.phone)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-1.5 text-[12px] hover:text-cocoa-900 transition-colors ${
+                            local.contact_preference === "whatsapp"
+                              ? "text-green-700 font-medium"
+                              : "text-cocoa-700"
+                          }`}
+                          title={local.contact_preference === "whatsapp" ? "Contacto preferido" : "WhatsApp"}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                          <span className="truncate font-mono">{formatPhone(local.phone)}</span>
+                          {local.contact_preference === "whatsapp" && (
+                            <span className="ml-auto text-[10px] uppercase tracking-wider text-green-600 shrink-0">★</span>
+                          )}
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-[12px] text-cocoa-500 italic">
+                          <MessageCircle className="h-3.5 w-3.5 text-green-500/60 shrink-0" />
+                          <span>Sem telemóvel</span>
+                        </div>
                       )}
-                    </a>
-                  )}
+                    </div>
+                    {canEdit && (
+                      <Popover
+                        open={contactPopoverOpen}
+                        onOpenChange={(v) => {
+                          setContactPopoverOpen(v);
+                          if (v) {
+                            setContactDraftPhone(local.phone ?? "");
+                            setContactDraftEmail(local.email ?? "");
+                          }
+                        }}
+                      >
+                        <PopoverTrigger
+                          className="shrink-0 mt-0.5 p-1 rounded-md text-cocoa-500 hover:bg-cream-100 hover:text-cocoa-900 transition-colors"
+                          title="Editar contactos"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-3 space-y-2.5">
+                          <p className="text-[10px] uppercase tracking-[0.12em] font-semibold text-cocoa-700">
+                            Contactos do cliente
+                          </p>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-cocoa-700 flex items-center gap-1.5">
+                              <MessageCircle className="h-3 w-3 text-green-500" /> Telemóvel (WhatsApp)
+                            </Label>
+                            <Input
+                              className={inp + " font-mono"}
+                              type="tel"
+                              value={contactDraftPhone}
+                              onChange={(e) => setContactDraftPhone(e.target.value)}
+                              placeholder="+351 9XX XXX XXX"
+                              autoFocus
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-cocoa-700 flex items-center gap-1.5">
+                              <Mail className="h-3 w-3 text-blue-500" /> Email
+                            </Label>
+                            <Input
+                              className={inp}
+                              type="email"
+                              value={contactDraftEmail}
+                              onChange={(e) => setContactDraftEmail(e.target.value)}
+                              placeholder="nome@exemplo.pt"
+                            />
+                          </div>
+                          <p className="text-[10px] text-cocoa-500 leading-relaxed">
+                            Se o cliente deu um número errado e corrigiu por mensagem, atualiza aqui.
+                          </p>
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setContactPopoverOpen(false)}
+                              className="h-8 px-3 rounded-lg border border-cream-200 bg-surface text-xs text-cocoa-700 hover:bg-cream-50"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newPhone = contactDraftPhone.trim() || null;
+                                const newEmail = contactDraftEmail.trim() || null;
+                                if (newPhone !== (local.phone ?? null)) update("phone", newPhone);
+                                if (newEmail !== (local.email ?? null)) update("email", newEmail);
+                                setContactPopoverOpen(false);
+                              }}
+                              className="h-8 px-3 rounded-lg bg-btn-primary text-btn-primary-fg text-xs font-medium hover:bg-btn-primary-hover transition-colors"
+                            >
+                              Guardar
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
                   {/* Toggle minimalista para mudar a preferência */}
                   <div className="flex items-center gap-1 pt-1">
                     <span className="text-[10px] text-cocoa-500 uppercase tracking-wider">Prefere:</span>
@@ -1145,10 +1243,10 @@ export default function WorkbenchClient({
 
               {/* Hero unificado: foto + dados do cliente + dados do evento */}
               <div className="rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
-                <div className="grid grid-cols-12 gap-0">
-                  {/* Foto 3:4 vertical */}
-                  <div className="col-span-5 relative group bg-gradient-to-br from-cream-50 to-cream-100">
-                    <div className="aspect-[3/4]">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-0">
+                  {/* Foto 3:4 vertical (4:3 horizontal em mobile para não ocupar o ecrã todo) */}
+                  <div className="sm:col-span-5 relative group bg-gradient-to-br from-cream-50 to-cream-100">
+                    <div className="aspect-[4/3] sm:aspect-[3/4]">
                       {photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -1169,7 +1267,8 @@ export default function WorkbenchClient({
                         </div>
                       )}
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-2.5">
+                    {/* Em mobile o overlay hover não funciona — mostrar sempre */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-2.5">
                       <Input
                         className="h-8 text-xs bg-surface/95 border-white/40 placeholder:text-cocoa-700"
                         placeholder="URL da foto"
@@ -1180,17 +1279,17 @@ export default function WorkbenchClient({
                   </div>
 
                   {/* Coluna direita do hero: nome em destaque + atalhos + dados do evento */}
-                  <div className="col-span-7 p-4 flex flex-col gap-3">
-                    {/* Nome (título) + atalhos */}
-                    <div className="flex items-start justify-between gap-3">
+                  <div className="sm:col-span-7 p-3 sm:p-4 flex flex-col gap-3">
+                    {/* Nome (título) + atalhos — empilham em mobile */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-start sm:justify-between gap-2 sm:gap-3">
                       <Textarea
-                        className={titleSubtle + " flex-1 min-w-0 resize-none overflow-hidden"}
+                        className={titleSubtle + " flex-1 min-w-0 resize-none overflow-hidden text-2xl sm:text-3xl"}
                         value={local.client_name}
                         onChange={(e) => update("client_name", e.target.value)}
                         placeholder="Nome do cliente"
                         rows={2}
                       />
-                      <div className="flex flex-col items-stretch gap-1.5 shrink-0 pt-1.5">
+                      <div className="flex flex-row sm:flex-col items-stretch gap-1.5 shrink-0 sm:pt-1.5 flex-wrap">
                         {local.drive_folder_url ? (
                           <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-cream-200 bg-surface">
                             <a
@@ -1235,18 +1334,6 @@ export default function WorkbenchClient({
                           onCreate={createCalendarEvent}
                           onDelete={deleteCalendarEvent}
                         />
-
-                        <a
-                          href={publicStatusLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-cream-200 bg-surface px-2.5 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
-                          title="Abrir status público"
-                        >
-                          <Globe className="h-3.5 w-3.5" />
-                          Status público
-                          <ExternalLink className="h-3 w-3 opacity-60" />
-                        </a>
                       </div>
                     </div>
 
@@ -1254,7 +1341,7 @@ export default function WorkbenchClient({
 
                     {/* DADOS DO EVENTO */}
                     <div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5">
                         <HeroField label="Tipo">
                           <Select value={local.event_type ?? ""} onValueChange={(v) => clientUpdate("event_type", v as Order["event_type"], "Tipo de evento", (val) => val ? EVENT_TYPE_LABELS[val] : "—")}>
                             <SelectTrigger className={selSubtle}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>
@@ -1287,10 +1374,10 @@ export default function WorkbenchClient({
                           <Input className={inpSubtle} value={local.event_location ?? ""} onChange={(e) => update("event_location", e.target.value || null)} placeholder="Ex: Quinta / Igreja / Cidade" />
                         </HeroField>
                         <HeroField label="Data prevista de entrega" span2>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Globe className="h-3 w-3 text-sky-600 shrink-0" />
                             <Input
-                              className={`${inpSubtle} flex-1`}
+                              className={`${inpSubtle} flex-1 min-w-[140px]`}
                               type="date"
                               value={toDateInput(local.estimated_delivery_date)}
                               onChange={(e) => update("estimated_delivery_date", e.target.value || null)}
@@ -1301,6 +1388,17 @@ export default function WorkbenchClient({
                                 {formatPublicEstimatedDelivery(local.estimated_delivery_date, "pt")}
                               </span>
                             )}
+                            <a
+                              href={publicStatusLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-100 transition-colors shrink-0"
+                              title="Abrir status público"
+                            >
+                              <Globe className="h-3 w-3" />
+                              Status público
+                              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                            </a>
                           </div>
                           {!local.estimated_delivery_date && (
                             <p className="text-[10px] text-cocoa-500 italic px-1.5">
@@ -1476,6 +1574,7 @@ export default function WorkbenchClient({
                     methodColors={FLOWER_DELIVERY_METHOD_COLORS}
                     cost={local.flower_shipping_cost}
                     paid={local.flower_shipping_paid}
+                    showCost={hasFlowerShippingCost}
                     showPaid={showFlowerShippingPaid}
                     onMethod={(v) => clientUpdate("flower_delivery_method", v as Order["flower_delivery_method"], "Envio das flores", (val) => val ? FLOWER_DELIVERY_METHOD_LABELS[val] : "—")}
                     onCost={(v) => update("flower_shipping_cost", v)}
@@ -1533,13 +1632,13 @@ export default function WorkbenchClient({
                           </div>
                         </Field>
                       </Grid2>
-                      <Field label="Notas para quem vai fazer a recolha" span2>
+                      <Field label="Notas sobre a recolha" span2>
                         <Textarea
                           className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                           rows={2}
                           value={local.pickup_notes ?? ""}
                           onChange={(e) => update("pickup_notes", e.target.value || null)}
-                          placeholder="Ex: é o pai da noiva que vai entregar as flores; tocar à campainha 3 vezes; estacionamento à frente da igreja…"
+                          placeholder="Indicações úteis para a recolha — contacto no local, parqueamento, observações…"
                         />
                       </Field>
                     </div>
@@ -1556,6 +1655,7 @@ export default function WorkbenchClient({
                     methodColors={FRAME_DELIVERY_METHOD_COLORS}
                     cost={local.frame_shipping_cost}
                     paid={local.frame_shipping_paid}
+                    showCost={hasFrameShippingCost}
                     showPaid={showFrameShippingPaid}
                     onMethod={(v) => clientUpdate("frame_delivery_method", v as Order["frame_delivery_method"], "Receção do quadro", (val) => val ? FRAME_DELIVERY_METHOD_LABELS[val] : "—")}
                     onCost={(v) => update("frame_shipping_cost", v)}
@@ -2353,7 +2453,7 @@ function StatusSelect({
 
 function ShippingRow<M extends string>({
   method, methodLabels, methodOptions, methodColors,
-  cost, paid, showPaid,
+  cost, paid, showCost, showPaid,
   onMethod, onCost, onPaid,
 }: {
   method: M | null;
@@ -2362,14 +2462,17 @@ function ShippingRow<M extends string>({
   methodColors?: Partial<Record<M, string>>;
   cost: number | null;
   paid: boolean;
+  showCost: boolean;
   showPaid: boolean;
   onMethod: (v: string | null) => void;
   onCost: (v: number | null) => void;
   onPaid: (v: boolean) => void;
 }) {
   const triggerColor = method && methodColors?.[method] ? methodColors[method] : "";
+  const visibleCols = 1 + (showCost ? 1 : 0) + (showPaid ? 1 : 0);
+  const colsClass = visibleCols === 3 ? "grid-cols-3" : visibleCols === 2 ? "grid-cols-2" : "grid-cols-1";
   return (
-    <div className={`grid gap-3 items-end ${showPaid ? "grid-cols-3" : "grid-cols-2"}`}>
+    <div className={`grid gap-3 items-end ${colsClass}`}>
       <Field label="Como">
         <Select value={method ?? ""} onValueChange={onMethod}>
           <SelectTrigger className={`${sel} font-medium ${triggerColor}`}><SelectValue placeholder="—" labels={methodLabels} /></SelectTrigger>
@@ -2388,19 +2491,20 @@ function ShippingRow<M extends string>({
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Custo (€)">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
-          <Input
-            className={inp + " pl-7"}
-            type="number" min={0} step={0.01}
-            value={cost ?? ""}
-            onChange={(e) => onCost(e.target.value ? Number(e.target.value) : null)}
-            disabled={method === "maos"}
-            placeholder={method === "maos" ? "—" : "0,00"}
-          />
-        </div>
-      </Field>
+      {showCost && (
+        <Field label="Custo (€)">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
+            <Input
+              className={inp + " pl-7"}
+              type="number" min={0} step={0.01}
+              value={cost ?? ""}
+              onChange={(e) => onCost(e.target.value ? Number(e.target.value) : null)}
+              placeholder="0,00"
+            />
+          </div>
+        </Field>
+      )}
       {showPaid && (
         <Field label="Pago?">
           <Select value={paid ? "sim" : "nao"} onValueChange={(v) => onPaid(v === "sim")}>

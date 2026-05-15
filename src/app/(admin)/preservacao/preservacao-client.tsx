@@ -26,6 +26,11 @@ import {
   Trash2,
   Gift,
   GripVertical,
+  Truck,
+  MapPin,
+  HandHeart,
+  HelpCircle,
+  type LucideIcon,
 } from "lucide-react";
 import {
   DndContext,
@@ -61,8 +66,19 @@ import {
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
+  FLOWER_DELIVERY_METHOD_COLORS,
   FRAME_DELIVERY_METHOD_LABELS,
+  FRAME_DELIVERY_METHOD_COLORS,
 } from "@/types/database";
+
+// Ícones por método de envio — para tornar a coluna "Envio" da tabela
+// visualmente legível de relance (CTT vs recolha vs em mãos vs não sei).
+const SHIPPING_METHOD_ICONS: Record<string, LucideIcon> = {
+  maos: HandHeart,
+  ctt: Truck,
+  recolha_evento: MapPin,
+  nao_sei: HelpCircle,
+};
 
 type ShippingColumn = "flores" | "quadro";
 import NovaEncomendaSheet from "./nova-encomenda-sheet";
@@ -265,14 +281,19 @@ function OrderRow({
   const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
   const autoFlaggedSemResposta = isPreReserva && !currentContacted && daysSinceCreated >= 4;
 
-  const shippingLabel =
-    shippingColumn === "flores"
-      ? order.flower_delivery_method
-        ? FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method]
-        : "—"
-      : order.frame_delivery_method
-        ? FRAME_DELIVERY_METHOD_LABELS[order.frame_delivery_method]
-        : "—";
+  const shippingMethod: string | null =
+    shippingColumn === "flores" ? order.flower_delivery_method : order.frame_delivery_method;
+  const shippingLabel = shippingMethod
+    ? (shippingColumn === "flores"
+        ? FLOWER_DELIVERY_METHOD_LABELS[shippingMethod as keyof typeof FLOWER_DELIVERY_METHOD_LABELS]
+        : FRAME_DELIVERY_METHOD_LABELS[shippingMethod as keyof typeof FRAME_DELIVERY_METHOD_LABELS])
+    : null;
+  const shippingColor = shippingMethod
+    ? (shippingColumn === "flores"
+        ? FLOWER_DELIVERY_METHOD_COLORS[shippingMethod as keyof typeof FLOWER_DELIVERY_METHOD_COLORS]
+        : FRAME_DELIVERY_METHOD_COLORS[shippingMethod as keyof typeof FRAME_DELIVERY_METHOD_COLORS])
+    : "";
+  const ShippingIcon = shippingMethod ? SHIPPING_METHOD_ICONS[shippingMethod] : null;
 
   function changeStatus(newStatus: OrderStatus) {
     if (newStatus === currentStatus) return;
@@ -416,7 +437,16 @@ function OrderRow({
         </span>
       </td>
       <td className="px-4 py-1.5">
-        <span className="text-sm text-cocoa-900">{shippingLabel}</span>
+        {shippingLabel ? (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${shippingColor}`}
+          >
+            {ShippingIcon && <ShippingIcon className="h-3 w-3" />}
+            {shippingLabel}
+          </span>
+        ) : (
+          <span className="text-sm text-cocoa-500">—</span>
+        )}
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <StatusSelect
