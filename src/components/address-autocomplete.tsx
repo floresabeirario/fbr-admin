@@ -46,29 +46,64 @@ export default function AddressAutocomplete({
   country = "pt",
   hint,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const elementRef = useRef<google.maps.places.PlaceAutocompleteElement | null>(null);
+  // onChange pode mudar entre renders; mantemos referência sempre actual
+  // para o listener (registado uma única vez na criação do elemento).
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+
   const [enabled, setEnabled] = useState<boolean>(!!GOOGLE_MAPS_KEY);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Cria o elemento PlaceAutocompleteElement uma vez por (enabled, country).
   useEffect(() => {
-    if (!enabled || !inputRef.current) return;
+    if (!enabled || !containerRef.current) return;
     let cancelled = false;
+    const container = containerRef.current;
 
     loadPlaces()
-      .then((places) => {
-        if (cancelled || !inputRef.current) return;
-        const ac = new places.Autocomplete(inputRef.current, {
-          fields: ["formatted_address", "name", "geometry"],
-          componentRestrictions: { country },
-          types: ["geocode"],
+      .then(() => {
+        if (cancelled || !container) return;
+        // PlaceAutocompleteElement não está exposto em PlacesLibrary nos
+        // @types actuais (3.64) — acedemos directamente à namespace global,
+        // garantidamente carregada por loadPlaces().
+        const el = new google.maps.places.PlaceAutocompleteElement({
+          includedRegionCodes: country ? [country] : null,
+          requestedLanguage: "pt",
+          requestedRegion: country?.toUpperCase() ?? "PT",
         });
-        autocompleteRef.current = ac;
-        ac.addListener("place_changed", () => {
-          const place = ac.getPlace();
-          const addr = place.formatted_address ?? place.name ?? "";
-          if (addr) onChange(addr);
+        if (placeholder) el.placeholder = placeholder;
+        if (id) el.id = id;
+        el.value = value;
+
+        // Selecção de uma sugestão → buscar morada completa via fetchFields.
+        el.addEventListener("gmp-select", async (e: google.maps.places.PlacePredictionSelectEvent) => {
+          try {
+            const place = e.placePrediction.toPlace();
+            await place.fetchFields({ fields: ["formattedAddress"] });
+            const addr =
+              place.formattedAddress ??
+              e.placePrediction.text?.text ??
+              "";
+            if (addr) onChangeRef.current(addr);
+          } catch (err) {
+            console.warn("[AddressAutocomplete] fetchFields falhou:", err);
+            const fallback = e.placePrediction.text?.text ?? "";
+            if (fallback) onChangeRef.current(fallback);
+          }
         });
+
+        // Texto livre (sem selecção): propaga `el.value` para o pai.
+        // `input` é disparado pelo input interno e atravessa o shadow boundary.
+        el.addEventListener("input", () => {
+          onChangeRef.current(el.value);
+        });
+
+        container.appendChild(el);
+        elementRef.current = el;
       })
       .catch((err) => {
         if (!cancelled) {
@@ -80,20 +115,28 @@ export default function AddressAutocomplete({
 
     return () => {
       cancelled = true;
-      if (autocompleteRef.current && typeof google !== "undefined" && google.maps) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        autocompleteRef.current = null;
+      if (elementRef.current) {
+        elementRef.current.remove();
+        elementRef.current = null;
       }
     };
-    // ESLint avisa sobre `onChange` mas só queremos rodar quando enabled/country mudam.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, country]);
 
-  return (
-    <div className="space-y-1">
-      <div className="relative">
+  // Sincronização externa value → element.value. Necessário tocar no DOM
+  // (.value) → tem de ser em effect, não no render (refs não acessíveis aí).
+  useEffect(() => {
+    const el = elementRef.current;
+    if (el && el.value !== value) {
+      el.value = value;
+    }
+  }, [value]);
+
+  // Fallback sem chave/erro: input simples controlado.
+  if (!enabled) {
+    return (
+      <div className="space-y-1">
         <Input
-          ref={inputRef}
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -101,20 +144,28 @@ export default function AddressAutocomplete({
           className={className}
           autoComplete="off"
         />
-        {enabled && (
-          <MapPin
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500 pointer-events-none"
-            aria-hidden
-          />
+        {GOOGLE_MAPS_KEY && loadError && (
+          <p className="text-[10px] text-amber-700 italic px-1">
+            Maps indisponível ({loadError}). Escreve a morada manualmente.
+          </p>
         )}
       </div>
-      {enabled && hint && (
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <div
+        ref={containerRef}
+        className={`fbr-place-autocomplete relative ${className ?? ""}`}
+      >
+        <MapPin
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500 pointer-events-none z-10"
+          aria-hidden
+        />
+      </div>
+      {hint && (
         <p className="text-[10px] text-cocoa-500 italic px-1">{hint}</p>
-      )}
-      {!enabled && GOOGLE_MAPS_KEY && loadError && (
-        <p className="text-[10px] text-amber-700 italic px-1">
-          Maps indisponível ({loadError}). Escreve a morada manualmente.
-        </p>
       )}
     </div>
   );
