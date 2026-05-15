@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -410,6 +411,7 @@ export default function PartnerWorkbenchClient({
               className="bg-rose-700 hover:bg-rose-800"
               onClick={async () => {
                 await archivePartnerAction(partner.id);
+                startNavigationProgress();
                 router.push("/parcerias");
               }}
             >

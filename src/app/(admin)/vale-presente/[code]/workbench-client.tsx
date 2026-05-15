@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -236,6 +237,7 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
     startTransition(async () => {
       try {
         await deleteVoucherAction(voucher.id);
+        startNavigationProgress();
         router.push("/vale-presente");
       } catch (err) {
         console.error(err);

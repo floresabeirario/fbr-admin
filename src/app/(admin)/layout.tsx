@@ -25,6 +25,7 @@ import {
   Search,
 } from "lucide-react";
 import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -107,6 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    startNavigationProgress();
     router.push("/login");
   }
 

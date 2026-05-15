@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import {
   Flower2,
   Gift,
@@ -137,6 +138,7 @@ export function GlobalSearch() {
 
   function goTo(href: string) {
     onOpenChange(false);
+    startNavigationProgress();
     router.push(href);
   }
 

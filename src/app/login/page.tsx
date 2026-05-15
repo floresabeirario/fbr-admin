@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -39,6 +40,7 @@ export default function LoginPage() {
       setError("Password incorrecta. Tenta novamente.");
       setLoading(false);
     } else {
+      startNavigationProgress();
       router.push("/");
       router.refresh();
     }

@@ -10,6 +10,7 @@ import {
   Reply,
   X,
   Info,
+  Loader2,
 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -263,7 +264,7 @@ export default function ChatClient({
             disabled={pending || !draft.trim()}
             className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-10 px-3 shrink-0"
           >
-            <Send className="h-4 w-4" />
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </div>

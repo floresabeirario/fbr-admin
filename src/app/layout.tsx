@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 import { PwaRegister } from "@/components/pwa-register";
 import { InstallPrompt } from "@/components/install-prompt";
+import { NavigationProgress } from "@/components/navigation-progress";
 import "./globals.css";
 
 const googleSans = Google_Sans({
@@ -52,6 +53,7 @@ export default function RootLayout({
       <body className="min-h-full font-[var(--font-google-sans)] antialiased">
         <Providers>
           <TooltipProvider>
+            <NavigationProgress />
             {children}
             <Toaster />
             <InstallPrompt />

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO, differenceInDays, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -367,7 +368,7 @@ function OrderRow({
     <tr
       ref={setDragNodeRef}
       {...attributes}
-      className={`border-b border-cream-100 cursor-pointer transition-colors ${
+      className={`border-b border-cream-100 cursor-pointer transition-colors active:bg-cream-200 ${
         isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
       } ${isDraggingThis || isDragging ? "opacity-40" : ""}`}
       onClick={() => onOpen(order)}
@@ -798,6 +799,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   function openOrder(order: Order) {
     if (navigatingId) return;
     setNavigatingId(order.id);
+    startNavigationProgress();
     startNavTransition(() => {
       router.push(`/preservacao/${order.order_id}`);
     });
@@ -1076,7 +1078,7 @@ function OrderCard({
   return (
     <button
       onClick={() => onOpen(order)}
-      className={`group text-left rounded-2xl border bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md transition-all ${
+      className={`group text-left rounded-2xl border bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md active:scale-[0.99] transition-all ${
         isLoading ? "border-cocoa-500 ring-2 ring-[#C4A882]/30" : "border-cream-200 hover:border-cocoa-500"
       }`}
     >
@@ -1201,7 +1203,7 @@ function ArchivedOrdersView({
               return (
                 <tr
                   key={order.id}
-                  className="border-b border-cream-100 last:border-0 hover:bg-cream-50 cursor-pointer"
+                  className="border-b border-cream-100 last:border-0 hover:bg-cream-50 active:bg-cream-200 cursor-pointer transition-colors"
                   onClick={() => onOpenOrder(order)}
                 >
                   <td className="px-4 py-2">

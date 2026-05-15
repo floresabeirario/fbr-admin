@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import {
   BookOpen,
   Plus,
@@ -76,6 +77,7 @@ export default function LivroReceitasClient({
         setCreating(false);
         setNewName("");
         setNewDifficulty("media");
+        startNavigationProgress();
         router.push(`/livro-receitas/${recipe.id}`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro ao criar receita.");
@@ -205,7 +207,7 @@ function RecipeCard({ recipe }: { recipe: Recipe }) {
   return (
     <Link
       href={`/livro-receitas/${recipe.id}`}
-      className="group rounded-xl border border-cream-200 bg-surface overflow-hidden hover:shadow-md hover:border-pink-300 transition-all"
+      className="group rounded-xl border border-cream-200 bg-surface overflow-hidden hover:shadow-md hover:border-pink-300 active:scale-[0.99] transition-all"
     >
       <div className="relative aspect-[4/3] bg-gradient-to-br from-pink-100 to-rose-100 overflow-hidden">
         {firstPhoto ? (

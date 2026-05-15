@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -78,6 +79,7 @@ export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {
       try {
         await archiveRecipeAction(data.id);
         toast.success("Receita arquivada.");
+        startNavigationProgress();
         router.push("/livro-receitas");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro ao arquivar.");

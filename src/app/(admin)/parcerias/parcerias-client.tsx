@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import {
   Search,
   Plus,
@@ -131,7 +132,7 @@ function PartnerRow({
   return (
     <tr
       className={cn(
-        "border-b border-cream-100 cursor-pointer transition-colors",
+        "border-b border-cream-100 cursor-pointer transition-colors active:bg-cream-200",
         isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
       )}
       onClick={() => onOpen(partner)}
@@ -439,6 +440,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   function openPartner(p: Partner) {
     if (navigatingId) return;
     setNavigatingId(p.id);
+    startNavigationProgress();
     startNavTransition(() => {
       router.push(`/parcerias/${p.id}`);
     });

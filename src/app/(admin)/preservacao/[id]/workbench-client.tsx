@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -482,6 +483,7 @@ export default function WorkbenchClient({
     setArchiving(true);
     try {
       await deleteOrderAction(order.id);
+      startNavigationProgress();
       router.push("/preservacao");
     } catch (err) {
       console.error(err);

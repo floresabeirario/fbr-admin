@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -273,7 +274,7 @@ function VoucherRow({
 
   return (
     <tr
-      className={`border-b border-cream-100 cursor-pointer transition-colors ${
+      className={`border-b border-cream-100 cursor-pointer transition-colors active:bg-cream-200 ${
         isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
       }`}
       onClick={() => onOpen(voucher)}
@@ -462,6 +463,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
   function openVoucher(v: Voucher) {
     if (navigatingId) return;
     setNavigatingId(v.id);
+    startNavigationProgress();
     startNavTransition(() => {
       router.push(`/vale-presente/${v.code}`);
     });
