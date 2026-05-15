@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (mig 038)
+## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (migs 038+039)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -40,6 +40,29 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 59 🔒 Hardening parte 2 (mig 039 + CSP minimal)
+
+Continuação imediata da 58 ("faz agora o que for mais rápido"). Três quick wins:
+
+**1. audit_log: bloquear INSERT directo do anon** ([supabase/migrations/039_security_hardening_extra.sql](supabase/migrations/039_security_hardening_extra.sql))
+- A mig 016 deu `GRANT INSERT ON audit_log TO anon` assumindo que o trigger `log_order_changes` precisava. Não precisa — todos os triggers de log_*_changes são `SECURITY DEFINER` (correm como `postgres`, que tem BYPASSRLS).
+- Risco anterior: qualquer pessoa anónima podia fazer `POST /rest/v1/audit_log` com payload arbitrário (spam, poluição forense).
+- Fix: `REVOKE INSERT ON audit_log FROM anon` + nova policy `audit_log_insert` restrita a `authenticated`.
+
+**2. RPC `get_voucher_by_code(p_code TEXT)`** (mesma migração)
+- Preparação para mitigar voucher code enumeration (atacante pode listar todos os códigos pagos via SELECT directo). A RPC devolve no máximo 1 linha (filtra por code + 100_pago + não-arquivado) e expõe só 7 colunas.
+- `STABLE SECURITY DEFINER SET search_path = public` + `GRANT EXECUTE TO anon, authenticated`.
+- Não revoga ainda o SELECT directo (vouchers anon column-level GRANT da mig 038 fica intacto) — o site `voucher.floresabeirario.pt` (outro repo) tem de migrar primeiro para `supabase.rpc('get_voucher_by_code', { p_code })`. Quando isso estiver pronto, basta `REVOKE SELECT (code) ON vouchers FROM anon` para fechar o vector.
+
+**3. CSP minimal** ([next.config.ts](next.config.ts))
+- 3 directives "seguras" (não tocam scripts/styles/imagens, logo não partem nada com Google Maps/OAuth/Supabase):
+  - `frame-ancestors 'none'` — duplica X-Frame-Options DENY (defesa em profundidade)
+  - `base-uri 'self'` — impede `<base href="evil.com">` injection que pivota XSS para outro domínio
+  - `form-action 'self'` — impede `<form action="evil.com">` injection
+- CSP completa (script-src, style-src, etc.) fica para outra sessão dedicada.
+
+**Preflight**: passa limpo.
 
 ### Sessão 58 🔒 Auditoria de segurança + hardening (mig 038)
 
@@ -197,17 +220,21 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 
 ## Próximo passo CONCRETO
 
-**Sessão 58 — passos manuais da Maria (segurança):**
-1. Correr **migração 038_security_hardening.sql** no Supabase SQL Editor (Dashboard → SQL Editor → New query → colar conteúdo → Run)
-2. Verificar no painel Supabase que a aplicação correu sem erro (deve mostrar "Success. No rows returned")
-3. Confirmar com a query de verificação (no fim do ficheiro 038): `SELECT column_name FROM information_schema.column_privileges WHERE table_name = 'vouchers' AND grantee = 'anon' ORDER BY column_name;` → deve devolver apenas: amount, code, created_at, deleted_at, expiry_date, id, message, payment_status, recipient_name, sender_name
-4. Push para Vercel (commit dos changes locais: `next.config.ts` + `supabase/migrations/038_*.sql` + `PROGRESS.md`)
+**Sessões 58+59 — passos manuais da Maria (segurança):**
+1. Correr **mig 038 + mig 039** no Supabase SQL Editor (por esta ordem)
+2. Confirmar que ambas dizem "Success. No rows returned"
+3. Verificações rápidas (queries no fim de cada migração):
+   - **038**: `SELECT column_name FROM information_schema.column_privileges WHERE table_name='vouchers' AND grantee='anon' ORDER BY column_name;` → só 10 colunas: amount, code, created_at, deleted_at, expiry_date, id, message, payment_status, recipient_name, sender_name
+   - **039**: `SELECT grantee, privilege_type FROM information_schema.table_privileges WHERE table_name='audit_log' AND grantee='anon';` → nenhuma linha INSERT
+   - **039**: `SELECT * FROM get_voucher_by_code('XXXXXX');` (substituir XXXXXX por um código real) → deve devolver o vale
+4. Push para Vercel (`next.config.ts` + `supabase/migrations/038_*.sql` + `supabase/migrations/039_*.sql` + `PROGRESS.md`)
 5. Smoke test pós-deploy:
    - Login como **Ana** (viewer): tentar abrir `/preservacao` → deve funcionar (read-only). Editar uma encomenda na UI → deve dar erro "Sem permissão" (ou o input deve estar disabled).
-   - Login como **António/MJ** (admin): tudo deve continuar a funcionar normalmente.
-   - Abrir `voucher.floresabeirario.pt` com um código válido → deve continuar a mostrar o vale (se partir, falta-me uma coluna no GRANT — diz-me qual e adiciono à migração)
-   - Abrir `status.floresabeirario.pt/?id=<order_id>` → deve continuar a mostrar o estado
-6. Verificar headers HTTP em produção: abrir DevTools → Network → ver qualquer request → Response Headers deve mostrar `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy`
+   - Login como **António/MJ** (admin): tudo deve continuar a funcionar normalmente; gravar uma encomenda deve gerar uma entrada nova no audit log (Settings → Audit).
+   - Abrir `voucher.floresabeirario.pt` com um código válido → deve continuar a mostrar o vale (se partir, falta-me uma coluna no GRANT — diz-me qual e adiciono).
+   - Abrir `status.floresabeirario.pt/?id=<order_id>` → deve continuar a mostrar o estado.
+   - Form público de Reserva e Vale (no `fbr-website`): submeter um teste → deve aparecer no admin com audit log.
+6. Verificar headers HTTP em produção: abrir DevTools → Network → ver Response Headers de qualquer request → deve mostrar `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
 
 **Para mais tarde (não fazer agora):**
 - Activar **MFA/2FA** no Supabase Dashboard → Authentication → Providers → Email → "Enforce MFA"

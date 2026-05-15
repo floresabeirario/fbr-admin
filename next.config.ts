@@ -56,6 +56,23 @@ const SECURITY_HEADERS = [
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-site" },
+  // CSP minimal: 3 directives que não tocam scripts/styles/imagens
+  // (logo não partem nada) mas fecham 3 vectores conhecidos:
+  // • frame-ancestors 'none' — duplica X-Frame-Options DENY (alguns
+  //   browsers/proxies honram CSP mas não XFO; defesa em profundidade)
+  // • base-uri 'self' — impede injecção de <base href="evil.com">
+  //   que pivota XSS para outro domínio
+  // • form-action 'self' — impede que um <form action="evil.com">
+  //   injectado redireccione submissões
+  // CSP completa (script-src, style-src, etc.) fica para mais tarde.
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  },
 ];
 
 const nextConfig: NextConfig = {
