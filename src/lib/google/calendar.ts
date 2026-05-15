@@ -197,8 +197,13 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   else if (isHandDelivery) prefix = "🤲 EM MÃOS";
   const summary = `${[prefix, namePart, typeLabel].filter(Boolean).join(" | ")} 💐`;
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
-  const workbenchUrl = siteUrl ? `${siteUrl}/preservacao/${order.order_id}` : null;
+  // Fallback hardcoded para o domínio de produção — sem isto, eventos
+  // criados em ambientes onde NEXT_PUBLIC_SITE_URL não esteja definido
+  // ficavam sem o URL do workbench na descrição.
+  const siteUrl = (
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://admin.floresabeirario.pt"
+  ).replace(/\/$/, "");
+  const workbenchUrl = `${siteUrl}/preservacao/${order.order_id}`;
 
   // Construção da descrição. Quando é recolha, bloco dedicado no topo com
   // morada/horário; sempre seguido por contactos do cliente e link workbench.
@@ -258,9 +263,7 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   // numa linha sozinha (caracteres não-ASCII colados ao URL quebram a
   // detecção em alguns clientes). Por isso o URL fica na sua própria linha.
   lines.push(`Encomenda #${order.order_id}`);
-  if (workbenchUrl) {
-    lines.push(workbenchUrl);
-  }
+  lines.push(workbenchUrl);
 
   // Localização do evento Calendar: quando é recolha, usa a morada de
   // recolha (mais útil — abre o Maps directo para onde ir buscar).
