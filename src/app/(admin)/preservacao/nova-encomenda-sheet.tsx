@@ -180,7 +180,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
               </div>
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email" error={fieldErrors.email}>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
@@ -209,7 +209,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
 
           {/* ── Dados do evento ─── */}
           <Section title="Dados do evento" icon={<CalendarHeart className="h-3.5 w-3.5" />} accent="amber">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Tipo de evento">
                 <Select
                   value={form.event_type ?? ""}
@@ -260,7 +260,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
 
           {/* ── Flores e quadro ─── */}
           <Section title="Flores e quadro" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Envio das flores">
                 <Select
                   value={form.flower_delivery_method ?? ""}
@@ -298,7 +298,7 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Tamanho da moldura">
                 <Select
                   value={form.frame_size ?? ""}

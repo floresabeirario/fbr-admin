@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 7) — Tabela de preços + 3 abas placeholder + audit log UI + refactor
+## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (mig 038)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -40,6 +40,95 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 58 🔒 Auditoria de segurança + hardening (mig 038)
+
+Maria pediu uma auditoria de segurança ("preciso de segurança máxima, não 2FA por agora"). Auditei: service role key, RLS, NEXT_PUBLIC_*, .gitignore, server actions, headers HTTP, forms públicos.
+
+**Encontrado (3 vulnerabilidades):**
+
+1. **[CRÍTICO] `orders.authenticated_all`** — a mig 002 substituiu o split admin/viewer por uma policy aberta a qualquer autenticado. Resultado: a Ana (viewer) podia INSERT/UPDATE/DELETE encomendas via API directa (PostgREST), ignorando os `requireAdmin()` server-side.
+
+2. **[CRÍTICO] vouchers anon SELECT** — `GRANT SELECT ON vouchers TO anon` (mig 010) sem column-level restriction. Combinado com policy `vouchers_public_read` (filtra só por `payment_status=100_pago`), qualquer pessoa anónima podia fazer scraping da tabela inteira de vales pagos e ler `sender_email`, `sender_phone`, `consent_ip` (PII RGPD), NIF, código, etc.
+
+3. **[MÉDIO] `audit_log.authenticated_read_audit`** — a mig 002 abriu o audit log a qualquer autenticado. A Ana lia o histórico financeiro inteiro, incluindo NIFs, orçamentos, comissões, mensagens privadas.
+
+**[supabase/migrations/038_security_hardening.sql](supabase/migrations/038_security_hardening.sql):**
+- `orders`: drop `authenticated_all`, recriado split `admins_all` (FOR ALL, António+MJ) + `viewer_select` (FOR SELECT, Ana)
+- `audit_log`: drop `authenticated_read_audit`, recriado `admins_read_audit` (SELECT só António+MJ)
+- `vouchers`: `REVOKE SELECT ON vouchers FROM anon` seguido de column-level GRANT só nas colunas necessárias para `voucher.floresabeirario.pt` (id, code, sender_name, recipient_name, amount, message, expiry_date, payment_status, deleted_at, created_at)
+
+**Headers HTTP** ([next.config.ts](next.config.ts)) — adicionados:
+- `X-Frame-Options: DENY` (anti-clickjacking)
+- `Strict-Transport-Security: max-age=63072000; includeSubDomains` (força HTTPS 2 anos)
+- `Permissions-Policy` (desactiva camera, microphone, geolocation, payment, USB, sensors, interest-cohort)
+- `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Resource-Policy: same-site`
+- `poweredByHeader: false` (esconde "X-Powered-By: Next.js")
+
+**Verificado OK** (sem alteração):
+- ✅ Service role key não é usada em lado nenhum — só anon key (RLS é a única protecção da BD, daí o rigor nas policies)
+- ✅ `.gitignore` exclui `.env*` correctamente
+- ✅ `NEXT_PUBLIC_*` só tem coisas que são públicas por design (URL Supabase, anon key, Maps key, site URL)
+- ✅ RLS activa em **todas as 15 tabelas**
+- ✅ `requireAdmin()` em todas as server actions de escrita críticas (preservação, finanças, status, google settings, vale-presente, parcerias delete)
+- ✅ Cookies de sessão geridos por `@supabase/ssr` (HttpOnly+Secure+SameSite=Lax por default)
+- ✅ Form público RGPD: `consent_at IS NOT NULL` é forçado na policy de INSERT anon (mig 016)
+- ✅ Form público bloqueia campos administrativos (status, payment_status, partner_id, etc.) na policy de INSERT anon
+
+**Pendente (NÃO incluído nesta sessão):**
+- ⏳ MFA/2FA Supabase Auth (Maria pediu para deixar para depois)
+- ⏳ CAPTCHA no login (Cloudflare Turnstile no admin) — precisa configuração Supabase Auth
+- ⏳ CSP (Content-Security-Policy) — precisa testes; ficou para sessão dedicada
+- ⏳ Turnstile nos forms públicos do `fbr-website` (outro repo)
+- ⏳ Voucher code enumeration — anon pode fazer `SELECT code FROM vouchers WHERE payment_status=100_pago`; fix definitivo requer mudar `voucher.floresabeirario.pt` para usar RPC `get_voucher_by_code(code)` em vez de SELECT directo
+
+**Preflight**: `npm run preflight` passa limpo (tsc 19s + build 22s, 18 páginas geradas).
+
+### Sessão 57 ✅ Compatibilidade mobile + favicon PWA
+
+Maria reportou que (1) o ícone não aparecia quando se adicionava a plataforma ao ecrã principal e (2) "o site no mobile fica muito destruído". Regra fundadora: **desktop é prioridade — nunca alterar layout desktop por causa do mobile** ([[feedback_desktop_prioridade]]).
+
+**Favicon "Adicionar ao ecrã principal":**
+- Problema raiz: ícones com fundo transparente + manifest sem variante `maskable` → Android colocava-os num círculo branco e o cream das flores ficava invisível
+- Novo script [scripts/generate-maskable-icons.mjs](scripts/generate-maskable-icons.mjs) (Sharp, já vem com Next.js) gera variantes maskable 192/512 com fundo cocoa-900 sólido + safe zone 60%; refaz também o apple-touch-icon com fundo opaco (iOS auto-aplica máscara arredondada)
+- [src/app/manifest.ts](src/app/manifest.ts): adicionado par `purpose: "maskable"` para 192 e 512; `background_color`/`theme_color` passam para cocoa para igualar o splash do ícone
+- [src/app/layout.tsx](src/app/layout.tsx): `themeColor` agora respeita prefers-color-scheme (cream em light, cocoa em dark)
+- [public/sw.js](public/sw.js): `CACHE_VERSION` `v1`→`v2` para invalidar o cache do favicon antigo
+
+**Compatibilidade mobile (apenas overrides em <sm:, desktop intocado):**
+- [src/components/ui/sheet.tsx](src/components/ui/sheet.tsx): SheetContent muda de `w-3/4` para `w-full sm:w-3/4` em side=left/right — mobile cobre 100% do viewport (antes ficava 75% espremido com formulários ilegíveis); desktop continua exactamente igual (sm:max-w-sm sobrepõe-se)
+- Forms com pares de inputs lado-a-lado em sheets/workbenches passam de `grid grid-cols-2` → `grid grid-cols-1 sm:grid-cols-2`:
+  - [src/app/(admin)/preservacao/nova-encomenda-sheet.tsx](src/app/(admin)/preservacao/nova-encomenda-sheet.tsx) (4 grids)
+  - [src/app/(admin)/parcerias/novo-parceiro-sheet.tsx](src/app/(admin)/parcerias/novo-parceiro-sheet.tsx) (2 grids)
+  - [src/app/(admin)/parcerias/[id]/workbench-client.tsx](src/app/(admin)/parcerias/%5Bid%5D/workbench-client.tsx) (3 cards: identificação, contacto, coordenadas avançadas)
+  - [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/%5Bid%5D/workbench-client.tsx): helper `Grid2` (usado em todo o workbench) + `MethodCostPaidGroup` dinâmico
+- Choice buttons curtos (WhatsApp/Email, Sim/Não) ficam `grid-cols-2` em todos os tamanhos — cabem mesmo em 375px
+- Tabelas com `min-w-[920px]` mantêm-se intactas — já estão dentro de wrappers `overflow-x-auto`, mobile usa scroll horizontal
+
+**Smoke**: `npx tsc --noEmit` limpo; `npx next build` passa (`/manifest.webmanifest` agora aparece nas rotas estáticas).
+
+### Sessão 56 ✅ Aba Ecossistema — ferramentas externas + texto actualizado
+
+Maria forneceu os links das plataformas que usam no dia-a-dia (WhatsApp Web, CTT Empresa, Gmail, Instagram, Facebook, Facebook Ads Manager, domínio Site.pt, Google Search Console, site público FBR) e pediu para avaliar o texto do fluxo que "parecia desactualizado".
+
+**Adicionado** ([src/app/(admin)/ecossistema/page.tsx](src/app/(admin)/ecossistema/page.tsx)): nova secção **"Ferramentas externas"** entre "Fluxo principal" e "Integrações", agrupada por categoria:
+- **Comunicação** — Gmail, WhatsApp Web
+- **Marketing & redes sociais** — Instagram, Facebook, Facebook Ads Manager
+- **Operações** — Portal CTT Empresa, Site FBR (público)
+- **Infraestrutura web** — Domínio (Site.pt), Google Search Console
+
+Cada cartão é um link externo (`target="_blank"`) com ícone Lucide + nome + nota opcional. Layout responsivo (1/2/3 colunas).
+
+**Limpeza de texto desactualizado:**
+- Removido `(Fase 5)` do input público (jargão de dev)
+- Drive/Calendar `"Ligado via OAuth"` → `"Ligado"` (uniformidade)
+- Gmail `"Foundation OAuth pronta — UI por implementar"` → `"Por integrar no workbench"`
+- WhatsApp clarificado como registo manual (sem API pública)
+- Anthropic Claude `"Por implementar"` → `"Por integrar"`
+- Cloudflare Turnstile `"Hook pronto, secret opcional"` → `"Por configurar"` (verificado: não há código a usá-lo ainda)
+- Subtítulos descritivos nas duas secções para distinguir "ferramentas externas" (manuais) de "integrações" (trocam dados directamente)
+
+`tsc --noEmit` passa limpo. Página é puro JSX estático — sem migrações nem novos endpoints.
 
 ### Sessão 55 ✅ Afinações Google Calendar + contacto da recolha + botão "No Calendar" (migs 036+037)
 
@@ -107,6 +196,36 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 ---
 
 ## Próximo passo CONCRETO
+
+**Sessão 58 — passos manuais da Maria (segurança):**
+1. Correr **migração 038_security_hardening.sql** no Supabase SQL Editor (Dashboard → SQL Editor → New query → colar conteúdo → Run)
+2. Verificar no painel Supabase que a aplicação correu sem erro (deve mostrar "Success. No rows returned")
+3. Confirmar com a query de verificação (no fim do ficheiro 038): `SELECT column_name FROM information_schema.column_privileges WHERE table_name = 'vouchers' AND grantee = 'anon' ORDER BY column_name;` → deve devolver apenas: amount, code, created_at, deleted_at, expiry_date, id, message, payment_status, recipient_name, sender_name
+4. Push para Vercel (commit dos changes locais: `next.config.ts` + `supabase/migrations/038_*.sql` + `PROGRESS.md`)
+5. Smoke test pós-deploy:
+   - Login como **Ana** (viewer): tentar abrir `/preservacao` → deve funcionar (read-only). Editar uma encomenda na UI → deve dar erro "Sem permissão" (ou o input deve estar disabled).
+   - Login como **António/MJ** (admin): tudo deve continuar a funcionar normalmente.
+   - Abrir `voucher.floresabeirario.pt` com um código válido → deve continuar a mostrar o vale (se partir, falta-me uma coluna no GRANT — diz-me qual e adiciono à migração)
+   - Abrir `status.floresabeirario.pt/?id=<order_id>` → deve continuar a mostrar o estado
+6. Verificar headers HTTP em produção: abrir DevTools → Network → ver qualquer request → Response Headers deve mostrar `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy`
+
+**Para mais tarde (não fazer agora):**
+- Activar **MFA/2FA** no Supabase Dashboard → Authentication → Providers → Email → "Enforce MFA"
+- Activar **CAPTCHA no login** no Supabase Dashboard → Authentication → Settings → "Enable CAPTCHA protection" (Cloudflare Turnstile)
+- Definir **CSP** (Content-Security-Policy) — precisa testes para não partir Google Maps/OAuth
+- Adicionar **Turnstile** aos forms públicos do `fbr-website` (outro repo)
+
+**Sessão 57 — passos manuais da Maria:**
+1. Push para Vercel (build local passa)
+2. No telemóvel, **desinstalar primeiro** o atalho actual do ecrã principal (caso contrário o Android pode continuar a mostrar o ícone antigo em cache)
+3. Abrir `admin.floresabeirario.pt` no Chrome Android → menu → "Adicionar ao ecrã principal" → confirmar que aparece o ícone com as 3 flores em fundo cocoa (já não transparente)
+4. Confirmar em iOS: Safari → Partilhar → "Adicionar ao Ecrã Principal" → ícone com fundo cocoa
+5. Abrir várias páginas no telemóvel para verificar mobile:
+   - **Nova encomenda** (sheet em Preservação): inputs Email/Telemóvel passam a estar empilhados em vez de espremidos lado-a-lado
+   - **Workbench de uma encomenda**: campos como "Custo flores" e "Pago?" empilham em vez de ficarem com 165px cada
+   - **Novo parceiro** (sheet em Parcerias): Categoria/Estado empilham
+   - Tabelas continuam com scroll horizontal (esperado — desktop é prioridade)
+6. **Crítico**: testar em desktop (≥1024px) que **nada mudou** — todos os forms 2-col continuam 2-col
 
 **Sessões 52-55 — passos manuais da Maria** (cumulativo se ainda não correu nada desde 52):
 1. Correr **migrações 034, 035, 036 e 037** no Supabase SQL Editor (por ordem)

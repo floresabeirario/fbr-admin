@@ -254,7 +254,7 @@ export default function PartnerWorkbenchClient({
                   onBlur={(e) => saveField("name", e.target.value)}
                 />
               </Field>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Categoria">
                   <Select
                     value={partner.category}
@@ -299,7 +299,7 @@ export default function PartnerWorkbenchClient({
 
             {/* Contacto */}
             <Card icon={User} title="Contacto" color="border-l-sky-400">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Pessoa responsável">
                   <Input
                     defaultValue={partner.contact_person ?? ""}
@@ -1153,7 +1153,7 @@ function LocationCard({
       </button>
 
       {showAdvanced && (
-        <div className="grid grid-cols-2 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <Field label="Latitude">
             <Input
               type="number"

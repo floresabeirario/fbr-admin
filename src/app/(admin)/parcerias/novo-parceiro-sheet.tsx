@@ -171,7 +171,7 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
                 placeholder="Ex: Quinta da Bouça d'Arques"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select value={form.category} onValueChange={(v) => set("category", v as PartnerCategory)}>
@@ -208,7 +208,7 @@ export default function NovoParceiroSheet({ open, onOpenChange, defaultCategory,
           {/* Contacto */}
           <section className="space-y-3">
             <SectionTitle icon={User} label="Contacto" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="contact_person">Pessoa responsável</Label>
                 <Input

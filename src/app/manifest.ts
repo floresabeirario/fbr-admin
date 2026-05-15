@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#FAF8F5",
-    theme_color: "#FAF8F5",
+    background_color: "#3D2B1F",
+    theme_color: "#3D2B1F",
     lang: "pt-PT",
     dir: "ltr",
     categories: ["business", "productivity"],
@@ -36,6 +36,21 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
+      },
+      // Maskable: ícone com safe zone + fundo opaco, para Android desenhar
+      // bem o atalho no ecrã principal (sem maskable o ícone fica "flutuante"
+      // num círculo branco e quase invisível). Ver scripts/generate-maskable-icons.mjs.
+      {
+        src: "/favicon/maskable-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "maskable",
+      },
+      {
+        src: "/favicon/maskable-512x512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
       {
         src: "/favicon/apple-touch-icon.png",

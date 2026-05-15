@@ -273,7 +273,8 @@ function Card({
 }
 
 function Grid2({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3">{children}</div>;
+  // Mobile: 1 coluna (inputs full-width); desktop sm:+: 2 colunas (igual ao original).
+  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>;
 }
 
 function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
@@ -2563,7 +2564,12 @@ function ShippingRow<M extends string>({
 }) {
   const triggerColor = method && methodColors?.[method] ? methodColors[method] : "";
   const visibleCols = 1 + (showCost ? 1 : 0) + (showPaid ? 1 : 0);
-  const colsClass = visibleCols === 3 ? "grid-cols-3" : visibleCols === 2 ? "grid-cols-2" : "grid-cols-1";
+  // Mobile: 1 coluna sempre. Desktop sm:+: distribui pelas colunas calculadas.
+  const colsClass = visibleCols === 3
+    ? "grid-cols-1 sm:grid-cols-3"
+    : visibleCols === 2
+      ? "grid-cols-1 sm:grid-cols-2"
+      : "grid-cols-1";
   return (
     <div className={`grid gap-3 items-end ${colsClass}`}>
       <Field label="Como">
