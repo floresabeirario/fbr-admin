@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { groupVouchers, isExpiringSoon, isExpired, monthsUntilExpiry } from "@/lib/supabase/vouchers";
+import { setNavList } from "@/lib/workbench-nav";
 import {
   type Voucher,
   type VoucherPaymentStatus,
@@ -460,9 +461,22 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
     });
   }
 
+  // Ordem visual da listagem para o slide prev/next no workbench.
+  function flatVoucherCodes(): string[] {
+    if (showArchived) {
+      return archivedVouchers.map((v) => v.code);
+    }
+    return [
+      ...grouped.orfas,
+      ...grouped.pre_reservas,
+      ...grouped.reservas,
+    ].map((v) => v.code);
+  }
+
   function openVoucher(v: Voucher) {
     if (navigatingId) return;
     setNavigatingId(v.id);
+    setNavList("vouchers", flatVoucherCodes());
     startNavigationProgress();
     startNavTransition(() => {
       router.push(`/vale-presente/${v.code}`);

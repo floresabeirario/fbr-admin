@@ -106,7 +106,7 @@ export function NavigationProgress() {
       className="fixed top-0 left-0 right-0 z-[200] h-[3px] pointer-events-none"
     >
       <div
-        className="h-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.6)] transition-all duration-200 ease-out"
+        className="h-full bg-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.5)] transition-all duration-200 ease-out"
         style={{
           width: `${progress}%`,
           opacity: status === "completing" ? 0 : 1,

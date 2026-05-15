@@ -83,11 +83,15 @@ import {
   createOrderCalendarEventAction,
   deleteOrderCalendarEventAction,
   recomputeOrderBudgetAction,
+  captureOrderProductionCostAction,
 } from "../actions";
 import type { PricingSnapshot } from "@/types/pricing";
+import type { ProductionCostSnapshot } from "@/types/production-cost";
+import { computeProductionCost } from "@/lib/production-cost";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import AddressAutocomplete from "@/components/address-autocomplete";
+import WorkbenchNavigator from "@/components/workbench-navigator";
 import type {
   Order,
   OrderUpdate,
@@ -802,6 +806,12 @@ export default function WorkbenchClient({
             <span className="hidden sm:inline">Preservação</span>
           </Link>
 
+          <WorkbenchNavigator
+            navKey="orders"
+            currentId={local.order_id}
+            basePath="/preservacao"
+          />
+
           <Separator orientation="vertical" className="h-5 bg-cream-200" />
 
           <div className="flex-1 min-w-0">
@@ -1501,6 +1511,54 @@ export default function WorkbenchClient({
                       </SelectContent>
                     </Select>
                   </Field>
+                  <Field
+                    label="Moldura pirâmide"
+                    hint="Upgrade pago pelo cliente. Aplica suplemento ao orçamento."
+                  >
+                    <Select
+                      value={local.pyramid_frame ? "sim" : "nao"}
+                      onValueChange={(v) => update("pyramid_frame", v === "sim")}
+                    >
+                      <SelectTrigger
+                        className={`${sel} font-medium ${
+                          local.pyramid_frame
+                            ? "bg-amber-100 text-amber-900 border-amber-300"
+                            : ""
+                        }`}
+                      >
+                        <SelectValue labels={SIM_NAO_LABELS} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sim">Sim</SelectItem>
+                        <SelectItem value="nao">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field
+                    label="Tipo de moldura (interno)"
+                    hint="Baixa (2x2cm) ou Caixa (2x3cm) — só afecta margem, não o preço."
+                  >
+                    {local.pyramid_frame ? (
+                      <div className={`${sel} flex items-center text-cocoa-500 italic`}>
+                        Pirâmide
+                      </div>
+                    ) : (
+                      <Select
+                        value={local.frame_internal_type ?? ""}
+                        onValueChange={(v) =>
+                          update("frame_internal_type", v as "baixa" | "caixa")
+                        }
+                      >
+                        <SelectTrigger className={sel}>
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="baixa">Baixa (2x2cm)</SelectItem>
+                          <SelectItem value="caixa">Caixa (2x3cm)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </Field>
                 </Grid2>
 
                 <Separator className="bg-cream-100" />
@@ -1756,6 +1814,12 @@ export default function WorkbenchClient({
                         orderId={local.id}
                         snapshot={local.pricing_snapshot}
                         currentBudget={local.budget}
+                        canEdit={canEdit}
+                      />
+                      <ProductionCostBadge
+                        orderId={local.id}
+                        snapshot={local.production_cost_snapshot}
+                        order={local}
                         canEdit={canEdit}
                       />
                     </Field>
@@ -2754,6 +2818,137 @@ function BudgetSnapshotBadge({
             </button>
           </div>
         )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ============================================================
+// Badge do custo de produção + margem bruta
+// ============================================================
+function ProductionCostBadge({
+  orderId,
+  snapshot,
+  order,
+  canEdit,
+}: {
+  orderId: string;
+  snapshot: ProductionCostSnapshot | null;
+  order: Order;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function capture() {
+    setBusy(true);
+    try {
+      await captureOrderProductionCostAction(orderId);
+      toast.success("Custos de produção capturados.");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao capturar custos");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Sem snapshot → encomenda antiga; oferece capturar agora.
+  if (!snapshot) {
+    if (!canEdit) return null;
+    return (
+      <div className="mt-1.5">
+        <button
+          type="button"
+          onClick={capture}
+          disabled={busy}
+          className="text-[10px] text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-50"
+          title="Capturar custos de produção vigentes para ver a margem"
+        >
+          {busy ? "A capturar…" : "Capturar custos de produção"}
+        </button>
+      </div>
+    );
+  }
+
+  const breakdown = computeProductionCost(order, snapshot);
+  if (!breakdown) return null;
+
+  const budget = order.budget;
+  const margin = budget !== null ? budget - breakdown.total : null;
+  const marginPct =
+    budget !== null && budget > 0 ? (margin! / budget) * 100 : null;
+
+  // Cor da margem: verde >= 50%, amarela >= 25%, laranja < 25%, cinzenta sem budget.
+  let marginCls = "bg-stone-100 text-stone-700";
+  if (marginPct !== null) {
+    if (marginPct >= 50) marginCls = "bg-emerald-100 text-emerald-800";
+    else if (marginPct >= 25) marginCls = "bg-amber-100 text-amber-800";
+    else marginCls = "bg-rose-100 text-rose-800";
+  }
+
+  const fmtEuro = (n: number) => `${n.toFixed(2).replace(".", ",")}€`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        className="mt-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider rounded-full px-2 py-0.5 font-semibold transition-colors bg-stone-100 text-stone-700 hover:bg-stone-200"
+        title="Ver custo de produção e margem"
+      >
+        <Frame className="h-2.5 w-2.5" />
+        Custo {fmtEuro(breakdown.total)}
+        {margin !== null && (
+          <span className={`-mr-1 ml-0.5 rounded-full px-1.5 ${marginCls}`}>
+            margem {fmtEuro(margin)}
+            {marginPct !== null ? ` · ${marginPct.toFixed(0)}%` : ""}
+          </span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0 overflow-hidden" align="start">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+            <Frame className="h-4 w-4" />
+            Custo de produção
+          </div>
+          <div className="text-[11px] text-amber-700 mt-0.5">
+            Snapshot de {format(parseISO(snapshot.captured_at), "dd/MM/yyyy HH:mm")}
+          </div>
+        </div>
+        <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto">
+          {breakdown.lines.length === 0 && (
+            <div className="text-[11px] text-cocoa-500 italic">
+              Sem linhas (preencher tamanho, fundo e tipo de moldura).
+            </div>
+          )}
+          {breakdown.lines.map((l, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex-1 truncate">
+                <span className="text-cocoa-900">{l.label}</span>
+              </div>
+              <span className="text-cocoa-700 tabular-nums">
+                {l.subtotal.toFixed(2).replace(".", ",")}€
+              </span>
+            </div>
+          ))}
+          <div className="border-t border-cream-200 pt-1.5 mt-1.5 flex items-center justify-between text-sm font-semibold">
+            <span className="text-cocoa-900">Custo total</span>
+            <span className="text-amber-700 tabular-nums">{fmtEuro(breakdown.total)}</span>
+          </div>
+          {budget !== null && (
+            <div className="flex items-center justify-between text-sm font-semibold">
+              <span className="text-cocoa-900">Margem bruta</span>
+              <span className={`tabular-nums px-2 py-0.5 rounded-full ${marginCls}`}>
+                {fmtEuro(margin!)}{marginPct !== null ? ` · ${marginPct.toFixed(1)}%` : ""}
+              </span>
+            </div>
+          )}
+          {breakdown.missing.length > 0 && (
+            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
+              Cálculo parcial — falta: {breakdown.missing.join(", ")}.
+            </div>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );

@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
+import WorkbenchNavigator from "@/components/workbench-navigator";
 import {
   Select,
   SelectContent,
@@ -273,6 +274,11 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Vales</span>
           </Link>
+          <WorkbenchNavigator
+            navKey="vouchers"
+            currentId={data.code}
+            basePath="/vale-presente"
+          />
           <div className="h-6 w-px bg-cream-200" />
           <button
             onClick={copyCode}

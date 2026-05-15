@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import WorkbenchNavigator from "@/components/workbench-navigator";
 import {
   Select,
   SelectContent,
@@ -190,6 +191,11 @@ export default function PartnerWorkbenchClient({
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Voltar</span>
           </Link>
+          <WorkbenchNavigator
+            navKey="partners"
+            currentId={partner.id}
+            basePath="/parcerias"
+          />
           <span className="text-cream-200">·</span>
           <span className={cn(
             "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gradient-to-r",

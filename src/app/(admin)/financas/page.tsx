@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentRole } from "@/lib/auth/server";
 import type { Competitor } from "@/types/competitor";
 import type { PricingItem } from "@/types/pricing";
+import type { ProductionCostItem } from "@/types/production-cost";
 import type { Expense } from "@/types/expense";
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
@@ -14,7 +15,7 @@ export default async function FinancasPage() {
   const role = await getCurrentRole();
   const canEdit = role === "admin";
 
-  const [competitorsRes, pricingRes, expensesRes, ordersRes, vouchersRes] = await Promise.all([
+  const [competitorsRes, pricingRes, productionCostRes, expensesRes, ordersRes, vouchersRes] = await Promise.all([
     supabase
       .from("competitors")
       .select("*")
@@ -25,6 +26,11 @@ export default async function FinancasPage() {
       .select("*")
       .is("deleted_at", null)
       .order("category", { ascending: true })
+      .order("position", { ascending: true }),
+    supabase
+      .from("production_cost_items")
+      .select("*")
+      .is("deleted_at", null)
       .order("position", { ascending: true }),
     supabase
       .from("expenses")
@@ -43,6 +49,7 @@ export default async function FinancasPage() {
 
   const competitors: Competitor[] = (competitorsRes.data ?? []) as Competitor[];
   const pricing: PricingItem[] = (pricingRes.data ?? []) as PricingItem[];
+  const productionCosts: ProductionCostItem[] = (productionCostRes.data ?? []) as ProductionCostItem[];
   const expenses: Expense[] = (expensesRes.data ?? []) as Expense[];
   const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">[];
   const vouchers = (vouchersRes.data ?? []) as Pick<Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">[];
@@ -51,6 +58,7 @@ export default async function FinancasPage() {
     <FinancasClient
       initialCompetitors={competitors}
       initialPricing={pricing}
+      initialProductionCosts={productionCosts}
       initialExpenses={expenses}
       orders={orders}
       vouchers={vouchers}

@@ -14,6 +14,7 @@ import type { Order } from "@/types/database";
 export interface OrderForPricing {
   frame_size: Order["frame_size"];
   frame_background: Order["frame_background"];
+  pyramid_frame: Order["pyramid_frame"];
   extra_small_frames: Order["extra_small_frames"];
   extra_small_frames_qty: Order["extra_small_frames_qty"];
   christmas_ornaments: Order["christmas_ornaments"];
@@ -131,6 +132,23 @@ export function computePricingSnapshot(
           subtotal: item.price * e.qty,
         });
       }
+    }
+  }
+
+  // 4. Moldura pirâmide — upsell visível ao cliente (cobrado).
+  //    O preço é editável pela Maria em Finanças (pricing_items.extra.pyramid_frame).
+  //    Quando o cliente não escolhe pirâmide, este item não entra no snapshot.
+  if (order.pyramid_frame) {
+    const pyr = findItem(pricing, "extra", "pyramid_frame");
+    if (pyr) {
+      lines.push({
+        category: pyr.category,
+        key: pyr.key,
+        label: pyr.label,
+        qty: 1,
+        unit_price: pyr.price,
+        subtotal: pyr.price,
+      });
     }
   }
 

@@ -10,6 +10,10 @@ import type {
   CompetitorUpdate,
 } from "@/types/competitor";
 import type { PricingItem, PricingItemUpdate } from "@/types/pricing";
+import type {
+  ProductionCostItem,
+  ProductionCostItemUpdate,
+} from "@/types/production-cost";
 import type { Expense, ExpenseInsert, ExpenseUpdate } from "@/types/expense";
 
 // Aba Finanças → Competição: só admin escreve. A Ana lê.
@@ -81,6 +85,27 @@ export async function updatePricingItemAction(
   if (error) throw new Error(error.message);
   revalidatePath("/financas");
   return data as PricingItem;
+}
+
+// ============================================================
+// PRODUCTION COST ITEMS — Custos de produção (COGS) por quadro
+// ============================================================
+
+export async function updateProductionCostItemAction(
+  id: string,
+  updates: ProductionCostItemUpdate,
+): Promise<ProductionCostItem> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("production_cost_items")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/financas");
+  return data as ProductionCostItem;
 }
 
 // ============================================================

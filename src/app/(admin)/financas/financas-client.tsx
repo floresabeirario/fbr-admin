@@ -24,6 +24,8 @@ import {
   Paperclip,
   Upload,
   Sparkles,
+  Frame,
+  Camera,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -47,6 +49,18 @@ import {
   PRICING_CATEGORY_LABELS,
   PRICING_CATEGORY_HELPER,
 } from "@/types/pricing";
+import type {
+  ProductionCostItem,
+  ProductionCostSize,
+  ProductionFrameType,
+  ProductionGlassType,
+} from "@/types/production-cost";
+import {
+  PRODUCTION_SIZE_LABELS,
+  PRODUCTION_FRAME_TYPE_LABELS,
+  PRODUCTION_FRAME_TYPE_SHORT,
+  PRODUCTION_GLASS_TYPE_LABELS,
+} from "@/types/production-cost";
 import type { Expense, ExpenseCategory, ExpensePaymentMethod, ExpenseRecurrencePeriod } from "@/types/expense";
 import {
   EXPENSE_CATEGORY_LABELS,
@@ -62,13 +76,14 @@ import {
   updateCompetitorAction,
   archiveCompetitorAction,
   updatePricingItemAction,
+  updateProductionCostItemAction,
   createExpenseAction,
   updateExpenseAction,
   archiveExpenseAction,
   uploadExpenseInvoiceAction,
 } from "./actions";
 
-type TabKey = "despesas" | "precos" | "faturacao" | "competicao";
+type TabKey = "despesas" | "precos" | "custos" | "faturacao" | "competicao";
 
 interface TabDef {
   key: TabKey;
@@ -95,6 +110,14 @@ const TABS: TabDef[] = [
     icon: Tags,
     accent: "text-sky-600",
     bgInactive: "bg-sky-100",
+  },
+  {
+    key: "custos",
+    label: "Custos de produção",
+    helper: "Custo real de cada quadro",
+    icon: Frame,
+    accent: "text-amber-600",
+    bgInactive: "bg-amber-100",
   },
   {
     key: "faturacao",
@@ -126,6 +149,7 @@ function formatEuro(value: number | null): string {
 interface Props {
   initialCompetitors: Competitor[];
   initialPricing: PricingItem[];
+  initialProductionCosts: ProductionCostItem[];
   initialExpenses: Expense[];
   orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">>;
   vouchers: Array<Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">>;
@@ -135,6 +159,7 @@ interface Props {
 export default function FinancasClient({
   initialCompetitors,
   initialPricing,
+  initialProductionCosts,
   initialExpenses,
   orders,
   vouchers,
@@ -206,6 +231,7 @@ export default function FinancasClient({
 
       {tab === "despesas"  && <DespesasTab expenses={initialExpenses} canEdit={canEdit} />}
       {tab === "precos"    && <PrecosTab pricing={initialPricing} canEdit={canEdit} />}
+      {tab === "custos"    && <CustosTab items={initialProductionCosts} canEdit={canEdit} />}
       {tab === "faturacao" && <FaturacaoTab orders={orders} vouchers={vouchers} expenses={initialExpenses} />}
       {tab === "competicao" && (
         <CompeticaoTab competitors={initialCompetitors} canEdit={canEdit} />
@@ -2023,4 +2049,277 @@ function prettyDomain(url: string): string {
   } catch {
     return url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   }
+}
+
+// ============================================================
+// CUSTOS DE PRODUÇÃO (COGS) — Custo real por quadro completo
+// ============================================================
+// Distinto da tabela de preços (que é o preço de venda ao cliente).
+// Aqui guardamos o custo da Maria a produzir cada quadro: moldura,
+// embalagem, cartão informativo, enchimento, autocolante, etc.
+//
+// 3 variáveis: tamanho × tipo de moldura × tipo de vidro.
+//   - Tamanhos: 30x40 (A3), 40x50, 50x70, mini 20x25.
+//   - Tipo de moldura: baixa (2x2cm), caixa (2x3cm), pirâmide.
+//     Baixa vs caixa é decisão INTERNA (consoante a altura das flores).
+//     Pirâmide é a única visível ao cliente (upgrade pago).
+//   - Tipo de vidro: vidro sobre vidro (fundo transparente) ou
+//     vidro sobre cartão (preto/branco/cor/fotografia).
+//
+// Bonus: tabela "Impressão de fotografia" — somada ao custo do quadro
+// quando o cliente escolhe fundo fotografia.
+
+const PRODUCTION_SIZES_ORDER: ProductionCostSize[] = [
+  "30x40",
+  "40x50",
+  "50x70",
+  "mini_20x25",
+];
+
+const PRODUCTION_FRAME_TYPES_ORDER: ProductionFrameType[] = [
+  "baixa",
+  "caixa",
+  "piramide",
+];
+
+const PRODUCTION_GLASS_TYPES_ORDER: ProductionGlassType[] = [
+  "vidro_vidro",
+  "vidro_cartao",
+];
+
+function CustosTab({
+  items,
+  canEdit,
+}: {
+  items: ProductionCostItem[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  // Index para lookup rápido.
+  const frameByKey = useMemo(() => {
+    const map = new Map<string, ProductionCostItem>();
+    for (const it of items) {
+      if (it.kind !== "frame") continue;
+      map.set(`${it.size_key}|${it.frame_type}|${it.glass_type}`, it);
+    }
+    return map;
+  }, [items]);
+
+  const photoBySize = useMemo(() => {
+    const map = new Map<string, ProductionCostItem>();
+    for (const it of items) {
+      if (it.kind !== "photo_print") continue;
+      map.set(it.size_key, it);
+    }
+    return map;
+  }, [items]);
+
+  function saveCost(item: ProductionCostItem, raw: string) {
+    const next = raw.trim() === "" ? 0 : Number(raw.replace(",", "."));
+    if (Number.isNaN(next) || next < 0) {
+      toast.error("Custo inválido");
+      return;
+    }
+    if (next === item.cost) return;
+    setSaving(item.id);
+    startTransition(async () => {
+      try {
+        await updateProductionCostItemAction(item.id, { cost: next });
+        toast.success(`${describe(item)}: ${formatEuro(next)}`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao guardar");
+      } finally {
+        setSaving(null);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Aviso explicativo */}
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 p-4 flex gap-3">
+        <Frame className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-900 dark:text-amber-200 leading-relaxed">
+          <p className="font-semibold mb-1">Como funcionam os custos de produção</p>
+          <p>
+            Estes são os custos REAIS de produzir cada quadro (moldura,
+            embalagem, cartão, enchimento, autocolante, etc.) — distintos
+            das despesas únicas. Cada encomenda guarda um snapshot dos
+            custos vigentes no dia da criação; <strong>alterações aqui não
+            recalculam encomendas antigas</strong>.
+          </p>
+          <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+            <strong>Vidro sobre vidro</strong> = cliente escolheu fundo transparente.{" "}
+            <strong>Vidro sobre cartão</strong> = preto, branco, cor ou fotografia.{" "}
+            Baixa vs caixa é decisão interna (consoante a altura das flores);
+            o cliente paga o mesmo, só a margem muda. Pirâmide é o único upgrade
+            que o cliente também paga.
+          </p>
+          {!canEdit && (
+            <p className="mt-2 italic text-amber-700 dark:text-amber-300">
+              Modo leitura — só administradores podem editar.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Grelha 4 cards: um por tamanho */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3">
+        {PRODUCTION_SIZES_ORDER.map((size) => (
+          <div
+            key={size}
+            className="rounded-2xl border bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200 p-3 sm:p-4 space-y-2"
+          >
+            <div className="flex items-center gap-2">
+              <Frame className="h-4 w-4 text-amber-700" />
+              <h2 className="text-sm font-semibold text-cocoa-900">
+                {PRODUCTION_SIZE_LABELS[size]}
+              </h2>
+            </div>
+            <div className="rounded-xl bg-surface overflow-hidden border border-white/40">
+              <table className="w-full text-xs">
+                <thead className="bg-cream-50 text-[10px] uppercase tracking-wide text-cocoa-700">
+                  <tr>
+                    <th className="text-left px-2 py-1.5 font-medium" />
+                    {PRODUCTION_GLASS_TYPES_ORDER.map((g) => (
+                      <th key={g} className="text-left px-2 py-1.5 font-medium">
+                        {g === "vidro_vidro" ? "V / V" : "V / C"}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {PRODUCTION_FRAME_TYPES_ORDER.map((ft) => (
+                    <tr key={ft} className="border-t border-cream-100">
+                      <td className="px-2 py-1.5 align-middle text-xs font-medium text-cocoa-900">
+                        {PRODUCTION_FRAME_TYPE_SHORT[ft]}
+                      </td>
+                      {PRODUCTION_GLASS_TYPES_ORDER.map((gt) => {
+                        const item = frameByKey.get(`${size}|${ft}|${gt}`);
+                        return (
+                          <td key={gt} className="px-1 py-1 align-middle">
+                            {item ? (
+                              <CostInput
+                                item={item}
+                                canEdit={canEdit}
+                                saving={saving === item.id}
+                                onSave={(v) => saveCost(item, v)}
+                              />
+                            ) : (
+                              <span className="text-cocoa-500 text-xs">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-amber-800 leading-relaxed px-1">
+              V/V = vidro sobre vidro · V/C = vidro sobre cartão
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Card: Impressão de fotografia */}
+      <div className="rounded-2xl border bg-gradient-to-br from-violet-50 to-purple-100 border-violet-200 p-3 sm:p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Camera className="h-4 w-4 text-violet-700" />
+          <h2 className="text-sm font-semibold text-cocoa-900">
+            Impressão de fotografia
+          </h2>
+          <span className="text-[11px] text-cocoa-700">
+            Somado ao custo do quadro quando o cliente escolhe fundo fotografia
+          </span>
+        </div>
+        <div className="rounded-xl bg-surface border border-white/40 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-cream-50 text-[10px] uppercase tracking-wide text-cocoa-700">
+              <tr>
+                {PRODUCTION_SIZES_ORDER.map((s) => (
+                  <th key={s} className="text-left px-3 py-1.5 font-medium">
+                    {PRODUCTION_SIZE_LABELS[s]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {PRODUCTION_SIZES_ORDER.map((s) => {
+                  const it = photoBySize.get(s);
+                  return (
+                    <td key={s} className="px-2 py-2 align-middle">
+                      {it ? (
+                        <CostInput
+                          item={it}
+                          canEdit={canEdit}
+                          saving={saving === it.id}
+                          onSave={(v) => saveCost(it, v)}
+                        />
+                      ) : (
+                        <span className="text-cocoa-500 text-xs">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CostInput({
+  item,
+  canEdit,
+  saving,
+  onSave,
+}: {
+  item: ProductionCostItem;
+  canEdit: boolean;
+  saving: boolean;
+  onSave: (raw: string) => void;
+}) {
+  const [draft, setDraft] = useState(item.cost.toString().replace(".", ","));
+  // Padrão "store info from previous renders" — re-sincroniza o draft local
+  // quando a BD muda (ex: outro admin editou) sem useEffect+setState.
+  const [lastItemId, setLastItemId] = useState(item.id);
+  const [lastCost, setLastCost] = useState(item.cost);
+  if (item.id !== lastItemId || item.cost !== lastCost) {
+    setLastItemId(item.id);
+    setLastCost(item.cost);
+    setDraft(item.cost.toString().replace(".", ","));
+  }
+  return (
+    <Input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onSave(draft)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      disabled={!canEdit || saving}
+      inputMode="decimal"
+      className="h-7 w-full max-w-[88px] text-xs font-medium tabular-nums"
+      placeholder="0,00"
+    />
+  );
+}
+
+// Descrição curta usada nas notificações toast.
+function describe(item: ProductionCostItem): string {
+  if (item.kind === "photo_print") {
+    return `Impressão fotografia ${PRODUCTION_SIZE_LABELS[item.size_key]}`;
+  }
+  const ft = item.frame_type ?? "";
+  const gt = item.glass_type ?? "";
+  return `${PRODUCTION_SIZE_LABELS[item.size_key]} · ${PRODUCTION_FRAME_TYPE_LABELS[ft as ProductionFrameType] ?? ft} · ${PRODUCTION_GLASS_TYPE_LABELS[gt as ProductionGlassType] ?? gt}`;
 }

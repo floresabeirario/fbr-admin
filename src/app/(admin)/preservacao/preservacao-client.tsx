@@ -57,6 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { groupOrders, GROUP_TO_TARGET_STATUS, type OrderGroupKey } from "@/lib/supabase/orders";
+import { setNavList } from "@/lib/workbench-nav";
 import { exportOrdersToCsv } from "@/lib/export-csv";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import {
@@ -796,9 +797,31 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
     });
   }
 
+  // Lista plana na ordem visual da tabela, para o slide prev/next dentro
+  // do workbench. Inclui os grupos pela mesma ordem em que aparecem na
+  // listagem, ignorando o estado colapsado (também são "visíveis", só
+  // estão escondidos por um toggle do utilizador). Em modo arquivados,
+  // usa a lista arquivada.
+  function flatOrderIds(): string[] {
+    if (showArchived) {
+      return archivedOrders.map((o) => o.order_id);
+    }
+    return [
+      ...grouped.orfas,
+      ...grouped.sem_resposta,
+      ...grouped.pre_reservas,
+      ...grouped.reservas,
+      ...grouped.preservacao_design,
+      ...grouped.finalizacao,
+      ...grouped.concluidos,
+      ...grouped.cancelamentos,
+    ].map((o) => o.order_id);
+  }
+
   function openOrder(order: Order) {
     if (navigatingId) return;
     setNavigatingId(order.id);
+    setNavList("orders", flatOrderIds());
     startNavigationProgress();
     startNavTransition(() => {
       router.push(`/preservacao/${order.order_id}`);

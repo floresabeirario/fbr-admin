@@ -52,6 +52,7 @@ import {
   partnerStats,
   searchPartners,
 } from "@/lib/supabase/partners";
+import { setNavList } from "@/lib/workbench-nav";
 import { updatePartnerAction } from "./actions";
 import NovoParceiroSheet from "./novo-parceiro-sheet";
 import PortugalMap from "./portugal-map";
@@ -437,9 +438,21 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
     });
   }
 
+  // Ordem visual da listagem da categoria activa (PARTNER_STATUS_ORDER +
+  // orfas no topo). Replicada de groupByStatus / parcerias-client.
+  function flatPartnerIds(): string[] {
+    const ids: string[] = [];
+    if (grouped.orfas?.length) ids.push(...grouped.orfas.map((p) => p.id));
+    for (const status of PARTNER_STATUS_ORDER) {
+      ids.push(...grouped[status].map((p) => p.id));
+    }
+    return ids;
+  }
+
   function openPartner(p: Partner) {
     if (navigatingId) return;
     setNavigatingId(p.id);
+    setNavList("partners", flatPartnerIds());
     startNavigationProgress();
     startNavTransition(() => {
       router.push(`/parcerias/${p.id}`);

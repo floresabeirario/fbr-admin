@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/server";
 import { generateCouponCode } from "@/lib/coupon";
 import { computePricingSnapshot } from "@/lib/pricing";
+import { buildProductionCostSnapshot } from "@/lib/production-cost";
 import type { PricingItem } from "@/types/pricing";
+import type { ProductionCostItem } from "@/types/production-cost";
 import {
   createOrderDriveFolderIfNeeded,
   isFirstOrderPayment,
@@ -39,6 +41,7 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
         {
           frame_size: order.frame_size ?? null,
           frame_background: order.frame_background ?? null,
+          pyramid_frame: order.pyramid_frame ?? false,
           extra_small_frames: order.extra_small_frames ?? null,
           extra_small_frames_qty: order.extra_small_frames_qty ?? null,
           christmas_ornaments: order.christmas_ornaments ?? null,
@@ -51,13 +54,25 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
     }
   }
 
-  const payload: OrderInsert = computedSnapshot
-    ? {
-        ...order,
-        budget: computedSnapshot.total,
-        pricing_snapshot: computedSnapshot,
-      }
-    : order;
+  // ── Snapshot dos custos de produção ───────────────────────────────
+  // Capturamos sempre na criação (independente do budget manual): o
+  // custo de produção é informação interna, não substitui o orçamento.
+  let costSnapshot: ReturnType<typeof buildProductionCostSnapshot> | null = null;
+  const { data: costRows } = await supabase
+    .from("production_cost_items")
+    .select("*")
+    .is("deleted_at", null);
+  if (costRows && costRows.length > 0) {
+    costSnapshot = buildProductionCostSnapshot(costRows as ProductionCostItem[]);
+  }
+
+  const payload: OrderInsert = {
+    ...order,
+    ...(computedSnapshot
+      ? { budget: computedSnapshot.total, pricing_snapshot: computedSnapshot }
+      : {}),
+    ...(costSnapshot ? { production_cost_snapshot: costSnapshot } : {}),
+  };
 
   const { data, error } = await supabase
     .from("orders")
@@ -84,7 +99,7 @@ export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
     supabase
       .from("orders")
       .select(
-        "frame_size, frame_background, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+        "frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single(),
@@ -110,6 +125,39 @@ export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
   const { data, error } = await supabase
     .from("orders")
     .update({ budget: snapshot.total, pricing_snapshot: snapshot })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/preservacao/${id}`);
+  revalidatePath("/preservacao");
+  return data as Order;
+}
+
+/**
+ * Captura os custos de produção vigentes para uma encomenda antiga
+ * (criada antes da migração 034) — preenche `production_cost_snapshot`
+ * com a tabela actual. Útil quando se quer ver a margem de uma
+ * encomenda que ainda não tem snapshot.
+ */
+export async function captureOrderProductionCostAction(id: string): Promise<Order> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { data: costRows, error: costErr } = await supabase
+    .from("production_cost_items")
+    .select("*")
+    .is("deleted_at", null);
+  if (costErr) throw new Error(costErr.message);
+  if (!costRows || costRows.length === 0) {
+    throw new Error("Tabela de custos de produção vazia.");
+  }
+
+  const snapshot = buildProductionCostSnapshot(costRows as ProductionCostItem[]);
+  const { data, error } = await supabase
+    .from("orders")
+    .update({ production_cost_snapshot: snapshot })
     .eq("id", id)
     .select()
     .single();

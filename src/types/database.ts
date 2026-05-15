@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { PricingSnapshot } from "./pricing";
+import type { ProductionCostSnapshot } from "./production-cost";
 
 export type OrderStatus =
   | "entrega_flores_agendar"
@@ -207,6 +208,18 @@ export interface Order {
   // criação. NULL para encomendas antigas (budget continua manual).
   // Aumentos futuros à tabela de preços não recalculam este snapshot.
   pricing_snapshot: PricingSnapshot | null;
+
+  // ── Moldura pirâmide e tipo interno (custos de produção) ────
+  // pyramid_frame: cliente escolheu upgrade pirâmide (afecta preço E custo).
+  // frame_internal_type: decisão da Maria (só relevante se pyramid=false) —
+  //   'baixa' (2x2cm, default) ou 'caixa' (2x3cm, usada quando flores são
+  //   altas). Cliente paga o mesmo; só a margem da FBR varia.
+  pyramid_frame: boolean;
+  frame_internal_type: "baixa" | "caixa" | null;
+
+  // Snapshot integral da tabela production_cost_items vigente quando a
+  // encomenda foi criada. NULL para encomendas anteriores à migração 034.
+  production_cost_snapshot: ProductionCostSnapshot | null;
 
   // ── RGPD (anonimização) ────────────────────────────────────
   // Timestamp em que a encomenda foi anonimizada (PII removida,
