@@ -142,6 +142,17 @@ function formatPhone(raw: string | null | undefined): string | null {
   return trimmed.startsWith("+") ? trimmed : `+${trimmed}`;
 }
 
+// Escape mínimo para texto que vai entrar numa descrição HTML do
+// Google Calendar. Evita que caracteres como < > & " corrompam a
+// estrutura HTML quando aparecem no nome do cliente, morada, etc.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 // Formata "YYYY-MM-DD" → "15 de Maio de 2026" (mês por extenso em PT).
 // Usado em sítios onde a data é a info principal da linha, como a data
 // da recolha na descrição do evento Calendar.
@@ -205,14 +216,17 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   ).replace(/\/$/, "");
   const workbenchUrl = `${siteUrl}/preservacao/${order.order_id}`;
 
-  // Construção da descrição. Quando é recolha, bloco dedicado no topo com
-  // morada/horário; sempre seguido por contactos do cliente e link workbench.
-  // O Google Calendar aceita HTML básico (<a>, <br>) em description.
+  // Construção da descrição em HTML. O Google Calendar aceita HTML
+  // básico em `description` (documentado oficialmente). Para que o `<a>`
+  // do ID seja respeitado tem de ser HTML *completo* — quando há mistura
+  // de `\n` com tags, alguns clientes degradam para texto puro e o
+  // anchor mostra-se como literal. Por isso usamos `<br>` em vez de \n.
+  const E = escapeHtml;
   const lines: string[] = [];
 
   if (isPickup) {
     lines.push("🚗 RECOLHA NO LOCAL");
-    if (order.pickup_address) lines.push(`📍 Morada: ${order.pickup_address}`);
+    if (order.pickup_address) lines.push(`📍 Morada: ${E(order.pickup_address)}`);
     const from = trimSeconds(order.pickup_time_from);
     const to = trimSeconds(order.pickup_time_to);
     if (from || to) {
@@ -222,27 +236,30 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
       lines.push(`📅 Data de recolha: ${formatDateLongPt(order.pickup_date)}`);
     }
     if (order.pickup_contact_name || order.pickup_contact_phone) {
-      const parts = [order.pickup_contact_name, formatPhone(order.pickup_contact_phone)]
+      const parts = [
+        order.pickup_contact_name ? E(order.pickup_contact_name) : null,
+        formatPhone(order.pickup_contact_phone),
+      ]
         .filter(Boolean)
         .join(" — ");
       lines.push(`👥 Contacto no local: ${parts}`);
     }
     if (order.pickup_notes) {
-      lines.push(`📝 Notas: ${order.pickup_notes}`);
+      lines.push(`📝 Notas: ${E(order.pickup_notes)}`);
     }
     lines.push("");
   } else if (isHandDelivery) {
     lines.push("🤲 EM MÃOS pelo cliente");
     lines.push("");
   } else if (order.flower_delivery_method) {
-    lines.push(`📦 Envio: ${FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method]}`);
+    lines.push(`📦 Envio: ${E(FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method])}`);
     lines.push("");
   }
 
   // Contactos do cliente — sempre incluídos (telemóvel apenas;
   // email e preferência de contacto são geridos no workbench)
   lines.push("👤 CLIENTE");
-  lines.push(`Nome: ${order.client_name || "—"}`);
+  lines.push(`Nome: ${E(order.client_name || "—")}`);
   const phoneFmt = formatPhone(order.phone);
   if (phoneFmt) lines.push(`📱 ${phoneFmt}`);
   lines.push("");
@@ -250,20 +267,19 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   // Evento (data + local) — só se diferente da info da recolha
   if (!isPickup && order.event_location) {
     lines.push("📍 Local do evento");
-    lines.push(order.event_location);
+    lines.push(E(order.event_location));
     lines.push("");
   } else if (isPickup && order.event_location && order.event_location !== order.pickup_address) {
     lines.push("📍 Local do evento (diferente da recolha)");
-    lines.push(order.event_location);
+    lines.push(E(order.event_location));
     lines.push("");
   }
 
-  // ID da encomenda + URL do workbench. O Google Calendar elimina tags
-  // <a> da descrição mas linkifica URLs em texto puro — desde que estejam
-  // numa linha sozinha (caracteres não-ASCII colados ao URL quebram a
-  // detecção em alguns clientes). Por isso o URL fica na sua própria linha.
-  lines.push(`Encomenda #${order.order_id}`);
-  lines.push(workbenchUrl);
+  // ID da encomenda como link clicável (HTML <a>). Quando a descrição
+  // toda é HTML (sem \n), Calendar respeita o anchor.
+  lines.push(
+    `<a href="${E(workbenchUrl)}">Encomenda #${E(order.order_id)}</a>`,
+  );
 
   // Localização do evento Calendar: quando é recolha, usa a morada de
   // recolha (mais útil — abre o Maps directo para onde ir buscar).
@@ -296,7 +312,7 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
 
   return {
     summary,
-    description: lines.join("\n"),
+    description: lines.join("<br>"),
     location,
     ...timing,
     // Recolha BLOQUEIA o calendário (alguém tem que estar lá); resto fica free
