@@ -160,6 +160,7 @@ export interface Order {
   drive_folder_url: string | null;
   drive_folder_id: string | null;
   calendar_event_id: string | null;
+  calendar_event_html_link: string | null;
   flowers_photo_url: string | null;
   inspiration_gallery: InspirationItem[];
 
@@ -186,6 +187,11 @@ export interface Order {
   // página Entregas e Recolhas. Distinto de `additional_notes` (do
   // cliente) e `sticky_note` (post-it geral da encomenda).
   pickup_notes: string | null;
+  // Pessoa que estará no local da recolha (quando não é o cliente —
+  // amigo/familiar). Nome e telemóvel mostrados em destaque junto da
+  // morada/hora.
+  pickup_contact_name: string | null;
+  pickup_contact_phone: string | null;
 
   // ── Inventário de flores ─────────────────────────────────────
   inventory: InventoryItem[];

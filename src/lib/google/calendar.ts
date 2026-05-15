@@ -96,6 +96,21 @@ export async function ensureCalendar(): Promise<string> {
 
 export type CalendarEventInfo = { id: string; htmlLink: string | null };
 
+/**
+ * Constrói o URL público do evento Google Calendar a partir do
+ * `eventId` e do `calendarId`. Útil como fallback para encomendas
+ * cujo `htmlLink` ainda não foi persistido (criadas antes da
+ * migração 037). Formato `eid` = base64url(eventId + ' ' + calendarId).
+ */
+export function computeEventHtmlLink(eventId: string, calendarId: string): string {
+  const eid = Buffer.from(`${eventId} ${calendarId}`, "utf8")
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+  return `https://www.google.com/calendar/event?eid=${eid}`;
+}
+
 type OrderForEvent = Pick<
   Order,
   | "id"
@@ -111,10 +126,39 @@ type OrderForEvent = Pick<
   | "pickup_time_from"
   | "pickup_time_to"
   | "pickup_notes"
+  | "pickup_contact_name"
+  | "pickup_contact_phone"
   | "email"
   | "phone"
   | "contact_preference"
 >;
+
+// Formata "YYYY-MM-DD" → "15 de Maio de 2026" (mês por extenso em PT).
+// Usado em sítios onde a data é a info principal da linha, como a data
+// da recolha na descrição do evento Calendar.
+const MONTHS_PT = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+function formatDateLongPt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  const day = parseInt(m[3], 10);
+  const monthIdx = parseInt(m[2], 10) - 1;
+  const year = m[1];
+  const month = MONTHS_PT[monthIdx] ?? m[2];
+  return `${day} de ${month} de ${year}`;
+}
+
+// Escape mínimo para usar dentro de description HTML (atributos e texto).
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 // Formata HH:MM (descarta segundos vindos do Postgres TIME).
 function trimSeconds(t: string | null | undefined): string | null {
@@ -146,21 +190,22 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
 
   // Summary com prefixo logístico quando aplicável — facilita reconhecer
   // rapidamente o evento na vista de Calendar do telemóvel.
-  // Formato: "🚐 RECOLHA | João & Maria | Casamento"
+  // Formato: "🚗 RECOLHA | João & Maria | Casamento 💐"
   let prefix: string | null = null;
-  if (isPickup) prefix = "🚐 RECOLHA";
-  else if (isHandDelivery) prefix = "🤲 ENTREGA EM MÃOS";
-  const summary = [prefix, namePart, typeLabel].filter(Boolean).join(" | ");
+  if (isPickup) prefix = "🚗 RECOLHA";
+  else if (isHandDelivery) prefix = "🤲 EM MÃOS";
+  const summary = `${[prefix, namePart, typeLabel].filter(Boolean).join(" | ")} 💐`;
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
   const workbenchUrl = siteUrl ? `${siteUrl}/preservacao/${order.order_id}` : null;
 
   // Construção da descrição. Quando é recolha, bloco dedicado no topo com
   // morada/horário; sempre seguido por contactos do cliente e link workbench.
+  // O Google Calendar aceita HTML básico (<a>, <br>) em description.
   const lines: string[] = [];
 
   if (isPickup) {
-    lines.push("🚐 RECOLHA NO LOCAL");
+    lines.push("🚗 RECOLHA NO LOCAL");
     if (order.pickup_address) lines.push(`📍 Morada: ${order.pickup_address}`);
     const from = trimSeconds(order.pickup_time_from);
     const to = trimSeconds(order.pickup_time_to);
@@ -168,28 +213,31 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
       lines.push(`🕒 Horário: ${from ?? "?"}${to ? ` – ${to}` : ""}`);
     }
     if (order.pickup_date && order.pickup_date !== order.event_date) {
-      lines.push(`📅 Data de recolha: ${order.pickup_date}`);
+      lines.push(`📅 Data de recolha: ${formatDateLongPt(order.pickup_date)}`);
+    }
+    if (order.pickup_contact_name || order.pickup_contact_phone) {
+      const parts = [order.pickup_contact_name, order.pickup_contact_phone]
+        .filter(Boolean)
+        .join(" — ");
+      lines.push(`👥 Contacto no local: ${parts}`);
     }
     if (order.pickup_notes) {
       lines.push(`📝 Notas: ${order.pickup_notes}`);
     }
     lines.push("");
   } else if (isHandDelivery) {
-    lines.push("🤲 ENTREGA EM MÃOS pelo cliente");
+    lines.push("🤲 EM MÃOS pelo cliente");
     lines.push("");
   } else if (order.flower_delivery_method) {
     lines.push(`📦 Envio: ${FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method]}`);
     lines.push("");
   }
 
-  // Contactos do cliente — sempre incluídos
+  // Contactos do cliente — sempre incluídos (telemóvel apenas;
+  // email e preferência de contacto são geridos no workbench)
   lines.push("👤 CLIENTE");
   lines.push(`Nome: ${order.client_name || "—"}`);
-  if (order.email) lines.push(`📧 ${order.email}`);
   if (order.phone) lines.push(`📱 ${order.phone}`);
-  if (order.contact_preference) {
-    lines.push(`Prefere: ${order.contact_preference === "whatsapp" ? "WhatsApp" : "Email"}`);
-  }
   lines.push("");
 
   // Evento (data + local) — só se diferente da info da recolha
@@ -203,8 +251,14 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
     lines.push("");
   }
 
-  lines.push(`Encomenda #${order.order_id}`);
-  if (workbenchUrl) lines.push(`🔗 ${workbenchUrl}`);
+  // ID da encomenda — clicável para o workbench quando temos URL.
+  if (workbenchUrl) {
+    lines.push(
+      `<a href="${escapeHtml(workbenchUrl)}">Encomenda #${escapeHtml(order.order_id)}</a>`,
+    );
+  } else {
+    lines.push(`Encomenda #${order.order_id}`);
+  }
 
   // Localização do evento Calendar: quando é recolha, usa a morada de
   // recolha (mais útil — abre o Maps directo para onde ir buscar).

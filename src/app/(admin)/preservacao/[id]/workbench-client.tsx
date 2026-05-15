@@ -639,7 +639,11 @@ export default function WorkbenchClient({
   }
 
   const [calendarBusy, setCalendarBusy] = useState(false);
-  const [calendarLink, setCalendarLink] = useState<string | null>(null);
+  // Inicializa com o link persistido na BD para que o botão "No Calendar"
+  // funcione imediatamente após refresh (sessão 55).
+  const [calendarLink, setCalendarLink] = useState<string | null>(
+    local.calendar_event_html_link,
+  );
 
   async function createCalendarEvent() {
     if (!local.event_date) {
@@ -673,7 +677,11 @@ export default function WorkbenchClient({
     try {
       await deleteOrderCalendarEventAction(local.id);
       setCalendarLink(null);
-      setLocal((prev) => ({ ...prev, calendar_event_id: null }));
+      setLocal((prev) => ({
+        ...prev,
+        calendar_event_id: null,
+        calendar_event_html_link: null,
+      }));
       toast.success("Evento removido do Google Calendar.");
       router.refresh();
     } catch (err) {
@@ -1692,13 +1700,32 @@ export default function WorkbenchClient({
                           </div>
                         </Field>
                       </Grid2>
+                      <Grid2>
+                        <Field label="Contacto no local — nome">
+                          <Input
+                            className={inp}
+                            value={local.pickup_contact_name ?? ""}
+                            onChange={(e) => update("pickup_contact_name", e.target.value || null)}
+                            placeholder="Ex: Pai da noiva"
+                          />
+                        </Field>
+                        <Field label="Contacto no local — telemóvel">
+                          <Input
+                            className={inp}
+                            type="tel"
+                            value={local.pickup_contact_phone ?? ""}
+                            onChange={(e) => update("pickup_contact_phone", e.target.value || null)}
+                            placeholder="+351 …"
+                          />
+                        </Field>
+                      </Grid2>
                       <Field label="Notas sobre a recolha" span2>
                         <Textarea
                           className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
                           rows={2}
                           value={local.pickup_notes ?? ""}
                           onChange={(e) => update("pickup_notes", e.target.value || null)}
-                          placeholder="Indicações úteis para a recolha — contacto no local, parqueamento, observações…"
+                          placeholder="Indicações úteis para a recolha — parqueamento, código do prédio, observações…"
                         />
                       </Field>
                     </div>

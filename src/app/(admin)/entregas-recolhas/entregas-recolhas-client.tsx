@@ -51,6 +51,9 @@ interface LogisticsItem {
   timeTo?: string | null;
   /** Notas internas sobre a recolha (apenas recolha_evento) */
   notes?: string | null;
+  /** Contacto de quem estará no local (apenas recolha_evento) */
+  contactName?: string | null;
+  contactPhone?: string | null;
   /** Recolha/envio já concluído (baseado no estado da encomenda) */
   completed: boolean;
 }
@@ -121,6 +124,8 @@ function getAllLogistics(orders: Order[]): LogisticsItem[] {
         timeFrom: o.pickup_time_from,
         timeTo: o.pickup_time_to,
         notes: o.pickup_notes,
+        contactName: o.pickup_contact_name,
+        contactPhone: o.pickup_contact_phone,
       };
       items.push({ ...base, completed: isCompleted(base) });
     }
@@ -676,9 +681,45 @@ function TodayCard({ item }: { item: LogisticsItem }) {
             <Icon className="h-3 w-3" />
             {KIND_LABELS[item.kind]}
           </div>
+          {(item.contactName || item.contactPhone) && (
+            <PickupContactLine name={item.contactName} phone={item.contactPhone} />
+          )}
           {item.notes && <PickupNotesBox notes={item.notes} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Linha com o contacto de quem estará na recolha (amigo/familiar). */
+function PickupContactLine({
+  name,
+  phone,
+  compact = false,
+}: {
+  name?: string | null;
+  phone?: string | null;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 flex items-center gap-1.5 text-emerald-900 dark:text-emerald-200",
+        compact ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs",
+      )}
+      title="Pessoa que estará no local da recolha"
+    >
+      <span aria-hidden>👥</span>
+      <span className="font-medium">Contacto no local:</span>
+      {name && <span>{name}</span>}
+      {phone && (
+        <a
+          href={`tel:${phone.replace(/\s+/g, "")}`}
+          className="font-mono hover:underline"
+        >
+          {phone}
+        </a>
+      )}
     </div>
   );
 }

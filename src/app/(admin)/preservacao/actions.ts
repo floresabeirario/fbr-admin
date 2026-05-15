@@ -195,6 +195,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.pickup_time_from !== undefined ||
     updates.pickup_time_to !== undefined ||
     updates.pickup_notes !== undefined ||
+    updates.pickup_contact_name !== undefined ||
+    updates.pickup_contact_phone !== undefined ||
     updates.email !== undefined ||
     updates.phone !== undefined ||
     updates.contact_preference !== undefined;
@@ -206,7 +208,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, email, phone, contact_preference",
+        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, email, phone, contact_preference",
       )
       .eq("id", id)
       .single();
@@ -248,6 +250,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
             pickup_time_from: prev.pickup_time_from as string | null,
             pickup_time_to: prev.pickup_time_to as string | null,
             pickup_notes: prev.pickup_notes as string | null,
+            pickup_contact_name: prev.pickup_contact_name as string | null,
+            pickup_contact_phone: prev.pickup_contact_phone as string | null,
             email: prev.email as string | null,
             phone: prev.phone as string | null,
             contact_preference: prev.contact_preference as Order["contact_preference"],
@@ -297,6 +301,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       pickup_time_from: updatedOrder.pickup_time_from,
       pickup_time_to: updatedOrder.pickup_time_to,
       pickup_notes: updatedOrder.pickup_notes,
+      pickup_contact_name: updatedOrder.pickup_contact_name,
+      pickup_contact_phone: updatedOrder.pickup_contact_phone,
       email: updatedOrder.email,
       phone: updatedOrder.phone,
       contact_preference: updatedOrder.contact_preference,
@@ -352,7 +358,7 @@ export async function createOrderCalendarEventAction(id: string): Promise<{
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, order_id, client_name, event_date, event_type, event_location, couple_names, calendar_event_id, status, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, email, phone, contact_preference",
+      "id, order_id, client_name, event_date, event_type, event_location, couple_names, calendar_event_id, status, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, email, phone, contact_preference",
     )
     .eq("id", id)
     .single();
@@ -378,6 +384,8 @@ export async function createOrderCalendarEventAction(id: string): Promise<{
     pickup_time_from: data.pickup_time_from as string | null,
     pickup_time_to: data.pickup_time_to as string | null,
     pickup_notes: data.pickup_notes as string | null,
+    pickup_contact_name: data.pickup_contact_name as string | null,
+    pickup_contact_phone: data.pickup_contact_phone as string | null,
     email: data.email as string | null,
     phone: data.phone as string | null,
     contact_preference: data.contact_preference as Order["contact_preference"],

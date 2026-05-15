@@ -3,6 +3,8 @@ import { getCurrentRole } from "@/lib/auth/server";
 import { notFound } from "next/navigation";
 import type { Order } from "@/types/database";
 import type { Partner } from "@/types/partner";
+import { loadIntegration } from "@/lib/google/oauth";
+import { computeEventHtmlLink } from "@/lib/google/calendar";
 import WorkbenchClient from "./workbench-client";
 
 export default async function WorkbenchPage({
@@ -32,9 +34,31 @@ export default async function WorkbenchPage({
 
   const partnerOptions = (partnersRes.data ?? []) as Pick<Partner, "id" | "name" | "category" | "status">[];
 
+  let order = orderRes.data as Order;
+
+  // Backfill do htmlLink para encomendas com evento Calendar criado
+  // antes da migração 037. Constrói o URL a partir do calendar_id da
+  // integração. Não chama a API Google — só dá lookup à integração.
+  if (order.calendar_event_id && !order.calendar_event_html_link) {
+    try {
+      const integration = await loadIntegration();
+      if (integration?.calendar_id) {
+        order = {
+          ...order,
+          calendar_event_html_link: computeEventHtmlLink(
+            order.calendar_event_id,
+            integration.calendar_id,
+          ),
+        };
+      }
+    } catch {
+      // Sem integração ou erro — botão fica sem link (popover Re-sincronizar resolve).
+    }
+  }
+
   return (
     <WorkbenchClient
-      order={orderRes.data as Order}
+      order={order}
       canEdit={role === "admin"}
       partners={partnerOptions}
     />

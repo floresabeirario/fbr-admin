@@ -41,6 +41,8 @@ type OrderFields = Pick<
   | "pickup_time_from"
   | "pickup_time_to"
   | "pickup_notes"
+  | "pickup_contact_name"
+  | "pickup_contact_phone"
   | "email"
   | "phone"
   | "contact_preference"
@@ -83,6 +85,8 @@ export function calendarFieldsChanged(
     "pickup_time_from",
     "pickup_time_to",
     "pickup_notes",
+    "pickup_contact_name",
+    "pickup_contact_phone",
     "email",
     "phone",
     "contact_preference",
@@ -119,19 +123,27 @@ export async function upsertOrderCalendarEvent(
       pickup_time_from: order.pickup_time_from,
       pickup_time_to: order.pickup_time_to,
       pickup_notes: order.pickup_notes,
+      pickup_contact_name: order.pickup_contact_name,
+      pickup_contact_phone: order.pickup_contact_phone,
       email: order.email,
       phone: order.phone,
       contact_preference: order.contact_preference,
     });
     if (!result) return null;
 
-    // Só fazemos update se o ID mudou (insert novo, ou recriação após 404)
+    // Persistimos o ID (se mudou) e o htmlLink (sempre que vier preenchido,
+    // para garantir que o botão "No Calendar" no workbench abre o evento
+    // mesmo após refresh — sem precisar de uma chamada à API).
+    const patch: { calendar_event_id?: string; calendar_event_html_link?: string | null } = {};
     if (result.id !== order.calendar_event_id) {
+      patch.calendar_event_id = result.id;
+    }
+    if (result.htmlLink) {
+      patch.calendar_event_html_link = result.htmlLink;
+    }
+    if (Object.keys(patch).length > 0) {
       const supabase = await createClient();
-      await supabase
-        .from("orders")
-        .update({ calendar_event_id: result.id })
-        .eq("id", order.id);
+      await supabase.from("orders").update(patch).eq("id", order.id);
     }
     return result;
   } catch (err) {
@@ -161,7 +173,7 @@ export async function deleteOrderCalendarEvent(
   const supabase = await createClient();
   await supabase
     .from("orders")
-    .update({ calendar_event_id: null })
+    .update({ calendar_event_id: null, calendar_event_html_link: null })
     .eq("id", order.id);
   return true;
 }

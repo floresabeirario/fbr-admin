@@ -41,6 +41,31 @@
 
 ## Sessões recentes (detalhe)
 
+### Sessão 55 ✅ Afinações Google Calendar + contacto da recolha + botão "No Calendar" (migs 036+037)
+
+Pedidos da Maria nos eventos Calendar:
+
+1. **Emoji 🚐 → 🚗** nas recolhas (carro em vez de carrinha)
+2. **Descrição mais leve**: removido o email e a "preferência de contacto" do bloco CLIENTE; só fica nome + telemóvel
+3. **Data da recolha por extenso** na descrição: "15 de Maio de 2026" (em vez de "2026-05-15") — `formatDateLongPt` em [src/lib/google/calendar.ts](src/lib/google/calendar.ts)
+4. **ID da encomenda clicável**: descrição agora contém `<a href="…">Encomenda #ID</a>` em HTML (Google Calendar aceita) → clica e abre o workbench
+5. **Título "em mãos" mais curto**: prefixo `🤲 ENTREGA EM MÃOS` → `🤲 EM MÃOS` (e a linha da descrição idem)
+6. **💐 no fim de todos os títulos** — `Sara | Casamento 💐`, `🚗 RECOLHA | … 💐`, etc.
+7. **Contacto de quem estará na recolha** (amigo/familiar — não o cliente): novos campos `pickup_contact_name` + `pickup_contact_phone` em `orders` (mig 036). Inputs no workbench, debaixo da janela horária. Aparece na descrição do Calendar como `👥 Contacto no local: Nome — telemóvel` e na agenda de Entregas e Recolhas como caixa verde clicável (tel: link).
+8. **Botão "No Calendar" volta a abrir o evento após refresh** (mig 037): persistimos `htmlLink` em `orders.calendar_event_html_link` no momento do insert/update. Para encomendas antigas, o page server-side reconstrói o URL a partir do `calendar_id` da integração (`computeEventHtmlLink`).
+
+**Ficheiros tocados:**
+- [supabase/migrations/036_pickup_contact.sql](supabase/migrations/036_pickup_contact.sql) + [supabase/migrations/037_calendar_event_link.sql](supabase/migrations/037_calendar_event_link.sql)
+- [src/types/database.ts](src/types/database.ts) — tipos
+- [src/lib/google/calendar.ts](src/lib/google/calendar.ts) — emojis, descrição, link HTML, formatador PT, `computeEventHtmlLink`
+- [src/lib/google/order-calendar-trigger.ts](src/lib/google/order-calendar-trigger.ts) — propaga campos + persiste htmlLink
+- [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts) — selects + reads incluem novos campos
+- [src/app/(admin)/preservacao/[id]/page.tsx](src/app/(admin)/preservacao/%5Bid%5D/page.tsx) — backfill do htmlLink para encomendas antigas
+- [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/%5Bid%5D/workbench-client.tsx) — inputs Nome + Telemóvel; estado inicial do link vem da BD
+- [src/app/(admin)/entregas-recolhas/entregas-recolhas-client.tsx](src/app/(admin)/entregas-recolhas/entregas-recolhas-client.tsx) — caixa verde com contacto na agenda
+
+`tsc --noEmit` passa limpo. Lint sem novos avisos nos ficheiros tocados (warnings pré-existentes não relacionados).
+
 ### Sessão 54 🚨 HOTFIX: workbench Preservação não carregava em produção (React #185)
 
 Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This page couldn't load" com `Minified React error #185` = **Maximum update depth exceeded**. Causa: na Sessão 52, o `WorkbenchNavigator` usa `useSyncExternalStore` e o `getSnapshot` chamava `getNavContext(...)` que constrói um objecto fresco `{ index, total, prev, next }` em cada chamada. `useSyncExternalStore` compara com `Object.is` → "snapshot novo" todo o render → loop. **Tudo passou nos checks** (`tsc`, `eslint`, `next build`) porque só falha em runtime no browser.
@@ -83,8 +108,8 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 
 ## Próximo passo CONCRETO
 
-**Sessões 52-54 — passos manuais da Maria** (cumulativo se ainda não correu nada desde 52):
-1. Correr **migrações 034 e 035** no Supabase SQL Editor (por ordem)
+**Sessões 52-55 — passos manuais da Maria** (cumulativo se ainda não correu nada desde 52):
+1. Correr **migrações 034, 035, 036 e 037** no Supabase SQL Editor (por ordem)
 2. Push para Vercel
 3. Em Finanças → "Tabela de preços", definir o preço do suplemento `extra.pyramid_frame` (cliente paga a mais pela pirâmide)
 4. (Opcional) Confirmar custo de impressão de fotografia para mini 20x25
@@ -95,6 +120,7 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
    - **Pirâmide**: workbench → Sim sobe orçamento; badge de custo no card Finanças mostra margem
    - **Encomenda antiga**: botão "Capturar custos de produção" → passa a mostrar custo+margem
    - **Hotfix 54**: abrir `/preservacao/<qualquer-encomenda>` → carrega normalmente (sem React #185)
+   - **Sessão 55**: numa encomenda com método "Recolha no local" preencher contacto (Nome + Telemóvel) no workbench; criar/forçar evento Calendar → confirmar 🚗 + 💐 no título, data por extenso, link no ID que abre workbench, caixa verde na página Entregas e Recolhas. Fazer refresh da página → botão "No Calendar" deve abrir directamente o evento (mesmo em encomendas antigas, via `computeEventHtmlLink`).
 6. (Opcional) Activar smoke test local: `npm i -D playwright && npx playwright install chromium` + `SMOKE_EMAIL`/`SMOKE_PASSWORD` em `.env.local`
 
 ---
