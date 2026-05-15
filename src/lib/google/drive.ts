@@ -31,6 +31,7 @@ import { createClient } from "@/lib/supabase/server";
 export const DRIVE_ROOT_NAME = "FBR — Encomendas";
 export const DRIVE_ORDERS_NAME = "Preservação de Flores";
 export const DRIVE_VOUCHERS_NAME = "Vale-Presente";
+export const DRIVE_EXPENSES_NAME = "Despesas";
 
 export const ORDER_SUBFOLDERS = [
   "Comprovativos de pagamento",
@@ -200,6 +201,83 @@ export async function ensureOrderFolder(params: {
   }
 
   return { id: orderFolderId, url: folderUrl(orderFolderId) };
+}
+
+/**
+ * Garante a pasta "Despesas" sob a raiz, com subpasta por ano. Devolve
+ * o ID da pasta do ano (onde os anexos de facturas vão).
+ */
+export async function ensureExpenseFolder(params: {
+  expenseDate: string | null;
+}): Promise<{ id: string; url: string }> {
+  const integration = await loadIntegration();
+  if (!integration) {
+    throw new Error("Integração Google não encontrada. Conecta primeiro em /settings/google.");
+  }
+
+  const { rootId } = await ensureRootFolders();
+  const drive = await getDrive();
+
+  let expensesId = integration.drive_expenses_folder_id;
+  if (!expensesId) {
+    expensesId = await ensureFolder(drive, DRIVE_EXPENSES_NAME, rootId);
+    const supabase = await createClient();
+    await supabase
+      .from("google_integration")
+      .update({ drive_expenses_folder_id: expensesId })
+      .eq("id", integration.id);
+  }
+
+  const yearId = await ensureFolder(drive, yearFolderName(params.expenseDate), expensesId);
+  return { id: yearId, url: folderUrl(yearId) };
+}
+
+/**
+ * Faz upload de um ficheiro de factura para a pasta Despesas/{ano}/.
+ * Devolve o webViewLink (URL pública partilhável) do ficheiro criado.
+ */
+export async function uploadExpenseInvoice(params: {
+  expenseDate: string | null;
+  supplier: string;
+  filename: string;
+  mimeType: string;
+  buffer: Buffer;
+}): Promise<{ id: string; url: string }> {
+  const { id: yearFolderId } = await ensureExpenseFolder({ expenseDate: params.expenseDate });
+  const drive = await getDrive();
+
+  const datePart = params.expenseDate
+    ? formatDateForFolder(params.expenseDate).replace(/\//g, "-")
+    : "sem-data";
+  const safeName = `${datePart} — ${sanitize(params.supplier)} — ${sanitize(params.filename)}`;
+
+  // googleapis aceita Buffer/Readable como media.body. Usamos um Readable
+  // wrapper porque a versão Node nativa do FormData não serializa Buffer
+  // correctamente quando o stream-size é zero.
+  const { Readable } = await import("node:stream");
+  const stream = Readable.from(params.buffer);
+
+  const res = await drive.files.create({
+    requestBody: {
+      name: safeName,
+      parents: [yearFolderId],
+    },
+    media: {
+      mimeType: params.mimeType,
+      body: stream,
+    },
+    fields: "id, webViewLink",
+    supportsAllDrives: true,
+  });
+
+  if (!res.data.id) {
+    throw new Error("Falhou ao criar o ficheiro na Drive.");
+  }
+
+  return {
+    id: res.data.id,
+    url: res.data.webViewLink ?? `https://drive.google.com/file/d/${res.data.id}/view`,
+  };
 }
 
 /**

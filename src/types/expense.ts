@@ -21,6 +21,8 @@ export type ExpensePaymentMethod =
   | "multibanco"
   | "outro";
 
+export type ExpenseRecurrencePeriod = "monthly" | "yearly" | "custom";
+
 export interface Expense {
   id: string;
   created_at: string;
@@ -40,6 +42,14 @@ export interface Expense {
   has_invoice: boolean;
   invoice_url: string | null;
   notes: string | null;
+
+  // Recorrência (subscrições): se is_recurring=true, expense_date é
+  // tratado como referência mas o que conta para os relatórios é o
+  // par {recurrence_period, recurrence_start_date, recurrence_end_date}.
+  is_recurring: boolean;
+  recurrence_period: ExpenseRecurrencePeriod | null;
+  recurrence_start_date: string | null;
+  recurrence_end_date: string | null;
 }
 
 export type ExpenseInsert = Partial<Omit<Expense, "id" | "created_at" | "updated_at">> & {
@@ -96,3 +106,50 @@ export const EXPENSE_PAYMENT_METHOD_LABELS: Record<ExpensePaymentMethod, string>
   multibanco: "Multibanco",
   outro: "Outro",
 };
+
+export const EXPENSE_RECURRENCE_PERIOD_LABELS: Record<ExpenseRecurrencePeriod, string> = {
+  monthly: "Mensal",
+  yearly: "Anual",
+  custom: "Intervalo específico",
+};
+
+/**
+ * Normaliza uma despesa recorrente para um custo mensal equivalente.
+ * - Mensal → amount
+ * - Anual → amount / 12
+ * - Custom (start→end) → amount * ocorrências esperadas no intervalo / nº meses
+ *   (interpretação: amount é por ocorrência mensal; intervalo só limita período).
+ * Se a despesa não é recorrente, devolve 0.
+ */
+export function monthlyEquivalent(e: Pick<Expense,
+  | "is_recurring"
+  | "recurrence_period"
+  | "amount"
+>): number {
+  if (!e.is_recurring) return 0;
+  const amt = Number(e.amount);
+  switch (e.recurrence_period) {
+    case "monthly": return amt;
+    case "yearly":  return amt / 12;
+    case "custom":  return amt; // tratamos como mensal dentro do intervalo
+    default:        return 0;
+  }
+}
+
+/**
+ * Devolve true se uma subscrição está activa numa dada data
+ * (entre start e end, inclusive; end NULL = ainda activa).
+ */
+export function isSubscriptionActive(
+  e: Pick<Expense, "is_recurring" | "recurrence_start_date" | "recurrence_end_date">,
+  at: Date,
+): boolean {
+  if (!e.is_recurring || !e.recurrence_start_date) return false;
+  const start = new Date(e.recurrence_start_date);
+  if (at < start) return false;
+  if (e.recurrence_end_date) {
+    const end = new Date(e.recurrence_end_date);
+    if (at > end) return false;
+  }
+  return true;
+}

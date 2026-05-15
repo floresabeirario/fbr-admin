@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin, getCurrentEmail } from "@/lib/auth/server";
+import { uploadExpenseInvoice } from "@/lib/google/drive";
 import type {
   Competitor,
   CompetitorInsert,
@@ -126,5 +127,56 @@ export async function archiveExpenseAction(id: string): Promise<void> {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/financas");
+}
+
+/**
+ * Upload de uma factura para a Drive (pasta Despesas/{ano}/) e guarda o
+ * URL na linha da despesa. Aceita FormData com campos:
+ *   - expense_id (UUID da despesa)
+ *   - file (File)
+ */
+export async function uploadExpenseInvoiceAction(formData: FormData): Promise<{
+  url: string;
+}> {
+  await requireAdmin();
+  const expenseId = String(formData.get("expense_id") ?? "");
+  const file = formData.get("file");
+  if (!expenseId || !(file instanceof File)) {
+    throw new Error("Faltam dados: expense_id ou file.");
+  }
+  if (file.size === 0) {
+    throw new Error("Ficheiro vazio.");
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error("Ficheiro demasiado grande (limite 25 MB).");
+  }
+
+  const supabase = await createClient();
+  const { data: expense, error: fetchErr } = await supabase
+    .from("expenses")
+    .select("expense_date, supplier")
+    .eq("id", expenseId)
+    .single();
+  if (fetchErr || !expense) {
+    throw new Error("Despesa não encontrada.");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const uploaded = await uploadExpenseInvoice({
+    expenseDate: expense.expense_date,
+    supplier: expense.supplier,
+    filename: file.name,
+    mimeType: file.type || "application/octet-stream",
+    buffer,
+  });
+
+  const { error: updErr } = await supabase
+    .from("expenses")
+    .update({ invoice_url: uploaded.url, has_invoice: true })
+    .eq("id", expenseId);
+  if (updErr) throw new Error(updErr.message);
+
+  revalidatePath("/financas");
+  return { url: uploaded.url };
 }
 

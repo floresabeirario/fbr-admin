@@ -19,7 +19,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   CreditCard,
-  FileText,
+  Calendar as CalendarIcon,
+  RotateCw,
+  Paperclip,
+  Upload,
+  Sparkles,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -43,12 +47,15 @@ import {
   PRICING_CATEGORY_LABELS,
   PRICING_CATEGORY_HELPER,
 } from "@/types/pricing";
-import type { Expense, ExpenseCategory, ExpensePaymentMethod } from "@/types/expense";
+import type { Expense, ExpenseCategory, ExpensePaymentMethod, ExpenseRecurrencePeriod } from "@/types/expense";
 import {
   EXPENSE_CATEGORY_LABELS,
   EXPENSE_CATEGORY_COLORS,
   EXPENSE_CATEGORY_ORDER,
   EXPENSE_PAYMENT_METHOD_LABELS,
+  EXPENSE_RECURRENCE_PERIOD_LABELS,
+  monthlyEquivalent,
+  isSubscriptionActive,
 } from "@/types/expense";
 import {
   createCompetitorAction,
@@ -58,15 +65,53 @@ import {
   createExpenseAction,
   updateExpenseAction,
   archiveExpenseAction,
+  uploadExpenseInvoiceAction,
 } from "./actions";
 
-type TabKey = "precos" | "despesas" | "faturacao" | "competicao";
+type TabKey = "despesas" | "precos" | "faturacao" | "competicao";
 
-const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = [
-  { key: "precos",     label: "Tabela de preços", icon: Tags,       color: "text-sky-500" },
-  { key: "despesas",   label: "Despesas",         icon: Receipt,    color: "text-rose-500" },
-  { key: "faturacao",  label: "Faturação",        icon: TrendingUp, color: "text-emerald-500" },
-  { key: "competicao", label: "Competição",       icon: Swords,     color: "text-violet-500" },
+interface TabDef {
+  key: TabKey;
+  label: string;
+  helper: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: string; // tailwind classes para o ícone quando inactivo
+  bgInactive: string; // background do ícone quando inactivo
+}
+
+const TABS: TabDef[] = [
+  {
+    key: "despesas",
+    label: "Despesas",
+    helper: "Subscrições e gastos únicos",
+    icon: Receipt,
+    accent: "text-rose-600",
+    bgInactive: "bg-rose-100",
+  },
+  {
+    key: "precos",
+    label: "Tabela de preços",
+    helper: "Base de cálculo do orçamento",
+    icon: Tags,
+    accent: "text-sky-600",
+    bgInactive: "bg-sky-100",
+  },
+  {
+    key: "faturacao",
+    label: "Faturação",
+    helper: "Receita e lucro mensal",
+    icon: TrendingUp,
+    accent: "text-emerald-600",
+    bgInactive: "bg-emerald-100",
+  },
+  {
+    key: "competicao",
+    label: "Competição",
+    helper: "Concorrentes e preços",
+    icon: Swords,
+    accent: "text-violet-600",
+    bgInactive: "bg-violet-100",
+  },
 ];
 
 function formatEuro(value: number | null): string {
@@ -95,7 +140,7 @@ export default function FinancasClient({
   vouchers,
   canEdit,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("precos");
+  const [tab, setTab] = useState<TabKey>("despesas");
 
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
@@ -109,8 +154,8 @@ export default function FinancasClient({
         </h1>
       </div>
 
-      {/* Pill tabs (mesmo padrão visual da aba Parcerias) */}
-      <div className="flex flex-wrap gap-2">
+      {/* Tabs como cartões grandes — visíveis e claros */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         {TABS.map((t) => {
           const active = t.key === tab;
           const Icon = t.icon;
@@ -120,25 +165,51 @@ export default function FinancasClient({
               type="button"
               onClick={() => setTab(t.key)}
               className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                "group relative flex items-center gap-3 p-3 sm:p-4 rounded-2xl border-2 text-left transition-all",
                 active
-                  ? "bg-btn-primary text-btn-primary-fg border-btn-primary"
-                  : "bg-surface text-cocoa-900 border-cream-200 hover:border-cocoa-500",
+                  ? "border-cocoa-900 bg-cocoa-900 text-surface shadow-md dark:border-[#E8D5B5] dark:bg-[#E8D5B5] dark:text-[#1B1611]"
+                  : "border-cream-200 bg-surface text-cocoa-900 hover:border-cocoa-500 hover:shadow-sm",
               )}
             >
-              <Icon className={cn("h-4 w-4", active ? "text-btn-primary-fg" : t.color)} />
-              {t.label}
+              <div
+                className={cn(
+                  "h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-xl flex items-center justify-center transition-colors",
+                  active
+                    ? "bg-surface/15 dark:bg-[#1B1611]/15"
+                    : t.bgInactive,
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5 sm:h-6 sm:w-6",
+                    active ? "text-surface dark:text-[#1B1611]" : t.accent,
+                  )}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm sm:text-base font-semibold leading-tight">
+                  {t.label}
+                </div>
+                <div
+                  className={cn(
+                    "text-[11px] sm:text-xs mt-0.5 leading-tight truncate",
+                    active ? "opacity-80" : "text-cocoa-700",
+                  )}
+                >
+                  {t.helper}
+                </div>
+              </div>
             </button>
           );
         })}
       </div>
 
+      {tab === "despesas"  && <DespesasTab expenses={initialExpenses} canEdit={canEdit} />}
+      {tab === "precos"    && <PrecosTab pricing={initialPricing} canEdit={canEdit} />}
+      {tab === "faturacao" && <FaturacaoTab orders={orders} vouchers={vouchers} expenses={initialExpenses} />}
       {tab === "competicao" && (
         <CompeticaoTab competitors={initialCompetitors} canEdit={canEdit} />
       )}
-      {tab === "precos"    && <PrecosTab pricing={initialPricing} canEdit={canEdit} />}
-      {tab === "despesas"  && <DespesasTab expenses={initialExpenses} canEdit={canEdit} />}
-      {tab === "faturacao" && <FaturacaoTab orders={orders} vouchers={vouchers} expenses={initialExpenses} />}
     </div>
   );
 }
@@ -232,6 +303,12 @@ function PrecosTab({
             congelado dos preços do dia da criação. Podes sempre editar o
             orçamento manualmente em cada workbench.
           </p>
+          <p className="mt-2 text-xs text-sky-800 dark:text-sky-300">
+            <strong>Suplemento de fundo:</strong> só a fotografia custa ao cliente.
+            O suplemento varia por tamanho (30x40 / 40x50 / 50x70) — escolhido
+            automaticamente conforme a moldura. Moldura pirâmide é um upsell
+            aplicado manualmente.
+          </p>
           {!canEdit && (
             <p className="mt-2 italic text-sky-700 dark:text-sky-300">
               Modo leitura — só administradores podem editar.
@@ -244,6 +321,8 @@ function PrecosTab({
         const items = grouped.get(cat) ?? [];
         if (items.length === 0) return null;
         const color = PRICING_CATEGORY_COLORS[cat];
+        // Maria pediu: molduras (base_frame) não precisam de notas.
+        const showNotes = cat !== "base_frame";
         return (
           <div
             key={cat}
@@ -266,7 +345,7 @@ function PrecosTab({
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">Item</th>
                     <th className="text-left px-3 py-2 font-medium w-32">Preço (€)</th>
-                    <th className="text-left px-3 py-2 font-medium">Notas</th>
+                    {showNotes && <th className="text-left px-3 py-2 font-medium">Notas</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -276,6 +355,7 @@ function PrecosTab({
                       item={item}
                       canEdit={canEdit}
                       saving={saving === item.id}
+                      showNotes={showNotes}
                       onSavePrice={(v) => savePrice(item, v)}
                       onSaveNotes={(v) => saveNotes(item, v)}
                     />
@@ -294,12 +374,14 @@ function PriceRow({
   item,
   canEdit,
   saving,
+  showNotes,
   onSavePrice,
   onSaveNotes,
 }: {
   item: PricingItem;
   canEdit: boolean;
   saving: boolean;
+  showNotes: boolean;
   onSavePrice: (raw: string) => void;
   onSaveNotes: (raw: string) => void;
 }) {
@@ -339,25 +421,153 @@ function PriceRow({
           placeholder="0,00"
         />
       </td>
-      <td className="px-3 py-2 align-middle">
-        <Input
-          value={notesDraft}
-          onChange={(e) => setNotesDraft(e.target.value)}
-          onBlur={() => onSaveNotes(notesDraft)}
-          disabled={!canEdit || saving}
-          className="h-8 text-sm"
-          placeholder="(opcional)"
-        />
-      </td>
+      {showNotes && (
+        <td className="px-3 py-2 align-middle">
+          <Input
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            onBlur={() => onSaveNotes(notesDraft)}
+            disabled={!canEdit || saving}
+            className="h-8 text-sm"
+            placeholder="(opcional)"
+          />
+        </td>
+      )}
     </tr>
   );
 }
 
 // ============================================================
-// DESPESAS
+// DESPESAS — Únicas (default) + Subscrições
 // ============================================================
 
+type DespesasSubTab = "unicas" | "subscricoes";
+
 function DespesasTab({
+  expenses,
+  canEdit,
+}: {
+  expenses: Expense[];
+  canEdit: boolean;
+}) {
+  const [sub, setSub] = useState<DespesasSubTab>("unicas");
+
+  // Separa as despesas em duas listas (excluí soft-deleted no servidor).
+  const unicas    = useMemo(() => expenses.filter((e) => !e.is_recurring), [expenses]);
+  const subscript = useMemo(() => expenses.filter((e) =>  e.is_recurring), [expenses]);
+
+  // KPIs globais — visíveis em ambos os modos.
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+
+  const unicasMonth = unicas
+    .filter((e) => {
+      const d = parseISO(e.expense_date);
+      return d >= monthStart && d <= monthEnd;
+    })
+    .reduce((s, e) => s + Number(e.amount), 0);
+
+  // Para subscrições, conta as activas e soma o custo mensal equivalente.
+  const activeSubs = subscript.filter((e) => isSubscriptionActive(e, now));
+  const monthlyRecurring = activeSubs.reduce((s, e) => s + monthlyEquivalent(e), 0);
+  const totalMonth = unicasMonth + monthlyRecurring;
+
+  return (
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <KpiBox
+          label="Despesas únicas — este mês"
+          value={formatEuro(unicasMonth)}
+          icon={<Receipt className="h-4 w-4" />}
+          color="rose"
+        />
+        <KpiBox
+          label={`Subscrições activas (${activeSubs.length})`}
+          value={`${formatEuro(monthlyRecurring)} / mês`}
+          icon={<RotateCw className="h-4 w-4" />}
+          color="violet"
+        />
+        <KpiBox
+          label="Custo total estimado — este mês"
+          value={formatEuro(totalMonth)}
+          icon={<TrendingUp className="h-4 w-4" />}
+          color="amber"
+        />
+      </div>
+
+      {/* Sub-tabs Únicas / Subscrições */}
+      <div className="inline-flex rounded-xl border border-cream-200 bg-surface p-1 gap-1">
+        <SubTabButton
+          active={sub === "unicas"}
+          onClick={() => setSub("unicas")}
+          icon={<Receipt className="h-4 w-4" />}
+          label="Despesas únicas"
+          count={unicas.length}
+        />
+        <SubTabButton
+          active={sub === "subscricoes"}
+          onClick={() => setSub("subscricoes")}
+          icon={<RotateCw className="h-4 w-4" />}
+          label="Subscrições"
+          count={subscript.length}
+        />
+      </div>
+
+      {sub === "unicas" && (
+        <DespesasUnicas expenses={unicas} canEdit={canEdit} />
+      )}
+      {sub === "subscricoes" && (
+        <DespesasSubscricoes expenses={subscript} canEdit={canEdit} />
+      )}
+    </div>
+  );
+}
+
+function SubTabButton({
+  active,
+  onClick,
+  icon,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+        active
+          ? "bg-cocoa-900 text-surface dark:bg-[#E8D5B5] dark:text-[#1B1611]"
+          : "text-cocoa-700 hover:bg-cream-100 hover:text-cocoa-900",
+      )}
+    >
+      {icon}
+      {label}
+      <span
+        className={cn(
+          "text-[10px] px-1.5 py-0.5 rounded-full font-semibold tabular-nums",
+          active
+            ? "bg-surface/15 dark:bg-[#1B1611]/15"
+            : "bg-cream-200 text-cocoa-700",
+        )}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+// ── Despesas únicas ─────────────────────────────────────────
+
+function DespesasUnicas({
   expenses,
   canEdit,
 }: {
@@ -372,7 +582,7 @@ function DespesasTab({
   const [newExpense, setNewExpense] = useState({
     expense_date: format(new Date(), "yyyy-MM-dd"),
     supplier: "",
-    category: "outros" as ExpenseCategory,
+    category: "materiais" as ExpenseCategory, // default Maria: materiais
     amount: "",
     description: "",
   });
@@ -390,19 +600,6 @@ function DespesasTab({
     });
   }, [expenses, search, categoryFilter]);
 
-  const totalFiltered = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
-  const totalAll = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const thisMonth = useMemo(() => {
-    const start = startOfMonth(new Date());
-    const end = endOfMonth(new Date());
-    return expenses
-      .filter((e) => {
-        const d = parseISO(e.expense_date);
-        return d >= start && d <= end;
-      })
-      .reduce((sum, e) => sum + Number(e.amount), 0);
-  }, [expenses]);
-
   function handleCreate() {
     const amount = parseFloat(newExpense.amount.replace(",", "."));
     if (!newExpense.supplier.trim() || !amount || amount <= 0) {
@@ -417,13 +614,14 @@ function DespesasTab({
           category: newExpense.category,
           amount,
           description: newExpense.description.trim() || null,
+          is_recurring: false,
         });
         toast.success("Despesa registada.");
         setCreating(false);
         setNewExpense({
           expense_date: format(new Date(), "yyyy-MM-dd"),
           supplier: "",
-          category: "outros",
+          category: "materiais",
           amount: "",
           description: "",
         });
@@ -436,13 +634,6 @@ function DespesasTab({
 
   return (
     <div className="space-y-4">
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <KpiBox label="Total registado" value={formatEuro(totalAll)} icon={<Receipt className="h-4 w-4" />} color="rose" />
-        <KpiBox label="Este mês" value={formatEuro(thisMonth)} icon={<TrendingUp className="h-4 w-4" />} color="amber" />
-        <KpiBox label={`Filtrado (${filtered.length})`} value={formatEuro(totalFiltered)} icon={<FileText className="h-4 w-4" />} color="slate" />
-      </div>
-
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -468,14 +659,16 @@ function DespesasTab({
           </SelectContent>
         </Select>
         {canEdit && (
-          <Button onClick={() => setCreating((v) => !v)} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-9 gap-1.5">
+          <Button
+            onClick={() => setCreating((v) => !v)}
+            className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-9 gap-1.5"
+          >
             <Plus className="h-3.5 w-3.5" />
             Nova despesa
           </Button>
         )}
       </div>
 
-      {/* Form criar */}
       {creating && (
         <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-3">
           <h3 className="text-sm font-semibold text-rose-900">Registar nova despesa</h3>
@@ -522,6 +715,9 @@ function DespesasTab({
             <Button onClick={handleCreate} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg">Registar</Button>
             <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
           </div>
+          <p className="text-xs text-rose-800/70 italic">
+            Podes anexar a factura depois de guardar — botão no fim da linha.
+          </p>
         </div>
       )}
 
@@ -531,14 +727,14 @@ function DespesasTab({
           <Receipt className="h-12 w-12 mx-auto text-rose-200 mb-3" />
           <p className="text-sm text-cocoa-700">
             {expenses.length === 0
-              ? "Ainda não há despesas registadas."
+              ? "Ainda não há despesas únicas registadas."
               : "Nenhuma despesa corresponde aos filtros."}
           </p>
         </div>
       ) : (
         <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[820px]">
+            <table className="w-full text-sm min-w-[920px]">
               <thead className="bg-cream-50">
                 <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
                   <th className="px-3 py-2 font-medium">Data</th>
@@ -547,12 +743,252 @@ function DespesasTab({
                   <th className="px-3 py-2 font-medium">Descrição</th>
                   <th className="px-3 py-2 font-medium text-right">Valor</th>
                   <th className="px-3 py-2 font-medium">Pagamento</th>
+                  <th className="px-3 py-2 font-medium">Factura</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((e) => (
                   <ExpenseRow key={e.id} expense={e} canEdit={canEdit} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Subscrições ─────────────────────────────────────────────
+
+function DespesasSubscricoes({
+  expenses,
+  canEdit,
+}: {
+  expenses: Expense[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [creating, setCreating] = useState(false);
+  const today = new Date();
+  const [newSub, setNewSub] = useState({
+    supplier: "",
+    category: "software" as ExpenseCategory,
+    amount: "",
+    description: "",
+    recurrence_period: "monthly" as ExpenseRecurrencePeriod,
+    recurrence_start_date: format(today, "yyyy-MM-dd"),
+    recurrence_end_date: "",
+  });
+
+  function handleCreate() {
+    const amount = parseFloat(newSub.amount.replace(",", "."));
+    if (!newSub.supplier.trim() || !amount || amount <= 0) {
+      toast.error("Preenche fornecedor e valor válido.");
+      return;
+    }
+    if (!newSub.recurrence_start_date) {
+      toast.error("Indica a data de início da subscrição.");
+      return;
+    }
+    if (
+      newSub.recurrence_period === "custom" &&
+      newSub.recurrence_end_date &&
+      newSub.recurrence_end_date < newSub.recurrence_start_date
+    ) {
+      toast.error("A data de fim tem que ser depois do início.");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await createExpenseAction({
+          // expense_date guarda a data de referência (1º pagamento) para
+          // a tabela aparecer no relatório do mês de início.
+          expense_date: newSub.recurrence_start_date,
+          supplier: newSub.supplier.trim(),
+          category: newSub.category,
+          amount,
+          description: newSub.description.trim() || null,
+          is_recurring: true,
+          recurrence_period: newSub.recurrence_period,
+          recurrence_start_date: newSub.recurrence_start_date,
+          recurrence_end_date: newSub.recurrence_end_date || null,
+        });
+        toast.success("Subscrição registada.");
+        setCreating(false);
+        setNewSub({
+          supplier: "",
+          category: "software",
+          amount: "",
+          description: "",
+          recurrence_period: "monthly",
+          recurrence_start_date: format(new Date(), "yyyy-MM-dd"),
+          recurrence_end_date: "",
+        });
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao registar.");
+      }
+    });
+  }
+
+  // Ordena: activas primeiro (por start desc), depois terminadas.
+  const ordered = useMemo(() => {
+    const now = new Date();
+    return [...expenses].sort((a, b) => {
+      const aActive = isSubscriptionActive(a, now) ? 1 : 0;
+      const bActive = isSubscriptionActive(b, now) ? 1 : 0;
+      if (aActive !== bActive) return bActive - aActive;
+      const aStart = a.recurrence_start_date ?? a.expense_date;
+      const bStart = b.recurrence_start_date ?? b.expense_date;
+      return bStart.localeCompare(aStart);
+    });
+  }, [expenses]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-cocoa-700">
+          Subscrições mensais, anuais ou de intervalo específico (start &amp; end).
+          O custo total mensal estimado aparece nos KPIs em cima.
+        </p>
+        {canEdit && (
+          <Button
+            onClick={() => setCreating((v) => !v)}
+            className="bg-violet-600 hover:bg-violet-700 text-white h-9 gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nova subscrição
+          </Button>
+        )}
+      </div>
+
+      {creating && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50/60 dark:bg-violet-950/20 dark:border-violet-900/50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">
+            Registar nova subscrição
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-cocoa-700">Fornecedor *</label>
+              <Input
+                placeholder="Ex.: Vercel, Adobe, Spotify…"
+                value={newSub.supplier}
+                onChange={(e) => setNewSub((p) => ({ ...p, supplier: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-cocoa-700">Categoria</label>
+              <Select value={newSub.category} onValueChange={(v) => setNewSub((p) => ({ ...p, category: v as ExpenseCategory }))}>
+                <SelectTrigger>
+                  <SelectValue labels={EXPENSE_CATEGORY_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPENSE_CATEGORY_ORDER.map((c) => (
+                    <SelectItem key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[180px_180px_180px_120px] gap-2">
+            <div>
+              <label className="text-xs text-cocoa-700">Periodicidade</label>
+              <Select
+                value={newSub.recurrence_period}
+                onValueChange={(v) => setNewSub((p) => ({ ...p, recurrence_period: v as ExpenseRecurrencePeriod }))}
+              >
+                <SelectTrigger>
+                  <SelectValue labels={EXPENSE_RECURRENCE_PERIOD_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(EXPENSE_RECURRENCE_PERIOD_LABELS) as ExpenseRecurrencePeriod[]).map((p) => (
+                    <SelectItem key={p} value={p}>{EXPENSE_RECURRENCE_PERIOD_LABELS[p]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-cocoa-700">Início *</label>
+              <Input
+                type="date"
+                value={newSub.recurrence_start_date}
+                onChange={(e) => setNewSub((p) => ({ ...p, recurrence_start_date: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-cocoa-700">
+                Fim {newSub.recurrence_period === "custom" ? "*" : "(opcional)"}
+              </label>
+              <Input
+                type="date"
+                value={newSub.recurrence_end_date}
+                onChange={(e) => setNewSub((p) => ({ ...p, recurrence_end_date: e.target.value }))}
+                placeholder="—"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-cocoa-700">Valor / ocorrência</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  className="pl-6"
+                  value={newSub.amount}
+                  onChange={(e) => setNewSub((p) => ({ ...p, amount: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <Textarea
+            placeholder="Notas (opcional) — ex.: plano Pro, conta partilhada com…"
+            value={newSub.description}
+            onChange={(e) => setNewSub((p) => ({ ...p, description: e.target.value }))}
+            rows={2}
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleCreate} className="bg-violet-600 hover:bg-violet-700 text-white">Registar</Button>
+            <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
+          </div>
+          <p className="text-xs text-violet-800/70 italic">
+            <strong>Mensal:</strong> conta {formatEuro(parseFloat(newSub.amount.replace(",", ".")) || 0)} por mês.{" "}
+            <strong>Anual:</strong> ÷12.{" "}
+            <strong>Intervalo:</strong> activa só entre as datas indicadas.
+          </p>
+        </div>
+      )}
+
+      {ordered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-cream-200 bg-surface p-12 text-center">
+          <RotateCw className="h-12 w-12 mx-auto text-violet-200 mb-3" />
+          <p className="text-sm text-cocoa-700">
+            Ainda não há subscrições registadas.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[960px]">
+              <thead className="bg-cream-50">
+                <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
+                  <th className="px-3 py-2 font-medium">Estado</th>
+                  <th className="px-3 py-2 font-medium">Fornecedor</th>
+                  <th className="px-3 py-2 font-medium">Categoria</th>
+                  <th className="px-3 py-2 font-medium">Periodicidade</th>
+                  <th className="px-3 py-2 font-medium">Início → Fim</th>
+                  <th className="px-3 py-2 font-medium text-right">Valor</th>
+                  <th className="px-3 py-2 font-medium text-right">≈ por mês</th>
+                  <th className="px-3 py-2 font-medium">Factura</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordered.map((e) => (
+                  <SubscriptionRow key={e.id} expense={e} canEdit={canEdit} />
                 ))}
               </tbody>
             </table>
@@ -632,6 +1068,9 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
           </span>
         )}
       </td>
+      <td className="px-3 py-2">
+        <InvoiceCell expense={expense} canEdit={canEdit} />
+      </td>
       <td className="px-3 py-2 text-right">
         {canEdit && (
           <button
@@ -644,6 +1083,169 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
         )}
       </td>
     </tr>
+  );
+}
+
+function SubscriptionRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+
+  const active = isSubscriptionActive(expense, new Date());
+  const monthly = monthlyEquivalent(expense);
+
+  function handleArchive() {
+    if (!confirm("Arquivar esta subscrição?")) return;
+    startTransition(async () => {
+      try {
+        await archiveExpenseAction(expense.id);
+        toast.success("Subscrição arquivada.");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao arquivar.");
+      }
+    });
+  }
+
+  const startStr = expense.recurrence_start_date
+    ? format(parseISO(expense.recurrence_start_date), "dd/MM/yyyy")
+    : "—";
+  const endStr = expense.recurrence_end_date
+    ? format(parseISO(expense.recurrence_end_date), "dd/MM/yyyy")
+    : "∞";
+
+  return (
+    <tr className={cn("border-t border-cream-100 hover:bg-cream-50/60", !active && "opacity-60")}>
+      <td className="px-3 py-2 whitespace-nowrap">
+        <span className={cn(
+          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border",
+          active
+            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+            : "bg-slate-100 text-slate-700 border-slate-300",
+        )}>
+          {active ? "Activa" : "Terminada"}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-cocoa-900 font-medium">{expense.supplier}</td>
+      <td className="px-3 py-2">
+        <span className={cn(
+          "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border",
+          EXPENSE_CATEGORY_COLORS[expense.category]
+        )}>
+          {EXPENSE_CATEGORY_LABELS[expense.category]}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-cocoa-700 text-xs">
+        {expense.recurrence_period
+          ? EXPENSE_RECURRENCE_PERIOD_LABELS[expense.recurrence_period]
+          : "—"}
+      </td>
+      <td className="px-3 py-2 text-xs text-cocoa-700 whitespace-nowrap">
+        <CalendarIcon className="h-3 w-3 inline -mt-0.5 mr-1 text-cocoa-500" />
+        {startStr} → {endStr}
+      </td>
+      <td className="px-3 py-2 text-right font-semibold text-rose-700 whitespace-nowrap">
+        {formatEuro(Number(expense.amount))}
+      </td>
+      <td className="px-3 py-2 text-right text-cocoa-900 whitespace-nowrap tabular-nums">
+        {formatEuro(monthly)}
+      </td>
+      <td className="px-3 py-2">
+        <InvoiceCell expense={expense} canEdit={canEdit} />
+      </td>
+      <td className="px-3 py-2 text-right">
+        {canEdit && (
+          <button
+            onClick={handleArchive}
+            className="text-cocoa-500 hover:text-rose-600 transition-colors"
+            title="Arquivar"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ── Anexo de factura (upload para Drive) ────────────────────
+
+function InvoiceCell({ expense, canEdit }: { expense: Expense; canEdit: boolean }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [uploading, setUploading] = useState(false);
+
+  function handleFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("Ficheiro demasiado grande (limite 25 MB).");
+      return;
+    }
+    setUploading(true);
+    const fd = new FormData();
+    fd.set("expense_id", expense.id);
+    fd.set("file", file);
+    startTransition(async () => {
+      try {
+        await uploadExpenseInvoiceAction(fd);
+        toast.success("Factura anexada ao Drive.");
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao anexar.");
+      } finally {
+        setUploading(false);
+      }
+    });
+  }
+
+  if (expense.invoice_url) {
+    return (
+      <div className="inline-flex items-center gap-1">
+        <a
+          href={expense.invoice_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"
+          title="Abrir factura no Drive"
+        >
+          <Paperclip className="h-3.5 w-3.5" />
+          Ver
+          <ExternalLink className="h-3 w-3 opacity-60" />
+        </a>
+        {canEdit && (
+          <label className="text-cocoa-500 hover:text-cocoa-900 cursor-pointer ml-1" title="Substituir">
+            <input
+              type="file"
+              className="hidden"
+              accept="application/pdf,image/*"
+              onChange={(e) => handleFile(e.target.files?.[0])}
+              disabled={uploading}
+            />
+            <Upload className="h-3.5 w-3.5" />
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  if (!canEdit) {
+    return <span className="text-xs text-cocoa-500 italic">—</span>;
+  }
+
+  return (
+    <label className={cn(
+      "inline-flex items-center gap-1 text-xs text-cocoa-700 hover:text-cocoa-900 cursor-pointer",
+      uploading && "opacity-50 pointer-events-none",
+    )} title="Carregar factura para o Drive">
+      <input
+        type="file"
+        className="hidden"
+        accept="application/pdf,image/*"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+        disabled={uploading}
+      />
+      <Upload className="h-3.5 w-3.5" />
+      {uploading ? "A enviar…" : "Anexar"}
+    </label>
   );
 }
 
@@ -692,6 +1294,15 @@ function FaturacaoTab({
     const d = parseISO(iso);
     return d >= start && d <= end;
   };
+
+  // Potencial 100% pago: total das encomendas activas (não canceladas)
+  // se todas estivessem 100% pagas. Mostra o "topo" possível da receita
+  // já comprometida. Vales não somam aqui — só encomendas.
+  const potentialFullPay = orders
+    .filter((o) => o.status !== "cancelado" && o.budget && o.budget > 0)
+    .reduce((s, o) => s + (Number(o.budget) || 0), 0);
+  const alreadyCollected = orders.reduce((s, o) => s + revenueFromOrder(o), 0);
+  const stillOpen = Math.max(0, potentialFullPay - alreadyCollected);
 
   const revenueOrdersMonth = orders
     .filter((o) => inRange(o.created_at, monthStart, monthEnd))
@@ -767,6 +1378,50 @@ function FaturacaoTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <KpiBox label="Despesas do ano" value={formatEuro(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
         <KpiBox label="Lucro do ano" value={formatEuro(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+      </div>
+
+      {/* Potencial se todas as encomendas activas estivessem 100% pagas */}
+      <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 dark:border-violet-900/50 p-4 sm:p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="h-9 w-9 rounded-xl bg-violet-200/60 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
+            <Sparkles className="h-5 w-5 text-violet-700 dark:text-violet-300" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">
+              Potencial total — se todas as encomendas activas estivessem 100% pagas
+            </h3>
+            <p className="text-xs text-violet-800/80 dark:text-violet-300/80 mt-0.5">
+              Exclui encomendas canceladas. Vales não somam aqui. Indicativo do
+              tecto de receita já comprometido.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-violet-200/60 dark:border-violet-900/40 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-violet-700 dark:text-violet-300 font-medium">
+              Potencial total
+            </div>
+            <div className="text-2xl font-semibold text-violet-900 dark:text-violet-100 tabular-nums">
+              {formatEuro(potentialFullPay)}
+            </div>
+          </div>
+          <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-emerald-200/60 dark:border-emerald-900/40 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300 font-medium">
+              Já cobrado
+            </div>
+            <div className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
+              {formatEuro(alreadyCollected)}
+            </div>
+          </div>
+          <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-amber-200/60 dark:border-amber-900/40 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-medium">
+              Por receber
+            </div>
+            <div className="text-2xl font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
+              {formatEuro(stillOpen)}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Bar chart manual: últimos 12 meses */}

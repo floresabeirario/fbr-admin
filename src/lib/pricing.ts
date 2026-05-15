@@ -69,12 +69,20 @@ export function computePricingSnapshot(
 
   // 2. Suplemento de fundo (linha guardada mesmo quando 0, para
   //    transparência: o snapshot mostra que considerámos o fundo).
+  //
+  //    Caso especial: "fotografia" tem preço por tamanho da moldura
+  //    (30x40 → 15€, 40x50 → 25€, 50x70 → 35€). Procura primeiro o
+  //    item específico `fotografia_<size>`; se não existir, usa o
+  //    genérico `fotografia` como fallback.
   if (order.frame_background) {
-    const supp = findItem(
-      pricing,
-      "background_supplement",
-      order.frame_background,
-    );
+    let supp: PricingItem | undefined;
+    if (order.frame_background === "fotografia") {
+      supp =
+        findItem(pricing, "background_supplement", `fotografia_${order.frame_size}`) ??
+        findItem(pricing, "background_supplement", "fotografia");
+    } else {
+      supp = findItem(pricing, "background_supplement", order.frame_background);
+    }
     if (supp) {
       lines.push({
         category: supp.category,

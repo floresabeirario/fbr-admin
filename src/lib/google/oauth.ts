@@ -39,6 +39,7 @@ export type GoogleIntegrationRow = {
   drive_root_folder_id: string | null;
   drive_orders_folder_id: string | null;
   drive_vouchers_folder_id: string | null;
+  drive_expenses_folder_id: string | null;
   calendar_id: string | null;
   connected_at: string | null;
   connected_by_email: string | null;
@@ -130,6 +131,7 @@ export async function disconnectIntegration(): Promise<void> {
       drive_root_folder_id: null,
       drive_orders_folder_id: null,
       drive_vouchers_folder_id: null,
+      drive_expenses_folder_id: null,
       calendar_id: null,
     })
     .eq("id", existing.id);

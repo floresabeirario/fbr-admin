@@ -66,18 +66,25 @@ import {
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
-  FLOWER_DELIVERY_METHOD_COLORS,
   FRAME_DELIVERY_METHOD_LABELS,
-  FRAME_DELIVERY_METHOD_COLORS,
 } from "@/types/database";
 
 // Ícones por método de envio — para tornar a coluna "Envio" da tabela
 // visualmente legível de relance (CTT vs recolha vs em mãos vs não sei).
+// Estilo: só o ícone fica colorido; o texto permanece cinza neutro, para
+// não competir visualmente com os dropdowns de Estado e Pagamento ao lado.
 const SHIPPING_METHOD_ICONS: Record<string, LucideIcon> = {
   maos: HandHeart,
   ctt: Truck,
   recolha_evento: MapPin,
   nao_sei: HelpCircle,
+};
+
+const SHIPPING_METHOD_ICON_COLORS: Record<string, string> = {
+  maos: "text-emerald-600",
+  ctt: "text-sky-600",
+  recolha_evento: "text-violet-600",
+  nao_sei: "text-stone-500",
 };
 
 type ShippingColumn = "flores" | "quadro";
@@ -288,11 +295,7 @@ function OrderRow({
         ? FLOWER_DELIVERY_METHOD_LABELS[shippingMethod as keyof typeof FLOWER_DELIVERY_METHOD_LABELS]
         : FRAME_DELIVERY_METHOD_LABELS[shippingMethod as keyof typeof FRAME_DELIVERY_METHOD_LABELS])
     : null;
-  const shippingColor = shippingMethod
-    ? (shippingColumn === "flores"
-        ? FLOWER_DELIVERY_METHOD_COLORS[shippingMethod as keyof typeof FLOWER_DELIVERY_METHOD_COLORS]
-        : FRAME_DELIVERY_METHOD_COLORS[shippingMethod as keyof typeof FRAME_DELIVERY_METHOD_COLORS])
-    : "";
+  const shippingIconColor = shippingMethod ? SHIPPING_METHOD_ICON_COLORS[shippingMethod] : "";
   const ShippingIcon = shippingMethod ? SHIPPING_METHOD_ICONS[shippingMethod] : null;
 
   function changeStatus(newStatus: OrderStatus) {
@@ -438,10 +441,8 @@ function OrderRow({
       </td>
       <td className="px-4 py-1.5">
         {shippingLabel ? (
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${shippingColor}`}
-          >
-            {ShippingIcon && <ShippingIcon className="h-3 w-3" />}
+          <span className="inline-flex items-center gap-1.5 text-sm text-cocoa-700 whitespace-nowrap">
+            {ShippingIcon && <ShippingIcon className={`h-3.5 w-3.5 shrink-0 ${shippingIconColor}`} />}
             {shippingLabel}
           </span>
         ) : (
