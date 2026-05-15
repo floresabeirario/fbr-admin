@@ -8,9 +8,9 @@ import {
   Clock,
   AlertTriangle,
   Filter,
-  Package,
-  Flower2,
-  ArrowDownToLine,
+  Box,
+  Frame,
+  Car,
   Construction,
   Search,
   CalendarDays,
@@ -84,9 +84,9 @@ const KIND_COLORS: Record<LogisticsKind, string> = {
 };
 
 const KIND_ICON: Record<LogisticsKind, React.ComponentType<{ className?: string }>> = {
-  recolha_evento: Flower2,
-  envio_ctt_flores: ArrowDownToLine,
-  envio_ctt_quadro: Package,
+  recolha_evento: Car,
+  envio_ctt_flores: Box,
+  envio_ctt_quadro: Frame,
 };
 
 function isCompleted(item: { kind: LogisticsKind; order: Order }): boolean {
@@ -225,12 +225,15 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
     return acc;
   }, [filtered]);
 
+  // Contagens nas cards do topo — só itens pendentes (concluídos
+  // não contam, senão os números nunca baixam).
   const counts = useMemo(() => {
+    const pending = allItems.filter((i) => !i.completed);
     return {
-      todas: allItems.length,
-      recolha_evento: allItems.filter((i) => i.kind === "recolha_evento").length,
-      envio_ctt_flores: allItems.filter((i) => i.kind === "envio_ctt_flores").length,
-      envio_ctt_quadro: allItems.filter((i) => i.kind === "envio_ctt_quadro").length,
+      todas: pending.length,
+      recolha_evento: pending.filter((i) => i.kind === "recolha_evento").length,
+      envio_ctt_flores: pending.filter((i) => i.kind === "envio_ctt_flores").length,
+      envio_ctt_quadro: pending.filter((i) => i.kind === "envio_ctt_quadro").length,
     };
   }, [allItems]);
 
@@ -271,7 +274,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         />
         <KindFilterCard
           label="Recolha no local"
-          icon={Flower2}
+          icon={Car}
           color="from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-emerald-900/30 dark:border-emerald-800"
           active={kindFilter === "recolha_evento"}
           count={counts.recolha_evento}
@@ -279,7 +282,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         />
         <KindFilterCard
           label="Envio CTT — flores"
-          icon={ArrowDownToLine}
+          icon={Box}
           color="from-sky-50 to-blue-100 border-sky-200 dark:from-sky-950/40 dark:to-blue-900/30 dark:border-sky-800"
           active={kindFilter === "envio_ctt_flores"}
           count={counts.envio_ctt_flores}
@@ -287,7 +290,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         />
         <KindFilterCard
           label="Envio CTT — quadro"
-          icon={Package}
+          icon={Frame}
           color="from-violet-50 to-purple-100 border-violet-200 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-800"
           active={kindFilter === "envio_ctt_quadro"}
           count={counts.envio_ctt_quadro}
