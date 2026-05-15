@@ -2,7 +2,11 @@ import "server-only";
 import { google, type calendar_v3 } from "googleapis";
 import { getAuthenticatedClient, loadIntegration } from "./oauth";
 import { createClient } from "@/lib/supabase/server";
-import { EVENT_TYPE_LABELS, type Order } from "@/types/database";
+import {
+  EVENT_TYPE_LABELS,
+  FLOWER_DELIVERY_METHOD_LABELS,
+  type Order,
+} from "@/types/database";
 
 /**
  * Calendário "Preservação de Flores" na conta info@floresabeirario.pt.
@@ -101,42 +105,143 @@ type OrderForEvent = Pick<
   | "event_type"
   | "event_location"
   | "couple_names"
+  | "flower_delivery_method"
+  | "pickup_address"
+  | "pickup_date"
+  | "pickup_time_from"
+  | "pickup_time_to"
+  | "pickup_notes"
+  | "email"
+  | "phone"
+  | "contact_preference"
 >;
+
+// Formata HH:MM (descarta segundos vindos do Postgres TIME).
+function trimSeconds(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const m = t.match(/^(\d{2}:\d{2})/);
+  return m ? m[1] : t;
+}
+
+// Soma 1 hora a "HH:MM" (default para end-time quando só foi preenchido o início).
+function addOneHour(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const date = new Date(2000, 0, 1, h, m + 60);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
 
 function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   if (!order.event_date) {
     throw new Error("Encomenda sem data do evento — não dá para criar evento Calendar.");
   }
 
+  const isPickup = order.flower_delivery_method === "recolha_evento";
+  const isHandDelivery = order.flower_delivery_method === "maos";
+
   const typeLabel = order.event_type ? EVENT_TYPE_LABELS[order.event_type] : null;
   const namePart =
     order.event_type === "casamento" && order.couple_names
       ? order.couple_names
       : order.client_name || "Sem nome";
-  const summary = typeLabel ? `${typeLabel} — ${namePart}` : namePart;
+
+  // Summary com prefixo logístico quando aplicável — facilita reconhecer
+  // rapidamente o evento na vista de Calendar do telemóvel.
+  // Formato: "🚐 RECOLHA | João & Maria | Casamento"
+  let prefix: string | null = null;
+  if (isPickup) prefix = "🚐 RECOLHA";
+  else if (isHandDelivery) prefix = "🤲 ENTREGA EM MÃOS";
+  const summary = [prefix, namePart, typeLabel].filter(Boolean).join(" | ");
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
   const workbenchUrl = siteUrl ? `${siteUrl}/preservacao/${order.order_id}` : null;
 
-  const descriptionLines = [
-    `Encomenda #${order.order_id}`,
-    workbenchUrl ? `Workbench: ${workbenchUrl}` : null,
-  ].filter(Boolean) as string[];
+  // Construção da descrição. Quando é recolha, bloco dedicado no topo com
+  // morada/horário; sempre seguido por contactos do cliente e link workbench.
+  const lines: string[] = [];
 
-  // Evento all-day. No Calendar all-day events o end.date é exclusivo,
-  // por isso para um único dia somamos 1 dia.
-  const start = order.event_date; // "YYYY-MM-DD"
-  const next = new Date(`${order.event_date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  const end = next.toISOString().slice(0, 10);
+  if (isPickup) {
+    lines.push("🚐 RECOLHA NO LOCAL");
+    if (order.pickup_address) lines.push(`📍 Morada: ${order.pickup_address}`);
+    const from = trimSeconds(order.pickup_time_from);
+    const to = trimSeconds(order.pickup_time_to);
+    if (from || to) {
+      lines.push(`🕒 Horário: ${from ?? "?"}${to ? ` – ${to}` : ""}`);
+    }
+    if (order.pickup_date && order.pickup_date !== order.event_date) {
+      lines.push(`📅 Data de recolha: ${order.pickup_date}`);
+    }
+    if (order.pickup_notes) {
+      lines.push(`📝 Notas: ${order.pickup_notes}`);
+    }
+    lines.push("");
+  } else if (isHandDelivery) {
+    lines.push("🤲 ENTREGA EM MÃOS pelo cliente");
+    lines.push("");
+  } else if (order.flower_delivery_method) {
+    lines.push(`📦 Envio: ${FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method]}`);
+    lines.push("");
+  }
+
+  // Contactos do cliente — sempre incluídos
+  lines.push("👤 CLIENTE");
+  lines.push(`Nome: ${order.client_name || "—"}`);
+  if (order.email) lines.push(`📧 ${order.email}`);
+  if (order.phone) lines.push(`📱 ${order.phone}`);
+  if (order.contact_preference) {
+    lines.push(`Prefere: ${order.contact_preference === "whatsapp" ? "WhatsApp" : "Email"}`);
+  }
+  lines.push("");
+
+  // Evento (data + local) — só se diferente da info da recolha
+  if (!isPickup && order.event_location) {
+    lines.push("📍 Local do evento");
+    lines.push(order.event_location);
+    lines.push("");
+  } else if (isPickup && order.event_location && order.event_location !== order.pickup_address) {
+    lines.push("📍 Local do evento (diferente da recolha)");
+    lines.push(order.event_location);
+    lines.push("");
+  }
+
+  lines.push(`Encomenda #${order.order_id}`);
+  if (workbenchUrl) lines.push(`🔗 ${workbenchUrl}`);
+
+  // Localização do evento Calendar: quando é recolha, usa a morada de
+  // recolha (mais útil — abre o Maps directo para onde ir buscar).
+  const location = isPickup
+    ? (order.pickup_address ?? order.event_location ?? undefined)
+    : (order.event_location ?? undefined);
+
+  // Datas/horas: se for recolha COM hora definida, evento timed; senão all-day.
+  let timing: Pick<calendar_v3.Schema$Event, "start" | "end">;
+
+  const pickupHasTime = isPickup && order.pickup_time_from;
+  if (pickupHasTime) {
+    const dateStr = order.pickup_date ?? order.event_date;
+    const startTime = trimSeconds(order.pickup_time_from)!;
+    const endTime = trimSeconds(order.pickup_time_to) ?? addOneHour(startTime);
+    timing = {
+      start: { dateTime: `${dateStr}T${startTime}:00`, timeZone: TIMEZONE },
+      end: { dateTime: `${dateStr}T${endTime}:00`, timeZone: TIMEZONE },
+    };
+  } else {
+    const start = order.event_date; // "YYYY-MM-DD"
+    const next = new Date(`${order.event_date}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    const end = next.toISOString().slice(0, 10);
+    timing = {
+      start: { date: start },
+      end: { date: end },
+    };
+  }
 
   return {
     summary,
-    description: descriptionLines.join("\n"),
-    location: order.event_location ?? undefined,
-    start: { date: start },
-    end: { date: end },
-    transparency: "transparent", // free, não bloqueia o calendário
+    description: lines.join("\n"),
+    location,
+    ...timing,
+    // Recolha BLOQUEIA o calendário (alguém tem que estar lá); resto fica free
+    transparency: isPickup ? "opaque" : "transparent",
   };
 }
 

@@ -35,6 +35,15 @@ type OrderFields = Pick<
   | "event_location"
   | "calendar_event_id"
   | "status"
+  | "flower_delivery_method"
+  | "pickup_address"
+  | "pickup_date"
+  | "pickup_time_from"
+  | "pickup_time_to"
+  | "pickup_notes"
+  | "email"
+  | "phone"
+  | "contact_preference"
 >;
 
 export function isFirstOrderPaymentTransition(
@@ -55,7 +64,8 @@ export function statusBecomesCancelled(
 
 /**
  * Verifica se algum campo "visível no evento" mudou — usado para decidir
- * se vale a pena actualizar um evento que já existe.
+ * se vale a pena actualizar um evento que já existe. Inclui campos de
+ * recolha e contactos do cliente (sessão 46).
  */
 export function calendarFieldsChanged(
   prev: Partial<OrderFields>,
@@ -67,6 +77,15 @@ export function calendarFieldsChanged(
     "event_type",
     "couple_names",
     "event_location",
+    "flower_delivery_method",
+    "pickup_address",
+    "pickup_date",
+    "pickup_time_from",
+    "pickup_time_to",
+    "pickup_notes",
+    "email",
+    "phone",
+    "contact_preference",
   ];
   return fields.some(
     (f) => updates[f] !== undefined && updates[f] !== prev[f],
@@ -94,6 +113,15 @@ export async function upsertOrderCalendarEvent(
       event_location: order.event_location,
       couple_names: order.couple_names,
       calendar_event_id: order.calendar_event_id,
+      flower_delivery_method: order.flower_delivery_method,
+      pickup_address: order.pickup_address,
+      pickup_date: order.pickup_date,
+      pickup_time_from: order.pickup_time_from,
+      pickup_time_to: order.pickup_time_to,
+      pickup_notes: order.pickup_notes,
+      email: order.email,
+      phone: order.phone,
+      contact_preference: order.contact_preference,
     });
     if (!result) return null;
 

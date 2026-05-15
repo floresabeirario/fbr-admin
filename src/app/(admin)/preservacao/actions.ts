@@ -140,7 +140,16 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.client_name !== undefined ||
     updates.event_type !== undefined ||
     updates.couple_names !== undefined ||
-    updates.event_location !== undefined;
+    updates.event_location !== undefined ||
+    updates.flower_delivery_method !== undefined ||
+    updates.pickup_address !== undefined ||
+    updates.pickup_date !== undefined ||
+    updates.pickup_time_from !== undefined ||
+    updates.pickup_time_to !== undefined ||
+    updates.pickup_notes !== undefined ||
+    updates.email !== undefined ||
+    updates.phone !== undefined ||
+    updates.contact_preference !== undefined;
 
   let triggerDriveCreation = false;
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
@@ -149,7 +158,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location",
+        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, email, phone, contact_preference",
       )
       .eq("id", id)
       .single();
@@ -185,6 +194,15 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
             event_type: prev.event_type as Order["event_type"],
             couple_names: prev.couple_names as string | null,
             event_location: prev.event_location as string | null,
+            flower_delivery_method: prev.flower_delivery_method as Order["flower_delivery_method"],
+            pickup_address: prev.pickup_address as string | null,
+            pickup_date: prev.pickup_date as string | null,
+            pickup_time_from: prev.pickup_time_from as string | null,
+            pickup_time_to: prev.pickup_time_to as string | null,
+            pickup_notes: prev.pickup_notes as string | null,
+            email: prev.email as string | null,
+            phone: prev.phone as string | null,
+            contact_preference: prev.contact_preference as Order["contact_preference"],
           },
           updates,
         )
@@ -225,6 +243,15 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       couple_names: updatedOrder.couple_names,
       calendar_event_id: updatedOrder.calendar_event_id,
       status: updatedOrder.status,
+      flower_delivery_method: updatedOrder.flower_delivery_method,
+      pickup_address: updatedOrder.pickup_address,
+      pickup_date: updatedOrder.pickup_date,
+      pickup_time_from: updatedOrder.pickup_time_from,
+      pickup_time_to: updatedOrder.pickup_time_to,
+      pickup_notes: updatedOrder.pickup_notes,
+      email: updatedOrder.email,
+      phone: updatedOrder.phone,
+      contact_preference: updatedOrder.contact_preference,
     });
   } else if (calendarAction === "delete") {
     await deleteOrderCalendarEvent({
@@ -277,7 +304,7 @@ export async function createOrderCalendarEventAction(id: string): Promise<{
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, order_id, client_name, event_date, event_type, event_location, couple_names, calendar_event_id, status",
+      "id, order_id, client_name, event_date, event_type, event_location, couple_names, calendar_event_id, status, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, email, phone, contact_preference",
     )
     .eq("id", id)
     .single();
@@ -297,6 +324,15 @@ export async function createOrderCalendarEventAction(id: string): Promise<{
     couple_names: data.couple_names as string | null,
     calendar_event_id: data.calendar_event_id as string | null,
     status: data.status as OrderStatus,
+    flower_delivery_method: data.flower_delivery_method as Order["flower_delivery_method"],
+    pickup_address: data.pickup_address as string | null,
+    pickup_date: data.pickup_date as string | null,
+    pickup_time_from: data.pickup_time_from as string | null,
+    pickup_time_to: data.pickup_time_to as string | null,
+    pickup_notes: data.pickup_notes as string | null,
+    email: data.email as string | null,
+    phone: data.phone as string | null,
+    contact_preference: data.contact_preference as Order["contact_preference"],
   });
   revalidatePath("/preservacao");
   revalidatePath(`/preservacao/${id}`);
