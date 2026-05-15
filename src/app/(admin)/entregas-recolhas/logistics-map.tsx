@@ -25,6 +25,7 @@ export interface MapMarker {
   orderRef: string;
   clientName: string;
   eventLabel?: string | null;
+  notes?: string | null;
 }
 
 const KIND_LABEL_MAP: Record<MapKind, string> = {
@@ -127,6 +128,7 @@ function renderInfoWindow(m: MapMarker): string {
         📍 ${escapeHtml(m.location)}
       </div>
       ${m.eventLabel ? `<div style="font-size: 10px; color: #6b7280; margin-bottom: 6px;">${escapeHtml(m.eventLabel)}</div>` : ""}
+      ${m.notes ? `<div style="font-size: 11px; color: #78350f; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 5px 7px; margin-bottom: 6px; white-space: pre-wrap;">📝 ${escapeHtml(m.notes)}</div>` : ""}
       <div style="font-size: 10px; color: #9ca3af; margin-bottom: 6px;">
         ${escapeHtml(kindLabel)}
       </div>
@@ -153,6 +155,7 @@ export default function LogisticsMap({
   >(GOOGLE_MAPS_KEY ? "loading" : "no-key");
   const [error, setError] = useState<string | null>(null);
   const [failedCount, setFailedCount] = useState(0);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
   // Inicializa o mapa 1x
   useEffect(() => {
@@ -199,6 +202,7 @@ export default function LogisticsMap({
     const bounds = new google.maps.LatLngBounds();
     let placed = 0;
     let failed = 0;
+    let firstError: string | null = null;
 
     async function geocode(address: string): Promise<GeocodeEntry | null> {
       if (cache[address]) return cache[address];
@@ -218,7 +222,9 @@ export default function LogisticsMap({
         cache[address] = entry;
         return entry;
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         console.warn("[LogisticsMap] geocode falhou:", address, err);
+        if (!firstError) firstError = msg;
         return null;
       }
     }
@@ -264,6 +270,7 @@ export default function LogisticsMap({
       writeCache(cache);
       if (cancelled) return;
       setFailedCount(failed);
+      setGeocodeError(firstError);
       if (placed === 1) {
         map.setCenter(bounds.getCenter());
         map.setZoom(13);
@@ -323,6 +330,28 @@ export default function LogisticsMap({
           </span>
         )}
       </div>
+
+      {/* Erro de geocoding — provavelmente API não activada */}
+      {geocodeError && markers.length > 0 && failedCount === markers.length && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed">
+          <div className="font-semibold mb-1">⚠ Geocoding indisponível</div>
+          <p>
+            O Google rejeitou os pedidos para traduzir endereços em coordenadas.
+            Causa mais provável: a <strong>Geocoding API</strong> ainda não está
+            activada no projecto Google Cloud (é uma API separada da Maps
+            JavaScript API + Places API).
+          </p>
+          <p className="mt-1.5">
+            <strong>Como activar:</strong> Google Cloud Console → APIs &amp;
+            Services → Library → procura{" "}
+            <em>&quot;Geocoding API&quot;</em> → Enable. Depois em Credentials
+            adiciona-a às API restrictions da tua chave Maps.
+          </p>
+          <p className="mt-1.5 text-amber-700 dark:text-amber-300 italic font-mono">
+            Erro: {geocodeError}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

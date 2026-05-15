@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ExternalLink,
   CheckCircle2,
+  StickyNote,
 } from "lucide-react";
 import {
   format,
@@ -48,6 +49,8 @@ interface LogisticsItem {
   /** Janela horária (apenas recolha_evento) */
   timeFrom?: string | null;
   timeTo?: string | null;
+  /** Notas internas sobre a recolha (apenas recolha_evento) */
+  notes?: string | null;
   /** Recolha/envio já concluído (baseado no estado da encomenda) */
   completed: boolean;
 }
@@ -117,6 +120,7 @@ function getAllLogistics(orders: Order[]): LogisticsItem[] {
         location: o.pickup_address ?? o.event_location ?? "—",
         timeFrom: o.pickup_time_from,
         timeTo: o.pickup_time_to,
+        notes: o.pickup_notes,
       };
       items.push({ ...base, completed: isCompleted(base) });
     }
@@ -265,6 +269,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         eventLabel: i.order.event_type
           ? EVENT_TYPE_LABELS[i.order.event_type]
           : null,
+        notes: i.notes,
       }));
   }, [allItems, mapFilter]);
 
@@ -671,8 +676,38 @@ function TodayCard({ item }: { item: LogisticsItem }) {
             <Icon className="h-3 w-3" />
             {KIND_LABELS[item.kind]}
           </div>
+          {item.notes && <PickupNotesBox notes={item.notes} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Caixa amarela com as notas internas da recolha — destaque visual para
+ *  quem está a planear o trajecto. */
+function PickupNotesBox({
+  notes,
+  compact = false,
+}: {
+  notes: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 flex items-start gap-1.5",
+        compact ? "px-2 py-1.5 text-[11px]" : "px-3 py-2 text-xs",
+      )}
+    >
+      <StickyNote
+        className={cn(
+          "shrink-0 text-amber-700 dark:text-amber-300 mt-0.5",
+          compact ? "h-3 w-3" : "h-3.5 w-3.5",
+        )}
+      />
+      <span className="text-amber-900 dark:text-amber-200 whitespace-pre-wrap break-words">
+        {notes}
+      </span>
     </div>
   );
 }
@@ -844,6 +879,12 @@ function LogisticsRow({
           <div className="text-[11px] text-cocoa-500 mt-1 flex items-center gap-1 capitalize">
             <CalendarDays className="h-3 w-3" />
             Evento: {format(parseISO(eventDate!), "EEEE, dd/MM/yyyy", { locale: pt })}
+          </div>
+        )}
+
+        {item.notes && (
+          <div className="mt-1.5">
+            <PickupNotesBox notes={item.notes} compact />
           </div>
         )}
       </div>

@@ -1533,6 +1533,15 @@ export default function WorkbenchClient({
                           </div>
                         </Field>
                       </Grid2>
+                      <Field label="Notas para quem vai fazer a recolha" span2>
+                        <Textarea
+                          className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
+                          rows={2}
+                          value={local.pickup_notes ?? ""}
+                          onChange={(e) => update("pickup_notes", e.target.value || null)}
+                          placeholder="Ex: é o pai da noiva que vai entregar as flores; tocar à campainha 3 vezes; estacionamento à frente da igreja…"
+                        />
+                      </Field>
                     </div>
                   )}
                 </div>

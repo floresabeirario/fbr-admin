@@ -179,6 +179,12 @@ export interface Order {
   pickup_date: string | null;
   pickup_time_from: string | null;   // HH:MM (TIME)
   pickup_time_to: string | null;     // HH:MM (TIME)
+  // Notas internas sobre a recolha — info para quem vai fisicamente
+  // fazer a recolha (ex: "é o pai da noiva que vai entregar as
+  // flores", "tocar à campainha 3 vezes"). Mostradas em destaque na
+  // página Entregas e Recolhas. Distinto de `additional_notes` (do
+  // cliente) e `sticky_note` (post-it geral da encomenda).
+  pickup_notes: string | null;
 
   // ── Inventário de flores ─────────────────────────────────────
   inventory: InventoryItem[];
