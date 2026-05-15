@@ -26,6 +26,7 @@ import {
   Sparkles,
   Frame,
   Camera,
+  Package,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -77,6 +78,9 @@ import {
   archiveCompetitorAction,
   updatePricingItemAction,
   updateProductionCostItemAction,
+  createConsumableAction,
+  archiveConsumableAction,
+  renameConsumableAction,
   createExpenseAction,
   updateExpenseAction,
   archiveExpenseAction,
@@ -2117,6 +2121,27 @@ function CustosTab({
     return map;
   }, [items]);
 
+  // Consumables agrupados por label. Mantemos a ordem pela menor
+  // `position` do grupo (o seed posicionou os 3 tamanhos lado a lado).
+  const consumableGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      { label: string; minPosition: number; items: Map<string, ProductionCostItem> }
+    >();
+    for (const it of items) {
+      if (it.kind !== "consumable" || !it.label) continue;
+      const g = groups.get(it.label) ?? {
+        label: it.label,
+        minPosition: it.position,
+        items: new Map<string, ProductionCostItem>(),
+      };
+      g.minPosition = Math.min(g.minPosition, it.position);
+      g.items.set(it.size_key, it);
+      groups.set(it.label, g);
+    }
+    return [...groups.values()].sort((a, b) => a.minPosition - b.minPosition);
+  }, [items]);
+
   function saveCost(item: ProductionCostItem, raw: string) {
     const next = raw.trim() === "" ? 0 : Number(raw.replace(",", "."));
     if (Number.isNaN(next) || next < 0) {
@@ -2134,6 +2159,45 @@ function CustosTab({
         toast.error(err instanceof Error ? err.message : "Erro ao guardar");
       } finally {
         setSaving(null);
+      }
+    });
+  }
+
+  function createConsumable(label: string, onDone: () => void) {
+    startTransition(async () => {
+      try {
+        await createConsumableAction(label);
+        toast.success(`"${label}" adicionado.`);
+        onDone();
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao adicionar");
+      }
+    });
+  }
+
+  function archiveConsumable(label: string) {
+    if (!window.confirm(`Remover "${label}"? Encomendas antigas não são afectadas.`)) return;
+    startTransition(async () => {
+      try {
+        await archiveConsumableAction(label);
+        toast.success(`"${label}" removido.`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao remover");
+      }
+    });
+  }
+
+  function renameConsumable(oldLabel: string, newLabel: string) {
+    if (newLabel.trim() === oldLabel || newLabel.trim().length === 0) return;
+    startTransition(async () => {
+      try {
+        await renameConsumableAction(oldLabel, newLabel.trim());
+        toast.success(`"${oldLabel}" → "${newLabel.trim()}"`);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao renomear");
       }
     });
   }
@@ -2187,7 +2251,7 @@ function CustosTab({
                     <th className="text-left px-2 py-1.5 font-medium" />
                     {PRODUCTION_GLASS_TYPES_ORDER.map((g) => (
                       <th key={g} className="text-left px-2 py-1.5 font-medium">
-                        {g === "vidro_vidro" ? "V / V" : "V / C"}
+                        {g === "vidro_vidro" ? "Vidro" : "Cartão"}
                       </th>
                     ))}
                   </tr>
@@ -2221,7 +2285,7 @@ function CustosTab({
               </table>
             </div>
             <p className="text-[10px] text-amber-800 leading-relaxed px-1">
-              V/V = vidro sobre vidro · V/C = vidro sobre cartão
+              Vidro = fundo transparente · Cartão = preto / branco / cor / fotografia
             </p>
           </div>
         ))}
@@ -2273,7 +2337,194 @@ function CustosTab({
           </table>
         </div>
       </div>
+
+      {/* Card: Outros custos recorrentes (consumíveis por encomenda) */}
+      <ConsumablesSection
+        groups={consumableGroups}
+        canEdit={canEdit}
+        saving={saving}
+        onSaveCost={saveCost}
+        onCreate={createConsumable}
+        onArchive={archiveConsumable}
+        onRename={renameConsumable}
+      />
     </div>
+  );
+}
+
+function ConsumablesSection({
+  groups,
+  canEdit,
+  saving,
+  onSaveCost,
+  onCreate,
+  onArchive,
+  onRename,
+}: {
+  groups: Array<{ label: string; items: Map<string, ProductionCostItem> }>;
+  canEdit: boolean;
+  saving: string | null;
+  onSaveCost: (item: ProductionCostItem, raw: string) => void;
+  onCreate: (label: string, onDone: () => void) => void;
+  onArchive: (label: string) => void;
+  onRename: (oldLabel: string, newLabel: string) => void;
+}) {
+  const [newLabel, setNewLabel] = useState("");
+
+  // Tamanhos visíveis na tabela. Mini 20x25 fica de fora por agora —
+  // quando a Maria decidir embalar mini-quadros separadamente, adiciona
+  // linhas no Supabase com size_key='mini_20x25' e este array passa a
+  // incluí-lo (ou expande para 4 colunas).
+  const sizes: ProductionCostSize[] = ["30x40", "40x50", "50x70"];
+
+  return (
+    <div className="rounded-2xl border bg-gradient-to-br from-rose-50 to-pink-100 border-rose-200 p-3 sm:p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <Package className="h-4 w-4 text-rose-700" />
+        <h2 className="text-sm font-semibold text-cocoa-900">
+          Outros custos recorrentes
+        </h2>
+        <span className="text-[11px] text-cocoa-700">
+          Aplicados a cada encomenda consoante o tamanho da moldura
+        </span>
+      </div>
+      <div className="rounded-xl bg-surface border border-white/40 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-cream-50 text-[10px] uppercase tracking-wide text-cocoa-700">
+            <tr>
+              <th className="text-left px-3 py-1.5 font-medium">Item</th>
+              {sizes.map((s) => (
+                <th key={s} className="text-left px-3 py-1.5 font-medium w-32">
+                  {PRODUCTION_SIZE_LABELS[s]}
+                </th>
+              ))}
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {groups.length === 0 && (
+              <tr>
+                <td colSpan={sizes.length + 2} className="px-3 py-4 text-xs text-cocoa-500 italic text-center">
+                  Sem consumíveis ainda. Adiciona em baixo.
+                </td>
+              </tr>
+            )}
+            {groups.map((g) => (
+              <tr key={g.label} className="border-t border-cream-100">
+                <td className="px-3 py-1.5 align-middle">
+                  <ConsumableLabelInput
+                    label={g.label}
+                    canEdit={canEdit}
+                    onRename={(v) => onRename(g.label, v)}
+                  />
+                </td>
+                {sizes.map((s) => {
+                  const item = g.items.get(s);
+                  return (
+                    <td key={s} className="px-2 py-1 align-middle">
+                      {item ? (
+                        <CostInput
+                          item={item}
+                          canEdit={canEdit}
+                          saving={saving === item.id}
+                          onSave={(v) => onSaveCost(item, v)}
+                        />
+                      ) : (
+                        <span className="text-cocoa-500 text-xs">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="px-2 py-1 align-middle text-right">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onArchive(g.label)}
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-md text-rose-600 hover:bg-rose-100 transition-colors"
+                      title={`Remover "${g.label}"`}
+                      aria-label={`Remover ${g.label}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {canEdit && (
+              <tr className="border-t border-cream-100 bg-rose-50/50">
+                <td colSpan={sizes.length + 2} className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-3.5 w-3.5 text-rose-700 shrink-0" />
+                    <Input
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newLabel.trim().length > 0) {
+                          e.preventDefault();
+                          onCreate(newLabel.trim(), () => setNewLabel(""));
+                        }
+                      }}
+                      placeholder="Novo item (ex: Cartão de visita)"
+                      className="h-7 flex-1 text-xs"
+                    />
+                    <button
+                      type="button"
+                      disabled={newLabel.trim().length === 0}
+                      onClick={() =>
+                        onCreate(newLabel.trim(), () => setNewLabel(""))
+                      }
+                      className="h-7 px-3 rounded-md bg-rose-600 text-white text-xs font-medium hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ConsumableLabelInput({
+  label,
+  canEdit,
+  onRename,
+}: {
+  label: string;
+  canEdit: boolean;
+  onRename: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(label);
+  const [lastLabel, setLastLabel] = useState(label);
+  if (label !== lastLabel) {
+    setLastLabel(label);
+    setDraft(label);
+  }
+  return (
+    <Input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const trimmed = draft.trim();
+        if (trimmed.length === 0) {
+          setDraft(label); // não permite vazio — reverte
+          return;
+        }
+        if (trimmed !== label) onRename(trimmed);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setDraft(label);
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      disabled={!canEdit}
+      className="h-7 text-xs font-medium border-transparent hover:border-cream-200 focus:border-rose-300 bg-transparent focus:bg-surface transition-colors"
+    />
   );
 }
 
@@ -2299,18 +2550,23 @@ function CostInput({
     setDraft(item.cost.toString().replace(".", ","));
   }
   return (
-    <Input
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onSave(draft)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-      }}
-      disabled={!canEdit || saving}
-      inputMode="decimal"
-      className="h-7 w-full max-w-[88px] text-xs font-medium tabular-nums"
-      placeholder="0,00"
-    />
+    <div className="relative inline-block w-full max-w-[100px]">
+      <Input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => onSave(draft)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+        disabled={!canEdit || saving}
+        inputMode="decimal"
+        className="h-7 w-full pr-5 text-xs font-medium tabular-nums"
+        placeholder="0,00"
+      />
+      <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] text-cocoa-500">
+        €
+      </span>
+    </div>
   );
 }
 

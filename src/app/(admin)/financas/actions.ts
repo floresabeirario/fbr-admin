@@ -13,6 +13,7 @@ import type { PricingItem, PricingItemUpdate } from "@/types/pricing";
 import type {
   ProductionCostItem,
   ProductionCostItemUpdate,
+  ProductionConsumableInsert,
 } from "@/types/production-cost";
 import type { Expense, ExpenseInsert, ExpenseUpdate } from "@/types/expense";
 
@@ -106,6 +107,80 @@ export async function updateProductionCostItemAction(
   if (error) throw new Error(error.message);
   revalidatePath("/financas");
   return data as ProductionCostItem;
+}
+
+/**
+ * Adiciona uma nova linha de consumível (cria simultaneamente entradas
+ * para os 3 tamanhos padrão: 30x40, 40x50, 50x70 — o admin pode depois
+ * editar os custos por tamanho. Mini 20x25 fica de fora por defeito;
+ * adiciona-se manualmente se necessário).
+ *
+ * Aceita um label só (e o cost = 0 para todos os tamanhos), ou cost
+ * específico para o primeiro tamanho como sugestão visual. A Maria
+ * geralmente vai editar os 3 valores logo a seguir.
+ */
+export async function createConsumableAction(
+  label: string,
+): Promise<ProductionCostItem[]> {
+  await requireAdmin();
+  const trimmed = label.trim();
+  if (trimmed.length < 1) throw new Error("Nome obrigatório.");
+
+  const supabase = await createClient();
+  const rows: Array<
+    ProductionConsumableInsert & { kind: "consumable" }
+  > = [
+    { kind: "consumable", size_key: "30x40", label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "40x50", label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "50x70", label: trimmed, cost: 0 },
+  ];
+  const { data, error } = await supabase
+    .from("production_cost_items")
+    .insert(rows)
+    .select();
+  if (error) throw new Error(error.message);
+  revalidatePath("/financas");
+  return (data ?? []) as ProductionCostItem[];
+}
+
+/**
+ * Arquiva (soft-delete) um consumível em TODOS os tamanhos — input é o
+ * label do item porque a Maria pensa "remover Caixa de cartão", não
+ * "remover linha de Caixa do 30x40". Faz delete às 3 linhas atómicamente.
+ */
+export async function archiveConsumableAction(label: string): Promise<void> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("production_cost_items")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("kind", "consumable")
+    .eq("label", label)
+    .is("deleted_at", null);
+  if (error) throw new Error(error.message);
+  revalidatePath("/financas");
+}
+
+/**
+ * Renomeia um consumível em todos os tamanhos atómicamente.
+ */
+export async function renameConsumableAction(
+  oldLabel: string,
+  newLabel: string,
+): Promise<void> {
+  await requireAdmin();
+  const trimmed = newLabel.trim();
+  if (trimmed.length < 1) throw new Error("Nome obrigatório.");
+  if (trimmed === oldLabel) return;
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("production_cost_items")
+    .update({ label: trimmed })
+    .eq("kind", "consumable")
+    .eq("label", oldLabel)
+    .is("deleted_at", null);
+  if (error) throw new Error(error.message);
+  revalidatePath("/financas");
 }
 
 // ============================================================

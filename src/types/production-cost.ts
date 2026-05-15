@@ -9,7 +9,7 @@
 // Capturado em snapshot por encomenda igual ao pricing_snapshot:
 // alterações futuras a esta tabela não recalculam encomendas antigas.
 
-export type ProductionCostKind = "frame" | "photo_print";
+export type ProductionCostKind = "frame" | "photo_print" | "consumable";
 
 export type ProductionCostSize = "30x40" | "40x50" | "50x70" | "mini_20x25";
 
@@ -29,14 +29,22 @@ export interface ProductionCostItem {
   size_key: ProductionCostSize;
   frame_type: ProductionFrameType | null;   // só para kind='frame'
   glass_type: ProductionGlassType | null;   // só para kind='frame'
+  label: string | null;                     // obrigatório para kind='consumable'
   cost: number;
   position: number;
   notes: string | null;
 }
 
 export type ProductionCostItemUpdate = Partial<
-  Pick<ProductionCostItem, "cost" | "notes" | "position">
+  Pick<ProductionCostItem, "cost" | "label" | "notes" | "position">
 >;
+
+// Para criar consumíveis (Maria adiciona "Cartão de visita", "Etiqueta", etc.).
+export interface ProductionConsumableInsert {
+  size_key: ProductionCostSize;
+  label: string;
+  cost: number;
+}
 
 // ── Snapshot guardado em orders.production_cost_snapshot ─────
 // Estratégia: copiamos TODAS as linhas activas da tabela no momento
@@ -52,6 +60,7 @@ export interface ProductionCostSnapshotLine {
   size_key: ProductionCostSize;
   frame_type: ProductionFrameType | null;
   glass_type: ProductionGlassType | null;
+  label: string | null;
   cost: number;
 }
 

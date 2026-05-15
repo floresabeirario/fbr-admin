@@ -29,10 +29,27 @@ interface Props {
   basePath: string; // ex: "/preservacao", "/vale-presente", "/parcerias"
 }
 
-// sessionStorage não muda durante a vida útil do workbench (foi gravado
-// pela listagem antes do push). Subscribe é no-op; basta `getSnapshot`
-// devolver o contexto fresco e `getServerSnapshot` devolver null para
-// não haver hydration mismatch.
+// Cache módulo-local para o snapshot: `useSyncExternalStore` compara
+// resultados de `getSnapshot` com `Object.is`. Se devolvermos objectos
+// novos em cada chamada (como `getNavContext` faz), o React detecta
+// "mudança" todo o render e entra em loop infinito → React error #185.
+// Só há um workbench montado de cada vez, por isso um slot único chega.
+let snapshotCache: { key: string; value: NavContext | null } = {
+  key: "__empty__",
+  value: null,
+};
+
+function getCachedSnapshot(
+  navKey: WorkbenchNavKey,
+  currentId: string,
+): NavContext | null {
+  const key = `${navKey}:${currentId}`;
+  if (snapshotCache.key !== key) {
+    snapshotCache = { key, value: getNavContext(navKey, currentId) };
+  }
+  return snapshotCache.value;
+}
+
 const noopSubscribe = () => () => {};
 const ssrSnapshot = (): NavContext | null => null;
 
@@ -40,7 +57,7 @@ export default function WorkbenchNavigator({ navKey, currentId, basePath }: Prop
   const router = useRouter();
 
   const getSnapshot = useCallback(
-    () => getNavContext(navKey, currentId),
+    () => getCachedSnapshot(navKey, currentId),
     [navKey, currentId],
   );
   const ctx = useSyncExternalStore<NavContext | null>(

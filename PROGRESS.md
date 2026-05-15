@@ -35,6 +35,48 @@
 - [x] Deploy no Vercel a funcionar em fbr-admin2.vercel.app
 
 ## O que está a fazer (em curso)
+- **Sessão 54 🚨 HOTFIX: workbench Preservação não carregava em produção (React error #185).** Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This page couldn't load" com `Minified React error #185` na consola = **Maximum update depth exceeded** (loop infinito de renders). Causa: na Sessão 52, o `WorkbenchNavigator` usa `useSyncExternalStore` e o `getSnapshot` chamava `getNavContext(...)` que constrói um objecto fresco `{ index, total, prev, next }` em cada chamada. `useSyncExternalStore` compara com `Object.is` → vê "snapshot novo" todo o render → loop. **Tudo passou nos checks** (`tsc`, `eslint`, `next build`) porque só falha em runtime no browser.
+
+  **Fix.** [src/components/workbench-navigator.tsx](src/components/workbench-navigator.tsx): novo `getCachedSnapshot(navKey, currentId)` com cache modular de um slot (só há um workbench montado de cada vez). Cache key = `"orders:abc"`; quando o key muda, recompõe; senão devolve a mesma referência. `Object.is` passa, sem loop. Type-check + build limpos.
+
+  **Mecanismos de prevenção** (para isto NUNCA mais acontecer):
+  1. Novo [scripts/smoke.mjs](scripts/smoke.mjs) — boota Playwright headless, faz login, visita as páginas críticas (incluindo `/preservacao/[id]`, `/vale-presente/[code]`, `/parcerias/[id]`), falha se houver `pageerror`, `console.error`, ou texto "couldn't load" no body. Só lê, nada destrutivo.
+  2. Novo comando `npm run preflight` (`tsc --noEmit && next build`) — base mínima de checks.
+  3. Novo comando `npm run smoke` (corre `scripts/smoke.mjs`). Maria instala Playwright se quiser usar: `npm i -D playwright && npx playwright install chromium`.
+  4. 2 memórias guardadas: `feedback_useSyncExternalStore_pitfall` (não repetir o anti-padrão) + `feedback_smoke_test_obrigatorio` (obrigação de eu correr/pedir smoke test antes de fechar sessões que mexem em páginas críticas).
+
+  **Maria precisa de fazer manualmente:**
+  1. Push para Vercel — auto-deploy faz o resto. O fix é só código (sem migração, sem env vars).
+  2. Confirmar `admin.floresabeirario.pt/preservacao/<qualquer-encomenda>` → carrega normalmente com as setas ◀ ▶ no header.
+  3. (Opcional, mas recomendado para o futuro) Activar smoke test local:
+     - `npm i -D playwright && npx playwright install chromium`
+     - Adicionar a `.env.local`: `SMOKE_EMAIL=...` e `SMOKE_PASSWORD=...` (qualquer dos 3 utilizadores admin)
+     - Numa sessão futura: `npm run dev` num terminal + `npm run smoke` noutro, e eu corro isso antes de declarar a sessão feita
+
+- **Sessão 53 ✅ Custos de produção — afinações UX + consumíveis recorrentes.** Maria pediu três coisas após o smoke test inicial da sessão 52: (1) sinal € visível nos inputs da tabela de custos; (2) substituir os labels técnicos "V/V" e "V/C" por "Vidro" e "Cartão"; (3) adicionar nova secção para os consumíveis recorrentes que vão em cada encomenda (caixa de cartão, autocolante frágil, saco pano grande/mini, lavanda 40g, cartão informativo, padding insuflável, sacos de sílica) — com possibilidade de adicionar/remover/renomear linhas e custos variáveis por tamanho.
+
+  **UX dos inputs.** `CostInput` em [financas-client.tsx](src/app/(admin)/financas/financas-client.tsx) agora envolve o input num `<div className="relative">` com `<span>€</span>` absoluto à direita (`right-1.5`, `text-cocoa-500`, `pointer-events-none`) e `pr-5` no input para o texto não passar por baixo. Cabeçalhos da matriz por tamanho passaram de "V / V" e "V / C" para **"Vidro"** e **"Cartão"** (legenda final foi reformulada para "Vidro = fundo transparente · Cartão = preto / branco / cor / fotografia"). Os 2 cardápios já não precisam de "tradução" mental.
+
+  **Migração 035** ([supabase/migrations/035_production_consumables.sql](supabase/migrations/035_production_consumables.sql)): (1) `production_cost_items.cost` upgraded de `NUMERIC(10,2)` para `NUMERIC(12,4)` — alguns consumíveis têm 4 decimais (0,3667€ padding 30x40, 0,0240€ autocolante). Conversão lossless. (2) `kind` ganha novo valor `'consumable'`; CHECK constraint recriado. (3) Nova coluna `label TEXT` — livre (Maria pode renomear), obrigatória só para consumíveis. (4) `production_cost_kind_fields_check` actualizado: consumables exigem `label NOT NULL AND length(trim(label)) > 0` e proibem `frame_type`/`glass_type`. (5) Índice único parcial `(size_key, label) WHERE kind='consumable'`. (6) Seed: **8 consumíveis × 3 tamanhos = 24 linhas** com valores do Excel da Maria. Mini 20x25 fica de fora por defeito (Maria disse "por agora vai dentro do quadro principal, mas no futuro vai ter o seu próprio saco, por isso temos que pensar no futuro") — a estrutura aceita-os; basta adicionar linhas com `size_key='mini_20x25'` quando chegar a altura.
+
+  **Tipos + cálculo.** [src/types/production-cost.ts](src/types/production-cost.ts): `ProductionCostKind` agora inclui `'consumable'`; `ProductionCostItem` ganha `label: string | null`; novo type `ProductionConsumableInsert`; `ProductionCostSnapshotLine` ganha `label` (para sobreviver no snapshot mesmo que renomeado depois). [src/lib/production-cost.ts](src/lib/production-cost.ts) `computeProductionCost` ganha passo 4: itera linhas do snapshot com `kind='consumable'` e `size_key === sizeKey` e empurra todas para o breakdown. Resultado: badge de custo no workbench passa a mostrar caixa+saco+lavanda+... debaixo do custo da moldura, e a margem reflecte o custo real.
+
+  **Server actions** ([src/app/(admin)/financas/actions.ts](src/app/(admin)/financas/actions.ts)). Três novas actions admin-only: `createConsumableAction(label)` — cria atomicamente 3 linhas (30x40, 40x50, 50x70) com `cost=0`, Maria edita depois; `archiveConsumableAction(label)` — soft-delete às 3 linhas com mesmo label (`UPDATE deleted_at WHERE kind='consumable' AND label=oldLabel`); `renameConsumableAction(oldLabel, newLabel)` — UPDATE label às 3 linhas atómicamente. Operações por label (não por id) porque a Maria pensa em "remover Caixa de cartão", não "remover linha do 30x40".
+
+  **UI Finanças**. Novo card "Outros custos recorrentes" (gradient rosa + ícone `Package`) abaixo do card "Impressão de fotografia". Tabela com 8 linhas (uma por label) × 3 colunas (tamanhos) + coluna de lixeira. Label de cada linha é um `Input` inline editável (border transparente, aparece no hover/focus, blur faz rename, Escape cancela, vazio reverte). Linha rodapé com input "Novo item (ex: Cartão de visita)" + botão "Adicionar" (também aceita Enter). Cada célula usa o mesmo `CostInput` com sinal €. `useMemo` agrupa items por label e ordena pela menor `position` do grupo (mantém ordem do Excel: Caixa → Autocolante → Saco grande → Saco mini → Lavanda → Cartão informativo → Padding → Sílica). Botão de lixeira faz `window.confirm` antes de arquivar — "Encomendas antigas não são afectadas" (snapshot por encomenda continua válido).
+
+  **Memória.** Continua a aplicar [[feedback_aplicar_padroes_em_areas_analogas]] — Maria quer poder editar tudo, então toda a tabela é editável incluindo labels (não só custos). Type check + ESLint limpos.
+
+  **Maria precisa de fazer manualmente:**
+  1. Correr migração 035 no Supabase SQL Editor
+  2. Push para Vercel
+  3. Smoke test:
+     - Finanças → "Custos de produção" → os 8 consumíveis aparecem com valores correctos
+     - Clicar no label de um item → editar nome → blur guarda
+     - Adicionar novo item ("Etiqueta") → aparece com 0€ × 3 tamanhos
+     - Lixeira num item → confirm → desaparece
+     - Abrir um workbench → badge de custo agora soma os consumíveis ao custo da moldura
+
 - **Sessão 52 ✅ Slide entre workbenches + Custos de produção (COGS) em Finanças + moldura pirâmide.** Maria pediu três coisas: (1) opinião sobre métricas como sub-aba de Finanças — dei opinião contra (metade das métricas é operacional, não financeira) e Maria concordou em deixar como está; (2) navegação prev/next entre workbenches sem voltar à listagem; (3) tabela de custos de produção por quadro (moldura, embalagem, cartão, enchimento, etc.) separada das despesas únicas, com moldura pirâmide como toggle no workbench.
 
   **Ponto 2 — Slide entre workbenches.** Novo [src/lib/workbench-nav.ts](src/lib/workbench-nav.ts) com helpers `setNavList` / `getNavContext` (sessionStorage, key por área: "orders" | "vouchers" | "partners"). Novo componente reutilizável [src/components/workbench-navigator.tsx](src/components/workbench-navigator.tsx) renderiza setas ◀ / ▶ + indicador "12 / 47" no header; atalhos teclado ← e → (filtra inputs/textarea/contenteditable + modifier keys). Usa `useSyncExternalStore` para evitar hydration mismatch (SSR devolve null, CSR lê sessionStorage) — padrão correcto para o lint `react-hooks/set-state-in-effect`. As 3 listagens (`preservacao-client`, `vale-presente-client`, `parcerias-client`) gravam a ordem visual da tabela antes do `router.push` para o workbench. Ordem da lista plana segue exactamente a ordem dos grupos visíveis (orfas → ... → cancelamentos para encomendas; orfas → pre_reservas → reservas para vales; PARTNER_STATUS_ORDER para parceiros). Ignora `collapsedGroups` propositadamente — slidar deve percorrer todas, não só as expandidas. Se o workbench for aberto directamente sem ter passado pela listagem (link partilhado), o componente devolve `null` e desaparece.
@@ -373,6 +415,15 @@
 - **Fase 5 fechada (sessão 25):** os formulários públicos do site `floresabeirario.pt` deixam de gravar no Monday e passam a gravar directamente no Supabase. ✅ Smoke test no preview (`fbr-website-git-develop-…vercel.app`) passou para ambos os forms — **Reserva** e **Vale-Presente**. Migrações 016 + 017 já estão em produção no Supabase. **Pendente** (decisão da Maria sobre o momento): merge `develop` → `main` no fbr-website para o switch ir a `floresabeirario.pt` em produção, smoke test em produção, e remover env vars do Monday.
 
 ## Próximo passo CONCRETO
+**Sessão 53 (consumíveis recorrentes + UX da tabela de custos) — passos manuais da Maria:**
+1. Correr **migração 035** no Supabase SQL Editor (`supabase/migrations/035_production_consumables.sql`)
+2. (Se ainda não correu) Correr **migração 034** também (sessão 52)
+3. Push para Vercel
+4. Smoke test:
+   - **Custos**: € visível à direita de cada input; cabeçalhos dizem "Vidro" e "Cartão"
+   - **Consumíveis**: 8 itens com valores correctos; lixeira remove; clicar label permite renomear; "Adicionar" cria novo com 0€ × 3 tamanhos
+   - **Workbench**: badge de custo agora soma consumíveis ao custo da moldura
+
 **Sessão 52 (slide entre workbenches + custos de produção) — passos manuais da Maria:**
 1. Correr **migração 034** no Supabase SQL Editor (`supabase/migrations/034_production_costs.sql`)
 2. Push para Vercel

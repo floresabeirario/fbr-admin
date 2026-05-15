@@ -30,6 +30,7 @@ export function buildProductionCostSnapshot(
       size_key: i.size_key,
       frame_type: i.frame_type,
       glass_type: i.glass_type,
+      label: i.label,
       cost: i.cost,
     })),
   };
@@ -148,6 +149,25 @@ export function computeProductionCost(
         qty,
         unit_cost: mini.cost,
         subtotal: mini.cost * qty,
+      });
+    }
+  }
+
+  // 4. Consumíveis (caixa, autocolante, lavanda, cartão informativo,
+  //    padding, sílica, sacos, etc.) — somados a TODAS as encomendas
+  //    consoante o tamanho da moldura principal. Cada encomenda leva
+  //    uma unidade de cada (não escalam com mini-quadros).
+  if (sizeKey) {
+    const consumables = snapshot.items.filter(
+      (l) => l.kind === "consumable" && l.size_key === sizeKey,
+    );
+    for (const c of consumables) {
+      if (!c.label) continue;
+      lines.push({
+        label: c.label,
+        qty: 1,
+        unit_cost: c.cost,
+        subtotal: c.cost,
       });
     }
   }
