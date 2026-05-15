@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Order, OrderStatus } from "@/types/database";
 import { EVENT_TYPE_LABELS } from "@/types/database";
+import LogisticsMap, { type MapMarker } from "./logistics-map";
 
 type LogisticsKind = "recolha_evento" | "envio_ctt_flores" | "envio_ctt_quadro";
 
@@ -159,10 +160,13 @@ function getAllLogistics(orders: Order[]): LogisticsItem[] {
 
 type FilterKind = "todas" | LogisticsKind;
 
+type MapFilter = "recolhas" | "ctt" | "ambos";
+
 export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) {
   const [kindFilter, setKindFilter] = useState<FilterKind>("todas");
   const [search, setSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
+  const [mapFilter, setMapFilter] = useState<MapFilter>("recolhas");
 
   const allItems = useMemo(() => getAllLogistics(orders), [orders]);
 
@@ -237,6 +241,33 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
     };
   }, [allItems]);
 
+  // Marcadores do mapa: só itens pendentes; respeita o filtro do mapa
+  // (independente das KPI cards). Default: só recolhas no local.
+  const mapMarkers = useMemo<MapMarker[]>(() => {
+    return allItems
+      .filter((i) => {
+        if (i.completed) return false;
+        if (mapFilter === "recolhas") return i.kind === "recolha_evento";
+        if (mapFilter === "ctt")
+          return i.kind === "envio_ctt_flores" || i.kind === "envio_ctt_quadro";
+        return true;
+      })
+      .map((i) => ({
+        id: `${i.order.id}-${i.kind}`,
+        kind: i.kind,
+        date: i.date,
+        location: i.location,
+        timeFrom: i.timeFrom,
+        timeTo: i.timeTo,
+        orderHref: `/preservacao/${i.order.order_id ?? i.order.id}`,
+        orderRef: i.order.order_id,
+        clientName: i.order.client_name,
+        eventLabel: i.order.event_type
+          ? EVENT_TYPE_LABELS[i.order.event_type]
+          : null,
+      }));
+  }, [allItems, mapFilter]);
+
   const totalAgendadas =
     buckets.atrasadas.length +
     buckets.hoje.length +
@@ -309,119 +340,136 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         />
       </div>
 
-      {totalAgendadas === 0 && buckets.concluidas.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-cream-200 p-10 text-center text-sm text-cocoa-500">
-          Nenhuma recolha ou envio agendado.
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {/* Atrasadas — só itens AINDA NÃO concluídos com data passada */}
-          {buckets.atrasadas.length > 0 && (
-            <DateGroupSection
-              title="Atrasadas"
-              subtitle="Data já passou e ainda não foram dadas como feitas"
-              tone="danger"
-              icon={AlertTriangle}
-              items={buckets.atrasadas}
-              groupByDate
-            />
-          )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
+        {/* Coluna esquerda — lista de agenda (col-span-2 em desktop) */}
+        <div className="lg:col-span-2">
+          {totalAgendadas === 0 && buckets.concluidas.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-cream-200 p-10 text-center text-sm text-cocoa-500">
+              Nenhuma recolha ou envio agendado.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Atrasadas — só itens AINDA NÃO concluídos com data passada */}
+              {buckets.atrasadas.length > 0 && (
+                <DateGroupSection
+                  title="Atrasadas"
+                  subtitle="Data já passou e ainda não foram dadas como feitas"
+                  tone="danger"
+                  icon={AlertTriangle}
+                  items={buckets.atrasadas}
+                  groupByDate
+                />
+              )}
 
-          {/* HOJE — destaque visual */}
-          {buckets.hoje.length > 0 && (
-            <TodaySection items={buckets.hoje} subtitle={todaySubtitle} />
-          )}
+              {/* HOJE — destaque visual */}
+              {buckets.hoje.length > 0 && (
+                <TodaySection items={buckets.hoje} subtitle={todaySubtitle} />
+              )}
 
-          {/* Amanhã */}
-          {buckets.amanha.length > 0 && (
-            <DateGroupSection
-              title="Amanhã"
-              subtitle={tomorrowSubtitle}
-              tone="warning"
-              icon={CalendarDays}
-              items={buckets.amanha}
-            />
-          )}
+              {/* Amanhã */}
+              {buckets.amanha.length > 0 && (
+                <DateGroupSection
+                  title="Amanhã"
+                  subtitle={tomorrowSubtitle}
+                  tone="warning"
+                  icon={CalendarDays}
+                  items={buckets.amanha}
+                />
+              )}
 
-          {/* Resto desta semana */}
-          {buckets.restoSemana.length > 0 && (
-            <DateGroupSection
-              title="Esta semana"
-              subtitle="Resto da semana"
-              tone="normal"
-              icon={CalendarDays}
-              items={buckets.restoSemana}
-              groupByDate
-            />
-          )}
+              {/* Resto desta semana */}
+              {buckets.restoSemana.length > 0 && (
+                <DateGroupSection
+                  title="Esta semana"
+                  subtitle="Resto da semana"
+                  tone="normal"
+                  icon={CalendarDays}
+                  items={buckets.restoSemana}
+                  groupByDate
+                />
+              )}
 
-          {/* Próxima semana */}
-          {buckets.proximaSemana.length > 0 && (
-            <DateGroupSection
-              title="Próxima semana"
-              subtitle="Já a planear"
-              tone="normal"
-              icon={CalendarDays}
-              items={buckets.proximaSemana}
-              groupByDate
-            />
-          )}
+              {/* Próxima semana */}
+              {buckets.proximaSemana.length > 0 && (
+                <DateGroupSection
+                  title="Próxima semana"
+                  subtitle="Já a planear"
+                  tone="normal"
+                  icon={CalendarDays}
+                  items={buckets.proximaSemana}
+                  groupByDate
+                />
+              )}
 
-          {/* Mais tarde */}
-          {buckets.maisTarde.length > 0 && (
-            <DateGroupSection
-              title="Mais tarde"
-              subtitle="Agendamentos futuros"
-              tone="muted"
-              icon={CalendarDays}
-              items={buckets.maisTarde}
-              groupByDate
-            />
-          )}
+              {/* Mais tarde */}
+              {buckets.maisTarde.length > 0 && (
+                <DateGroupSection
+                  title="Mais tarde"
+                  subtitle="Agendamentos futuros"
+                  tone="muted"
+                  icon={CalendarDays}
+                  items={buckets.maisTarde}
+                  groupByDate
+                />
+              )}
 
-          {/* Concluídas — colapsável, sem peso visual */}
-          {buckets.concluidas.length > 0 && (
-            <div className="rounded-2xl border border-cream-200 bg-cream-50/40 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setShowCompleted((v) => !v)}
-                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-cream-100/40 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <div>
-                    <h2 className="text-sm font-semibold text-cocoa-900">
-                      Concluídas
-                    </h2>
-                    <p className="text-[11px] text-cocoa-700">
-                      Recolhas/envios já feitos (estado da encomenda confirma)
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-cocoa-700">
-                  <span className="font-medium">{buckets.concluidas.length}</span>
-                  {showCompleted ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
+              {/* Concluídas — colapsável, sem peso visual */}
+              {buckets.concluidas.length > 0 && (
+                <div className="rounded-2xl border border-cream-200 bg-cream-50/40 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowCompleted((v) => !v)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-cream-100/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <div>
+                        <h2 className="text-sm font-semibold text-cocoa-900">
+                          Concluídas
+                        </h2>
+                        <p className="text-[11px] text-cocoa-700">
+                          Recolhas/envios já feitos (estado da encomenda confirma)
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-cocoa-700">
+                      <span className="font-medium">{buckets.concluidas.length}</span>
+                      {showCompleted ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </div>
+                  </button>
+                  {showCompleted && (
+                    <div className="divide-y divide-cream-100 border-t border-cream-200">
+                      {buckets.concluidas.map((i, idx) => (
+                        <LogisticsRow
+                          key={`done-${i.order.id}-${i.kind}-${idx}`}
+                          item={i}
+                          muted
+                        />
+                      ))}
+                    </div>
                   )}
-                </div>
-              </button>
-              {showCompleted && (
-                <div className="divide-y divide-cream-100 border-t border-cream-200">
-                  {buckets.concluidas.map((i, idx) => (
-                    <LogisticsRow
-                      key={`done-${i.order.id}-${i.kind}-${idx}`}
-                      item={i}
-                      muted
-                    />
-                  ))}
                 </div>
               )}
             </div>
           )}
         </div>
-      )}
+
+        {/* Coluna direita — mapa sticky em desktop */}
+        <aside className="lg:sticky lg:top-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-cocoa-900 flex items-center gap-1.5">
+              <MapPin className="h-4 w-4 text-cocoa-700" />
+              Mapa
+            </h2>
+            <MapFilterToggle value={mapFilter} onChange={setMapFilter} />
+          </div>
+          <LogisticsMap markers={mapMarkers} height={520} />
+        </aside>
+      </div>
 
       {/* Calculadora de transporte — placeholder */}
       <div className="rounded-2xl border border-dashed border-cream-200 bg-cream-50 p-6 mt-8">
@@ -441,6 +489,40 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Segmented control para escolher o que aparece no mapa. */
+function MapFilterToggle({
+  value,
+  onChange,
+}: {
+  value: MapFilter;
+  onChange: (v: MapFilter) => void;
+}) {
+  const options: { id: MapFilter; label: string }[] = [
+    { id: "recolhas", label: "Recolhas" },
+    { id: "ctt", label: "CTT" },
+    { id: "ambos", label: "Ambos" },
+  ];
+  return (
+    <div className="inline-flex rounded-lg border border-cream-200 bg-cream-50 p-0.5 text-[11px] font-medium">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "px-2.5 py-1 rounded-md transition-colors",
+            value === o.id
+              ? "bg-surface text-cocoa-900 shadow-sm"
+              : "text-cocoa-700 hover:text-cocoa-900",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
