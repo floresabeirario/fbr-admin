@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (migs 038+039 + CAPTCHA)
+## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (migs 038-040 + CAPTCHA admin + Turnstile fbr-website)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -40,6 +40,25 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 61 🔒 Turnstile nos forms públicos do fbr-website + mig 040 (anti-enumeration)
+
+Continuação. Foco: fechar o vector de enumeration de vouchers + estender Turnstile ao site público.
+
+**Descoberta inesperada:** o `fbr-voucher` (site `voucher.floresabeirario.pt`) ainda usa **Google Sheets**, não o Supabase ([fbr-voucher/api/voucher.js](../fbr-voucher/fbr-voucher/api/voucher.js) lê de `spreadsheets.values.get`). Logo o role `anon` no Supabase NÃO precisa de ler `vouchers` para alimentar esse site. Posso fechar o vector sem partir nada.
+
+**[supabase/migrations/040_vouchers_anon_select_lockdown.sql](supabase/migrations/040_vouchers_anon_select_lockdown.sql):**
+- `DROP POLICY "vouchers_public_read"` (mig 010 — deixava listar todos os vales pagos)
+- Mantém `vouchers_public_select_recent` (mig 017) — filtro temporal de 5s, único caminho legítimo (cobre RETURNING do INSERT do form público)
+- Enumeration via `GET /rest/v1/vouchers?...` deixa de funcionar para anon
+
+**Turnstile no `fbr-website`** (server-side já estava pronto — `verifyTurnstile` em `_lib/turnstile.js` — faltava o cliente):
+- Novo componente reusable [app/_components/TurnstileWidget.jsx](../fbr-website/fbr-website/app/_components/TurnstileWidget.jsx) com `next/script` para o api.js, render lifecycle e cleanup
+- [app/reservar-preservacao/ReservarPreservacaoForm.jsx](../fbr-website/fbr-website/app/reservar-preservacao/ReservarPreservacaoForm.jsx): widget antes do botão, `turnstileToken` no body, `resetTurnstile()` no erro, botão disabled enquanto não houver token
+- [app/vale-presente/ValeApresenteForm.jsx](../fbr-website/fbr-website/app/vale-presente/ValeApresenteForm.jsx): mesmo padrão
+- Graceful: sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY` na env, o widget não renderiza e o submit funciona como antes (o servidor já era no-op sem `TURNSTILE_SECRET`)
+
+**Builds:** `next build` no fbr-website passa; `npm run preflight` no admin passa.
 
 ### Sessão 60 🔒 CAPTCHA Turnstile no login (graceful)
 
@@ -255,7 +274,26 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
    - Form público de Reserva e Vale (no `fbr-website`): submeter um teste → deve aparecer no admin com audit log.
 6. Verificar headers HTTP em produção: abrir DevTools → Network → ver Response Headers de qualquer request → deve mostrar `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
 
-**Sessão 60 — activar CAPTCHA Turnstile (5 passos, ~10 min):**
+**Sessão 61 — passos manuais (continuação):**
+
+1. **Supabase Dashboard → Auth → Policies** (quick wins, 2 min):
+   - Password policy: mínimo 12 chars + requer letras maiúsculas + números + símbolos
+   - Session timeout (JWT expiry): reduzir de 1 semana para 1 dia (86400 s)
+   - "Prevent use of leaked passwords": **ON**
+2. **Correr mig 040** no Supabase SQL Editor (depois de já ter corrido 038+039)
+   - Verificar: `SELECT polname FROM pg_policy WHERE polrelid='vouchers'::regclass AND 'anon'::regrole=ANY(polroles)` → só deve mostrar `vouchers_public_insert` + `vouchers_public_select_recent`
+3. **Substituir ficheiros no repo `fbr-website`** (no GitHub `floresabeirario/fbr-website`, branch `develop`):
+   - **Novo**: `app/_components/TurnstileWidget.jsx`
+   - **Modificado**: `app/reservar-preservacao/ReservarPreservacaoForm.jsx`
+   - **Modificado**: `app/vale-presente/ValeApresenteForm.jsx`
+   - Os 3 ficheiros estão em `c:\Users\maria\Documents\fbr-website\fbr-website\app\…`
+4. **Vercel do `fbr-website`** — adicionar 2 env vars (Site Key + Secret Key do Turnstile que já criámos para o admin; podem ser as mesmas se adicionares o hostname `floresabeirario.pt` no widget Cloudflare):
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = Site Key (público)
+   - `TURNSTILE_SECRET` = Secret Key (privado)
+   - Force redeploy
+5. **Testar em incognito**: `floresabeirario.pt/reservar-preservacao` e `floresabeirario.pt/vale-presente` → widget Turnstile aparece antes do botão "Submeter", botão fica disabled até completar, e submissão chega ao admin.
+
+**Sessão 60 — activar CAPTCHA Turnstile no admin (5 passos, ~10 min):**
 1. **Cloudflare Dashboard** → Turnstile → "Add Site"
    - Site name: `FBR Admin`
    - Domain: `admin.floresabeirario.pt` (e `localhost` se quiseres testar local)
