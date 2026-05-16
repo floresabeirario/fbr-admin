@@ -4,6 +4,7 @@
 
 import type { PricingSnapshot } from "./pricing";
 import type { ProductionCostSnapshot } from "./production-cost";
+import type { WhatsAppEntry } from "./whatsapp";
 
 export type OrderStatus =
   | "entrega_flores_agendar"
@@ -231,6 +232,11 @@ export interface Order {
   // Timestamp em que a encomenda foi anonimizada (PII removida,
   // linha mantida para métricas agregadas). NULL = não anonimizada.
   anonymized_at: string | null;
+
+  // ── Registo manual de WhatsApp (mig 042) ───────────────────
+  // Array de entradas { id, timestamp, direction, content, screenshot_urls[] }.
+  // Sem API oficial — a Maria cola/importa conversas manualmente.
+  whatsapp_log: WhatsAppEntry[];
 }
 
 // Tipo para criar uma nova encomenda (campos obrigatórios mínimos)

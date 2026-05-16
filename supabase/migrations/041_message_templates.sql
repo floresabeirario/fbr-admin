@@ -732,6 +732,7 @@ $$Hello {nome} 🌻
 We''re very flexible with timing on our side.
 We just ask that, as soon as you have an idea of the time window, you let us know so we can organise ourselves accordingly.
 
-Anything you need, we''re here 🌸$$);
+Anything you need, we''re here 🌸$$)
+ON CONFLICT (slug) WHERE deleted_at IS NULL DO NOTHING;
 
 COMMIT;

@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 12) — Biblioteca de templates de mensagens (sem IA, zero tokens)
+## Fase actual: FASE 6 (parte 13) — Registo manual de WhatsApp no workbench (Fase B do plano de comunicações)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -35,12 +35,57 @@
 - **PWA** instalável (iOS + Android); mobile-friendly
 - **Integrações Google**: OAuth foundation, auto-criação pastas Drive ao 1º pagamento, eventos Calendar com info de recolha
 - **RGPD**: exportação JSON+PDF, retenção 10 anos com anonimização, audit log UI
-- **Templates de mensagens** (sessão 64): biblioteca de 27 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
-- 41 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
+- **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
+- 42 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 65 💬 Fase B — Registo manual de WhatsApp no workbench
+
+Maria disse "avança" depois da Fase A (templates). Continuação directa da sessão 64. Fase B do plano de comunicações: UI no workbench para registar conversas WhatsApp manualmente (sem API oficial). Suporta: adicionar mensagens uma a uma, importar conversa inteira exportada do WhatsApp Web, editar/apagar entradas, anexar screenshots (URLs Drive).
+
+**1. Migração 042** ([supabase/migrations/042_whatsapp_log.sql](supabase/migrations/042_whatsapp_log.sql)):
+- `ALTER TABLE orders ADD COLUMN whatsapp_log JSONB NOT NULL DEFAULT '[]'`
+- Cada entrada: `{ id, timestamp, direction: 'sent'|'received', content, screenshot_urls[] }`
+- Sem nova tabela — herda RLS de `orders` (admins escrevem; Ana lê). Sem audit trigger novo (a auditoria de `orders` já apanha alterações da coluna toda — vai ficar verboso mas é coerente; aceitável para v1).
+
+**2. Tipos** ([src/types/whatsapp.ts](src/types/whatsapp.ts)): `WhatsAppEntry`, `WhatsAppDirection`. Adicionado `whatsapp_log: WhatsAppEntry[]` ao tipo `Order` em [database.ts](src/types/database.ts).
+
+**3. Parser do export WhatsApp** ([src/lib/whatsapp-import.ts](src/lib/whatsapp-import.ts)):
+- `parseWhatsAppExport(rawText, ourName="Flores à Beira Rio") → { entries, systemFiltered, unparsedLines }`
+- Regex: `^(\d{2}/\d{2}/\d{2,4}),\s+(\d{2}:\d{2})\s+-\s+(.*)$` — formato PT do WhatsApp Web (ex: `27/04/26, 11:31 - Carla Santos: Olá`).
+- Multi-linha: linhas sem timestamp são appended à mensagem anterior.
+- Filtra mensagens de sistema ("As mensagens são encriptadas", "Afixou uma mensagem", "criou o grupo", etc.) via lista de regex.
+- Limpa marcadores inertes: `<Esta mensagem foi editada>`, `<Ficheiro não revelado>`.
+- Distingue direcção pelo nome: `author === ourName` → `sent`; outro → `received`.
+- IDs UUIDv4 gerados localmente (não precisa de FK; chave única dentro do array).
+
+**4. Server actions** ([src/app/(admin)/preservacao/whatsapp-actions.ts](src/app/(admin)/preservacao/whatsapp-actions.ts)) — todas com `requireAdmin()`:
+- `addWhatsAppEntryAction(orderId, entry)`, `updateWhatsAppEntryAction(orderId, entryId, patch)`, `deleteWhatsAppEntryAction(orderId, entryId)`, `clearWhatsAppLogAction(orderId)`.
+- `importWhatsAppExportAction(orderId, rawText, mode="append"|"replace", ourName?)` — parseia + append/replace + retorna `{ entries, imported, systemFiltered, unparsedLines }` para feedback.
+- Helper `saveLog` ordena cronologicamente antes de gravar; `revalidatePath` na route da encomenda.
+
+**5. Componente UI** ([src/components/whatsapp-log.tsx](src/components/whatsapp-log.tsx)):
+- **Lista**: scroll vertical (max-h 420px), bolhas estilo WhatsApp — enviadas à direita (verde-claro), recebidas à esquerda (cream). Separadores de dia ("Quarta-feira, 27 de Abril de 2026") quando muda o dia. Hora ao fundo de cada bolha. Hover (desktop) ou sempre visível (mobile) com 2 botões: Editar e Apagar.
+- **Composer** (em baixo): toggle "Enviámos / Recebemos", textarea 2 linhas, botão para mostrar campo de URL de screenshot, atalho Ctrl/Cmd+Enter envia, botão "Adicionar".
+- **Importar**: dialog grande com info ("WhatsApp Web → menu ⋮ → Mais → Exportar conversa → Sem multimédia"), toggle Acrescentar/Substituir, campo "Nosso nome no WhatsApp" (default "Flores à Beira Rio"), textarea para o texto integral. Toast com sumário de quantas foram importadas + system filtradas + linhas não reconhecidas.
+- **Limpar tudo**: AlertDialog com confirmação dupla.
+- **Editar**: dialog com direcção (toggle), datetime-local, conteúdo (textarea), URL screenshot.
+
+**6. Integração no workbench Preservação** ([preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/%5Bid%5D/workbench-client.tsx)):
+- Substituído o `PlaceholderBox` no tab "WhatsApp" do Card "Comunicações" pelo componente `<WhatsAppLog orderId={local.id} initialEntries={local.whatsapp_log ?? []} canEdit={canEdit} />`.
+- Continua a coexistir com o tab "Email" (que mantém placeholder até implementarmos Gmail API — Fase C+).
+
+**Decisões / limites assumidos:**
+- 🟡 Por ora **só Preservação**; Vale-Presente fica para depois (volumes pequenos; pode esperar).
+- 🟡 Screenshots são URLs externos (Drive) — não upload directo, conforme [[feedback_drive_para_ficheiros]]. Maria cola o partilha-link.
+- 🟡 Sem busca dentro do log (volume pequeno por encomenda; podemos adicionar depois se precisar).
+- 🟡 Audit log fica verboso (UPDATE da encomenda inteira em vez de granular por mensagem); aceitável para v1.
+
+**Validação:** `npx tsc --noEmit` limpo. `npx next build` passa em 17s (compilação incremental). `npx eslint` limpo nos 4 ficheiros novos.
 
 ### Sessão 64 📝 Fase A — Biblioteca de templates de mensagens (sem IA, zero tokens)
 
@@ -55,7 +100,7 @@ Maria pediu para começar a "fase que falta" (Fase 6 — comunicações). Antes 
 - `system_settings (key, value)` — pares chave/valor para configuração global. Seed com `payment_account_holder`, `payment_iban`, `payment_bic`, `payment_bank_name`, `payment_mbway`, `studio_address_url`, `studio_address_text`. Maria edita via UI.
 - `message_templates (id, slug, name, language, category, body, suggested_statuses jsonb, scope, position, is_seed, deleted_at)` com unique index parcial em `slug` (where deleted_at IS NULL), índices por categoria e idioma.
 - RLS: `admins_all` (FOR ALL TO authenticated, restrito a António+MJ) + `authenticated_select` (Ana lê). Audit trigger `log_message_template_changes`. GRANT SELECT/INSERT/UPDATE/DELETE TO authenticated.
-- **Seed: 27 templates** pré-populados (`is_seed=true`) — extraídos verbatim das conversas reais, com variáveis `{nome}`, `{valor_sinal}`, `{dados_pagamento}`, `{saudacao}`, `{data_evento_extenso}`, `{link_status}`, etc.
+- **Seed: 29 templates** pré-populados (`is_seed=true`) — extraídos verbatim das conversas reais, com variáveis `{nome}`, `{valor_sinal}`, `{dados_pagamento}`, `{saudacao}`, `{data_evento_extenso}`, `{link_status}`, etc.
 
 **2. Tipos** ([src/types/message-template.ts](src/types/message-template.ts)):
 - `MessageTemplate`, `MessageTemplateInsert`, `MessageTemplateUpdate`, `TemplateCategory` (12 categorias com labels e ordem canónica), `TemplateLanguage` ('pt'|'en'), `TemplateScope` ('order'|'voucher'|'both').
@@ -411,15 +456,34 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 
 ## Próximo passo CONCRETO
 
+**Sessão 65 — passos manuais para activar o registo manual de WhatsApp:**
+
+1. **Correr migração 042** no Supabase SQL Editor:
+   - Cola o ficheiro [supabase/migrations/042_whatsapp_log.sql](supabase/migrations/042_whatsapp_log.sql) → Run
+   - Verifica: `SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='whatsapp_log';` → 1 linha
+2. Push para Vercel (rota afectada: `/preservacao/[id]`)
+3. **Testes a fazer em produção:**
+   - Abrir uma encomenda → Card "Comunicações" → tab **WhatsApp** → ver "Sem registos. Adiciona manualmente abaixo, ou importa…".
+   - **Adicionar entrada manual**: toggle "Enviámos" → escrever "Teste 1" → Adicionar → ver bolha verde à direita com hora actual.
+   - Toggle "Recebemos" → escrever "Teste 2" → Adicionar → ver bolha cream à esquerda.
+   - **Editar** uma bolha → mudar texto/direcção/data → Guardar → confirmar.
+   - **Apagar** uma bolha → confirmar → desaparece.
+   - **Importar**: clicar "Importar" → cola o conteúdo de qualquer ficheiro `.txt` da pasta [public/conversas whatsapp/](public/conversas%20whatsapp/) → manter "Acrescentar" → "Flores à Beira Rio" como nosso nome → Importar.
+     - Toast deve dizer ex: "Importadas 65 mensagens (1 de sistema ignorada)."
+     - Bolhas aparecem cronologicamente, separadores de dia entre datas diferentes, direcção correcta (a "Flores à Beira Rio" sempre à direita, cliente à esquerda).
+   - Testar **screenshot**: clicar ícone "Screenshot" no composer → colar URL Drive → Adicionar → bolha mostra "📎 Anexo 1" clicável.
+   - **Limpar tudo**: botão "Limpar" → confirmar → log vazio.
+4. **Smoke da Ana (viewer)**: login como Ana → abrir encomenda → tab WhatsApp → confirma que **vê** as mensagens mas **não tem** botões de Adicionar / Importar / Editar / Apagar (canEdit=false).
+
 **Sessão 64 — passos manuais para activar os templates de mensagens:**
 
 1. **Correr migração 041** no Supabase SQL Editor:
    - Abre Supabase Dashboard → SQL Editor → New query → cola o ficheiro [supabase/migrations/041_message_templates.sql](supabase/migrations/041_message_templates.sql) inteiro → Run
-   - Verifica: `SELECT count(*) FROM message_templates WHERE is_seed=true;` → deve dar **27**
+   - Verifica: `SELECT count(*) FROM message_templates WHERE is_seed=true;` → deve dar **29**
    - Verifica: `SELECT key, value FROM system_settings ORDER BY key;` → deve mostrar 7 chaves (account_holder, iban, bic, bank_name, mbway, studio_address_url, studio_address_text)
 2. Push para Vercel (rotas novas: `/settings/templates`)
 3. **Testes a fazer em produção (smoke):**
-   - Abrir **Sistema → Templates** → ver lista de 27 templates agrupados por categoria. Filtrar por idioma EN → só ver os EN. Pesquisar "pré-reserva" → só os 4 que têm o nome.
+   - Abrir **Sistema → Templates** → ver lista de 29 templates agrupados por categoria. Filtrar por idioma EN → só ver os EN. Pesquisar "pré-reserva" → só os 4 que têm o nome.
    - Abrir um template → editar uma palavra no corpo → Guardar → reabrir → ver alteração persistida.
    - **Sub-tab "Dados de pagamento e morada"** → confirmar que os 5 campos de pagamento estão preenchidos com os valores certos (MB Way 935 896 353, IBAN PT50…, BIC CGDIPTPL, etc.). Mudar uma morada → Guardar → recarregar a página → ver persistido.
    - Abrir **/preservacao/<encomenda-actual>** → no Card "Comunicações" há um botão "Inserir template". Clicar → ver lista com **Sugeridos para esta fase** no topo (conforme estado da encomenda).

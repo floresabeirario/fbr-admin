@@ -72,6 +72,7 @@ import { PartnerCombobox, type PartnerOption } from "@/components/partner-combob
 import AddressAutocomplete from "@/components/address-autocomplete";
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import TemplatePicker from "@/components/template-picker";
+import WhatsAppLog from "@/components/whatsapp-log";
 import type {
   Order,
   OrderUpdate,
@@ -941,10 +942,10 @@ export default function WorkbenchClient({
                     />
                   </TabsContent>
                   <TabsContent value="whatsapp" className="mt-3">
-                    <PlaceholderBox
-                      icon={<MessageCircle className="h-4 w-4" />}
-                      title="Sem registos de WhatsApp"
-                      description="Vais poder colar screenshots ou texto das conversas. Cada entrada datada e visível aqui."
+                    <WhatsAppLog
+                      orderId={local.id}
+                      initialEntries={local.whatsapp_log ?? []}
+                      canEdit={canEdit}
                     />
                   </TabsContent>
                 </Tabs>
