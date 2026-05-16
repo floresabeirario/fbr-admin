@@ -1,12 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+
+// ── Cloudflare Turnstile (CAPTCHA) ─────────────────────────────────
+// Sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY` definida, o widget não aparece
+// e o login funciona como antes (degradação graciosa). Quando a env
+// var estiver definida + o Supabase Auth configurado com o secret
+// correspondente (Dashboard → Auth → Settings → CAPTCHA), o widget
+// passa a ser obrigatório.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        opts: {
+          sitekey: string;
+          callback: (token: string) => void;
+          "error-callback"?: () => void;
+          "expired-callback"?: () => void;
+          theme?: "light" | "dark" | "auto";
+        },
+      ) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
+    };
+  }
+}
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -23,10 +51,58 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const widgetRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+
+  // Renderiza o widget quando o utilizador escolhe um perfil
+  // (passa para o ecrã de password). Re-renderiza ao mudar de perfil.
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return;
+    if (!selected) return;
+    if (!turnstileReady) return;
+    if (!widgetRef.current) return;
+    if (!window.turnstile) return;
+
+    // Limpar widget anterior se já existia (mudança de perfil)
+    if (widgetIdRef.current) {
+      try {
+        window.turnstile.remove(widgetIdRef.current);
+      } catch {
+        // ignorar — pode já ter sido removido
+      }
+      widgetIdRef.current = null;
+    }
+
+    widgetIdRef.current = window.turnstile.render(widgetRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token) => setCaptchaToken(token),
+      "error-callback": () => setCaptchaToken(null),
+      "expired-callback": () => setCaptchaToken(null),
+      theme: "auto",
+    });
+
+    return () => {
+      if (widgetIdRef.current && window.turnstile) {
+        try {
+          window.turnstile.remove(widgetIdRef.current);
+        } catch {
+          // ignorar
+        }
+        widgetIdRef.current = null;
+      }
+    };
+  }, [selected, turnstileReady]);
 
   async function handleLogin(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selected) return;
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("Por favor completa o desafio de verificação.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -34,11 +110,17 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({
       email: selected.email,
       password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
     });
 
     if (error) {
       setError("Password incorrecta. Tenta novamente.");
       setLoading(false);
+      // Reset do widget — o token só é válido uma vez, há que pedir outro
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.reset(widgetIdRef.current);
+        setCaptchaToken(null);
+      }
     } else {
       startNavigationProgress();
       router.push("/");
@@ -50,16 +132,40 @@ export default function LoginPage() {
     setSelected(profile);
     setPassword("");
     setError("");
+    setCaptchaToken(null);
   }
 
   function handleBack() {
     setSelected(null);
     setPassword("");
     setError("");
+    setCaptchaToken(null);
+    if (widgetIdRef.current && window.turnstile) {
+      try {
+        window.turnstile.remove(widgetIdRef.current);
+      } catch {
+        // ignorar
+      }
+      widgetIdRef.current = null;
+    }
   }
+
+  const submitDisabled =
+    loading ||
+    !password ||
+    Boolean(TURNSTILE_SITE_KEY && !captchaToken);
 
   return (
     <div className="min-h-screen bg-[#F2F1EE] dark:bg-black flex flex-col">
+      {TURNSTILE_SITE_KEY && (
+        <Script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          strategy="afterInteractive"
+          onLoad={() => setTurnstileReady(true)}
+          onReady={() => setTurnstileReady(true)}
+        />
+      )}
+
       <div className="flex justify-end p-4">
         <ThemeToggle />
       </div>
@@ -142,6 +248,12 @@ export default function LoginPage() {
                   </button>
                 </div>
 
+                {TURNSTILE_SITE_KEY && (
+                  <div className="flex justify-center">
+                    <div ref={widgetRef} />
+                  </div>
+                )}
+
                 {error && (
                   <p className="text-[12px] text-center text-red-500 dark:text-red-400">
                     {error}
@@ -150,7 +262,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || !password}
+                  disabled={submitDisabled}
                   className="w-full rounded-xl py-3 text-[15px] font-semibold flex items-center justify-center gap-2 mt-1 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     background: "linear-gradient(135deg, #D4B896 0%, #C4A882 50%, #B8956A 100%)",

@@ -40,6 +40,7 @@ export default async function HealthchecksPage() {
     { name: "GOOGLE_REDIRECT_URI", required: false },
     { name: "ANTHROPIC_API_KEY", required: false },
     { name: "RESEND_API_KEY", required: false },
+    { name: "NEXT_PUBLIC_TURNSTILE_SITE_KEY", required: false },
   ];
   for (const { name, required } of envChecks) {
     const present = !!process.env[name];

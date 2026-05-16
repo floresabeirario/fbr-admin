@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (migs 038+039)
+## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (migs 038+039 + CAPTCHA)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -40,6 +40,25 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 60 🔒 CAPTCHA Turnstile no login (graceful)
+
+Continuação da auditoria de segurança. Sem 2FA (decisão da Maria), o login é a defesa principal — e os 3 emails são previsíveis (`info+antonio@`, `info+mj@`, `info+ana@floresabeirario.pt`). Sem CAPTCHA, brute force/password spraying é trivial. Implementação:
+
+**[src/app/login/page.tsx](src/app/login/page.tsx):**
+- Carrega `https://challenges.cloudflare.com/turnstile/v0/api.js` via `next/script` (só na página de login)
+- Renderiza widget Turnstile assim que utilizador escolhe um perfil (entra no ecrã de password)
+- Estado `captchaToken` capturado via callback; passa `options.captchaToken` no `supabase.auth.signInWithPassword`
+- Botão "Entrar" disabled enquanto não houver token; widget reseta automaticamente após erro
+- Re-renderiza widget ao mudar de perfil + cleanup no unmount
+- Suporte a tema "auto" (acompanha dark mode)
+
+**Graceful degradation:**
+- Sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY` na env, o script não é carregado, o widget não aparece, e o `captchaToken` não é passado ao Supabase. Login funciona exactamente como antes. Permite deploy desta sessão sem partir nada — a Maria activa quando configurar Cloudflare + Supabase.
+
+**[src/app/(admin)/healthchecks/page.tsx](src/app/(admin)/healthchecks/page.tsx):** adicionada `NEXT_PUBLIC_TURNSTILE_SITE_KEY` à lista de env vars verificadas (opcional, fica como "warning" se não estiver definida).
+
+**Preflight**: passa limpo.
 
 ### Sessão 59 🔒 Hardening parte 2 (mig 039 + CSP minimal)
 
@@ -236,11 +255,23 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
    - Form público de Reserva e Vale (no `fbr-website`): submeter um teste → deve aparecer no admin com audit log.
 6. Verificar headers HTTP em produção: abrir DevTools → Network → ver Response Headers de qualquer request → deve mostrar `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
 
-**Para mais tarde (não fazer agora):**
-- Activar **MFA/2FA** no Supabase Dashboard → Authentication → Providers → Email → "Enforce MFA"
-- Activar **CAPTCHA no login** no Supabase Dashboard → Authentication → Settings → "Enable CAPTCHA protection" (Cloudflare Turnstile)
-- Definir **CSP** (Content-Security-Policy) — precisa testes para não partir Google Maps/OAuth
-- Adicionar **Turnstile** aos forms públicos do `fbr-website` (outro repo)
+**Sessão 60 — activar CAPTCHA Turnstile (5 passos, ~10 min):**
+1. **Cloudflare Dashboard** → Turnstile → "Add Site"
+   - Site name: `FBR Admin`
+   - Domain: `admin.floresabeirario.pt` (e `localhost` se quiseres testar local)
+   - Widget Mode: **Managed** (recomendado — Cloudflare decide quando mostrar challenge)
+   - Pre-clearance: No
+   - Copiar **Site Key** (público) e **Secret Key** (privado)
+2. **Supabase Dashboard** → Authentication → Settings → "Bot and Abuse Protection" → enable CAPTCHA → escolher **Turnstile** → colar Secret Key → Save
+3. **Vercel** → Project Settings → Environment Variables → adicionar `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = Site Key (escope: Production + Preview + Development)
+4. **Forçar redeploy** Vercel (Settings → Deployments → … → Redeploy) — env vars não auto-redeployam
+5. Testar em browser **incognito** (cache fresca): abrir `admin.floresabeirario.pt` → escolher perfil → ver widget Turnstile aparecer → completar → entrar. Tentar com password errada → widget reseta sozinho.
+
+**Para mais tarde:**
+- **MFA/2FA** Supabase Auth (Maria pediu para deixar para depois)
+- **CSP completa** (script-src, style-src, etc.) — precisa testes para não partir Google Maps/OAuth
+- **Turnstile** aos forms públicos do `fbr-website` (outro repo) — pode partilhar o mesmo site key
+- **Migrar voucher.floresabeirario.pt para usar a RPC** `get_voucher_by_code` (mig 039) e depois revogar `SELECT (code) ON vouchers FROM anon`
 
 **Sessão 57 — passos manuais da Maria:**
 1. Push para Vercel (build local passa)
