@@ -237,7 +237,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     autoFocus
                     required
-                    className="w-full rounded-xl px-4 py-3 text-[15px] pr-11 bg-[#F2F2F7] text-[#1C1C1E] dark:text-white placeholder:text-[#8E8E93] outline-none focus:ring-2 focus:ring-[#C4A882]/50 transition-all"
+                    className="w-full rounded-xl px-4 py-3 text-[15px] pr-11 bg-[#F2F2F7] text-[#1C1C1E] placeholder:text-[#8E8E93] outline-none focus:ring-2 focus:ring-[#C4A882]/50 transition-all"
                   />
                   <button
                     type="button"
