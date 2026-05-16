@@ -59,6 +59,8 @@ import {
 import { groupOrders, GROUP_TO_TARGET_STATUS, type OrderGroupKey } from "@/lib/supabase/orders";
 import { setNavList } from "@/lib/workbench-nav";
 import { exportOrdersToCsv } from "@/lib/export-csv";
+import { formatEUR } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import {
   type Order,
@@ -117,11 +119,6 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return "—";
   }
-}
-
-function formatEuro(value: number | null): string {
-  if (value === null || value === undefined) return "—";
-  return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
 // ── Dropdown de estado partilhado (tabela + workbench) ────────
@@ -292,6 +289,13 @@ function OrderRow({
   const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
   const autoFlaggedSemResposta = isPreReserva && !currentContacted && daysSinceCreated >= 4;
 
+  // Última actividade: só mostrar quando a encomenda está parada há >=7 dias
+  // e não está em estado terminal (concluído / cancelado). 14+ dias = âmbar.
+  const isTerminalState = currentStatus === "quadro_recebido" || currentStatus === "cancelado";
+  const daysSinceUpdate = differenceInDays(new Date(), new Date(order.updated_at));
+  const showStaleBadge = !isTerminalState && daysSinceUpdate >= 7;
+  const isStaleAlert = daysSinceUpdate >= 14;
+
   const shippingMethod: string | null =
     shippingColumn === "flores" ? order.flower_delivery_method : order.frame_delivery_method;
   const shippingLabel = shippingMethod
@@ -415,11 +419,24 @@ function OrderRow({
                 </span>
               )}
             </div>
-            {order.event_type && (
-              <span className="text-xs text-cocoa-700">
-                {EVENT_TYPE_LABELS[order.event_type]}
-              </span>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              {order.event_type && (
+                <span className="text-xs text-cocoa-700">
+                  {EVENT_TYPE_LABELS[order.event_type]}
+                </span>
+              )}
+              {showStaleBadge && (
+                <span
+                  className={cn(
+                    "text-[10px] font-medium",
+                    isStaleAlert ? "text-amber-700" : "text-cocoa-500",
+                  )}
+                  title={`Última edição: ${format(parseISO(order.updated_at), "dd/MM/yyyy HH:mm")}`}
+                >
+                  {isStaleAlert ? "⏰ " : ""}parada há {daysSinceUpdate} dias
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </td>
@@ -435,7 +452,7 @@ function OrderRow({
           <span className="text-sm text-cocoa-500">—</span>
         )}
       </td>
-      <td className="px-4 py-1.5">
+      <td className="px-4 py-1.5 hidden xl:table-cell">
         <span
           className="text-sm text-cocoa-900 block max-w-[200px] truncate"
           title={order.event_location ?? undefined}
@@ -462,7 +479,7 @@ function OrderRow({
         />
       </td>
       <td className="px-4 py-1.5 text-right">
-        <span className="text-sm text-cocoa-900">{formatEuro(order.budget)}</span>
+        <span className="text-sm text-cocoa-900">{formatEUR(order.budget)}</span>
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <PaymentSelect
@@ -590,12 +607,12 @@ function GroupSection({
       )}
       {!isCollapsed && orders.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left table-fixed">
+          <table className="w-full min-w-[760px] xl:min-w-[920px] text-left table-fixed">
             <colgroup>
               <col className="w-[3%]" />
               <col className="w-[16%]" />
               <col className="w-[10%]" />
-              <col className="w-[13%]" />
+              <col className="hidden xl:table-column xl:w-[13%]" />
               <col className="w-[12%]" />
               <col className="w-[16%]" />
               <col className="w-[10%]" />
@@ -605,7 +622,14 @@ function GroupSection({
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
                 {["", "Cliente", "Data evento", "Localização", shippingHeader, "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide ${i === 6 ? "text-right" : ""}`}>
+                  <th
+                    key={i}
+                    className={cn(
+                      "px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide",
+                      i === 6 && "text-right",
+                      i === 3 && "hidden xl:table-cell",
+                    )}
+                  >
                     {h}
                   </th>
                 ))}

@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { formatEUR } from "@/lib/format";
 import { toast } from "sonner";
 
 import type { Competitor, CompetitorPrice } from "@/types/competitor";
@@ -141,14 +142,6 @@ const TABS: TabDef[] = [
   },
 ];
 
-function formatEuro(value: number | null): string {
-  if (value === null) return "—";
-  return new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 interface Props {
   initialCompetitors: Competitor[];
@@ -292,7 +285,7 @@ function PrecosTab({
     startTransition(async () => {
       try {
         await updatePricingItemAction(item.id, { price: next });
-        toast.success(`${item.label}: ${formatEuro(next)}`);
+        toast.success(`${item.label}: ${formatEUR(next)}`);
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro ao guardar");
@@ -509,19 +502,19 @@ function DespesasTab({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <KpiBox
           label="Despesas únicas — este mês"
-          value={formatEuro(unicasMonth)}
+          value={formatEUR(unicasMonth)}
           icon={<Receipt className="h-4 w-4" />}
           color="rose"
         />
         <KpiBox
           label={`Subscrições activas (${activeSubs.length})`}
-          value={`${formatEuro(monthlyRecurring)} / mês`}
+          value={`${formatEUR(monthlyRecurring)} / mês`}
           icon={<RotateCw className="h-4 w-4" />}
           color="violet"
         />
         <KpiBox
           label="Custo total estimado — este mês"
-          value={formatEuro(totalMonth)}
+          value={formatEUR(totalMonth)}
           icon={<TrendingUp className="h-4 w-4" />}
           color="amber"
         />
@@ -764,13 +757,13 @@ function DespesasUnicas({
       ) : (
         <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[920px]">
+            <table className="w-full text-sm min-w-[760px] xl:min-w-[920px]">
               <thead className="bg-cream-50">
                 <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
                   <th className="px-3 py-2 font-medium">Data</th>
                   <th className="px-3 py-2 font-medium">Fornecedor</th>
                   <th className="px-3 py-2 font-medium">Categoria</th>
-                  <th className="px-3 py-2 font-medium">Descrição</th>
+                  <th className="px-3 py-2 font-medium hidden xl:table-cell">Descrição</th>
                   <th className="px-3 py-2 font-medium text-right">Valor</th>
                   <th className="px-3 py-2 font-medium">Pagamento</th>
                   <th className="px-3 py-2 font-medium">Factura</th>
@@ -985,7 +978,7 @@ function DespesasSubscricoes({
             <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
           </div>
           <p className="text-xs text-violet-800/70 italic">
-            <strong>Mensal:</strong> conta {formatEuro(parseFloat(newSub.amount.replace(",", ".")) || 0)} por mês.{" "}
+            <strong>Mensal:</strong> conta {formatEUR(parseFloat(newSub.amount.replace(",", ".")) || 0)} por mês.{" "}
             <strong>Anual:</strong> ÷12.{" "}
             <strong>Intervalo:</strong> activa só entre as datas indicadas.
           </p>
@@ -1002,14 +995,14 @@ function DespesasSubscricoes({
       ) : (
         <div className="rounded-xl border border-cream-200 bg-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[960px]">
+            <table className="w-full text-sm min-w-[780px] xl:min-w-[960px]">
               <thead className="bg-cream-50">
                 <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
                   <th className="px-3 py-2 font-medium">Estado</th>
                   <th className="px-3 py-2 font-medium">Fornecedor</th>
                   <th className="px-3 py-2 font-medium">Categoria</th>
                   <th className="px-3 py-2 font-medium">Periodicidade</th>
-                  <th className="px-3 py-2 font-medium">Início → Fim</th>
+                  <th className="px-3 py-2 font-medium hidden xl:table-cell">Início → Fim</th>
                   <th className="px-3 py-2 font-medium text-right">Valor</th>
                   <th className="px-3 py-2 font-medium text-right">≈ por mês</th>
                   <th className="px-3 py-2 font-medium">Factura</th>
@@ -1071,11 +1064,11 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
           {EXPENSE_CATEGORY_LABELS[expense.category]}
         </span>
       </td>
-      <td className="px-3 py-2 text-cocoa-700 text-xs max-w-[300px] truncate">
+      <td className="px-3 py-2 text-cocoa-700 text-xs max-w-[300px] truncate hidden xl:table-cell">
         {expense.description ?? ""}
       </td>
       <td className="px-3 py-2 text-right font-semibold text-rose-700 whitespace-nowrap">
-        {formatEuro(Number(expense.amount))}
+        {formatEUR(Number(expense.amount))}
       </td>
       <td className="px-3 py-2">
         {canEdit ? (
@@ -1169,15 +1162,15 @@ function SubscriptionRow({ expense, canEdit }: { expense: Expense; canEdit: bool
           ? EXPENSE_RECURRENCE_PERIOD_LABELS[expense.recurrence_period]
           : "—"}
       </td>
-      <td className="px-3 py-2 text-xs text-cocoa-700 whitespace-nowrap">
+      <td className="px-3 py-2 text-xs text-cocoa-700 whitespace-nowrap hidden xl:table-cell">
         <CalendarIcon className="h-3 w-3 inline -mt-0.5 mr-1 text-cocoa-500" />
         {startStr} → {endStr}
       </td>
       <td className="px-3 py-2 text-right font-semibold text-rose-700 whitespace-nowrap">
-        {formatEuro(Number(expense.amount))}
+        {formatEUR(Number(expense.amount))}
       </td>
       <td className="px-3 py-2 text-right text-cocoa-900 whitespace-nowrap tabular-nums">
-        {formatEuro(monthly)}
+        {formatEUR(monthly)}
       </td>
       <td className="px-3 py-2">
         <InvoiceCell expense={expense} canEdit={canEdit} />
@@ -1390,24 +1383,24 @@ function FaturacaoTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiBox
           label="Receita do mês"
-          value={formatEuro(revenueMonth)}
+          value={formatEUR(revenueMonth)}
           icon={<TrendingUp className="h-4 w-4" />}
           color="emerald"
           delta={monthDelta}
         />
-        <KpiBox label="Receita do ano" value={formatEuro(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
-        <KpiBox label="Despesas do mês" value={formatEuro(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
+        <KpiBox label="Receita do ano" value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+        <KpiBox label="Despesas do mês" value={formatEUR(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
         <KpiBox
           label="Lucro do mês"
-          value={formatEuro(profitMonth)}
+          value={formatEUR(profitMonth)}
           icon={<CreditCard className="h-4 w-4" />}
           color={profitMonth >= 0 ? "emerald" : "rose"}
         />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <KpiBox label="Despesas do ano" value={formatEuro(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
-        <KpiBox label="Lucro do ano" value={formatEuro(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+        <KpiBox label="Despesas do ano" value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+        <KpiBox label="Lucro do ano" value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
       </div>
 
       {/* Potencial se todas as encomendas activas estivessem 100% pagas */}
@@ -1432,7 +1425,7 @@ function FaturacaoTab({
               Potencial total
             </div>
             <div className="text-2xl font-semibold text-violet-900 dark:text-violet-100 tabular-nums">
-              {formatEuro(potentialFullPay)}
+              {formatEUR(potentialFullPay)}
             </div>
           </div>
           <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-emerald-200/60 dark:border-emerald-900/40 p-3">
@@ -1440,7 +1433,7 @@ function FaturacaoTab({
               Já cobrado
             </div>
             <div className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
-              {formatEuro(alreadyCollected)}
+              {formatEUR(alreadyCollected)}
             </div>
           </div>
           <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-amber-200/60 dark:border-amber-900/40 p-3">
@@ -1448,7 +1441,7 @@ function FaturacaoTab({
               Por receber
             </div>
             <div className="text-2xl font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
-              {formatEuro(stillOpen)}
+              {formatEUR(stillOpen)}
             </div>
           </div>
         </div>
@@ -1476,12 +1469,12 @@ function FaturacaoTab({
                 <div
                   className="w-2.5 sm:w-3 bg-emerald-400 rounded-t transition-all"
                   style={{ height: `${(m.revenue / maxBarValue) * 100}%` }}
-                  title={`Receita: ${formatEuro(m.revenue)}`}
+                  title={`Receita: ${formatEUR(m.revenue)}`}
                 />
                 <div
                   className="w-2.5 sm:w-3 bg-rose-400 rounded-t transition-all"
                   style={{ height: `${(m.expenses / maxBarValue) * 100}%` }}
-                  title={`Despesas: ${formatEuro(m.expenses)}`}
+                  title={`Despesas: ${formatEUR(m.expenses)}`}
                 />
               </div>
               <span className="text-[10px] text-cocoa-700 capitalize">{m.label}</span>
@@ -1582,9 +1575,9 @@ function CompeticaoTab({
       {/* KPIs / sumário */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Concorrentes registados" value={String(stats.count)} color="from-violet-50 to-purple-100 border-violet-200" />
-        <StatCard label="Preço médio (todos os produtos)" value={formatEuro(stats.avgPrice)} color="from-sky-50 to-blue-100 border-sky-200" />
-        <StatCard label="Preço mais baixo" value={formatEuro(stats.minPrice)} color="from-emerald-50 to-green-100 border-emerald-200" />
-        <StatCard label="Preço mais alto" value={formatEuro(stats.maxPrice)} color="from-amber-50 to-orange-100 border-amber-200" />
+        <StatCard label="Preço médio (todos os produtos)" value={formatEUR(stats.avgPrice)} color="from-sky-50 to-blue-100 border-sky-200" />
+        <StatCard label="Preço mais baixo" value={formatEUR(stats.minPrice)} color="from-emerald-50 to-green-100 border-emerald-200" />
+        <StatCard label="Preço mais alto" value={formatEUR(stats.maxPrice)} color="from-amber-50 to-orange-100 border-amber-200" />
       </div>
 
       {/* Toolbar: search + novo */}
@@ -1781,7 +1774,7 @@ function CompetitorCard({
           <div className="text-right shrink-0">
             <div className="text-[10px] uppercase tracking-wider text-cocoa-700">A partir de</div>
             <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-              {formatEuro(minPrice)}
+              {formatEUR(minPrice)}
             </div>
           </div>
         )}
@@ -1827,7 +1820,7 @@ function CompetitorCard({
                   )}
                 </div>
                 <div className="tabular-nums font-semibold text-cocoa-900 shrink-0">
-                  {formatEuro(p.price)}
+                  {formatEUR(p.price)}
                 </div>
               </div>
             ))}
@@ -2153,7 +2146,7 @@ function CustosTab({
     startTransition(async () => {
       try {
         await updateProductionCostItemAction(item.id, { cost: next });
-        toast.success(`${describe(item)}: ${formatEuro(next)}`);
+        toast.success(`${describe(item)}: ${formatEUR(next)}`);
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro ao guardar");

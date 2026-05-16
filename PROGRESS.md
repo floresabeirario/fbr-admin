@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 9) — Auditoria de segurança + hardening (migs 038-040 + CAPTCHA admin + Turnstile fbr-website)
+## Fase actual: FASE 6 (parte 11) — Limpeza estrutural (formatEUR · scroll horizontal · split workbench · chat mobile/emojis)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -40,6 +40,106 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 63 🧹 Limpeza estrutural (revisão completa pedida pela Maria)
+
+Maria pediu revisão da plataforma toda (admin: "podes rever a plataforma toda… estou completamente aberta a sugestões"). Apresentei 12 propostas; ela aprovou 6 + 1 para guardar como ideia futura. **Itens executados nesta sessão:**
+
+**1. `formatEUR()` centralizado** ([src/lib/format.ts](src/lib/format.ts), novo)
+- Encontrei 3 formas em uso: `toLocaleString("pt-PT", {currency})`, `toFixed(2).replace(".", ",") + "€"`, `Intl.NumberFormat`. Inconsistente entre páginas.
+- Nova função `formatEUR(value, { rounded?, compact?, placeholder? })`:
+  - Default: `"1 234,50 €"` (Intl pt-PT)
+  - `compact: true`: `"1234,50€"` (sem espaço, sem milhares — tabelas apertadas)
+  - `rounded: true`: arredonda cêntimos (métricas)
+  - `null/undefined/NaN` → `"—"` (configurável)
+- Substituídos 9 ficheiros: [vale-presente-client.tsx](src/app/(admin)/vale-presente/vale-presente-client.tsx), [vale-presente/[code]/workbench-client.tsx](src/app/(admin)/vale-presente/%5Bcode%5D/workbench-client.tsx), [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx), [preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/%5Bid%5D/workbench-client.tsx), [parcerias/[id]/workbench-client.tsx](src/app/(admin)/parcerias/%5Bid%5D/workbench-client.tsx), [financas-client.tsx](src/app/(admin)/financas/financas-client.tsx), [metricas-client.tsx](src/app/(admin)/metricas/metricas-client.tsx), [settings/rgpd/rgpd-client.tsx](src/app/(admin)/settings/rgpd/rgpd-client.tsx), [rgpd-print/page.tsx](src/app/rgpd-print/page.tsx).
+- Mantido `fmtEuro` em [export-csv.ts](src/lib/export-csv.ts) (formato CSV sem €, vírgula decimal — diferente por design).
+
+**2. Scroll horizontal em tabelas grandes** — esconder coluna verbosa em `<xl` (1280px), mantendo `xl+` intocado ([[feedback_desktop_prioridade]])
+| Tabela | Coluna escondida | min-w novo |
+|---|---|---|
+| Preservação | Localização | 760 (era 920) |
+| Vale-Presente | Validade | 720 (era 820) |
+| Status | Mensagem EN | 720 (era 860) |
+| Parcerias | Local | 660 (era 780) |
+| Finanças despesas | Descrição | 760 (era 920) |
+| Finanças subscrições | Início → Fim | 780 (era 960) |
+- Laptops 13" (≥1280px com sidebar) deixam de ter scroll horizontal forçado.
+
+**3. Split do workbench Preservação** — 2988 → 2111 linhas (-29%)
+- 3 ficheiros novos em [src/app/(admin)/preservacao/[id]/_components/](src/app/(admin)/preservacao/%5Bid%5D/_components/):
+  - `layout.tsx` (118 linhas) — `Card`, `Grid2`, `Field`, `HeroField`, `CheckRow`, `PlaceholderBox`, constantes `inp`/`sel`/`*Subtle`, paleta `ACCENTS`
+  - `fields.tsx` (573 linhas) — `InventorySection`, `StatusSelect`, `ShippingRow`, `CouponCodeField`, `ExtraPieceRow`, `DriveUrlEditor`, `CalendarEventShortcut`, `safeHostname`; movido `STATUS_COLORS`/`STATUS_ICONS`/`STATUS_GROUPS` (continua sincronizado com `preservacao-client.tsx`)
+  - `budget-badges.tsx` (269 linhas) — `BudgetSnapshotBadge`, `ProductionCostBadge`
+- Abordagem **conservadora**: só extraí helpers/subcomponentes já isolados (não os 8 Cards principais, que partilham state com o componente pai). Reduz risco a zero. Os Cards principais ficam para futura iteração.
+- Removidos imports não usados após a extracção (16 ícones, `Checkbox`, `SelectSeparator`, `LucideIcon`, `recompute*Action`, `capture*Action`, `PricingSnapshot`, `ProductionCostSnapshot`, `computeProductionCost`, `STATUS_LABELS`, `YES_NO_INFO_LABELS`).
+- **Incidente** durante a sessão: PowerShell corrompeu o ficheiro com encoding errado (`Get-Content -Raw` lê com Windows-1252 e re-escreve UTF-8 mojibake). Reverti com `git checkout`. Truncei com Node em vez (`node -e "fs.readFileSync(p,'utf8')..."`) — UTF-8 limpo.
+
+**4. Chat optimizado para mobile + emoji picker** ([src/app/(admin)/chat/chat-client.tsx](src/app/(admin)/chat/chat-client.tsx))
+- Novo componente `EmojiPicker` interno (zero deps): popover com 6 categorias × 12-20 emojis (Sorrisos, Gestos, Corações, Flores, Festa, Trabalho). Botão 😀 no composer abre o picker.
+- `insertEmojiAtCursor()` insere no `selectionStart`/`selectionEnd` do textarea via ref e repõe o cursor depois do emoji.
+- Mobile (`<sm`):
+  - Botão de enviar `h-11 w-11` (44×44 tap target iOS); desktop continua `h-10 px-3`.
+  - Textarea `text-base` em mobile (iOS não dá zoom em focus se ≥16px), `text-sm` em desktop.
+  - Composer com `padding-bottom: max(0.75rem, env(safe-area-inset-bottom))` para iPhone home indicator.
+  - Acções "Responder/Apagar" sempre visíveis em mobile (`opacity-100 sm:opacity-0 sm:group-hover:opacity-100`) — em mobile não há hover.
+  - Bolha de mensagem `max-w-[85%] sm:max-w-[70%]` — ganha espaço em ecrã estreito.
+- Desktop continua exactamente igual ([[feedback_desktop_prioridade]]).
+
+**Continuação da sessão (depois de quebra de wifi):**
+
+**5. Healthchecks automáticos diários** (Vercel Cron + Resend)
+- Extracted [src/lib/healthchecks.ts](src/lib/healthchecks.ts) — função `runHealthchecks(supabase)` reusável (env vars, tabelas, dados, integrações Google). Refactor de [healthchecks/page.tsx](src/app/(admin)/healthchecks/page.tsx) para usar a lib. `HealthCheck` re-exportado para o client component que importa de `./page`.
+- Novo [src/lib/supabase/admin.ts](src/lib/supabase/admin.ts) — `createAdminClient()` com `SUPABASE_SERVICE_ROLE_KEY`, bypassa RLS. Documentado: só pode ser usado em route handlers protegidos por `CRON_SECRET`.
+- Novo [src/app/api/cron/healthcheck/route.ts](src/app/api/cron/healthcheck/route.ts):
+  - Auth: `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron envia automaticamente em produção); em dev passa sem secret para teste manual.
+  - Corre `runHealthchecks(adminClient)`, filtra `error`/`warning`, e se houver problemas envia email via **Resend HTTP API directamente** (sem `npm install resend` — `fetch` ao `https://api.resend.com/emails`).
+  - Email com tabela HTML estilizada (FBR cream/cocoa), link de volta para `/healthchecks`. Subject `🚨 X erro(s)` ou `⚠️ X aviso(s)`. From/To configuráveis via `RESEND_FROM_EMAIL`/`RESEND_ALERT_TO` (defaults sensatos).
+  - Returns JSON `{ ran_at, total_checks, errors, warnings, email: { sent, reason? } }`.
+- Novo [vercel.json](vercel.json) com cron `0 7 * * *` (7h UTC = 8h Lisboa, primeira coisa da manhã).
+- `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET` adicionados ao envCheck da página `/healthchecks` (como opcionais, para a Maria ver se estão configurados).
+
+**6. Última actividade por encomenda** (sem migrations — usa `orders.updated_at` que já existe desde a mig 001)
+- Helper visual subtil: badge "parada há X dias" debaixo do tipo de evento na linha da tabela, e no header do workbench. **Só aparece a partir de 7 dias**. **Âmbar com ⏰ a partir de 14 dias**. Esconde em estados terminais (`quadro_recebido`, `cancelado`).
+- Tooltip mostra a data/hora exacta da última edição.
+- Ficheiros tocados: [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) (OrderRow) e [preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/%5Bid%5D/workbench-client.tsx) (header).
+- Limitação conhecida: `updated_at` é actualizado em **qualquer** UPDATE (incluindo automações como `captureOrderProductionCostAction` ou re-sincronização de Calendar). Para o caso de uso "saber se está parada", isto serve bem — se houve mudança, foi mudança. Tracking "user-only" requereria capturar no audit_log.
+
+**Outras decisões da sessão:**
+- ❌ Item 5 (substituir `<div className="rounded-2xl ...">` por `<Card>` shadcn) — **rejeitado**: o `<Card>` do shadcn usa `rounded-xl`/`ring-1`/`bg-card` diferente do padrão actual (13 ficheiros). Substituir mudaria visual em todo o lado. Maria foi informada e não autorizou alternativa.
+- 📌 Item 12 (filtros guardáveis em Preservação) — Maria adiou. Guardado em "Ideias futuras" do PROGRESS.md.
+- 🚫 Item 1 (calculadora de transporte placeholder) — NÃO foi tocado (Maria não deu OK explícito; aprendi a regra em [[feedback_ok_explicito]]).
+
+**Validação:** `npm run preflight` passa (tsc 19s + build 22s). `npx eslint` limpo nos ficheiros tocados.
+
+### Sessão 62 🎨 Favicon PWA continua a falhar — round 2 (CORP + simplificar icons)
+
+Depois da sessão 57 a Maria reportou que o ícone continuava a aparecer como **quadrado cinzento com "F" branco** ao adicionar ao ecrã principal. O "F" é o fallback do Chrome quando o manifest é parsed (lê o `short_name="FBR Admin"`) mas nenhum ícone passa pela validação. Hipótese principal: `Cross-Origin-Resource-Policy: same-site` (adicionada na sessão 59) bloqueava o launcher Android quando ia buscar o PNG fora do contexto do tab.
+
+**Mudanças:**
+1. **[next.config.ts](next.config.ts)** — overrides específicos:
+   - `/manifest.webmanifest`: `Content-Type: application/manifest+json` + `Cross-Origin-Resource-Policy: cross-origin`
+   - `/favicon/:path*`: `Cross-Origin-Resource-Policy: cross-origin` + `Cache-Control: public, max-age=86400`
+   - Os 7 outros security headers (HSTS, CSP, COOP, etc.) continuam aplicados a todas as rotas porque o spread vem primeiro.
+
+2. **[src/app/manifest.ts](src/app/manifest.ts)** — simplificação:
+   - Removidos os entries `android-chrome-192x192.png` e `android-chrome-512x512.png` (PNGs com fundo transparente que o Chrome rejeitava como inválidos para install)
+   - Removido `apple-touch-icon` do manifest (continua linkado via `<link rel="apple-touch-icon">` no [layout.tsx](src/app/layout.tsx), que é o que iOS lê)
+   - Manifest passa a ter apenas: 1× favicon-32 + 2× maskable PNG (192/512) declarados duas vezes cada — uma com `purpose: "any"` e outra com `purpose: "maskable"`. Resultado prático: o launcher Android pega o maskable PNG para qualquer propósito (eles têm fundo opaco + safe zone, logo funcionam como "any").
+
+3. **[public/sw.js](public/sw.js)** — bumped `CACHE_VERSION` v2→v3 + remoção do `/favicon/` da lista cacheable. PNGs pequenos não precisam de SW cache e estavam a arriscar serves obsoletos.
+
+**Build:** `npx tsc --noEmit` limpo, `npx next build` passa.
+
+**Passos manuais para a Maria — IMPORTANTE para apanhar o fix:**
+1. Push para Vercel
+2. **No telemóvel**, remover qualquer atalho antigo do ecrã principal
+3. Chrome no telemóvel → menu ⋮ → Settings → Privacy → "Clear browsing data" → seleccionar **"Cached images and files" + "Site settings"** para `admin.floresabeirario.pt` (sem isto, o Android pode reutilizar o ícone do PWA antigo do próprio LRU do sistema)
+4. Abrir `admin.floresabeirario.pt`, esperar 5s para o service worker v3 activar
+5. Menu ⋮ → "Add to Home Screen" → confirmar que o preview mostra as 3 flores em fundo cocoa
+6. Após criado, verificar no home launcher
+
+Se ainda assim falhar: abrir `admin.floresabeirario.pt/manifest.webmanifest` directamente no browser do telemóvel e confirmar que devolve JSON (não erro). Também abrir directamente `admin.floresabeirario.pt/favicon/maskable-512x512.png` — deve mostrar a imagem.
 
 ### Sessão 61 🔒 Turnstile nos forms públicos do fbr-website + mig 040 (anti-enumeration)
 
@@ -258,6 +358,31 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 
 ## Próximo passo CONCRETO
 
+**Sessão 63 — passos manuais para activar os healthchecks automáticos:**
+
+Sem migrações novas. Push do código actual para Vercel. Para o cron funcionar, **3 env vars novas** no Vercel (Settings → Environment Variables):
+
+1. **`SUPABASE_SERVICE_ROLE_KEY`** (Production + Preview)
+   - Onde ir buscar: Supabase Dashboard → Settings → API → "Project API keys" → secção `service_role` (não confundir com `anon`). **NUNCA expor isto no client** — só servidor.
+2. **`CRON_SECRET`** (Production)
+   - Gerar string aleatória: ex. `openssl rand -hex 32` ou usar 1Password. 64+ caracteres.
+   - O Vercel Cron envia automaticamente este valor como `Authorization: Bearer ...` quando dispara o job em produção.
+3. **`RESEND_API_KEY`** (Production) — opcional mas recomendado
+   - Resend.com → API Keys → Create. Adicionar e verificar o domínio `floresabeirario.pt` para conseguir enviar do `healthcheck@floresabeirario.pt`.
+   - Sem isto, o cron continua a correr e devolve JSON com os problemas, mas não envia email.
+4. (Opcional) **`RESEND_FROM_EMAIL`** = `"FBR Healthcheck <healthcheck@floresabeirario.pt>"` e **`RESEND_ALERT_TO`** = `"info@floresabeirario.pt"` se quiseres customizar.
+
+**Smoke tests:**
+- Em produção: `curl -H "Authorization: Bearer $CRON_SECRET" https://admin.floresabeirario.pt/api/cron/healthcheck` → JSON com sumário.
+- Em dev local: abrir `http://localhost:3000/api/cron/healthcheck` no browser (sem secret em dev) → mesma resposta.
+- Abrir `/healthchecks` no admin → ver as novas linhas para `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET` na secção "Config".
+- Abrir `/preservacao/<encomenda-antiga>` → confirmar badge âmbar "parada há X dias" se passaram ≥14 dias desde a última edição.
+- Voltar à listagem `/preservacao` → confirmar pequeno texto cinza/âmbar "parada há X dias" debaixo do tipo de evento nas encomendas estagnadas.
+
+**Outras notas:**
+- Smoke do laptop 13" / iPad confirmar que tabelas (Preservação, Finanças, Status, Parcerias, Vale-Presente) já não pedem scroll horizontal.
+- No chat em mobile: tocar 😀 → escolher emoji → confirmar que aparece no input no cursor; teclado não tapa o composer.
+
 **Sessões 58+59 — passos manuais da Maria (segurança):**
 1. Correr **mig 038 + mig 039** no Supabase SQL Editor (por esta ordem)
 2. Confirmar que ambas dizem "Success. No rows returned"
@@ -428,8 +553,9 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 
 ## Ideias futuras / Pendências (a planear)
 
-- **Calculadora de transporte** em Entregas e Recolhas (placeholder na sessão 42)
+- **Calculadora de transporte** em Entregas e Recolhas (placeholder na sessão 42 → na sessão 62 substituído por link CTT)
 - **Aba "Healthchecks"** — versão útil entregue na sessão 43, mas pode crescer (form checks, SEO, etc.)
+- **Filtros guardáveis em Preservação** (proposto na sessão 62, adiado pela Maria) — chips ao lado da pesquisa com filtros pré-feitos: "Urgentes (≤7 dias)", "Pagamento pendente", "Em prensa", etc. Reduz cliques no dia-a-dia. Estimativa: 1h, risco zero. Avaliar também em Parcerias.
 - Outras ideias geridas dentro da própria aba `/ideias` desde a sessão 42
 
 ---

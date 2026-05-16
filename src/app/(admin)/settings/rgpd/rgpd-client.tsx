@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
+import { formatEUR } from "@/lib/format";
 import type { Order } from "@/types/database";
 import type { ClientSearchResult, RetentionStatus } from "@/lib/rgpd";
 import {
@@ -54,10 +55,7 @@ function formatDate(iso: string | null): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
-function euros(value: number | null): string {
-  if (value === null) return "—";
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value);
-}
+const euros = (value: number | null): string => formatEUR(value);
 
 export function RgpdClient({
   query,

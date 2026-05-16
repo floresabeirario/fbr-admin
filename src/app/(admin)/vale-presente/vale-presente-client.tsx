@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { exportVouchersToCsv } from "@/lib/export-csv";
+import { formatEUR } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -62,11 +63,6 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return "—";
   }
-}
-
-function formatEuro(value: number | null): string {
-  if (value === null || value === undefined) return "—";
-  return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
 // ── Selects inline ────────────────────────────────────────────
@@ -293,7 +289,7 @@ function VoucherRow({
         </div>
       </td>
       <td className="px-4 py-1.5 text-right">
-        <span className="text-sm font-semibold text-cocoa-900">{formatEuro(voucher.amount)}</span>
+        <span className="text-sm font-semibold text-cocoa-900">{formatEUR(voucher.amount)}</span>
       </td>
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <PaymentSelect value={currentPayment} onChange={changePayment} busy={isPending && !!optimistic.payment} disabled={!canEdit} />
@@ -304,7 +300,7 @@ function VoucherRow({
       <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
         <UsageSelect value={currentUsage} onChange={changeUsage} busy={isPending && !!optimistic.usage} disabled={!canEdit} />
       </td>
-      <td className="px-4 py-1.5">
+      <td className="px-4 py-1.5 hidden xl:table-cell">
         <span
           className={`text-sm ${
             expired ? "text-red-600 font-semibold"
@@ -377,7 +373,7 @@ function GroupSection({
       )}
       {!isCollapsed && vouchers.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left table-fixed">
+          <table className="w-full min-w-[720px] xl:min-w-[820px] text-left table-fixed">
             <colgroup>
               <col className="w-[12%]" />
               <col className="w-[20%]" />
@@ -385,13 +381,20 @@ function GroupSection({
               <col className="w-[14%]" />
               <col className="w-[14%]" />
               <col className="w-[16%]" />
-              <col className="w-[10%]" />
+              <col className="hidden xl:table-column xl:w-[10%]" />
               <col className="w-[4%]" />
             </colgroup>
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
                 {["Código", "Remetente / Destinatário", "Valor", "Pagamento", "Envio", "Utilização", "Validade", ""].map((h, i) => (
-                  <th key={i} className={`px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide ${i === 2 ? "text-right" : ""}`}>
+                  <th
+                    key={i}
+                    className={[
+                      "px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide",
+                      i === 2 ? "text-right" : "",
+                      i === 6 ? "hidden xl:table-cell" : "",
+                    ].filter(Boolean).join(" ")}
+                  >
                     {h}
                   </th>
                 ))}
@@ -503,7 +506,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
         <div>
           <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Vale-Presente</h1>
           <p className="text-xs text-cocoa-700 mt-0.5">
-            {totalActive} vale{totalActive !== 1 ? "s" : ""} · {totalPagos} pago{totalPagos !== 1 ? "s" : ""} · {formatEuro(totalValor)} faturado
+            {totalActive} vale{totalActive !== 1 ? "s" : ""} · {totalPagos} pago{totalPagos !== 1 ? "s" : ""} · {formatEUR(totalValor)} faturado
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -739,7 +742,7 @@ function ArchivedVouchersView({
                     </div>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <span className="text-sm font-semibold text-cocoa-900">{formatEuro(v.amount)}</span>
+                    <span className="text-sm font-semibold text-cocoa-900">{formatEUR(v.amount)}</span>
                   </td>
                   <td className="px-4 py-2">
                     <span className="text-sm text-cocoa-700">{formatDate(v.deleted_at)}</span>

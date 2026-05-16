@@ -90,6 +90,7 @@ import {
   type PartnerCommissionStatus,
 } from "@/types/database";
 import { isExpired, isExpiringSoon, monthsUntilExpiry } from "@/lib/supabase/vouchers";
+import { formatEUR } from "@/lib/format";
 
 // ── Formatação ────────────────────────────────────────────────
 
@@ -100,11 +101,6 @@ function formatDate(dateStr: string | null): string {
   } catch {
     return "—";
   }
-}
-
-function formatEuro(value: number | null): string {
-  if (value === null || value === undefined) return "—";
-  return value.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
 interface Props {
@@ -1003,7 +999,7 @@ function Hero({
             Vale-Presente
           </p>
           <p className="font-['TanMemories'] text-3xl text-cocoa-900 leading-tight mt-0.5">
-            {formatEuro(voucher.amount)}
+            {formatEUR(voucher.amount)}
           </p>
           <p className="text-xs text-cocoa-700 mt-1 truncate">
             de <span className="font-semibold text-cocoa-900">{voucher.sender_name || "—"}</span>

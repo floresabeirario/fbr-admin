@@ -11,14 +11,103 @@ import {
   X,
   Info,
   Loader2,
+  Smile,
 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+
+// Emoji picker — categorias compactas, zero dependências.
+const EMOJI_CATEGORIES: Array<{ label: string; chars: string[] }> = [
+  {
+    label: "Sorrisos",
+    chars: ["😀", "😄", "😅", "😂", "🤣", "😊", "😍", "🥰", "😘", "😉", "😎", "🤔", "🙄", "😴", "😭", "😢", "😡", "🥳", "🤯", "🤪"],
+  },
+  {
+    label: "Gestos",
+    chars: ["👍", "👎", "👏", "🙌", "🙏", "💪", "👋", "🤝", "✋", "🤘", "👌", "🤞", "✌️", "🫶", "🤗", "🫡"],
+  },
+  {
+    label: "Corações",
+    chars: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💔", "❣️", "💕", "💖", "💘", "💝"],
+  },
+  {
+    label: "Flores",
+    chars: ["🌸", "🌺", "🌻", "🌷", "🌹", "🌼", "💐", "🌿", "🍃", "🌳", "🪻", "🌾"],
+  },
+  {
+    label: "Festa",
+    chars: ["🎉", "🎊", "🥂", "🍾", "🎁", "☕", "🍰", "🎂", "🍷", "🥳", "🎈", "🪩"],
+  },
+  {
+    label: "Trabalho",
+    chars: ["✅", "❌", "⚠️", "⭐", "🔥", "✨", "💡", "📌", "📍", "❓", "⏰", "⏳", "📅", "🗓️", "📷", "📦", "💌", "💸"],
+  },
+];
+
+function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [tabIdx, setTabIdx] = useState(0);
+  const cat = EMOJI_CATEGORIES[tabIdx];
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        title="Inserir emoji"
+        className="shrink-0 inline-flex items-center justify-center rounded-lg text-cocoa-500 hover:text-cocoa-900 hover:bg-cream-50 transition-colors h-11 w-11 sm:h-10 sm:w-10"
+      >
+        <Smile className="h-5 w-5" />
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        className="w-[280px] p-0 overflow-hidden"
+      >
+        <div className="flex border-b border-cream-200 bg-cream-50">
+          {EMOJI_CATEGORIES.map((c, i) => (
+            <button
+              key={c.label}
+              type="button"
+              onClick={() => setTabIdx(i)}
+              className={cn(
+                "flex-1 px-2 py-1.5 text-[18px] leading-none transition-colors",
+                tabIdx === i
+                  ? "bg-surface border-b-2 border-cocoa-900"
+                  : "hover:bg-surface/60 border-b-2 border-transparent"
+              )}
+              title={c.label}
+            >
+              {c.chars[0]}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 p-2 max-h-[180px] overflow-y-auto">
+          {cat.chars.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => {
+                onPick(e);
+                setOpen(false);
+              }}
+              className="h-9 w-9 rounded-md text-[20px] leading-none hover:bg-cream-100 transition-colors inline-flex items-center justify-center"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 import type { ChatMessage } from "@/types/chat";
 import { sendChatMessageAction, deleteChatMessageAction } from "./actions";
@@ -67,7 +156,26 @@ export default function ChatClient({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pending, startTransition] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const supabase = useMemo(() => createClient(), []);
+
+  function insertEmojiAtCursor(emoji: string) {
+    const el = textareaRef.current;
+    if (!el) {
+      setDraft((d) => d + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? draft.length;
+    const end = el.selectionEnd ?? draft.length;
+    const next = draft.slice(0, start) + emoji + draft.slice(end);
+    setDraft(next);
+    // Repõe o cursor depois do emoji, no próximo tick.
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
 
   // ── Realtime subscription ──
   useEffect(() => {
@@ -249,22 +357,28 @@ export default function ChatClient({
       )}
 
       {/* Composer */}
-      <div className="shrink-0 px-3 sm:px-6 py-3 border-t border-cream-200 bg-surface">
+      <div
+        className="shrink-0 px-3 sm:px-6 py-3 border-t border-cream-200 bg-surface"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
         <div className="max-w-[1100px] mx-auto flex items-end gap-2">
+          <EmojiPicker onPick={insertEmojiAtCursor} />
           <Textarea
+            ref={textareaRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escreve uma mensagem... (Enter para enviar, Shift+Enter para quebra de linha)"
+            placeholder="Escreve uma mensagem..."
             rows={1}
-            className="resize-none min-h-[40px] max-h-[160px] text-sm border-cream-200 bg-cream-50 focus:bg-surface"
+            className="resize-none min-h-[44px] sm:min-h-[40px] max-h-[160px] text-base sm:text-sm border-cream-200 bg-cream-50 focus:bg-surface"
           />
           <Button
             onClick={handleSend}
             disabled={pending || !draft.trim()}
-            className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-10 px-3 shrink-0"
+            aria-label="Enviar mensagem"
+            className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg h-11 w-11 sm:h-10 sm:w-auto sm:px-3 p-0 shrink-0"
           >
-            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {pending ? <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" /> : <Send className="h-5 w-5 sm:h-4 sm:w-4" />}
           </Button>
         </div>
       </div>
@@ -306,7 +420,7 @@ function MessageBubble({
       </div>
 
       {/* Bubble */}
-      <div className={cn("max-w-[70%] space-y-1", isOwn && "items-end")}>
+      <div className={cn("max-w-[85%] sm:max-w-[70%] space-y-1", isOwn && "items-end")}>
         {!stacked && (
           <div className={cn("flex items-baseline gap-2 text-xs text-cocoa-700", isOwn && "flex-row-reverse")}>
             <span className="font-medium text-cocoa-900">{member.name}</span>
@@ -335,9 +449,9 @@ function MessageBubble({
           {message.body}
         </div>
 
-        {/* Acções (hover) */}
+        {/* Acções: em mobile sempre visíveis (sem hover); em desktop só on-hover. */}
         <div className={cn(
-          "flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
+          "flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity",
           isOwn && "justify-end"
         )}>
           <button

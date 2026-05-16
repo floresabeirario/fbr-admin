@@ -11,12 +11,10 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -58,23 +56,9 @@ import {
   Ticket,
   Pencil,
   CalendarPlus,
-  CalendarClock,
-  CalendarCheck,
-  Send,
-  PackageCheck,
-  Layers,
-  Palette,
-  Hourglass,
-  Hammer,
-  Frame,
-  Camera,
   Truck,
-  PartyPopper,
-  Ban,
   Trash2,
-  Paintbrush,
   MapPin,
-  type LucideIcon,
 } from "lucide-react";
 import {
   updateOrderAction,
@@ -82,12 +66,7 @@ import {
   createOrderDriveFolderAction,
   createOrderCalendarEventAction,
   deleteOrderCalendarEventAction,
-  recomputeOrderBudgetAction,
-  captureOrderProductionCostAction,
 } from "../actions";
-import type { PricingSnapshot } from "@/types/pricing";
-import type { ProductionCostSnapshot } from "@/types/production-cost";
-import { computeProductionCost } from "@/lib/production-cost";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import AddressAutocomplete from "@/components/address-autocomplete";
@@ -101,7 +80,6 @@ import type {
   FormLanguage,
 } from "@/types/database";
 import {
-  STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
@@ -111,7 +89,6 @@ import {
   FRAME_BACKGROUND_LABELS,
   FRAME_SIZE_LABELS,
   FRAME_SIZE_COLORS,
-  YES_NO_INFO_LABELS,
   HOW_FOUND_FBR_LABELS,
   HOW_FOUND_FBR_COLORS,
   PARTNER_COMMISSION_STATUS_LABELS,
@@ -134,6 +111,33 @@ import {
   publicStatusUrl,
   formatPublicEstimatedDelivery,
 } from "@/lib/public-status";
+import {
+  Card,
+  Grid2,
+  Field,
+  HeroField,
+  CheckRow,
+  PlaceholderBox,
+  inp,
+  sel,
+  inpSubtle,
+  selSubtle,
+  titleSubtle,
+} from "./_components/layout";
+import {
+  InventorySection,
+  DriveUrlEditor,
+  safeHostname,
+  CalendarEventShortcut,
+  StatusSelect,
+  ShippingRow,
+  CouponCodeField,
+  ExtraPieceRow,
+} from "./_components/fields";
+import {
+  BudgetSnapshotBadge,
+  ProductionCostBadge,
+} from "./_components/budget-badges";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -143,54 +147,8 @@ function toDateInput(val: string | null | undefined): string {
 }
 
 // ── Cores e ícones por estado ─────────────────────────────────
-// (Sincronizar com preservacao-client.tsx — devem coincidir.)
-
-const STATUS_COLORS: Record<keyof typeof STATUS_LABELS, string> = {
-  entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900",
-  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300 dark:bg-pink-950/40 dark:text-pink-200 dark:border-pink-900",
-  flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-900",
-  flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/40 dark:text-purple-200 dark:border-purple-900",
-  flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-900",
-  reconstrucao_botanica:  "bg-indigo-100 text-indigo-900 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-900",
-  a_compor_design:        "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900",
-  a_aguardar_aprovacao:   "bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-900",
-  a_finalizar_quadro:     "bg-cyan-100 text-cyan-900 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-200 dark:border-cyan-900",
-  a_ser_emoldurado:       "bg-teal-100 text-teal-900 border-teal-300 dark:bg-teal-950/40 dark:text-teal-200 dark:border-teal-900",
-  emoldurado:             "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900",
-  a_ser_fotografado:      "bg-lime-100 text-lime-900 border-lime-300 dark:bg-lime-950/40 dark:text-lime-200 dark:border-lime-900",
-  quadro_pronto:          "bg-yellow-100 text-yellow-900 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-200 dark:border-yellow-900",
-  quadro_enviado:         "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200 dark:border-orange-900",
-  quadro_recebido:        "bg-green-100 text-green-900 border-green-300 dark:bg-green-950/40 dark:text-green-200 dark:border-green-900",
-  cancelado:              "bg-stone-200 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
-};
-
-const STATUS_ICONS: Record<keyof typeof STATUS_LABELS, LucideIcon> = {
-  entrega_flores_agendar: CalendarClock,
-  entrega_agendada:       CalendarCheck,
-  flores_enviadas:        Send,
-  flores_recebidas:       PackageCheck,
-  flores_na_prensa:       Layers,
-  reconstrucao_botanica:  Flower2,
-  a_compor_design:        Palette,
-  a_aguardar_aprovacao:   Hourglass,
-  a_finalizar_quadro:     Paintbrush,
-  a_ser_emoldurado:       Hammer,
-  emoldurado:             Frame,
-  a_ser_fotografado:      Camera,
-  quadro_pronto:          Sparkles,
-  quadro_enviado:         Truck,
-  quadro_recebido:        PartyPopper,
-  cancelado:              Ban,
-};
-
-const STATUS_GROUPS: Array<{ label: string; statuses: Array<keyof typeof STATUS_LABELS> }> = [
-  { label: "Pré-reserva",          statuses: ["entrega_flores_agendar"] },
-  { label: "Reservas",             statuses: ["entrega_agendada", "flores_enviadas", "flores_recebidas"] },
-  { label: "Preservação e design", statuses: ["flores_na_prensa", "reconstrucao_botanica", "a_compor_design", "a_aguardar_aprovacao", "a_finalizar_quadro"] },
-  { label: "Finalização",          statuses: ["a_ser_emoldurado", "emoldurado", "a_ser_fotografado", "quadro_pronto", "quadro_enviado"] },
-  { label: "Concluído",            statuses: ["quadro_recebido"] },
-  { label: "Cancelado",            statuses: ["cancelado"] },
-];
+// STATUS_COLORS, STATUS_ICONS, STATUS_GROUPS extraídos para
+// ./_components/fields.tsx (usados pelo StatusSelect que vive lá).
 
 const PAYMENT_COLORS: Record<string, string> = {
   "100_pago":      "text-green-800 bg-green-100 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900",
@@ -199,27 +157,7 @@ const PAYMENT_COLORS: Record<string, string> = {
   "100_por_pagar": "text-red-700 bg-red-100 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900",
 };
 
-// Paleta de acentos por secção — discreta, só na borda esquerda + cor do ícone
-type Accent =
-  | "rose" | "amber" | "emerald" | "orange" | "indigo"
-  | "pink" | "slate" | "green" | "sky" | "purple"
-  | "yellow" | "violet" | "blue";
-
-const ACCENTS: Record<Accent, { border: string; icon: string; bgSoft: string }> = {
-  rose:    { border: "border-l-rose-300 dark:border-l-rose-700",       icon: "text-rose-500 dark:text-rose-400",       bgSoft: "bg-rose-50/50 dark:bg-rose-950/30" },
-  amber:   { border: "border-l-amber-300 dark:border-l-amber-700",     icon: "text-amber-500 dark:text-amber-400",     bgSoft: "bg-amber-50/50 dark:bg-amber-950/30" },
-  emerald: { border: "border-l-emerald-300 dark:border-l-emerald-700", icon: "text-emerald-500 dark:text-emerald-400", bgSoft: "bg-emerald-50/50 dark:bg-emerald-950/30" },
-  orange:  { border: "border-l-orange-300 dark:border-l-orange-700",   icon: "text-orange-500 dark:text-orange-400",   bgSoft: "bg-orange-50/50 dark:bg-orange-950/30" },
-  indigo:  { border: "border-l-indigo-300 dark:border-l-indigo-700",   icon: "text-indigo-500 dark:text-indigo-400",   bgSoft: "bg-indigo-50/50 dark:bg-indigo-950/30" },
-  pink:    { border: "border-l-pink-300 dark:border-l-pink-700",       icon: "text-pink-500 dark:text-pink-400",       bgSoft: "bg-pink-50/50 dark:bg-pink-950/30" },
-  slate:   { border: "border-l-slate-300 dark:border-l-slate-600",     icon: "text-slate-500 dark:text-slate-400",     bgSoft: "bg-slate-50/50 dark:bg-slate-900/40" },
-  green:   { border: "border-l-green-300 dark:border-l-green-700",     icon: "text-green-600 dark:text-green-400",     bgSoft: "bg-green-50/50 dark:bg-green-950/30" },
-  sky:     { border: "border-l-sky-300 dark:border-l-sky-700",         icon: "text-sky-500 dark:text-sky-400",         bgSoft: "bg-sky-50/50 dark:bg-sky-950/30" },
-  purple:  { border: "border-l-purple-300 dark:border-l-purple-700",   icon: "text-purple-500 dark:text-purple-400",   bgSoft: "bg-purple-50/50 dark:bg-purple-950/30" },
-  yellow:  { border: "border-l-yellow-400 dark:border-l-yellow-700",   icon: "text-yellow-600 dark:text-yellow-400",   bgSoft: "bg-yellow-50/50 dark:bg-yellow-950/30" },
-  violet:  { border: "border-l-violet-300 dark:border-l-violet-700",   icon: "text-violet-500 dark:text-violet-400",   bgSoft: "bg-violet-50/50 dark:bg-violet-950/30" },
-  blue:    { border: "border-l-blue-300 dark:border-l-blue-700",       icon: "text-blue-500 dark:text-blue-400",       bgSoft: "bg-blue-50/50 dark:bg-blue-950/30" },
-};
+// Paleta de acentos extraída para ./_components/layout.tsx (usada pelo Card).
 
 // Opções de extras tal como aparecem no formulário público.
 // "Não pretendo incluir extras" e "Outro (especifique abaixo)" têm
@@ -239,174 +177,12 @@ const EXTRA_OPTIONS = [
   EXTRAS_OTHER,
 ];
 
-// ── Componentes de layout ──────────────────────────────────────
-
-function Card({
-  title,
-  icon,
-  accent,
-  action,
-  children,
-  badge,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  accent?: Accent;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  badge?: React.ReactNode;
-}) {
-  const a = accent ? ACCENTS[accent] : null;
-  return (
-    <div className={`rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""}`}>
-      <div className={`flex items-center justify-between gap-2 px-5 py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
-        <div className="flex items-center gap-2">
-          {icon && <span className={a?.icon ?? "text-cocoa-500"}>{icon}</span>}
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700">{title}</p>
-          {badge}
-        </div>
-        {action}
-      </div>
-      <div className="p-5 space-y-4">{children}</div>
-    </div>
-  );
-}
-
-function Grid2({ children }: { children: React.ReactNode }) {
-  // Mobile: 1 coluna (inputs full-width); desktop sm:+: 2 colunas (igual ao original).
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>;
-}
-
-function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
-  return (
-    <div className={`space-y-1.5 ${span2 ? "col-span-2" : ""}`}>
-      <Label className="text-xs font-medium text-cocoa-700">{label}</Label>
-      {children}
-      {hint && <p className="text-[10px] text-cocoa-500">{hint}</p>}
-    </div>
-  );
-}
-
-// Versão de Field para o hero — labels micro (uppercase + tracking) para harmonizar com inputs sem borda.
-function HeroField({ label, children, span2 }: { label: string; children: React.ReactNode; span2?: boolean }) {
-  return (
-    <div className={`space-y-0.5 ${span2 ? "col-span-2" : ""}`}>
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-cocoa-500">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-function CheckRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <Checkbox
-        checked={checked}
-        onCheckedChange={(v) => onChange(!!v)}
-        className="border-cocoa-500 data-[state=checked]:bg-btn-primary data-[state=checked]:border-btn-primary"
-      />
-      <span className="text-sm text-cocoa-900">{label}</span>
-    </label>
-  );
-}
-
-function PlaceholderBox({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="rounded-xl border border-dashed border-cream-200 bg-cream-50 px-4 py-5 text-center">
-      <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface text-[#C4A882] border border-cream-200">
-        {icon}
-      </div>
-      <p className="text-sm font-medium text-cocoa-900">{title}</p>
-      <p className="mt-0.5 text-xs text-cocoa-700 leading-relaxed max-w-md mx-auto">{description}</p>
-    </div>
-  );
-}
-
-const inp = "h-9 text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg";
-const sel = "h-9 text-sm border-cream-200 bg-cream-50 text-cocoa-900 rounded-lg";
-
-// Variantes "discretas" para o hero: parecem texto estático, revelam-se editáveis ao hover/focus.
-// Placeholders em itálico + cinza muito claro para nunca se confundirem com dados reais.
-const subtlePlaceholder = "placeholder:italic placeholder:text-[#D4C8B8] placeholder:font-normal";
-const inpSubtle = `h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-cream-100 focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
-const selSubtle = "h-8 text-sm border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-cream-100 data-[state=open]:bg-surface data-[state=open]:border-cocoa-500 transition-colors";
-const titleSubtle = `h-auto py-1.5 px-2 text-3xl font-semibold leading-tight tracking-tight border border-transparent bg-transparent text-cocoa-900 rounded-lg hover:bg-cream-100 focus:bg-surface focus:border-cocoa-500 transition-colors ${subtlePlaceholder}`;
-
-// ── Post-it amarelo flutuante (sticky note) ─────────────────
-// Aparece sempre no header. Vazio = amarelo claro com ícone +; com texto
-// = amarelo intenso com preview. Click → popover com textarea (auto-save no blur).
-// StickyNoteButton e PartnerCombobox foram extraídos para
-// src/components/ — ver imports no topo.
-
-// ── Inventário de flores ─────────────────────────────────────
-// Linhas {qty, name} editáveis inline. Sem state local — o parent é
-// a fonte da verdade; cada alteração chama onChange imediatamente. O
-// auto-save do workbench (900ms debounce) trata da BD.
-function InventorySection({
-  items,
-  onChange,
-}: {
-  items: { qty: number; name: string }[];
-  onChange: (items: { qty: number; name: string }[]) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium text-cocoa-700">Inventário de flores</Label>
-        <button
-          type="button"
-          onClick={() => onChange([...items, { qty: 1, name: "" }])}
-          className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors"
-        >
-          <Plus className="h-3 w-3" /> Adicionar
-        </button>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-[11px] text-cocoa-500 italic px-1.5 py-2 rounded-lg bg-cream-50 border border-dashed border-cream-200">
-          Ex.: 7 rosas laranja · 3 papoilas vermelhas · 2 dálias brancas
-        </p>
-      ) : (
-        <div className="space-y-1.5">
-          {items.map((row, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                className={`${inp} w-16 text-center`}
-                value={row.qty}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[idx] = { ...row, qty: Math.max(1, Number(e.target.value) || 1) };
-                  onChange(next);
-                }}
-              />
-              <Input
-                className={`${inp} flex-1`}
-                value={row.name}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[idx] = { ...row, name: e.target.value };
-                  onChange(next);
-                }}
-                placeholder="rosas laranja, papoilas vermelhas…"
-              />
-              <button
-                type="button"
-                onClick={() => onChange(items.filter((_, i) => i !== idx))}
-                className="shrink-0 p-1.5 rounded-lg text-cocoa-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                title="Remover"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
+// ── Componentes de layout (Card, Grid2, Field, HeroField, CheckRow,
+//    PlaceholderBox, inp, sel, *Subtle) → ./_components/layout.tsx
+// ── InventorySection, StatusSelect, ShippingRow, CouponCodeField,
+//    ExtraPieceRow, DriveUrlEditor, CalendarEventShortcut → ./_components/fields.tsx
+// ── BudgetSnapshotBadge, ProductionCostBadge → ./_components/budget-badges.tsx
+// ── StickyNoteButton vive em src/components/.
 
 // ── Componente principal ───────────────────────────────────────
 
@@ -875,6 +651,20 @@ export default function WorkbenchClient({
                   </div>
                 </PopoverContent>
               </Popover>
+              {(() => {
+                const days = differenceInCalendarDays(new Date(), parseISO(local.updated_at));
+                const isTerminal = local.status === "quadro_recebido" || local.status === "cancelado";
+                if (isTerminal || days < 7) return null;
+                const isAlert = days >= 14;
+                return (
+                  <span
+                    className={`text-[10px] font-medium ${isAlert ? "text-amber-700" : "text-cocoa-500"}`}
+                    title={`Última actividade: ${format(parseISO(local.updated_at), "dd/MM/yyyy HH:mm")}`}
+                  >
+                    {isAlert ? "⏰ " : ""}parada há {days} dias
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -2331,658 +2121,5 @@ export default function WorkbenchClient({
 
       </fieldset>
     </div>
-  );
-}
-
-// ── Sub-componentes auxiliares ─────────────────────────────────
-
-function safeHostname(url: string): string {
-  try { return new URL(url).hostname; } catch { return url.slice(0, 20); }
-}
-
-function DriveUrlEditor({
-  draft,
-  setDraft,
-  onSave,
-  onAutoCreate,
-  autoBusy,
-}: {
-  draft: string;
-  setDraft: (v: string) => void;
-  onSave: () => void;
-  onAutoCreate: () => void;
-  autoBusy: boolean;
-}) {
-  return (
-    <PopoverContent className="w-80 p-3 space-y-2">
-      <button
-        type="button"
-        onClick={onAutoCreate}
-        disabled={autoBusy}
-        className="w-full h-9 px-3 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-      >
-        {autoBusy ? "A criar pasta…" : "Criar automaticamente na Drive"}
-      </button>
-      <p className="text-[10px] text-cocoa-500 leading-relaxed">
-        Cria a pasta da encomenda (com as 8 subpastas por fase) dentro de
-        FBR — Encomendas / Preservação de Flores. Requer integração Google conectada
-        (Definições → Google).
-      </p>
-      <div className="pt-1 border-t border-cream-100">
-        <Label className="text-xs font-medium text-cocoa-700">… ou cola um URL manualmente</Label>
-        <Input
-          className={`${inp} mt-1`}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="https://drive.google.com/…"
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
-        />
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onSave}
-            className="h-8 px-3 rounded-lg bg-btn-primary text-btn-primary-fg text-xs font-medium hover:bg-btn-primary-hover transition-colors"
-          >
-            Guardar URL
-          </button>
-        </div>
-      </div>
-    </PopoverContent>
-  );
-}
-
-function CalendarEventShortcut({
-  eventId,
-  eventDate,
-  link,
-  busy,
-  onCreate,
-  onDelete,
-}: {
-  eventId: string | null;
-  eventDate: string | null;
-  link: string | null;
-  busy: boolean;
-  onCreate: () => void;
-  onDelete: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  // Sem data → não dá para criar; mostra estado neutro.
-  if (!eventDate) {
-    return (
-      <span
-        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-cream-200 bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-500 cursor-not-allowed"
-        title="Preenche a data do evento para poderes criar um evento no Calendar"
-      >
-        <CalendarPlus className="h-3.5 w-3.5" />
-        Evento Calendar
-      </span>
-    );
-  }
-
-  if (eventId) {
-    return (
-      <div className="inline-flex items-stretch rounded-lg overflow-hidden border border-cream-200 bg-surface">
-        {link ? (
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 transition-colors"
-            title="Abrir evento no Google Calendar"
-          >
-            <CalendarCheck className="h-3.5 w-3.5" />
-            No Calendar
-            <ExternalLink className="h-3 w-3 opacity-60" />
-          </a>
-        ) : (
-          <span
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-violet-700"
-            title="Evento criado. Recarrega para obter o link directo."
-          >
-            <CalendarCheck className="h-3.5 w-3.5" />
-            No Calendar
-          </span>
-        )}
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
-            className="px-1.5 border-l border-cream-200 text-cocoa-700 hover:bg-cream-50 transition-colors"
-            title="Gerir evento Calendar"
-          >
-            <Pencil className="h-3 w-3" />
-          </PopoverTrigger>
-          <PopoverContent className="w-72 p-3 space-y-2">
-            <button
-              type="button"
-              onClick={() => { onCreate(); setOpen(false); }}
-              disabled={busy}
-              className="w-full h-9 px-3 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-            >
-              {busy ? "A actualizar…" : "Re-sincronizar evento"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { onDelete(); setOpen(false); }}
-              disabled={busy}
-              className="w-full h-9 px-3 rounded-lg border border-rose-200 bg-surface text-rose-700 text-xs font-medium hover:bg-rose-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Apagar evento
-            </button>
-            <p className="text-[10px] text-cocoa-500 leading-relaxed">
-              O evento actualiza-se automaticamente sempre que mudares
-              a data, nome do cliente ou local. Re-sincroniza se algo
-              parecer desalinhado.
-            </p>
-          </PopoverContent>
-        </Popover>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onCreate}
-      disabled={busy}
-      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-violet-300 bg-violet-50/60 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50 hover:border-violet-400 disabled:opacity-50 transition-colors"
-      title="Criar evento no Google Calendar"
-    >
-      <CalendarPlus className="h-3.5 w-3.5" />
-      {busy ? "A criar…" : "Criar no Calendar"}
-    </button>
-  );
-}
-
-function StatusSelect({
-  value,
-  onChange,
-}: {
-  value: keyof typeof STATUS_LABELS;
-  onChange: (v: keyof typeof STATUS_LABELS) => void;
-}) {
-  const colorClass = STATUS_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as keyof typeof STATUS_LABELS)}>
-      <SelectTrigger className={`h-8 text-xs font-semibold border rounded-md ${colorClass} hover:brightness-95 transition`}>
-        <SelectValue>
-          {(v) => {
-            if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
-            const key = v as keyof typeof STATUS_LABELS;
-            const Icon = STATUS_ICONS[key];
-            return (
-              <>
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                {STATUS_LABELS[key]}
-              </>
-            );
-          }}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-cream-200">
-        {STATUS_GROUPS.map((group, gi) => (
-          <div key={group.label}>
-            {gi > 0 && <SelectSeparator className="bg-cream-200 my-0" />}
-            <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-cocoa-500">
-              {group.label}
-            </div>
-            <div className="px-1 pb-1">
-              {group.statuses.map((s) => {
-                const Icon = STATUS_ICONS[s];
-                return (
-                  <SelectItem key={s} value={s} className="my-0.5">
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-cocoa-700" />
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLORS[s]}`}>
-                      {STATUS_LABELS[s]}
-                    </span>
-                  </SelectItem>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-function ShippingRow<M extends string>({
-  method, methodLabels, methodOptions, methodColors,
-  cost, paid, showCost, showPaid,
-  onMethod, onCost, onPaid,
-}: {
-  method: M | null;
-  methodLabels: Record<M, string>;
-  methodOptions: Array<[M, string]>;
-  methodColors?: Partial<Record<M, string>>;
-  cost: number | null;
-  paid: boolean;
-  showCost: boolean;
-  showPaid: boolean;
-  onMethod: (v: string | null) => void;
-  onCost: (v: number | null) => void;
-  onPaid: (v: boolean) => void;
-}) {
-  const triggerColor = method && methodColors?.[method] ? methodColors[method] : "";
-  const visibleCols = 1 + (showCost ? 1 : 0) + (showPaid ? 1 : 0);
-  // Mobile: 1 coluna sempre. Desktop sm:+: distribui pelas colunas calculadas.
-  const colsClass = visibleCols === 3
-    ? "grid-cols-1 sm:grid-cols-3"
-    : visibleCols === 2
-      ? "grid-cols-1 sm:grid-cols-2"
-      : "grid-cols-1";
-  return (
-    <div className={`grid gap-3 items-end ${colsClass}`}>
-      <Field label="Como">
-        <Select value={method ?? ""} onValueChange={onMethod}>
-          <SelectTrigger className={`${sel} font-medium ${triggerColor}`}><SelectValue placeholder="—" labels={methodLabels} /></SelectTrigger>
-          <SelectContent>
-            {methodOptions.map(([v, label]) => (
-              <SelectItem key={v} value={v} className="my-0.5">
-                {methodColors?.[v] ? (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${methodColors[v]}`}>
-                    {label}
-                  </span>
-                ) : (
-                  label
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      {showCost && (
-        <Field label="Custo (€)">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
-            <Input
-              className={inp + " pl-7"}
-              type="number" min={0} step={0.01}
-              value={cost ?? ""}
-              onChange={(e) => onCost(e.target.value ? Number(e.target.value) : null)}
-              placeholder="0,00"
-            />
-          </div>
-        </Field>
-      )}
-      {showPaid && (
-        <Field label="Pago?">
-          <Select value={paid ? "sim" : "nao"} onValueChange={(v) => onPaid(v === "sim")}>
-            <SelectTrigger className={`${sel} ${paid ? "bg-green-50 border-green-300 text-green-800" : "bg-amber-50 border-amber-300 text-amber-800"}`}>
-              <SelectValue labels={SIM_NAO_LABELS} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sim">Sim</SelectItem>
-              <SelectItem value="nao">Não</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-      )}
-    </div>
-  );
-}
-
-function CouponCodeField({
-  code,
-  onChange,
-}: {
-  code: string | null;
-  onChange: (v: string | null) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(code ?? "");
-
-  function startEdit() {
-    setDraft(code ?? "");
-    setEditing(true);
-  }
-  function commit() {
-    const v = draft.trim().toUpperCase();
-    onChange(v || null);
-    setEditing(false);
-  }
-  function cancel() {
-    setDraft(code ?? "");
-    setEditing(false);
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium text-cocoa-700">Código</Label>
-      {editing ? (
-        <div className="flex gap-1.5">
-          <Input
-            className={inp + " flex-1 font-mono uppercase tracking-[0.2em]"}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ex: F2B6R1"
-            maxLength={10}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); commit(); }
-              if (e.key === "Escape") { e.preventDefault(); cancel(); }
-            }}
-          />
-          <button
-            onClick={commit}
-            className="h-9 w-9 inline-flex shrink-0 items-center justify-center rounded-lg bg-btn-primary text-btn-primary-fg hover:bg-btn-primary-hover transition-colors"
-            title="Guardar"
-          >
-            <Check className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ) : code ? (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-base tracking-[0.2em] border border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-1 rounded-full">
-            {code}
-          </span>
-          <button
-            onClick={startEdit}
-            className="h-7 w-7 inline-flex shrink-0 items-center justify-center rounded-md text-cocoa-700 hover:bg-cream-100 hover:text-cocoa-900 transition-colors"
-            title="Editar código"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={startEdit}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-cream-200 bg-cream-50 px-3 py-1.5 text-xs text-cocoa-700 hover:text-cocoa-900 hover:border-cocoa-500 transition-colors"
-        >
-          <Pencil className="h-3 w-3" />
-          Definir código manualmente
-        </button>
-      )}
-      <p className="text-[10px] text-cocoa-500">
-        Gerado automaticamente em &lsquo;A ser emoldurado&rsquo;.
-      </p>
-    </div>
-  );
-}
-
-function ExtraPieceRow({
-  label,
-  value,
-  qty,
-  onValue,
-  onQty,
-}: {
-  label: string;
-  value: "sim" | "nao" | "mais_info" | null;
-  qty: number | null;
-  onValue: (v: "sim" | "nao" | "mais_info" | null) => void;
-  onQty: (q: number | null) => void;
-}) {
-  const showQty = value === "sim" || value === "mais_info";
-  return (
-    <div className="flex items-center gap-2">
-      <Label className="flex-1 text-xs text-cocoa-900 truncate">{label}</Label>
-      <Select value={value ?? ""} onValueChange={(v) => onValue((v || null) as "sim" | "nao" | "mais_info" | null)}>
-        <SelectTrigger className="h-7 w-[7.5rem] text-xs border-cream-200 bg-cream-50 text-cocoa-900 rounded-md px-2"><SelectValue placeholder="—" labels={YES_NO_INFO_LABELS} /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="sim">Sim</SelectItem>
-          <SelectItem value="nao">Não</SelectItem>
-          <SelectItem value="mais_info">Mais info</SelectItem>
-        </SelectContent>
-      </Select>
-      <Input
-        className="h-7 w-12 text-xs text-center border-cream-200 bg-cream-50 text-cocoa-900 rounded-md px-1 disabled:opacity-30"
-        type="number"
-        min={0}
-        max={99}
-        value={qty ?? ""}
-        onChange={(e) => onQty(e.target.value ? Number(e.target.value) : null)}
-        disabled={!showQty}
-        placeholder={showQty ? "0" : ""}
-        title={showQty ? "Quantidade" : "Selecciona Sim/Mais info para indicar quantidade"}
-      />
-    </div>
-  );
-}
-
-// ============================================================
-// Badge do snapshot de preços + botão "recalcular"
-// ============================================================
-function BudgetSnapshotBadge({
-  orderId,
-  snapshot,
-  currentBudget,
-  canEdit,
-}: {
-  orderId: string;
-  snapshot: PricingSnapshot | null;
-  currentBudget: number | null;
-  canEdit: boolean;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function recompute() {
-    setBusy(true);
-    try {
-      await recomputeOrderBudgetAction(orderId);
-      toast.success("Orçamento recalculado a partir dos preços actuais.");
-      router.refresh();
-      setOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao recalcular");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!snapshot) {
-    return (
-      <div className="mt-1.5 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider rounded-full bg-stone-100 text-stone-700 px-2 py-0.5 font-semibold">
-          Manual
-        </span>
-        {canEdit && (
-          <button
-            type="button"
-            onClick={recompute}
-            disabled={busy}
-            className="text-[10px] text-emerald-700 hover:text-emerald-900 hover:underline disabled:opacity-50"
-            title="Calcular o orçamento a partir da tabela de preços"
-          >
-            {busy ? "A calcular…" : "Calcular automaticamente"}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  const matchesSnapshot = currentBudget !== null && Math.abs(currentBudget - snapshot.total) < 0.01;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className="mt-1.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider rounded-full px-2 py-0.5 font-semibold transition-colors bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-        title="Ver detalhe do cálculo automático"
-      >
-        <Sparkles className="h-2.5 w-2.5" />
-        {matchesSnapshot ? "Auto-calculado" : "Auto · editado"}
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 overflow-hidden" align="start">
-        <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
-            <Sparkles className="h-4 w-4" />
-            Cálculo automático
-          </div>
-          <div className="text-[11px] text-emerald-700 mt-0.5">
-            Snapshot feito em {format(parseISO(snapshot.computed_at), "dd/MM/yyyy HH:mm")}
-          </div>
-        </div>
-        <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto">
-          {snapshot.lines.map((l, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-xs">
-              <div className="flex-1 truncate">
-                <span className="text-cocoa-900">{l.label}</span>
-                {l.qty > 1 && (
-                  <span className="text-cocoa-700"> × {l.qty}</span>
-                )}
-              </div>
-              <span className="text-cocoa-700 tabular-nums">
-                {l.subtotal.toFixed(2).replace(".", ",")}€
-              </span>
-            </div>
-          ))}
-          <div className="border-t border-cream-200 pt-1.5 mt-1.5 flex items-center justify-between text-sm font-semibold">
-            <span className="text-cocoa-900">Total calculado</span>
-            <span className="text-emerald-700 tabular-nums">
-              {snapshot.total.toFixed(2).replace(".", ",")}€
-            </span>
-          </div>
-          {!matchesSnapshot && (
-            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
-              O orçamento actual ({currentBudget !== null ? currentBudget.toFixed(2).replace(".", ",") : "—"}€) foi editado manualmente.
-            </div>
-          )}
-        </div>
-        {canEdit && (
-          <div className="border-t border-cream-200 p-2 flex gap-2">
-            <button
-              type="button"
-              onClick={recompute}
-              disabled={busy}
-              className="flex-1 h-8 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-            >
-              {busy ? "A recalcular…" : "Recalcular com preços actuais"}
-            </button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ============================================================
-// Badge do custo de produção + margem bruta
-// ============================================================
-function ProductionCostBadge({
-  orderId,
-  snapshot,
-  order,
-  canEdit,
-}: {
-  orderId: string;
-  snapshot: ProductionCostSnapshot | null;
-  order: Order;
-  canEdit: boolean;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function capture() {
-    setBusy(true);
-    try {
-      await captureOrderProductionCostAction(orderId);
-      toast.success("Custos de produção capturados.");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao capturar custos");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Sem snapshot → encomenda antiga; oferece capturar agora.
-  if (!snapshot) {
-    if (!canEdit) return null;
-    return (
-      <div className="mt-1.5">
-        <button
-          type="button"
-          onClick={capture}
-          disabled={busy}
-          className="text-[10px] text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-50"
-          title="Capturar custos de produção vigentes para ver a margem"
-        >
-          {busy ? "A capturar…" : "Capturar custos de produção"}
-        </button>
-      </div>
-    );
-  }
-
-  const breakdown = computeProductionCost(order, snapshot);
-  if (!breakdown) return null;
-
-  const budget = order.budget;
-  const margin = budget !== null ? budget - breakdown.total : null;
-  const marginPct =
-    budget !== null && budget > 0 ? (margin! / budget) * 100 : null;
-
-  // Cor da margem: verde >= 50%, amarela >= 25%, laranja < 25%, cinzenta sem budget.
-  let marginCls = "bg-stone-100 text-stone-700";
-  if (marginPct !== null) {
-    if (marginPct >= 50) marginCls = "bg-emerald-100 text-emerald-800";
-    else if (marginPct >= 25) marginCls = "bg-amber-100 text-amber-800";
-    else marginCls = "bg-rose-100 text-rose-800";
-  }
-
-  const fmtEuro = (n: number) => `${n.toFixed(2).replace(".", ",")}€`;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className="mt-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider rounded-full px-2 py-0.5 font-semibold transition-colors bg-stone-100 text-stone-700 hover:bg-stone-200"
-        title="Ver custo de produção e margem"
-      >
-        <Frame className="h-2.5 w-2.5" />
-        Custo {fmtEuro(breakdown.total)}
-        {margin !== null && (
-          <span className={`-mr-1 ml-0.5 rounded-full px-1.5 ${marginCls}`}>
-            margem {fmtEuro(margin)}
-            {marginPct !== null ? ` · ${marginPct.toFixed(0)}%` : ""}
-          </span>
-        )}
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 overflow-hidden" align="start">
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-            <Frame className="h-4 w-4" />
-            Custo de produção
-          </div>
-          <div className="text-[11px] text-amber-700 mt-0.5">
-            Snapshot de {format(parseISO(snapshot.captured_at), "dd/MM/yyyy HH:mm")}
-          </div>
-        </div>
-        <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto">
-          {breakdown.lines.length === 0 && (
-            <div className="text-[11px] text-cocoa-500 italic">
-              Sem linhas (preencher tamanho, fundo e tipo de moldura).
-            </div>
-          )}
-          {breakdown.lines.map((l, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-xs">
-              <div className="flex-1 truncate">
-                <span className="text-cocoa-900">{l.label}</span>
-              </div>
-              <span className="text-cocoa-700 tabular-nums">
-                {l.subtotal.toFixed(2).replace(".", ",")}€
-              </span>
-            </div>
-          ))}
-          <div className="border-t border-cream-200 pt-1.5 mt-1.5 flex items-center justify-between text-sm font-semibold">
-            <span className="text-cocoa-900">Custo total</span>
-            <span className="text-amber-700 tabular-nums">{fmtEuro(breakdown.total)}</span>
-          </div>
-          {budget !== null && (
-            <div className="flex items-center justify-between text-sm font-semibold">
-              <span className="text-cocoa-900">Margem bruta</span>
-              <span className={`tabular-nums px-2 py-0.5 rounded-full ${marginCls}`}>
-                {fmtEuro(margin!)}{marginPct !== null ? ` · ${marginPct.toFixed(1)}%` : ""}
-              </span>
-            </div>
-          )}
-          {breakdown.missing.length > 0 && (
-            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
-              Cálculo parcial — falta: {breakdown.missing.join(", ")}.
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }

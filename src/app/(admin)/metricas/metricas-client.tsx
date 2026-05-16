@@ -49,6 +49,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatEUR } from "@/lib/format";
 import { STATUS_HEX } from "../preservacao/_styles";
 import type { OrderStatus } from "@/types/database";
 
@@ -71,13 +72,7 @@ const PIE_PALETTE_BG    = ["#fb7185", "#f472b6", "#e879f9", "#c084fc", "#fbbf24"
 const PIE_PALETTE_EVENT = ["#34d399", "#a3e635", "#facc15", "#fb923c", "#fb7185"]; // verde → rosa
 const ACQ_PALETTE       = ["#c084fc", "#60a5fa", "#34d399", "#facc15", "#fb923c"];
 
-function formatEuro(value: number): string {
-  return new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+const formatEuro = (value: number): string => formatEUR(value, { rounded: true });
 
 function PctBadge({ pct }: { pct: number | null }) {
   if (pct === null) {

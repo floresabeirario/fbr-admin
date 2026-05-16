@@ -14,32 +14,25 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "pt-PT",
     dir: "ltr",
     categories: ["business", "productivity"],
+    // O mesmo PNG maskable aparece como purpose "any" e "maskable" — a spec
+    // permitiria "any maskable" combinado mas o tipo do Next só aceita um
+    // valor de cada vez. Resultado prático é igual: o launcher pega qualquer
+    // entry "any" ou "maskable" e ambos apontam para o mesmo ficheiro com
+    // fundo opaco + safe zone. Isto evita o fallback "F cinzento" que alguns
+    // launchers fazem quando só vêem entries "maskable" sem complemento "any".
+    // Ver scripts/generate-maskable-icons.mjs.
     icons: [
-      {
-        src: "/favicon/favicon-16x16.png",
-        sizes: "16x16",
-        type: "image/png",
-      },
       {
         src: "/favicon/favicon-32x32.png",
         sizes: "32x32",
         type: "image/png",
       },
       {
-        src: "/favicon/android-chrome-192x192.png",
+        src: "/favicon/maskable-192x192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
-      {
-        src: "/favicon/android-chrome-512x512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
-      },
-      // Maskable: ícone com safe zone + fundo opaco, para Android desenhar
-      // bem o atalho no ecrã principal (sem maskable o ícone fica "flutuante"
-      // num círculo branco e quase invisível). Ver scripts/generate-maskable-icons.mjs.
       {
         src: "/favicon/maskable-192x192.png",
         sizes: "192x192",
@@ -50,12 +43,13 @@ export default function manifest(): MetadataRoute.Manifest {
         src: "/favicon/maskable-512x512.png",
         sizes: "512x512",
         type: "image/png",
-        purpose: "maskable",
+        purpose: "any",
       },
       {
-        src: "/favicon/apple-touch-icon.png",
-        sizes: "180x180",
+        src: "/favicon/maskable-512x512.png",
+        sizes: "512x512",
         type: "image/png",
+        purpose: "maskable",
       },
     ],
   };

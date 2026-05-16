@@ -175,7 +175,7 @@ function PartnerRow({
           )}
         </div>
       </td>
-      <td className="px-4 py-1.5">
+      <td className="px-4 py-1.5 hidden xl:table-cell">
         {partner.location_label ? (
           <span className="inline-flex items-center gap-1 text-xs text-cocoa-900">
             <MapPin className="h-3 w-3 text-cocoa-500" />
@@ -285,13 +285,14 @@ function GroupSection({
       )}
       {!isCollapsed && partners.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left">
+          <table className="w-full min-w-[660px] xl:min-w-[780px] text-left">
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
                 {["Nome", "Contacto", "Local", "Comissão", "Recom.", "Acções", "Estado", ""].map((h, i) => (
                   <th key={i} className={cn(
                     "px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide",
-                    (i === 4 || i === 5) && "text-center"
+                    (i === 4 || i === 5) && "text-center",
+                    i === 2 && "hidden xl:table-cell"
                   )}>
                     {h}
                   </th>

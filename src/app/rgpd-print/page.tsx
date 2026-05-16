@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentRole } from "@/lib/auth/server";
 import { searchClientData } from "@/lib/rgpd";
+import { formatEUR } from "@/lib/format";
 import {
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -34,10 +35,7 @@ function formatDateTime(iso: string | null): string {
   return `${date} ${hh}:${mi}`;
 }
 
-function euros(value: number | null): string {
-  if (value === null) return "—";
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value);
-}
+const euros = (value: number | null): string => formatEUR(value);
 
 export default async function RgpdPrintPage({ searchParams }: { searchParams: Search }) {
   const role = await getCurrentRole();

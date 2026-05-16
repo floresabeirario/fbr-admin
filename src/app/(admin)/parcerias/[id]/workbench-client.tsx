@@ -56,6 +56,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { formatEUR } from "@/lib/format";
 import {
   type Partner,
   type PartnerCategory,
@@ -119,11 +120,6 @@ function formatDateTime(d: string | null): string {
   } catch {
     return "—";
   }
-}
-
-function formatEuro(v: number | null): string {
-  if (v === null || v === undefined) return "—";
-  return v.toLocaleString("pt-PT", { style: "currency", currency: "EUR" });
 }
 
 // ── Tipos ────────────────────────────────────────────────────
@@ -1018,7 +1014,7 @@ function RecommendedClients({
             <div className="flex items-baseline gap-2">
               <span className="text-lg font-semibold text-cocoa-900">{total}</span>
               <span className="text-[11px] text-cocoa-700">·</span>
-              <span className="text-sm font-medium text-emerald-700">{formatEuro(totalRevenue)}</span>
+              <span className="text-sm font-medium text-emerald-700">{formatEUR(totalRevenue)}</span>
             </div>
           </div>
 
@@ -1048,7 +1044,7 @@ function RecommendedClients({
                         </div>
                         {o.budget && (
                           <div className="text-[10px] text-emerald-700 font-medium">
-                            {formatEuro(o.budget)}
+                            {formatEUR(o.budget)}
                           </div>
                         )}
                       </div>
@@ -1083,7 +1079,7 @@ function RecommendedClients({
                           {v.usage_status === "preservacao_agendada" ? "Agendado" : "Por usar"}
                         </div>
                         <div className="text-[10px] text-emerald-700 font-medium">
-                          {formatEuro(v.amount)}
+                          {formatEUR(v.amount)}
                         </div>
                       </div>
                       <ExternalLink className="h-3 w-3 text-cocoa-500 opacity-0 group-hover:opacity-100 mt-0.5 shrink-0" />

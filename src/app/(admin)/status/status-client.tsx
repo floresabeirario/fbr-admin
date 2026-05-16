@@ -230,14 +230,14 @@ export default function StatusClient({
       {/* Tabela */}
       <div className="rounded-lg border border-cream-200 bg-surface overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-[720px] xl:min-w-[860px] text-sm">
             <thead className="bg-cream-50 border-b border-cream-200">
               <tr className="text-[10px] font-bold uppercase tracking-wider text-cocoa-700">
                 <th className="text-left px-4 py-2.5">ID / Cliente</th>
                 <th className="text-left px-3 py-2.5">Fase pública</th>
                 <th className="text-left px-3 py-2.5">Idioma</th>
                 <th className="text-left px-3 py-2.5">Mensagem PT</th>
-                <th className="text-left px-3 py-2.5">Mensagem EN</th>
+                <th className="text-left px-3 py-2.5 hidden xl:table-cell">Mensagem EN</th>
                 <th className="text-left px-3 py-2.5">Data prevista</th>
                 <th className="text-left px-3 py-2.5">Última atualização</th>
                 <th className="text-right px-4 py-2.5"></th>
@@ -398,7 +398,7 @@ function StatusRow({
       </td>
 
       {/* Mensagem EN */}
-      <td className="px-3 py-3 align-top max-w-[320px]">
+      <td className="px-3 py-3 align-top max-w-[320px] hidden xl:table-cell">
         <button
           onClick={onEdit}
           disabled={!canEdit}

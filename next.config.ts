@@ -100,6 +100,42 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Manifest PWA: Content-Type canónico + CORP "cross-origin" porque
+      // launchers Android/iOS buscam o ficheiro fora do contexto do tab
+      // (caem como cross-origin); com `same-site` o ícone fica em "F" cinzento.
+      {
+        source: "/manifest.webmanifest",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "application/manifest+json; charset=utf-8",
+          },
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
+          },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=3600",
+          },
+        ],
+      },
+      // Ícones do PWA (e favicons normais): CORP "cross-origin" para o
+      // Android conseguir transferir para o ecrã principal. Cache curta
+      // para que actualizações do logo apareçam dentro de um dia.
+      {
+        source: "/favicon/:path*",
+        headers: [
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
+          },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400",
+          },
+        ],
+      },
     ];
   },
 };

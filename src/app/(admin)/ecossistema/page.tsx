@@ -84,10 +84,11 @@ const EXTERNAL_CATEGORIES: ExternalCategory[] = [
   },
   {
     title: "Infraestrutura web",
-    description: "Domínio e SEO",
+    description: "Domínio, SEO e segurança",
     tools: [
       { name: "Domínio (Site.pt)", url: "https://clientes.site.pt/index.php?rp=/login", icon: Server, note: "Gestão de DNS e domínio" },
       { name: "Google Search Console", url: "https://search.google.com/search-console?resource_id=sc-domain%3Afloresabeirario.pt", icon: Search, note: "SEO e indexação" },
+      { name: "Cloudflare Turnstile", url: "https://dash.cloudflare.com/?to=/:account/turnstile", icon: ShieldCheck, note: "CAPTCHA do login admin e dos forms públicos" },
     ],
   },
 ];
@@ -175,11 +176,11 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
   },
   {
     name: "Cloudflare Turnstile",
-    description: "Anti-spam nos forms públicos do site.",
+    description: "CAPTCHA no login admin + anti-spam nos forms públicos do site.",
     tone: "integration",
     icon: ShieldCheck,
-    status: "pending",
-    statusNote: "Por configurar",
+    status: "active",
+    statusNote: "Ligado",
   },
 ];
 

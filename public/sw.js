@@ -12,7 +12,7 @@
  * Bump CACHE_VERSION sempre que quiseres invalidar todos os caches.
  */
 
-const CACHE_VERSION = "fbr-admin-v2";
+const CACHE_VERSION = "fbr-admin-v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 self.addEventListener("install", (event) => {
@@ -36,10 +36,13 @@ self.addEventListener("activate", (event) => {
 function isCacheableStatic(url) {
   if (url.origin !== self.location.origin) return false;
   if (url.pathname.startsWith("/_next/static/")) return true;
-  if (url.pathname.startsWith("/favicon/")) return true;
+  // /favicon/* DELIBERADAMENTE fora do cache: a interceptação do SW estava
+  // a servir versões antigas do logo quando a Maria adicionava ao ecrã
+  // principal (resultado: "F" cinzento em vez do ícone). PNGs são pequenos
+  // e ficam no cache HTTP do browser na mesma.
   if (url.pathname.startsWith("/userphotos/")) return true;
   if (url.pathname.startsWith("/fonts/")) return true;
-  if (/\.(?:css|woff2?|ttf|otf|png|jpg|jpeg|webp|svg|ico)$/i.test(url.pathname)) {
+  if (/\.(?:css|woff2?|ttf|otf|jpg|jpeg|webp|svg)$/i.test(url.pathname)) {
     return true;
   }
   return false;
