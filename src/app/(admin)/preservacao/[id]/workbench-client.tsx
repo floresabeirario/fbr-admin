@@ -71,6 +71,7 @@ import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import AddressAutocomplete from "@/components/address-autocomplete";
 import WorkbenchNavigator from "@/components/workbench-navigator";
+import TemplatePicker from "@/components/template-picker";
 import type {
   Order,
   OrderUpdate,
@@ -910,6 +911,15 @@ export default function WorkbenchClient({
                       Email
                     </button>
                   </div>
+                </div>
+
+                {/* Picker de templates de mensagens — sugere templates conforme estado da encomenda */}
+                <div className="pt-2">
+                  <TemplatePicker
+                    scope="order"
+                    order={local}
+                    preferredLanguage={local.form_language}
+                  />
                 </div>
 
                 <Tabs defaultValue="email">

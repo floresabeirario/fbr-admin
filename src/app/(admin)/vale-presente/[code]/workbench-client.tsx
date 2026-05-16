@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import WorkbenchNavigator from "@/components/workbench-navigator";
+import TemplatePicker from "@/components/template-picker";
 import {
   Select,
   SelectContent,
@@ -352,6 +353,19 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
             {/* ── Coluna esquerda: hero + remetente ── */}
             <div className="space-y-4">
               <Hero voucher={data} expired={expired} expiringSoon={expiringSoon} monthsLeft={monthsLeft} />
+
+              <div className="flex justify-end">
+                <TemplatePicker
+                  scope="voucher"
+                  voucher={{
+                    code: data.code,
+                    sender_name: data.sender_name,
+                    recipient_name: data.recipient_name,
+                    amount: data.amount,
+                  }}
+                  preferredLanguage="pt"
+                />
+              </div>
 
               <Section title="Remetente" icon={<User className="h-3.5 w-3.5" />} accent="rose">
                 <Field label="Nome">

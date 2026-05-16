@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 11) — Limpeza estrutural (formatEUR · scroll horizontal · split workbench · chat mobile/emojis)
+## Fase actual: FASE 6 (parte 12) — Biblioteca de templates de mensagens (sem IA, zero tokens)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -35,11 +35,64 @@
 - **PWA** instalável (iOS + Android); mobile-friendly
 - **Integrações Google**: OAuth foundation, auto-criação pastas Drive ao 1º pagamento, eventos Calendar com info de recolha
 - **RGPD**: exportação JSON+PDF, retenção 10 anos com anonimização, audit log UI
-- 35 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- **Templates de mensagens** (sessão 64): biblioteca de 27 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
+- 41 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 64 📝 Fase A — Biblioteca de templates de mensagens (sem IA, zero tokens)
+
+Maria pediu para começar a "fase que falta" (Fase 6 — comunicações). Antes de pôr IA por cima, propus o plano híbrido em 4 níveis ([[feedback_aplicar_padroes_em_areas_analogas]]): **Nível 1 (templates puros, zero tokens) cobre 70-80% das mensagens**; só os restantes 20-30% precisam de IA. Esta sessão fechou **só a Fase A** ([[feedback_decidir_quando_overwhelm]] — fechar uma frente bem, antes de empilhar a próxima).
+
+**Base aprendida.** Li 16 conversas WhatsApp exportadas em [public/conversas whatsapp/](public/conversas%20whatsapp/) (Carla, Diana, Khadija, Joana Pinto, Kelly, Inês, Joana Matos, Joana David, Rita, Susana, Marta, Lauren, MJoao, Sandra, Joana, +353). Extracted:
+- Voz da marca: plural majestático, vocabulário ("preservar", "será um gosto", "vai valer a pena"), emojis florais 🌷🌸🌼🪻💐🤍, várias bolhas em vez de bloco único, soluções primeiro, empatia explícita antes da informação.
+- Estrutura recorrente das mensagens-chave (pré-reserva, recepção, aprovação design, pronto para entrega, pós-venda).
+- **Regra PT vs EN** ([[project_chamadas_idioma]]): EN não convida para chamada (Ana não fala EN); EN inclui Account Holder + IBAN + BIC + Banco; PT só MB Way + IBAN.
+
+**1. Migração 041** ([supabase/migrations/041_message_templates.sql](supabase/migrations/041_message_templates.sql)):
+- `system_settings (key, value)` — pares chave/valor para configuração global. Seed com `payment_account_holder`, `payment_iban`, `payment_bic`, `payment_bank_name`, `payment_mbway`, `studio_address_url`, `studio_address_text`. Maria edita via UI.
+- `message_templates (id, slug, name, language, category, body, suggested_statuses jsonb, scope, position, is_seed, deleted_at)` com unique index parcial em `slug` (where deleted_at IS NULL), índices por categoria e idioma.
+- RLS: `admins_all` (FOR ALL TO authenticated, restrito a António+MJ) + `authenticated_select` (Ana lê). Audit trigger `log_message_template_changes`. GRANT SELECT/INSERT/UPDATE/DELETE TO authenticated.
+- **Seed: 27 templates** pré-populados (`is_seed=true`) — extraídos verbatim das conversas reais, com variáveis `{nome}`, `{valor_sinal}`, `{dados_pagamento}`, `{saudacao}`, `{data_evento_extenso}`, `{link_status}`, etc.
+
+**2. Tipos** ([src/types/message-template.ts](src/types/message-template.ts)):
+- `MessageTemplate`, `MessageTemplateInsert`, `MessageTemplateUpdate`, `TemplateCategory` (12 categorias com labels e ordem canónica), `TemplateLanguage` ('pt'|'en'), `TemplateScope` ('order'|'voucher'|'both').
+- `SystemSettingKey`, `SYSTEM_SETTING_LABELS`, `SYSTEM_SETTING_KEYS`, `SystemSettingsMap`.
+
+**3. Motor de templates** ([src/lib/templates.ts](src/lib/templates.ts)):
+- `saudacaoPorHora(language)` — devolve "Bom dia/Boa tarde/Boa noite" (PT) ou "Good morning/Good afternoon/Good evening" (EN) consoante a hora.
+- `dadosPagamento(language, settings)` — **bloco PT vs EN diferente**. PT: MB Way+IBAN. EN: Account Holder+IBAN+BIC+Banco. Tira o MB Way em EN porque não funciona fora de PT.
+- `renderOrderTemplate(template, { order, settings })` — substitui as variáveis com dados da encomenda. Calcula `valor_sinal`/`valor_2a_parcela`/`valor_3a_parcela` (30/40/30) a partir do `pricing_snapshot.total` (com fallback ao `budget` manual). Datas por extenso via date-fns locale `pt` ou `enUS`. Formato monetário "300€" para inteiros, "100,50€" para fracções (`fmtEurMsg`) — bate certo com as conversas reais.
+- `renderVoucherTemplate(template, { voucher, settings })` — análogo para Vale-Presente, com `{nome_remetente}`, `{nome_destinatario}`, `{codigo_vale}`, `{link_vale}`, `{valor_vale}`.
+- `rankTemplatesForStatus(templates, { scope, currentStatus, preferredLanguage })` — devolve `{ suggested, others }`. Suggested = templates cujo `suggested_statuses` inclui o estado actual; outros = restantes. Dentro de cada bucket, ordena por idioma preferido (form_language do cliente) → categoria → posição.
+- `AVAILABLE_VARIABLES` — lista de variáveis com descrição + scope, usada pelo painel lateral no editor.
+
+**4. Server actions** ([src/app/(admin)/settings/templates/actions.ts](src/app/(admin)/settings/templates/actions.ts)) — todas com `requireAdmin()`:
+- `createTemplateAction(input)`, `updateTemplateAction(id, patch)` (limpa `is_seed` do patch para não corromper seeds), `archiveTemplateAction(id)` (soft delete), `restoreTemplateAction(id)`, `duplicateTemplateAction(id)` (gera slug `<name>_copia`, incrementa se colide).
+- `updateSystemSettingAction(key, value)` — upsert em `system_settings` por chave única.
+
+**5. UI Sistema → Templates** ([src/app/(admin)/settings/templates/page.tsx](src/app/(admin)/settings/templates/page.tsx) + [templates-client.tsx](src/app/(admin)/settings/templates/templates-client.tsx)):
+- Server component carrega templates + system_settings em paralelo.
+- Client: 2 tabs — **"Templates"** (com filtros: pesquisa por nome/corpo, idioma, categoria, arquivados) agrupados por categoria, e **"Dados de pagamento e morada"** (campos individualmente editáveis com botão Guardar por linha).
+- Lista mostra: nome + idioma + scope + selo "Pré-populado" (is_seed) + nº de estados sugeridos. Acções por linha: Editar / Duplicar / Arquivar (ou Restaurar se arquivado).
+- **Editor (dialog full-screen)**: nome+slug (slug auto-gerado para novos, desabilitado em edição), idioma+categoria+scope, **toggle de estados sugeridos** (botões redondos com label dos 16 OrderStatus), corpo do template (textarea com `font-mono text-xs` 18 linhas), painel lateral com variáveis disponíveis filtradas pelo scope (clica para inserir no fim do corpo).
+- Sub-tab Sistema actualizada ([src/components/sistema-topbar.tsx](src/components/sistema-topbar.tsx)) com novo chip "Templates" e ícone `MessageSquareText`.
+
+**6. Template picker no workbench** ([src/components/template-picker.tsx](src/components/template-picker.tsx)):
+- Componente reutilizável para Preservação e Vale-Presente (props discriminadas por scope).
+- Botão "Inserir template" → Popover que carrega templates do Supabase **só na primeira abertura** (handler `handleOpenChange`, não `useEffect` — [[feedback_react_set_state_in_effect]]). Estados: loading / lista.
+- Lista organizada com **header "⭐ Sugeridos para esta fase"** + lista normal. Cada item mostra nome + bandeira de idioma.
+- Ao escolher: dialog com mensagem renderizada (variáveis preenchidas), 3 botões: **Copiar para clipboard** (via `navigator.clipboard.writeText`, toast "💐"), **Editar antes de copiar** (textarea editável), **Fechar**.
+- Integrado em [preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/%5Bid%5D/workbench-client.tsx) (dentro do Card "Comunicações", `preferredLanguage={local.form_language}`) e em [vale-presente/[code]/workbench-client.tsx](src/app/(admin)/vale-presente/%5Bcode%5D/workbench-client.tsx) (na coluna esquerda, scope=voucher).
+
+**Limites assumidos (Fase A propositadamente termina aqui):**
+- 🚫 Não há UI de WhatsApp para colar histórico de conversas (Fase B).
+- 🚫 Não há IA a adaptar/gerar/polir mensagens (Fase C).
+- 🚫 Não há detecção de cliente perdido / reminder pré-data / check-in pós-entrega (Fase C).
+
+**Validação:** `npx tsc --noEmit` limpo. `npx next build` passa (20 páginas, `/settings/templates` listada). `npx eslint` limpo nos ficheiros tocados.
 
 ### Sessão 63 🧹 Limpeza estrutural (revisão completa pedida pela Maria)
 
@@ -357,6 +410,26 @@ Maria abriu `admin.floresabeirario.pt/preservacao/H4V9S6Z2U7G1E5D8` → "This pa
 ---
 
 ## Próximo passo CONCRETO
+
+**Sessão 64 — passos manuais para activar os templates de mensagens:**
+
+1. **Correr migração 041** no Supabase SQL Editor:
+   - Abre Supabase Dashboard → SQL Editor → New query → cola o ficheiro [supabase/migrations/041_message_templates.sql](supabase/migrations/041_message_templates.sql) inteiro → Run
+   - Verifica: `SELECT count(*) FROM message_templates WHERE is_seed=true;` → deve dar **27**
+   - Verifica: `SELECT key, value FROM system_settings ORDER BY key;` → deve mostrar 7 chaves (account_holder, iban, bic, bank_name, mbway, studio_address_url, studio_address_text)
+2. Push para Vercel (rotas novas: `/settings/templates`)
+3. **Testes a fazer em produção (smoke):**
+   - Abrir **Sistema → Templates** → ver lista de 27 templates agrupados por categoria. Filtrar por idioma EN → só ver os EN. Pesquisar "pré-reserva" → só os 4 que têm o nome.
+   - Abrir um template → editar uma palavra no corpo → Guardar → reabrir → ver alteração persistida.
+   - **Sub-tab "Dados de pagamento e morada"** → confirmar que os 5 campos de pagamento estão preenchidos com os valores certos (MB Way 935 896 353, IBAN PT50…, BIC CGDIPTPL, etc.). Mudar uma morada → Guardar → recarregar a página → ver persistido.
+   - Abrir **/preservacao/<encomenda-actual>** → no Card "Comunicações" há um botão "Inserir template". Clicar → ver lista com **Sugeridos para esta fase** no topo (conforme estado da encomenda).
+   - Escolher um template sugerido → ver mensagem renderizada com `{nome}` substituído pelo nome do cliente, `{valor_sinal}` calculado a 30% do total, `{data_evento_extenso}` em português, `{dados_pagamento}` no bloco PT (MB Way+IBAN).
+   - Confirmar saudação muda conforme hora: abrir antes das 12h → "Bom dia"; depois das 12h → "Boa tarde"; depois das 19h → "Boa noite".
+   - Clicar **Copiar para clipboard** → ver toast "💐" → colar no WhatsApp → confirmar texto íntegro.
+   - Editar **uma palavra antes de copiar** → confirmar que a edição vai para o clipboard.
+   - Testar **um template EN** numa encomenda com `form_language=en` → confirmar bloco de pagamento internacional (Account Holder + IBAN + BIC + Banco) e que NÃO inclui convite para chamada.
+   - Abrir **/vale-presente/<código>** → confirmar botão "Inserir template" na coluna esquerda; templates de vale aparecem (vale-presente category).
+4. **Smoke da Ana (viewer)**: login com Ana → /settings/templates → confirma que **NÃO consegue** abrir esta página (admin-only via `redirect("/")`). Mas no workbench Preservação, o picker de templates deve estar **visível e funcional** (a Ana só lê os templates).
 
 **Sessão 63 — passos manuais para activar os healthchecks automáticos:**
 
