@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 15) — Workbench Preservação: afinações mobile
+## Fase actual: FASE 6 (parte 16) — Finanças: selector de ano + alinhamento com Métricas
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -42,6 +42,37 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 69 💶 Finanças — selector de ano + Potencial total corrigido + alinhamento com Métricas
+
+Maria reportou três problemas na aba Finanças: (1) o card "Potencial total" estava a incluir pré-reservas e sem-resposta (encomendas não confirmadas); (2) os valores de Finanças e Métricas não batiam certo; (3) precisava conseguir ver os valores de cada ano (há encomendas de 2025).
+
+**1. Discrepância Finanças × Métricas — alinhada** ([src/lib/metrics.ts:114-127](src/lib/metrics.ts#L114-L127)):
+- Métricas usava lógica "if pago ≥ 30%, conta orçamento TOTAL" — sobrestimava a receita.
+- Finanças usava lógica proporcional (30%/70%/100%).
+- Mudou-se `orderRevenue` em `metrics.ts` para usar a mesma lógica proporcional. Agora Receita em Métricas = Receita em Finanças.
+
+**2. Potencial total — exclui pré-reservas/sem-resposta/canceladas** ([src/app/(admin)/financas/financas-client.tsx:1336-1356](src/app/(admin)/financas/financas-client.tsx#L1336-L1356)):
+- Antes: só excluía `cancelado`. Pré-reservas (`entrega_flores_agendar`) e sem-resposta (mesmo status + flag) inflavam o potencial.
+- Agora: exclui `cancelado` E `entrega_flores_agendar` (cobre os dois grupos, porque sem-resposta é só uma flag derivada em runtime do mesmo status — ver [src/lib/supabase/orders.ts:101-107](src/lib/supabase/orders.ts#L101-L107)).
+- Texto do card actualizado: "Potencial total {ano} — se todas as encomendas confirmadas estivessem 100% pagas".
+
+**3. Selector de ano em Finanças** ([src/app/(admin)/financas/financas-client.tsx:1422-1445](src/app/(admin)/financas/financas-client.tsx#L1422-L1445)):
+- Selector no topo do card Faturação. Lista de anos calculada a partir dos dados (event_date de orders, created_at de vouchers, expense_date de despesas) + ano actual garantido.
+- **Regra de atribuição ao ano** (a Maria especificou):
+  - Encomendas → ano da **data do evento** (`event_date`).
+  - Vales → ano de **criação** (`created_at`).
+  - Despesas → ano da **data da despesa** (`expense_date`).
+- KPIs adaptam-se: no ano actual mostra "Receita do mês / ano / Despesas do mês / Lucro do mês" + linha extra "Despesas/Lucro ano". Em anos passados (2025, etc.) esconde os KPIs mensais e mostra só os anuais (não faz sentido "Receita deste mês" para 2025).
+- Gráfico de barras passou de "últimos 12 meses" para "12 meses do ano seleccionado (Jan→Dez)".
+- Potencial total filtra encomendas cuja `event_date` cai no ano seleccionado.
+
+**Alterações de query** ([src/app/(admin)/financas/page.tsx:42](src/app/(admin)/financas/page.tsx#L42)):
+- Adicionado `event_date` ao SELECT dos orders + tipo `Pick<Order, …>` correspondente em [financas-client.tsx:151](src/app/(admin)/financas/financas-client.tsx#L151) e no `FaturacaoOrder` interno.
+
+Preflight OK. Sem migrações.
+
+---
 
 ### Sessão 68 📱 Workbench Preservação — afinações mobile (coluna central primeiro + paddings menores)
 

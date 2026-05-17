@@ -584,7 +584,7 @@ export default function WorkbenchClient({
 
       {/* ── Header fixo ──────────────────────────────────────── */}
       <header className="shrink-0 sticky top-0 z-20 bg-surface border-b border-cream-200 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-2 sm:py-3">
           <Link
             href="/preservacao"
             className="flex items-center gap-1.5 text-sm text-cocoa-700 hover:text-cocoa-900 transition-colors shrink-0"
@@ -599,9 +599,10 @@ export default function WorkbenchClient({
             basePath="/preservacao"
           />
 
-          <Separator orientation="vertical" className="h-5 bg-cream-200" />
+          <Separator orientation="vertical" className="h-5 bg-cream-200 hidden sm:block" />
 
-          <div className="flex-1 min-w-0">
+          {/* Nome + ID — ocupa a linha toda em mobile para não partilhar com Contactada/Nota/Arquivar */}
+          <div className="flex-1 min-w-0 basis-full sm:basis-auto">
             <h1 className="text-base font-semibold text-cocoa-900 truncate leading-tight">
               {local.client_name}
             </h1>
@@ -687,7 +688,7 @@ export default function WorkbenchClient({
             onChange={(v) => update("contacted", v)}
           />
 
-          <div className="w-24 shrink-0 text-right text-xs">
+          <div className="hidden sm:block w-24 shrink-0 text-right text-xs">
             {saveState === "saving" && (
               <span className="flex items-center justify-end gap-1 text-cocoa-500">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1068,9 +1069,9 @@ export default function WorkbenchClient({
               {/* Hero unificado: foto + dados do cliente + dados do evento */}
               <div className="rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-0">
-                  {/* Foto 3:4 vertical (4:3 horizontal em mobile para não ocupar o ecrã todo) */}
+                  {/* Foto 3:4 vertical (16:9 horizontal em mobile para não ocupar o ecrã todo) */}
                   <div className="sm:col-span-5 relative group bg-gradient-to-br from-cream-50 to-cream-100">
-                    <div className="aspect-[4/3] sm:aspect-[3/4]">
+                    <div className="aspect-[16/9] sm:aspect-[3/4]">
                       {photoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

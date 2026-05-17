@@ -268,7 +268,7 @@ function TemplatePreviewDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquareText className="h-5 w-5 text-cocoa-700" />
@@ -289,7 +289,7 @@ function TemplatePreviewDialog({
               autoFocus
             />
           ) : (
-            <div className="rounded-lg border border-cream-200 bg-cream-50 p-4 whitespace-pre-wrap text-sm leading-relaxed text-cocoa-900 font-sans">
+            <div className="rounded-lg border border-cream-200 bg-cream-50 p-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-cocoa-900 font-sans">
               {renderedBody}
             </div>
           )}

@@ -28,7 +28,7 @@ import {
   Camera,
   Package,
 } from "lucide-react";
-import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
 
 import { Input } from "@/components/ui/input";
@@ -148,7 +148,7 @@ interface Props {
   initialPricing: PricingItem[];
   initialProductionCosts: ProductionCostItem[];
   initialExpenses: Expense[];
-  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">>;
+  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date">>;
   vouchers: Array<Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">>;
   canEdit: boolean;
 }
@@ -1276,7 +1276,7 @@ function InvoiceCell({ expense, canEdit }: { expense: Expense; canEdit: boolean 
 // FATURAÇÃO
 // ============================================================
 
-type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">;
+type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date">;
 type FaturacaoVoucher = Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">;
 
 function FaturacaoTab({
@@ -1288,7 +1288,7 @@ function FaturacaoTab({
   vouchers: FaturacaoVoucher[];
   expenses: Expense[];
 }) {
-  // Receita = orders com pagamento ≥ 30% + vales pagos não convertidos (evitar dupla contagem)
+  // Receita = orders proporcional ao % pago + vales pagos não convertidos (evitar dupla contagem)
   const revenueFromOrder = (o: FaturacaoOrder): number => {
     if (!o.budget) return 0;
     switch (o.payment_status) {
@@ -1304,11 +1304,39 @@ function FaturacaoTab({
     return Number(v.amount);
   };
 
-  // KPIs por período
   const now = new Date();
+  const currentYear = getYear(now);
+
+  // Anos disponíveis: encomendas pela data do evento; vales pela data de criação;
+  // despesas pela data da despesa. Garante que o ano actual aparece sempre.
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([currentYear]);
+    for (const o of orders) {
+      if (o.event_date) {
+        try { years.add(getYear(parseISO(o.event_date))); } catch {}
+      }
+    }
+    for (const v of vouchers) {
+      if (v.created_at) {
+        try { years.add(getYear(parseISO(v.created_at))); } catch {}
+      }
+    }
+    for (const e of expenses) {
+      if (e.expense_date) {
+        try { years.add(getYear(parseISO(e.expense_date))); } catch {}
+      }
+    }
+    return [...years].sort((a, b) => b - a); // mais recente primeiro
+  }, [orders, vouchers, expenses, currentYear]);
+
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const isCurrentYear = selectedYear === currentYear;
+
+  const yearStart = startOfYear(new Date(selectedYear, 0, 1));
+  const yearEnd = endOfYear(new Date(selectedYear, 11, 31));
+
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const yearStart = startOfYear(now);
   const prevMonthStart = startOfMonth(subMonths(now, 1));
   const prevMonthEnd = endOfMonth(subMonths(now, 1));
 
@@ -1318,17 +1346,30 @@ function FaturacaoTab({
     return d >= start && d <= end;
   };
 
-  // Potencial 100% pago: total das encomendas activas (não canceladas)
-  // se todas estivessem 100% pagas. Mostra o "topo" possível da receita
-  // já comprometida. Vales não somam aqui — só encomendas.
+  // Potencial 100% pago: encomendas activas (não canceladas, não pré-reservas/sem-resposta)
+  // cuja data do evento está no ano seleccionado. Pré-reservas e sem-resposta partilham
+  // o estado `entrega_flores_agendar` (sem-resposta é só uma flag derivada em runtime)
+  // — ambos excluídos porque ainda não estão confirmados. Vales não somam aqui.
   const potentialFullPay = orders
-    .filter((o) => o.status !== "cancelado" && o.budget && o.budget > 0)
+    .filter((o) =>
+      o.status !== "cancelado" &&
+      o.status !== "entrega_flores_agendar" &&
+      o.budget && o.budget > 0 &&
+      inRange(o.event_date, yearStart, yearEnd),
+    )
     .reduce((s, o) => s + (Number(o.budget) || 0), 0);
-  const alreadyCollected = orders.reduce((s, o) => s + revenueFromOrder(o), 0);
+  const alreadyCollected = orders
+    .filter((o) =>
+      o.status !== "cancelado" &&
+      o.status !== "entrega_flores_agendar" &&
+      inRange(o.event_date, yearStart, yearEnd),
+    )
+    .reduce((s, o) => s + revenueFromOrder(o), 0);
   const stillOpen = Math.max(0, potentialFullPay - alreadyCollected);
 
+  // KPIs mensais: orders pela data do evento; vales pela data de criação.
   const revenueOrdersMonth = orders
-    .filter((o) => inRange(o.created_at, monthStart, monthEnd))
+    .filter((o) => inRange(o.event_date, monthStart, monthEnd))
     .reduce((s, o) => s + revenueFromOrder(o), 0);
   const revenueVouchersMonth = vouchers
     .filter((v) => inRange(v.created_at, monthStart, monthEnd))
@@ -1336,72 +1377,108 @@ function FaturacaoTab({
   const revenueMonth = revenueOrdersMonth + revenueVouchersMonth;
 
   const revenuePrevMonth =
-    orders.filter((o) => inRange(o.created_at, prevMonthStart, prevMonthEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+    orders.filter((o) => inRange(o.event_date, prevMonthStart, prevMonthEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
     vouchers.filter((v) => inRange(v.created_at, prevMonthStart, prevMonthEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
 
   const revenueYear =
-    orders.filter((o) => inRange(o.created_at, yearStart, now)).reduce((s, o) => s + revenueFromOrder(o), 0) +
-    vouchers.filter((v) => inRange(v.created_at, yearStart, now)).reduce((s, v) => s + revenueFromVoucher(v), 0);
+    orders.filter((o) => inRange(o.event_date, yearStart, yearEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+    vouchers.filter((v) => inRange(v.created_at, yearStart, yearEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
 
   const expensesMonth = expenses
     .filter((e) => inRange(e.expense_date, monthStart, monthEnd))
     .reduce((s, e) => s + Number(e.amount), 0);
   const expensesYear = expenses
-    .filter((e) => inRange(e.expense_date, yearStart, now))
+    .filter((e) => inRange(e.expense_date, yearStart, yearEnd))
     .reduce((s, e) => s + Number(e.amount), 0);
 
   const profitMonth = revenueMonth - expensesMonth;
   const profitYear = revenueYear - expensesYear;
   const monthDelta = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : null;
 
-  // Receita por mês (últimos 12)
+  // Receita por mês: 12 meses do ano seleccionado (Jan→Dez).
+  // Orders por data do evento, vales por data de criação, despesas por data da despesa.
   const monthlyData = useMemo(() => {
     const buckets: { month: string; label: string; revenue: number; expenses: number }[] = [];
-    for (let i = 11; i >= 0; i--) {
-      const start = startOfMonth(subMonths(now, i));
-      const end = endOfMonth(subMonths(now, i));
+    for (let m = 0; m < 12; m++) {
+      const start = startOfMonth(new Date(selectedYear, m, 1));
+      const end = endOfMonth(new Date(selectedYear, m, 1));
       const rev =
-        orders.filter((o) => inRange(o.created_at, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+        orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
         vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
       const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
       buckets.push({
         month: format(start, "yyyy-MM"),
-        label: format(start, "MMM yy", { locale: pt }),
+        label: format(start, "MMM", { locale: pt }),
         revenue: rev,
         expenses: exp,
       });
     }
     return buckets;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, vouchers, expenses]);
+  }, [orders, vouchers, expenses, selectedYear]);
 
   const maxBarValue = Math.max(...monthlyData.map((m) => Math.max(m.revenue, m.expenses)), 1);
 
   return (
     <div className="space-y-4">
-      {/* KPIs principais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiBox
-          label="Receita do mês"
-          value={formatEUR(revenueMonth)}
-          icon={<TrendingUp className="h-4 w-4" />}
-          color="emerald"
-          delta={monthDelta}
-        />
-        <KpiBox label="Receita do ano" value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
-        <KpiBox label="Despesas do mês" value={formatEUR(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
-        <KpiBox
-          label="Lucro do mês"
-          value={formatEUR(profitMonth)}
-          icon={<CreditCard className="h-4 w-4" />}
-          color={profitMonth >= 0 ? "emerald" : "rose"}
-        />
+      {/* Selector de ano */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4 text-cocoa-700" />
+          <span className="text-sm font-medium text-cocoa-900">Ano:</span>
+          <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+            <SelectTrigger className="h-9 w-[110px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {availableYears.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y}{y === currentYear ? " (actual)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-cocoa-700 italic">
+          Encomendas contam pelo ano da <strong>data do evento</strong>; vales pelo ano de <strong>criação</strong>.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <KpiBox label="Despesas do ano" value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
-        <KpiBox label="Lucro do ano" value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+      {/* KPIs principais */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {isCurrentYear ? (
+          <>
+            <KpiBox
+              label="Receita do mês"
+              value={formatEUR(revenueMonth)}
+              icon={<TrendingUp className="h-4 w-4" />}
+              color="emerald"
+              delta={monthDelta}
+            />
+            <KpiBox label={`Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+            <KpiBox label="Despesas do mês" value={formatEUR(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
+            <KpiBox
+              label="Lucro do mês"
+              value={formatEUR(profitMonth)}
+              icon={<CreditCard className="h-4 w-4" />}
+              color={profitMonth >= 0 ? "emerald" : "rose"}
+            />
+          </>
+        ) : (
+          <>
+            <KpiBox label={`Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+            <KpiBox label={`Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+            <KpiBox label={`Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+          </>
+        )}
       </div>
+
+      {isCurrentYear && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <KpiBox label={`Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+          <KpiBox label={`Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+        </div>
+      )}
 
       {/* Potencial se todas as encomendas activas estivessem 100% pagas */}
       <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 dark:border-violet-900/50 p-4 sm:p-5">
@@ -1411,11 +1488,10 @@ function FaturacaoTab({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">
-              Potencial total — se todas as encomendas activas estivessem 100% pagas
+              Potencial total {selectedYear} — se todas as encomendas confirmadas estivessem 100% pagas
             </h3>
             <p className="text-xs text-violet-800/80 dark:text-violet-300/80 mt-0.5">
-              Exclui encomendas canceladas. Vales não somam aqui. Indicativo do
-              tecto de receita já comprometido.
+              Encomendas com data de evento em {selectedYear}. Exclui pré-reservas, sem-resposta e canceladas. Vales não somam aqui.
             </p>
           </div>
         </div>
@@ -1451,7 +1527,7 @@ function FaturacaoTab({
       <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-cocoa-900">
-            Receita vs despesas (últimos 12 meses)
+            Receita vs despesas — {selectedYear}
           </h3>
           <div className="flex items-center gap-3 text-xs text-cocoa-700">
             <span className="inline-flex items-center gap-1.5">
@@ -1484,7 +1560,7 @@ function FaturacaoTab({
       </div>
 
       <p className="text-xs text-cocoa-700 italic px-1">
-        Receita = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos que ainda não foram convertidos em preservação (evita dupla contagem). Para métricas mais detalhadas, ver a aba Métricas.
+        Receita = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos que ainda não foram convertidos em preservação (evita dupla contagem). Encomendas são atribuídas ao ano pela data do evento; vales pela data de criação; despesas pela data da despesa. Para métricas mais detalhadas, ver a aba Métricas.
       </p>
     </div>
   );

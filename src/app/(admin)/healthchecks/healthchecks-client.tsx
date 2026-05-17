@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -46,6 +46,7 @@ export default function HealthchecksClient({
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<HealthCheck["status"] | "todos">("todos");
+  const [isRefreshing, startRefresh] = useTransition();
 
   const counts = useMemo(() => {
     const c = { ok: 0, warning: 0, error: 0, info: 0 };
@@ -88,12 +89,13 @@ export default function HealthchecksClient({
           </div>
         </div>
         <Button
-          onClick={() => router.refresh()}
+          onClick={() => startRefresh(() => router.refresh())}
           variant="outline"
           className="gap-1.5"
+          disabled={isRefreshing}
         >
-          <RefreshCw className="h-4 w-4" />
-          Recarregar
+          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+          {isRefreshing ? "A verificar…" : "Recarregar"}
         </Button>
       </div>
 

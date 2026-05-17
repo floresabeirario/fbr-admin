@@ -39,7 +39,7 @@ export default async function FinancasPage() {
       .order("expense_date", { ascending: false }),
     supabase
       .from("orders")
-      .select("id, order_id, created_at, status, payment_status, budget, frame_delivery_date")
+      .select("id, order_id, created_at, event_date, status, payment_status, budget, frame_delivery_date")
       .is("deleted_at", null),
     supabase
       .from("vouchers")
@@ -51,7 +51,7 @@ export default async function FinancasPage() {
   const pricing: PricingItem[] = (pricingRes.data ?? []) as PricingItem[];
   const productionCosts: ProductionCostItem[] = (productionCostRes.data ?? []) as ProductionCostItem[];
   const expenses: Expense[] = (expensesRes.data ?? []) as Expense[];
-  const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "created_at" | "status" | "payment_status" | "budget" | "frame_delivery_date">[];
+  const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date">[];
   const vouchers = (vouchersRes.data ?? []) as Pick<Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">[];
 
   return (

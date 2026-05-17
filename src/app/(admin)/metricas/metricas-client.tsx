@@ -621,6 +621,47 @@ export default function MetricasClient({
   );
 }
 
+function renderPieSliceLabel(props: {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  percent?: number;
+  value?: number;
+}) {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, value } = props;
+  if (
+    cx == null ||
+    cy == null ||
+    midAngle == null ||
+    innerRadius == null ||
+    outerRadius == null ||
+    value == null
+  ) {
+    return null;
+  }
+  if ((percent ?? 0) < 0.06) return null;
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#ffffff"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={600}
+      style={{ pointerEvents: "none" }}
+    >
+      {value}
+    </text>
+  );
+}
+
 function PieDist({
   data,
   palette,
@@ -649,7 +690,7 @@ function PieDist({
           outerRadius={75}
           innerRadius={32}
           paddingAngle={2}
-          label={({ name, value }) => `${name ?? ""} (${value ?? 0})`}
+          label={renderPieSliceLabel}
           labelLine={false}
         >
           {data.map((_, idx) => (

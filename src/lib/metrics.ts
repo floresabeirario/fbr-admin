@@ -105,18 +105,22 @@ function ordersIn(orders: Order[], range: DateRange): Order[] {
 }
 
 // ── Cálculos de receita ──────────────────────────────────────
-// Receita = soma do orçamento das encomendas COM PELO MENOS 30% pago.
-// Isto reflecte a faturação efectiva (não receita potencial).
+// Receita = soma PROPORCIONAL do orçamento das encomendas
+// conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%).
+// Reflecte o dinheiro efectivamente recebido, não o orçamento total.
 // Vales: contam para receita os 100_pago + preservacao_nao_agendada
 // (se já foi convertido em preservação, contaria duas vezes).
+// IMPORTANTE: este cálculo tem de bater certo com `financas-client.tsx`.
 // ============================================================
-
-const PAID_STATUSES = new Set(["100_pago", "70_pago", "30_pago"]);
 
 function orderRevenue(o: Order): number {
   if (!o.budget) return 0;
-  if (!PAID_STATUSES.has(o.payment_status)) return 0;
-  return Number(o.budget);
+  switch (o.payment_status) {
+    case "100_pago": return Number(o.budget);
+    case "70_pago":  return Number(o.budget) * 0.7;
+    case "30_pago":  return Number(o.budget) * 0.3;
+    default: return 0;
+  }
 }
 
 function voucherRevenue(v: Voucher): number {
