@@ -19,9 +19,31 @@ import {
   endOfYear,
   format,
 } from "date-fns";
-import type { Order, OrderStatus, FrameSize, FrameBackground, EventType, HowFoundFBR } from "@/types/database";
+import type {
+  Order,
+  OrderStatus,
+  FrameSize,
+  FrameBackground,
+  EventType,
+  HowFoundFBR,
+  FlowerDeliveryMethod,
+  FrameDeliveryMethod,
+  ContactPreference,
+  CouponStatus,
+  YesNoInfo,
+} from "@/types/database";
 import type { Voucher } from "@/types/voucher";
-import { STATUS_LABELS, FRAME_SIZE_LABELS, FRAME_BACKGROUND_LABELS, EVENT_TYPE_LABELS, HOW_FOUND_FBR_LABELS } from "@/types/database";
+import {
+  STATUS_LABELS,
+  FRAME_SIZE_LABELS,
+  FRAME_BACKGROUND_LABELS,
+  EVENT_TYPE_LABELS,
+  HOW_FOUND_FBR_LABELS,
+  FLOWER_DELIVERY_METHOD_LABELS,
+  FRAME_DELIVERY_METHOD_LABELS,
+  CONTACT_PREFERENCE_LABELS,
+  COUPON_STATUS_LABELS,
+} from "@/types/database";
 
 // ── Date range presets ───────────────────────────────────────
 
@@ -225,6 +247,23 @@ export interface MetricsResult {
 
   // Extras
   extrasOrdersPct: number;
+
+  // Logística & comunicação
+  flowerDeliveryDist: Array<{ key: FlowerDeliveryMethod; label: string; count: number }>;
+  frameDeliveryDist: Array<{ key: FrameDeliveryMethod; label: string; count: number }>;
+  contactPrefDist: Array<{ key: ContactPreference; label: string; count: number }>;
+
+  // Cupões 5% — só conta encomendas onde já foi gerado (status != "na")
+  couponUsageDist: Array<{ key: CouponStatus; label: string; count: number }>;
+
+  // Upsells — quantas encomendas no período pediram cada um
+  // (separado por "sim" e "mais_info" para ver intenção firme vs em aberto)
+  upsellsBreakdown: Array<{
+    key: "extra_small_frames" | "christmas_ornaments" | "necklace_pendants";
+    label: string;
+    sim: number;
+    maisInfo: number;
+  }>;
 }
 
 export function computeMetrics(
@@ -315,6 +354,55 @@ export function computeMetrics(
     .slice(0, 5)
     .map(([partner_id, v]) => ({ partner_id, ...v }));
 
+  // Distribuição de método de envio das flores (cliente → FBR)
+  const flowerDeliveryDist = topByCount<FlowerDeliveryMethod>(
+    ordersInRange.map((o) => o.flower_delivery_method),
+    FLOWER_DELIVERY_METHOD_LABELS,
+    10,
+  );
+
+  // Distribuição de método de receção do quadro (FBR → cliente)
+  const frameDeliveryDist = topByCount<FrameDeliveryMethod>(
+    ordersInRange.map((o) => o.frame_delivery_method),
+    FRAME_DELIVERY_METHOD_LABELS,
+    10,
+  );
+
+  // Preferência de contacto
+  const contactPrefDist = topByCount<ContactPreference>(
+    ordersInRange.map((o) => o.contact_preference),
+    CONTACT_PREFERENCE_LABELS,
+    10,
+  );
+
+  // Cupões 5% — só encomendas onde o cupão já foi gerado (status != "na")
+  // O cupão é criado automaticamente ao passar para "A ser emoldurado".
+  const ordersWithCoupon = ordersInRange.filter((o) => o.coupon_status !== "na");
+  const couponUsageDist = topByCount<CouponStatus>(
+    ordersWithCoupon.map((o) => o.coupon_status),
+    COUPON_STATUS_LABELS,
+    10,
+  );
+
+  // Upsells — contagem de "sim" e "mais_info" por tipo de upsell
+  const countByValue = (
+    extract: (o: Order) => YesNoInfo | null,
+  ): { sim: number; maisInfo: number } => {
+    let sim = 0;
+    let maisInfo = 0;
+    for (const o of ordersInRange) {
+      const v = extract(o);
+      if (v === "sim") sim++;
+      else if (v === "mais_info") maisInfo++;
+    }
+    return { sim, maisInfo };
+  };
+  const upsellsBreakdown: MetricsResult["upsellsBreakdown"] = [
+    { key: "extra_small_frames",  label: "Quadros extra pequenos", ...countByValue((o) => o.extra_small_frames) },
+    { key: "christmas_ornaments", label: "Ornamentos de Natal",    ...countByValue((o) => o.christmas_ornaments) },
+    { key: "necklace_pendants",   label: "Pendentes para colares", ...countByValue((o) => o.necklace_pendants) },
+  ];
+
   // % com extras
   const withExtras = ordersInRange.filter((o) => {
     const e = o.extras_in_frame;
@@ -349,6 +437,11 @@ export function computeMetrics(
     vouchersConvertedPct,
     topPartners,
     extrasOrdersPct,
+    flowerDeliveryDist,
+    frameDeliveryDist,
+    contactPrefDist,
+    couponUsageDist,
+    upsellsBreakdown,
   };
 }
 

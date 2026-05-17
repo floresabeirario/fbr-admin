@@ -20,6 +20,11 @@ import {
   Palette,
   PartyPopper,
   Wifi,
+  Car,
+  Package,
+  MessageCircle,
+  Ticket,
+  Sparkle,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -51,7 +56,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatEUR } from "@/lib/format";
 import { STATUS_HEX } from "../preservacao/_styles";
-import type { OrderStatus } from "@/types/database";
+import type {
+  OrderStatus,
+  FlowerDeliveryMethod,
+  FrameDeliveryMethod,
+  ContactPreference,
+  CouponStatus,
+} from "@/types/database";
 
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
