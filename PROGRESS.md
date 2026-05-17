@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 17) — Chat interno: notificações de mensagens por ler
+## Fase actual: FASE 6 (parte 18) — Tabela Preservação: corrigir sobreposição de botões + "100% por pagar" cortado no workbench
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -42,6 +42,25 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 74 🛠️ Tabela Preservação — botões da célula de acções já não tapam o "100% por pagar" + workbench já não corta o pill
+
+Maria reparou que na linha **Flores à Beira-Rio (pré-reserva por contactar)** o pill **Pagamento "100% por pagar"** aparecia cortado para "1" e os botões "Marcar contactada" + "Sem resposta" pareciam sobrepostos. Investigado:
+
+1. A tabela é `table-fixed` ([src/app/(admin)/preservacao/preservacao-client.tsx:610](src/app/(admin)/preservacao/preservacao-client.tsx#L610)) com a célula de acções alocada a apenas **6%** — não chega para conter `Marcar contactada` (~128px) + `Sem resposta` (~100px) + `ExternalLink` (~20px). Como células `table-fixed` têm `overflow: visible` por defeito, o conteúdo transbordava por cima do Pagamento à esquerda.
+2. No workbench, o trigger do Pagamento usava `w-fit` natural do shadcn `SelectTrigger`. Se o pill (com o label "100% por pagar") ficasse maior do que a coluna `3fr` do grid `2fr_3fr`, o card `overflow-hidden` cortava-o à direita.
+
+**Fixes em [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx)**:
+- [linha 610-620](src/app/(admin)/preservacao/preservacao-client.tsx#L610-L620) — colgroup realocado: Cliente 16→13%, Localização (xl) 13→10%, Envio 12→11%, Estado 16→14%, Orçamento 10→9%; Acções **6→16%**. Total xl: 100% ✓.
+- [linha 493](src/app/(admin)/preservacao/preservacao-client.tsx#L493) — célula de acções passa a `flex flex-wrap items-center justify-end gap-1.5` — quando ambos os botões pré-reserva estão presentes, "Marcar contactada" fica na linha 1 e "Sem resposta + ExternalLink" cai para a linha 2 (em vez de transbordar).
+- [linha 216](src/app/(admin)/preservacao/preservacao-client.tsx#L216) — `PaymentSelect` ganha `max-w-full` no trigger como rede de segurança contra transbordo.
+
+**Fix em [src/app/(admin)/preservacao/[id]/workbench-client.tsx:1661](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L1661)**:
+- `SelectTrigger` do Pagamento passa a `w-full max-w-full` — pill respeita a largura da coluna `3fr` em vez de transbordar; `line-clamp-1` já existente no trigger base trunca se necessário.
+
+`tsc --noEmit` limpo. Sem migrações. **Maria: abrir /preservacao e confirmar (1) que na linha "Flores à Beira-Rio" o "100% por pagar" aparece inteiro e "Marcar contactada" cai por cima da "Sem resposta" em duas linhas; (2) abrir um workbench com pagamento "100% por pagar" e confirmar que o pill já não sai da borda direita do card Finanças.**
+
+---
 
 ### Sessão 73 🎨 Tabela Preservação — "Em mãos" sky → emerald (contraste com violet)
 
@@ -129,71 +148,6 @@ Maria pediu uma "bolinha com o nr de mensagens por ler na aba" do Chat interno. 
 Preflight (tsc + next build) OK. Smoke Playwright não disponível na máquina actual — **Maria: testar manualmente** (1) abrir chat com outro user e enviar mensagem; (2) confirmar bolinha azul aparece na sidebar do outro user; (3) clicar em "Chat interno" e confirmar que desaparece; (4) sair de /chat e confirmar que mensagens antigas não voltam a aparecer como por ler.
 
 **Migração para aplicar**: `043_chat_mark_read_rpc.sql`.
-
----
-
-### Sessão 69 💶 Finanças — selector de ano + Potencial total corrigido + alinhamento com Métricas
-
-Maria reportou três problemas na aba Finanças: (1) o card "Potencial total" estava a incluir pré-reservas e sem-resposta (encomendas não confirmadas); (2) os valores de Finanças e Métricas não batiam certo; (3) precisava conseguir ver os valores de cada ano (há encomendas de 2025).
-
-**1. Discrepância Finanças × Métricas — alinhada** ([src/lib/metrics.ts:114-127](src/lib/metrics.ts#L114-L127)):
-- Métricas usava lógica "if pago ≥ 30%, conta orçamento TOTAL" — sobrestimava a receita.
-- Finanças usava lógica proporcional (30%/70%/100%).
-- Mudou-se `orderRevenue` em `metrics.ts` para usar a mesma lógica proporcional. Agora Receita em Métricas = Receita em Finanças.
-
-**2. Potencial total — exclui pré-reservas/sem-resposta/canceladas** ([src/app/(admin)/financas/financas-client.tsx:1336-1356](src/app/(admin)/financas/financas-client.tsx#L1336-L1356)):
-- Antes: só excluía `cancelado`. Pré-reservas (`entrega_flores_agendar`) e sem-resposta (mesmo status + flag) inflavam o potencial.
-- Agora: exclui `cancelado` E `entrega_flores_agendar` (cobre os dois grupos, porque sem-resposta é só uma flag derivada em runtime do mesmo status — ver [src/lib/supabase/orders.ts:101-107](src/lib/supabase/orders.ts#L101-L107)).
-- Texto do card actualizado: "Potencial total {ano} — se todas as encomendas confirmadas estivessem 100% pagas".
-
-**3. Selector de ano em Finanças** ([src/app/(admin)/financas/financas-client.tsx:1422-1445](src/app/(admin)/financas/financas-client.tsx#L1422-L1445)):
-- Selector no topo do card Faturação. Primeira opção: **"Todos (desde sempre)"**; depois lista de anos calculada a partir dos dados (event_date de orders, created_at de vouchers, expense_date de despesas) + ano actual garantido.
-- Em "Todos": KPIs mudam para "Receita/Despesas/Lucro total"; gráfico passa de meses para 1 barra por ano; Potencial mostra todas as encomendas confirmadas em qualquer ano.
-- **Regra de atribuição ao ano** (a Maria especificou):
-  - Encomendas → ano da **data do evento** (`event_date`).
-  - Vales → ano de **criação** (`created_at`).
-  - Despesas → ano da **data da despesa** (`expense_date`).
-- KPIs adaptam-se: no ano actual mostra "Receita do mês / ano / Despesas do mês / Lucro do mês" + linha extra "Despesas/Lucro ano". Em anos passados (2025, etc.) esconde os KPIs mensais e mostra só os anuais (não faz sentido "Receita deste mês" para 2025).
-- Gráfico de barras passou de "últimos 12 meses" para "12 meses do ano seleccionado (Jan→Dez)".
-- Potencial total filtra encomendas cuja `event_date` cai no ano seleccionado.
-
-**Alterações de query** ([src/app/(admin)/financas/page.tsx:42](src/app/(admin)/financas/page.tsx#L42)):
-- Adicionado `event_date` ao SELECT dos orders + tipo `Pick<Order, …>` correspondente em [financas-client.tsx:151](src/app/(admin)/financas/financas-client.tsx#L151) e no `FaturacaoOrder` interno.
-
-Preflight OK. Sem migrações.
-
----
-
-### Sessão 68 📱 Workbench Preservação — afinações mobile (coluna central primeiro + paddings menores)
-
-Maria reportou que o workbench mobile estava "todo partido" e pediu que a coluna central aparecesse primeiro. Pediu para não tocar no desktop. Mudanças só com utilities `lg:` (1024+) — abaixo disso aplicam-se os defaults novos:
-
-**1. Reordenar colunas em mobile** ([src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L731)):
-- `<main>` (detalhes principais) — `order-1 lg:order-none`
-- `<aside>` esquerda (Comunicações/Galeria) — `order-2 lg:order-none`
-- `<aside>` direita (Finanças/Parceria/Cupão) — `order-3 lg:order-none`
-
-Em desktop o grid de 12 colunas continua intocado; em mobile (`grid-cols-1`) a `order` resolve a sequência vertical.
-
-**2. Gap entre colunas/cards reduzido em mobile** — `gap-5` → `gap-4 lg:gap-5`; `space-y-5` → `space-y-4 lg:space-y-5` nas 3 colunas e no wrapper sticky da esquerda.
-
-**3. Padding do body** ([workbench-client.tsx:730](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L730)) — `p-3 sm:p-6` → `p-2 sm:p-4 lg:p-6` (apenas restitui o `p-6` em desktop, ganha respiração no mobile).
-
-**4. Padding dos Cards** ([src/app/(admin)/preservacao/[id]/_components/layout.tsx](src/app/(admin)/preservacao/[id]/_components/layout.tsx#L57)) — Card header `px-5 py-3` → `px-3 py-2 lg:px-5 lg:py-3`; Card body `p-5 space-y-4` → `p-3 lg:p-5 space-y-3 lg:space-y-4`. Desktop intocado.
-
-Preflight OK. Sem migrações. Maria deve testar em telemóvel para confirmar.
-
----
-
-### Sessão 67 💬 Comunicações — tab default por preferência + scroll WhatsApp ao fundo
-
-Dois ajustes UX no card "Comunicações" do workbench Preservação:
-
-**1. Tab default segue `contact_preference`** ([src/app/(admin)/preservacao/[id]/workbench-client.tsx:926](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L926)) — `<Tabs defaultValue={local.contact_preference === "whatsapp" ? "whatsapp" : "email"}>`. Se o cliente escolheu WhatsApp como contacto preferido no formulário, abre direto na tab WhatsApp; caso contrário (email ou null) abre em Email.
-
-**2. WhatsApp log abre no fim** ([src/components/whatsapp-log.tsx](src/components/whatsapp-log.tsx)) — adicionado `scrollRef` no container `max-h-[420px] overflow-y-auto` e `useEffect` que faz `el.scrollTop = el.scrollHeight` quando `sorted.length` muda. As mensagens continuam ordenadas asc (antigas em cima, novas em baixo, como WhatsApp), mas agora o scroll começa no fundo a mostrar as mais recentes; scroll para cima revela as antigas. Antes começava no topo.
-
-Preflight OK. Sem migrações.
 
 ---
 
@@ -347,7 +301,10 @@ Sem migrações novas. Push do código actual para Vercel. Para o cron funcionar
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-66)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-69)
+- **69** — Finanças: selector de ano + "Potencial total" exclui pré-reservas/sem-resposta/canceladas; `metrics.ts` usa lógica proporcional (igual a Finanças); regra de atribuição ao ano (orders → event_date, vouchers → created_at, despesas → expense_date)
+- **68** — Workbench Preservação mobile: coluna central `order-1`, gaps/paddings menores `<lg:` (desktop intocado)
+- **67** — Comunicações: tab default segue `contact_preference`; WhatsApp log abre scrollado ao fim
 - **66** — Healthchecks deixam de enviar email; bolinha 🟢🟡🔴 na sidebar Sistema; status persistido em `system_settings` via cron diário
 - **65** — Fase B comunicações: registo manual de WhatsApp no workbench Preservação (mig 042) — parser do export PT, bolhas estilo WhatsApp, importar/editar/apagar, screenshots como URLs Drive
 - **64** — Fase A comunicações: biblioteca de 29 templates pré-populados PT+EN com variáveis `{nome}`/`{valor_sinal}`/`{dados_pagamento}` (mig 041); UI Sistema → Templates; picker no workbench Preservação + Vale-Presente; sem IA

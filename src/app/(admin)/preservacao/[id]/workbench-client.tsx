@@ -1658,7 +1658,7 @@ export default function WorkbenchClient({
                     </Field>
                     <Field label="Pagamento">
                       <Select value={local.payment_status} onValueChange={(v) => onPaymentStatusChange(v as PaymentStatus)}>
-                        <SelectTrigger className={`${sel} font-medium ${PAYMENT_COLORS[local.payment_status] ?? ""}`}>
+                        <SelectTrigger className={`${sel} font-medium w-full max-w-full ${PAYMENT_COLORS[local.payment_status] ?? ""}`}>
                           <SelectValue labels={PAYMENT_STATUS_LABELS} />
                         </SelectTrigger>
                         <SelectContent>

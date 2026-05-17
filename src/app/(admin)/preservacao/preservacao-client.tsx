@@ -213,7 +213,7 @@ export function PaymentSelect({
       <SelectTrigger
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`h-7 text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition`}
+        className={`h-7 max-w-full text-[11px] font-semibold border rounded-md px-2.5 ${colorClass} hover:brightness-95 transition`}
       >
         {busy ? (
           <Loader2 className="h-3 w-3 animate-spin" />
@@ -490,7 +490,7 @@ function OrderRow({
         />
       </td>
       <td className="px-4 py-1.5 text-right">
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           {canEdit && isPreReserva && !currentContacted && (
             <button
               onClick={(e) => { e.stopPropagation(); markContacted(); }}
@@ -610,14 +610,14 @@ function GroupSection({
           <table className="w-full min-w-[760px] xl:min-w-[920px] text-left table-fixed">
             <colgroup>
               <col className="w-[3%]" />
-              <col className="w-[16%]" />
+              <col className="w-[13%]" />
               <col className="w-[10%]" />
-              <col className="hidden xl:table-column xl:w-[13%]" />
-              <col className="w-[12%]" />
-              <col className="w-[16%]" />
-              <col className="w-[10%]" />
+              <col className="hidden xl:table-column xl:w-[10%]" />
+              <col className="w-[11%]" />
               <col className="w-[14%]" />
-              <col className="w-[6%]" />
+              <col className="w-[9%]" />
+              <col className="w-[14%]" />
+              <col className="w-[16%]" />
             </colgroup>
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
