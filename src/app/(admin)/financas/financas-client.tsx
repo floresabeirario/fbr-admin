@@ -1329,11 +1329,15 @@ function FaturacaoTab({
     return [...years].sort((a, b) => b - a); // mais recente primeiro
   }, [orders, vouchers, expenses, currentYear]);
 
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  // "all" = totais desde sempre (sem filtro de ano)
+  const [selectedYear, setSelectedYear] = useState<number | "all">(currentYear);
+  const isAllTime = selectedYear === "all";
   const isCurrentYear = selectedYear === currentYear;
 
-  const yearStart = startOfYear(new Date(selectedYear, 0, 1));
-  const yearEnd = endOfYear(new Date(selectedYear, 11, 31));
+  // Quando "Todos": range artificial gigantesco que apanha tudo.
+  // Quando ano específico: range Jan→Dez desse ano.
+  const yearStart = isAllTime ? new Date(1970, 0, 1) : startOfYear(new Date(selectedYear as number, 0, 1));
+  const yearEnd = isAllTime ? new Date(2999, 11, 31) : endOfYear(new Date(selectedYear as number, 11, 31));
 
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
@@ -1347,9 +1351,9 @@ function FaturacaoTab({
   };
 
   // Potencial 100% pago: encomendas activas (não canceladas, não pré-reservas/sem-resposta)
-  // cuja data do evento está no ano seleccionado. Pré-reservas e sem-resposta partilham
-  // o estado `entrega_flores_agendar` (sem-resposta é só uma flag derivada em runtime)
-  // — ambos excluídos porque ainda não estão confirmados. Vales não somam aqui.
+  // cuja data do evento está no ano seleccionado (ou desde sempre se "Todos"). Pré-reservas
+  // e sem-resposta partilham o estado `entrega_flores_agendar` (sem-resposta é só uma flag
+  // derivada em runtime) — ambos excluídos porque ainda não estão confirmados. Vales não somam.
   const potentialFullPay = orders
     .filter((o) =>
       o.status !== "cancelado" &&
@@ -1380,6 +1384,7 @@ function FaturacaoTab({
     orders.filter((o) => inRange(o.event_date, prevMonthStart, prevMonthEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
     vouchers.filter((v) => inRange(v.created_at, prevMonthStart, prevMonthEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
 
+  // "Receita do ano" passa a ser "Receita total" quando isAllTime.
   const revenueYear =
     orders.filter((o) => inRange(o.event_date, yearStart, yearEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
     vouchers.filter((v) => inRange(v.created_at, yearStart, yearEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
@@ -1395,19 +1400,38 @@ function FaturacaoTab({
   const profitYear = revenueYear - expensesYear;
   const monthDelta = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : null;
 
-  // Receita por mês: 12 meses do ano seleccionado (Jan→Dez).
-  // Orders por data do evento, vales por data de criação, despesas por data da despesa.
-  const monthlyData = useMemo(() => {
-    const buckets: { month: string; label: string; revenue: number; expenses: number }[] = [];
+  // Gráfico:
+  //  - ano específico: 12 barras (Jan→Dez desse ano)
+  //  - "Todos": 1 barra por ano disponível
+  const chartData = useMemo(() => {
+    if (isAllTime) {
+      // Ascendente para o gráfico (mais antigo → mais recente).
+      const yearsAsc = [...availableYears].sort((a, b) => a - b);
+      return yearsAsc.map((y) => {
+        const start = startOfYear(new Date(y, 0, 1));
+        const end = endOfYear(new Date(y, 11, 31));
+        const rev =
+          orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+          vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
+        const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
+        return {
+          key: String(y),
+          label: String(y),
+          revenue: rev,
+          expenses: exp,
+        };
+      });
+    }
+    const buckets: { key: string; label: string; revenue: number; expenses: number }[] = [];
     for (let m = 0; m < 12; m++) {
-      const start = startOfMonth(new Date(selectedYear, m, 1));
-      const end = endOfMonth(new Date(selectedYear, m, 1));
+      const start = startOfMonth(new Date(selectedYear as number, m, 1));
+      const end = endOfMonth(new Date(selectedYear as number, m, 1));
       const rev =
         orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
         vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
       const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
       buckets.push({
-        month: format(start, "yyyy-MM"),
+        key: format(start, "yyyy-MM"),
         label: format(start, "MMM", { locale: pt }),
         revenue: rev,
         expenses: exp,
@@ -1415,9 +1439,9 @@ function FaturacaoTab({
     }
     return buckets;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, vouchers, expenses, selectedYear]);
+  }, [orders, vouchers, expenses, selectedYear, isAllTime, availableYears]);
 
-  const maxBarValue = Math.max(...monthlyData.map((m) => Math.max(m.revenue, m.expenses)), 1);
+  const maxBarValue = Math.max(...chartData.map((m) => Math.max(m.revenue, m.expenses)), 1);
 
   return (
     <div className="space-y-4">
@@ -1426,11 +1450,15 @@ function FaturacaoTab({
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4 text-cocoa-700" />
           <span className="text-sm font-medium text-cocoa-900">Ano:</span>
-          <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-            <SelectTrigger className="h-9 w-[110px]">
+          <Select
+            value={isAllTime ? "all" : String(selectedYear)}
+            onValueChange={(v) => setSelectedYear(v === "all" ? "all" : Number(v))}
+          >
+            <SelectTrigger className="h-9 w-[170px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">Todos (desde sempre)</SelectItem>
               {availableYears.map((y) => (
                 <SelectItem key={y} value={String(y)}>
                   {y}{y === currentYear ? " (actual)" : ""}
@@ -1466,9 +1494,9 @@ function FaturacaoTab({
           </>
         ) : (
           <>
-            <KpiBox label={`Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
-            <KpiBox label={`Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
-            <KpiBox label={`Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
+            <KpiBox label={isAllTime ? "Receita total" : `Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+            <KpiBox label={isAllTime ? "Despesas totais" : `Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+            <KpiBox label={isAllTime ? "Lucro total" : `Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
           </>
         )}
       </div>
@@ -1488,10 +1516,14 @@ function FaturacaoTab({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">
-              Potencial total {selectedYear} — se todas as encomendas confirmadas estivessem 100% pagas
+              {isAllTime
+                ? "Potencial total (desde sempre) — se todas as encomendas confirmadas estivessem 100% pagas"
+                : `Potencial total ${selectedYear} — se todas as encomendas confirmadas estivessem 100% pagas`}
             </h3>
             <p className="text-xs text-violet-800/80 dark:text-violet-300/80 mt-0.5">
-              Encomendas com data de evento em {selectedYear}. Exclui pré-reservas, sem-resposta e canceladas. Vales não somam aqui.
+              {isAllTime
+                ? "Todas as encomendas confirmadas, em qualquer ano. Exclui pré-reservas, sem-resposta e canceladas. Vales não somam aqui."
+                : `Encomendas com data de evento em ${selectedYear}. Exclui pré-reservas, sem-resposta e canceladas. Vales não somam aqui.`}
             </p>
           </div>
         </div>
@@ -1523,11 +1555,11 @@ function FaturacaoTab({
         </div>
       </div>
 
-      {/* Bar chart manual: últimos 12 meses */}
+      {/* Bar chart: 12 meses do ano ou 1 barra por ano se "Todos" */}
       <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-cocoa-900">
-            Receita vs despesas — {selectedYear}
+            {isAllTime ? "Receita vs despesas por ano" : `Receita vs despesas — ${selectedYear}`}
           </h3>
           <div className="flex items-center gap-3 text-xs text-cocoa-700">
             <span className="inline-flex items-center gap-1.5">
@@ -1539,8 +1571,8 @@ function FaturacaoTab({
           </div>
         </div>
         <div className="flex items-end gap-1 h-48">
-          {monthlyData.map((m) => (
-            <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+          {chartData.map((m) => (
+            <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
               <div className="w-full flex items-end justify-center gap-0.5 h-40">
                 <div
                   className="w-2.5 sm:w-3 bg-emerald-400 rounded-t transition-all"
