@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   MessageCircle,
   Send,
@@ -68,6 +68,7 @@ export default function WhatsAppLog({
   const [importOpen, setImportOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [editing, setEditing] = useState<WhatsAppEntry | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const sorted = useMemo(
     () =>
@@ -76,6 +77,11 @@ export default function WhatsAppLog({
       ),
     [entries],
   );
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [sorted.length]);
 
   return (
     <div className="space-y-3">
@@ -119,7 +125,7 @@ export default function WhatsAppLog({
           WhatsApp Web (menu da conversa → Mais → Exportar conversa → Sem multimédia).
         </div>
       ) : (
-        <div className="max-h-[420px] overflow-y-auto rounded-lg border border-cream-200 bg-cream-50 p-3 space-y-2">
+        <div ref={scrollRef} className="max-h-[420px] overflow-y-auto rounded-lg border border-cream-200 bg-cream-50 p-3 space-y-2">
           {sorted.map((entry, idx) => {
             const prev = idx > 0 ? sorted[idx - 1] : null;
             const showDate =

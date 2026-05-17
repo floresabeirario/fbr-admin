@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 13) — Registo manual de WhatsApp no workbench (Fase B do plano de comunicações)
+## Fase actual: FASE 6 (parte 14) — Healthchecks sem email + bolinha colorida na sidebar
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -42,6 +42,47 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 67 💬 Comunicações — tab default por preferência + scroll WhatsApp ao fundo
+
+Dois ajustes UX no card "Comunicações" do workbench Preservação:
+
+**1. Tab default segue `contact_preference`** ([src/app/(admin)/preservacao/[id]/workbench-client.tsx:926](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L926)) — `<Tabs defaultValue={local.contact_preference === "whatsapp" ? "whatsapp" : "email"}>`. Se o cliente escolheu WhatsApp como contacto preferido no formulário, abre direto na tab WhatsApp; caso contrário (email ou null) abre em Email.
+
+**2. WhatsApp log abre no fim** ([src/components/whatsapp-log.tsx](src/components/whatsapp-log.tsx)) — adicionado `scrollRef` no container `max-h-[420px] overflow-y-auto` e `useEffect` que faz `el.scrollTop = el.scrollHeight` quando `sorted.length` muda. As mensagens continuam ordenadas asc (antigas em cima, novas em baixo, como WhatsApp), mas agora o scroll começa no fundo a mostrar as mais recentes; scroll para cima revela as antigas. Antes começava no topo.
+
+Preflight OK. Sem migrações.
+
+---
+
+### Sessão 66 🚦 Healthchecks deixam de enviar email — bolinha colorida na sidebar
+
+Maria recebeu o email diário do cron `🚨 FBR Admin — 14 erro(s) no healthcheck diário` (com 14 tabelas a reportar "Erro:" vazio) e pediu para parar os emails e em vez disso ter um indicador visual na aba Sistema: 🟢 OK / 🟡 avisos / 🔴 erros.
+
+**1. Cron deixa de enviar emails** ([src/app/api/cron/healthcheck/route.ts](src/app/api/cron/healthcheck/route.ts)) — removida toda a função `sendAlertEmail` e dependência implícita do Resend. O cron continua a correr 1×/dia às 07:00 (Vercel Cron, `vercel.json`) mas agora **escreve o resumo em `system_settings`** (chave `healthcheck_status`) em vez de enviar email. Resposta JSON inclui `{ ran_at, total, ok, warnings, errors, info, problems[], persisted }`.
+
+**2. Helper partilhado** ([src/lib/healthcheck-cache.ts](src/lib/healthcheck-cache.ts)):
+- `HEALTHCHECK_STATUS_KEY = "healthcheck_status"` — chave em `system_settings`.
+- `summariseHealthchecks(checks)` — produz `{ ran_at, total, ok, warnings, errors, info, problems: [{id, label, status, details}] }`.
+- `overallStatus(summary)` — devolve `"ok"|"warning"|"error"` (erro > aviso > ok).
+- Tipo `HealthcheckSummary` reutilizado pelo endpoint de leitura.
+
+**3. Novo endpoint de leitura** ([src/app/api/healthcheck-status/route.ts](src/app/api/healthcheck-status/route.ts)) — `GET /api/healthcheck-status`, admin-only (403 para viewer). Lê `system_settings` via cliente authenticated (não admin client), parseia o JSON guardado, devolve `{ summary }` ou `{ summary: null }` se ainda não correu.
+
+**4. Bolinha na sidebar** ([src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx)):
+- `useEffect` fetcha `/api/healthcheck-status` quando o profile é admin (re-fetch ao mudar de path para apanhar updates).
+- Quando o item da nav é "Sistema" e há summary, mostra:
+  - **Expandido**: bolinha 2×2 px à direita do label (`ml-auto`).
+  - **Colapsado**: bolinha sobre o ícone (`absolute -top-0.5 -right-0.5`) com `ring-2 ring-surface` para destacar.
+- Cor: `bg-emerald-500` (ok) / `bg-amber-500` (warning) / `bg-rose-500` (error).
+- Tooltip via `title`: `"X erros · Y avisos · verificado dd/MM HH:mm"`.
+
+**5. Melhor reporting de erros** ([src/lib/healthchecks.ts](src/lib/healthchecks.ts)):
+- Loop das tabelas agora apanha excepções com `try/catch` e devolve mensagem stringificada.
+- Quando `error.message` está vazia (que era o caso no email das 14 tabelas), mostra `"Erro sem mensagem (code=X) — provável problema de rede ou env vars"` em vez de só `"Erro:"`.
+- Isto não _resolve_ a causa do email (cron a falhar a ler todas as tabelas) — mas dá visibilidade na próxima vez. **Pendência**: investigar porque é que o cron com `createAdminClient()` está a falhar em prod (suspeito de NEXT_PUBLIC_SUPABASE_URL malformado ou timeout no edge runtime).
+
+**Validação:** `npm run preflight` (tsc + next build) passa. `/api/healthcheck-status` aparece no manifest das rotas.
 
 ### Sessão 65 💬 Fase B — Registo manual de WhatsApp no workbench
 

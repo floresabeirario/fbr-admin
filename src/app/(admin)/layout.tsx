@@ -86,6 +86,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profile, setProfile] = useState<{ name: string; photo: string; role: Role } | null>(null);
+  const [healthSummary, setHealthSummary] = useState<{
+    ok: number;
+    warnings: number;
+    errors: number;
+    ran_at: string;
+  } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -96,6 +102,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (profile?.role !== "admin") return;
+    let cancelled = false;
+    fetch("/api/healthcheck-status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((body) => {
+        if (cancelled || !body?.summary) return;
+        setHealthSummary({
+          ok: body.summary.ok,
+          warnings: body.summary.warnings,
+          errors: body.summary.errors,
+          ran_at: body.summary.ran_at,
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [profile?.role, pathname]);
+
+  const healthStatus: "ok" | "warning" | "error" | null = healthSummary
+    ? healthSummary.errors > 0 ? "error"
+      : healthSummary.warnings > 0 ? "warning"
+      : "ok"
+    : null;
+  const healthTooltip = healthSummary
+    ? `${healthSummary.errors} erro${healthSummary.errors === 1 ? "" : "s"} · ${healthSummary.warnings} aviso${healthSummary.warnings === 1 ? "" : "s"} · verificado ${new Date(healthSummary.ran_at).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+    : "";
 
   // Auto-close mobile drawer ao mudar de rota — padrão "store info from
   // previous renders" para não violar react-hooks/set-state-in-effect.
@@ -201,12 +234,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               : pathname.startsWith(href);
           const isSub = !!parent;
           const isCollapsedOnDesktop = isDesktop && collapsed;
+          const isSistema = label === "Sistema";
+          const showDot = isSistema && healthStatus !== null;
+          const dotColor =
+            healthStatus === "error" ? "bg-rose-500"
+            : healthStatus === "warning" ? "bg-amber-500"
+            : "bg-emerald-500";
+          const titleParts: string[] = [];
+          if (isCollapsedOnDesktop) titleParts.push(label);
+          if (showDot) titleParts.push(healthTooltip);
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg text-sm font-medium transition-colors relative",
                 // Mobile: tap target maior
                 isDesktop ? "py-2" : "py-2.5",
                 isSub && !isCollapsedOnDesktop
@@ -216,10 +258,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   ? "bg-cream-100 text-cocoa-900"
                   : "text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900",
               )}
-              title={isCollapsedOnDesktop ? label : undefined}
+              title={titleParts.length > 0 ? titleParts.join(" — ") : undefined}
             >
-              <Icon className={cn("shrink-0", isSub ? "h-3.5 w-3.5" : "h-4 w-4")} />
+              <span className="relative shrink-0">
+                <Icon className={cn(isSub ? "h-3.5 w-3.5" : "h-4 w-4")} />
+                {showDot && isCollapsedOnDesktop && (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-surface",
+                      dotColor,
+                    )}
+                  />
+                )}
+              </span>
               {!isCollapsedOnDesktop && <span className="truncate">{label}</span>}
+              {showDot && !isCollapsedOnDesktop && (
+                <span
+                  aria-label={`Healthchecks: ${healthStatus}`}
+                  className={cn("ml-auto h-2 w-2 rounded-full shrink-0", dotColor)}
+                />
+              )}
             </Link>
           );
         })}

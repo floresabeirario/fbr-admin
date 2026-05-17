@@ -923,7 +923,7 @@ export default function WorkbenchClient({
                   />
                 </div>
 
-                <Tabs defaultValue="email">
+                <Tabs defaultValue={local.contact_preference === "whatsapp" ? "whatsapp" : "email"}>
                   <TabsList className="bg-cream-50 border border-cream-200 w-full">
                     <TabsTrigger value="email" className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-blue-700">
                       <Mail className="h-3.5 w-3.5 mr-1.5" />

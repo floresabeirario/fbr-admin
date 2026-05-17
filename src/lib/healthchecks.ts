@@ -66,16 +66,29 @@ export async function runHealthchecks(
   }
 
   for (const table of TABLES) {
-    const { error, count } = await supabase
-      .from(table)
-      .select("*", { count: "exact", head: true });
+    let error: { message?: string; code?: string } | null = null;
+    let count: number | null = null;
+    try {
+      const res = await supabase
+        .from(table)
+        .select("*", { count: "exact", head: true });
+      error = res.error;
+      count = res.count;
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String(e) };
+    }
+    const errMsg = error
+      ? error.message && error.message.trim().length > 0
+        ? error.message
+        : `Erro sem mensagem (code=${error.code ?? "n/a"}) — provável problema de rede ou env vars`
+      : "";
     checks.push({
       id: `table-${table}`,
       label: `Tabela ${table}`,
       category: "database",
       status: error ? "error" : "ok",
       details: error
-        ? `Erro: ${error.message}`
+        ? `Erro: ${errMsg}`
         : `Acessível${count !== null ? ` — ${count} registos` : ""}`,
       count: count ?? undefined,
       hint: error?.code === "42P01" ? "Tabela inexistente — corre a migração correspondente" : undefined,
