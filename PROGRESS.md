@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 18) — Tabela Preservação: corrigir sobreposição de botões + "100% por pagar" cortado no workbench
+## Fase actual: FASE 6 (parte 18) — Tabela Preservação: remover botão "Sem resposta" + corrigir pill "100% por pagar" no workbench
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,22 +43,20 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 74 🛠️ Tabela Preservação — botões da célula de acções já não tapam o "100% por pagar" + workbench já não corta o pill
+### Sessão 74 🛠️ Tabela Preservação — remover botão "Sem resposta" (drag-and-drop chega) + fix pill "100% por pagar" no workbench
 
-Maria reparou que na linha **Flores à Beira-Rio (pré-reserva por contactar)** o pill **Pagamento "100% por pagar"** aparecia cortado para "1" e os botões "Marcar contactada" + "Sem resposta" pareciam sobrepostos. Investigado:
+Maria reparou dois problemas: (a) no workbench, o pill **Pagamento "100% por pagar"** estava a sair pela borda direita do card Finanças; (b) na tabela, os badges da célula de acções estavam sobrepostos. Tentativa inicial de realocar larguras das colunas + `flex-wrap` foi rejeitada pela Maria — "está terrível, preferia como estava dantes". Pediu também para remover o botão **Sem resposta**, que não é necessário (já consegue arrastar para o grupo "Sem resposta" via drag-and-drop).
 
-1. A tabela é `table-fixed` ([src/app/(admin)/preservacao/preservacao-client.tsx:610](src/app/(admin)/preservacao/preservacao-client.tsx#L610)) com a célula de acções alocada a apenas **6%** — não chega para conter `Marcar contactada` (~128px) + `Sem resposta` (~100px) + `ExternalLink` (~20px). Como células `table-fixed` têm `overflow: visible` por defeito, o conteúdo transbordava por cima do Pagamento à esquerda.
-2. No workbench, o trigger do Pagamento usava `w-fit` natural do shadcn `SelectTrigger`. Se o pill (com o label "100% por pagar") ficasse maior do que a coluna `3fr` do grid `2fr_3fr`, o card `overflow-hidden` cortava-o à direita.
+**Fix table — [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx)**:
+- Larguras do colgroup [linhas 609-619](src/app/(admin)/preservacao/preservacao-client.tsx#L609-L619): **restauradas ao original** (Cliente 16%, Estado 16%, Pagamento 14%, Acções 6%, etc.).
+- Célula de acções [linha 481](src/app/(admin)/preservacao/preservacao-client.tsx#L481): voltou a `flex items-center justify-end gap-2` (sem `flex-wrap`).
+- **Botão "Sem resposta" removido** (e função `moveToSemResposta` órfã removida; import de `Clock` removido). Restam na célula: "Marcar contactada" (quando pré-reserva por contactar) + "Voltar para Pré-reservas" (quando manualmente marcada como sem-resposta) + ExternalLink. O grupo "Sem resposta" continua a existir — Maria move para lá por drag-and-drop.
+- `PaymentSelect` mantém o `max-w-full` adicionado [linha 216](src/app/(admin)/preservacao/preservacao-client.tsx#L216) — rede de segurança caso a célula transborde.
 
-**Fixes em [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx)**:
-- [linha 610-620](src/app/(admin)/preservacao/preservacao-client.tsx#L610-L620) — colgroup realocado: Cliente 16→13%, Localização (xl) 13→10%, Envio 12→11%, Estado 16→14%, Orçamento 10→9%; Acções **6→16%**. Total xl: 100% ✓.
-- [linha 493](src/app/(admin)/preservacao/preservacao-client.tsx#L493) — célula de acções passa a `flex flex-wrap items-center justify-end gap-1.5` — quando ambos os botões pré-reserva estão presentes, "Marcar contactada" fica na linha 1 e "Sem resposta + ExternalLink" cai para a linha 2 (em vez de transbordar).
-- [linha 216](src/app/(admin)/preservacao/preservacao-client.tsx#L216) — `PaymentSelect` ganha `max-w-full` no trigger como rede de segurança contra transbordo.
+**Fix workbench — [src/app/(admin)/preservacao/[id]/workbench-client.tsx:1661](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L1661)**:
+- `SelectTrigger` do Pagamento passa a `w-full max-w-full` — pill respeita a largura da coluna `3fr` do grid `2fr_3fr` em vez de transbordar; `line-clamp-1` já existente no trigger base trunca se necessário.
 
-**Fix em [src/app/(admin)/preservacao/[id]/workbench-client.tsx:1661](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L1661)**:
-- `SelectTrigger` do Pagamento passa a `w-full max-w-full` — pill respeita a largura da coluna `3fr` em vez de transbordar; `line-clamp-1` já existente no trigger base trunca se necessário.
-
-`tsc --noEmit` limpo. Sem migrações. **Maria: abrir /preservacao e confirmar (1) que na linha "Flores à Beira-Rio" o "100% por pagar" aparece inteiro e "Marcar contactada" cai por cima da "Sem resposta" em duas linhas; (2) abrir um workbench com pagamento "100% por pagar" e confirmar que o pill já não sai da borda direita do card Finanças.**
+`tsc --noEmit` limpo. Sem migrações. **Maria: abrir /preservacao para confirmar que o layout está igual ao original (Cliente não quebra, colunas alinhadas) e que o botão "Sem resposta" desapareceu da célula de acções; abrir um workbench com pagamento "100% por pagar" e confirmar que o pill já não sai da borda direita do card Finanças.**
 
 ---
 

@@ -20,7 +20,6 @@ import {
   Image as ImageIcon,
   Download,
   ListOrdered,
-  Clock,
   Undo2,
   Archive,
   ArchiveRestore,
@@ -347,17 +346,6 @@ function OrderRow({
     });
   }
 
-  function moveToSemResposta() {
-    startTransition(async () => {
-      try {
-        await updateOrderAction(order.id, { manually_no_response: true });
-        router.refresh();
-      } catch {
-        // silencioso — UI volta ao estado anterior no refresh
-      }
-    });
-  }
-
   function moveOutOfSemResposta() {
     startTransition(async () => {
       try {
@@ -490,7 +478,7 @@ function OrderRow({
         />
       </td>
       <td className="px-4 py-1.5 text-right">
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-2">
           {canEdit && isPreReserva && !currentContacted && (
             <button
               onClick={(e) => { e.stopPropagation(); markContacted(); }}
@@ -500,17 +488,6 @@ function OrderRow({
             >
               {isPending && optimisticContacted ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               Marcar contactada
-            </button>
-          )}
-          {canEdit && isPreReserva && !inSemResposta && !autoFlaggedSemResposta && (
-            <button
-              onClick={(e) => { e.stopPropagation(); moveToSemResposta(); }}
-              disabled={isPending}
-              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-surface px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
-              title="Mover para Sem resposta"
-            >
-              <Clock className="h-3 w-3" />
-              Sem resposta
             </button>
           )}
           {canEdit && inSemResposta && order.manually_no_response && !autoFlaggedSemResposta && (
@@ -610,14 +587,14 @@ function GroupSection({
           <table className="w-full min-w-[760px] xl:min-w-[920px] text-left table-fixed">
             <colgroup>
               <col className="w-[3%]" />
-              <col className="w-[13%]" />
-              <col className="w-[10%]" />
-              <col className="hidden xl:table-column xl:w-[10%]" />
-              <col className="w-[11%]" />
-              <col className="w-[14%]" />
-              <col className="w-[9%]" />
-              <col className="w-[14%]" />
               <col className="w-[16%]" />
+              <col className="w-[10%]" />
+              <col className="hidden xl:table-column xl:w-[13%]" />
+              <col className="w-[12%]" />
+              <col className="w-[16%]" />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+              <col className="w-[6%]" />
             </colgroup>
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
