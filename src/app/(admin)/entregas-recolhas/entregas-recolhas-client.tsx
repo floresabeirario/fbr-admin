@@ -287,24 +287,35 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
     buckets.maisTarde.length;
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 shadow-sm flex items-center justify-center">
-          <Truck className="h-6 w-6 text-white" />
+    <div className="p-3 sm:p-6 lg:p-8 space-y-3 sm:space-y-4 max-w-[1600px] mx-auto">
+      {/* Header — título + pesquisa na mesma linha em desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 shadow-sm flex items-center justify-center shrink-0">
+            <Truck className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-cocoa-900 leading-tight">
+              Entregas e Recolhas
+            </h1>
+            <p className="text-xs text-cocoa-700">
+              Agenda de quem vai fazer recolhas no local e envios CTT
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-cocoa-900">
-            Entregas e Recolhas
-          </h1>
-          <p className="text-sm text-cocoa-700">
-            Agenda de quem vai fazer recolhas no local e envios CTT
-          </p>
+        <div className="relative w-full sm:w-72 shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Procurar cliente, local ou ID…"
+            className="pl-9 h-9"
+          />
         </div>
       </div>
 
-      {/* Filtros por tipo */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Filtros por tipo — chips compactos */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <KindFilterCard
           label="Todas"
           icon={Filter}
@@ -336,17 +347,6 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
           active={kindFilter === "envio_ctt_quadro"}
           count={counts.envio_ctt_quadro}
           onClick={() => setKindFilter("envio_ctt_quadro")}
-        />
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-cocoa-500" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Procurar por cliente, localização ou ID…"
-          className="pl-9 h-9"
         />
       </div>
 
@@ -557,18 +557,18 @@ function KindFilterCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-2xl border bg-gradient-to-br p-4 text-left transition-all hover:shadow-sm",
+        "rounded-xl border bg-gradient-to-br px-3 py-2 flex items-center gap-2.5 text-left transition-all hover:shadow-sm",
         color,
-        active && "ring-2 ring-offset-2 ring-cocoa-900/40 shadow-sm",
+        active && "ring-2 ring-offset-1 ring-cocoa-900/40 shadow-sm",
       )}
     >
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-cocoa-900/70" />
-        <span className="text-xs uppercase tracking-wider font-semibold text-cocoa-900/80">
-          {label}
-        </span>
-      </div>
-      <div className="text-2xl font-semibold text-cocoa-900 mt-2">{count}</div>
+      <Icon className="h-4 w-4 text-cocoa-900/70 shrink-0" />
+      <span className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-900/80 flex-1 truncate">
+        {label}
+      </span>
+      <span className="text-lg font-semibold text-cocoa-900 tabular-nums leading-none">
+        {count}
+      </span>
     </button>
   );
 }
