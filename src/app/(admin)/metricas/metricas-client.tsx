@@ -83,6 +83,35 @@ const PIE_PALETTE_BG    = ["#fb7185", "#f472b6", "#e879f9", "#c084fc", "#fbbf24"
 const PIE_PALETTE_EVENT = ["#34d399", "#a3e635", "#facc15", "#fb923c", "#fb7185"]; // verde → rosa
 const ACQ_PALETTE       = ["#c084fc", "#60a5fa", "#34d399", "#facc15", "#fb923c"];
 
+// Paletas semânticas — espelham as cores Tailwind usadas como badges
+// noutras zonas da app (types/database.ts, preservacao, entregas-recolhas)
+// para que um cliente "CTT" tenha sempre a mesma cor onde quer que apareça.
+const FLOWER_DELIVERY_HEX: Record<FlowerDeliveryMethod, string> = {
+  maos:           "#10b981", // emerald-500 (em mãos)
+  ctt:            "#0ea5e9", // sky-500 (CTT)
+  recolha_evento: "#8b5cf6", // violet-500 (recolha no local)
+  nao_sei:        "#a8a29e", // stone-400 (não sei)
+};
+const FRAME_DELIVERY_HEX: Record<FrameDeliveryMethod, string> = {
+  maos:    "#10b981",
+  ctt:     "#0ea5e9",
+  nao_sei: "#a8a29e",
+};
+const CONTACT_PREF_HEX: Record<ContactPreference, string> = {
+  whatsapp: "#10b981", // verde estilo WhatsApp
+  email:    "#0ea5e9", // sky
+};
+const COUPON_STATUS_HEX: Record<CouponStatus, string> = {
+  utilizado:     "#10b981", // emerald (sucesso)
+  nao_utilizado: "#f59e0b", // amber (em aberto)
+  na:            "#a8a29e", // stone (não aplicável)
+};
+// Para upsells: "sim" sólido emerald, "mais info" amber (em dúvida)
+const UPSELL_HEX = {
+  sim:      "#10b981",
+  maisInfo: "#f59e0b",
+};
+
 const formatEuro = (value: number): string => formatEUR(value, { rounded: true });
 
 function PctBadge({ pct }: { pct: number | null }) {
@@ -499,6 +528,47 @@ export default function MetricasClient({
             </ChartCard>
           </div>
 
+          {/* Logística & comunicação — cores semânticas alinhadas com badges */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <ChartCard title="Método de envio das flores" icon={Car} iconColor="text-violet-500">
+              <PieDist
+                data={metrics.flowerDeliveryDist}
+                fills={metrics.flowerDeliveryDist.map((d) => FLOWER_DELIVERY_HEX[d.key])}
+              />
+            </ChartCard>
+            <ChartCard title="Método de receção do quadro" icon={Package} iconColor="text-sky-500">
+              <PieDist
+                data={metrics.frameDeliveryDist}
+                fills={metrics.frameDeliveryDist.map((d) => FRAME_DELIVERY_HEX[d.key])}
+              />
+            </ChartCard>
+            <ChartCard title="Preferência de contacto" icon={MessageCircle} iconColor="text-emerald-500">
+              <PieDist
+                data={metrics.contactPrefDist}
+                fills={metrics.contactPrefDist.map((d) => CONTACT_PREF_HEX[d.key])}
+              />
+            </ChartCard>
+          </div>
+
+          {/* Cupões 5% + Upsells — duas colunas */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ChartCard title="Utilização de cupões 5%" icon={Ticket} iconColor="text-amber-500">
+              {metrics.couponUsageDist.length === 0 ? (
+                <p className="text-sm text-cocoa-700 py-12 text-center">
+                  Ainda não há cupões emitidos no período.
+                </p>
+              ) : (
+                <PieDist
+                  data={metrics.couponUsageDist}
+                  fills={metrics.couponUsageDist.map((d) => COUPON_STATUS_HEX[d.key])}
+                />
+              )}
+            </ChartCard>
+            <ChartCard title="Interesse em upsells" icon={Sparkle} iconColor="text-emerald-500">
+              <UpsellsBars data={metrics.upsellsBreakdown} tooltipStyle={tooltipStyle} chartGrid={chartGrid} />
+            </ChartCard>
+          </div>
+
           {/* Tempo médio + Extras + Canal — 3 mini cards com ícone colorido */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <MiniKpi
@@ -632,6 +702,40 @@ export default function MetricasClient({
   );
 }
 
+// Stacked bar horizontal — uma linha por upsell, segmentos "Sim" + "Mais info".
+// Mostra rapidamente quais extras geram mais interesse.
+function UpsellsBars({
+  data,
+  tooltipStyle,
+  chartGrid,
+}: {
+  data: Array<{ label: string; sim: number; maisInfo: number }>;
+  tooltipStyle: React.CSSProperties;
+  chartGrid: string;
+}) {
+  const hasAny = data.some((d) => d.sim + d.maisInfo > 0);
+  if (!hasAny) {
+    return (
+      <p className="text-sm text-cocoa-700 py-12 text-center">
+        Sem dados de upsells no período.
+      </p>
+    );
+  }
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(160, data.length * 50)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 24, right: 24 }} stackOffset="sign">
+        <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 11 }} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+        <Bar dataKey="sim" name="Sim" stackId="upsell" fill={UPSELL_HEX.sim} radius={[0, 0, 0, 0]} />
+        <Bar dataKey="maisInfo" name="Mais info" stackId="upsell" fill={UPSELL_HEX.maisInfo} radius={[0, 6, 6, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 function renderPieSliceLabel(props: {
   cx?: number;
   cy?: number;
@@ -676,9 +780,12 @@ function renderPieSliceLabel(props: {
 function PieDist({
   data,
   palette,
+  fills,
 }: {
   data: Array<{ label: string; count: number }>;
-  palette: string[];
+  palette?: string[];
+  /** Cores pré-mapeadas por índice (espelha 1:1 com `data`). Sobrepõe-se a `palette`. */
+  fills?: string[];
 }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -689,6 +796,11 @@ function PieDist({
       </p>
     );
   }
+  const colorAt = (idx: number): string => {
+    if (fills && fills[idx]) return fills[idx];
+    if (palette && palette.length > 0) return palette[idx % palette.length];
+    return "#a8a29e";
+  };
   return (
     <ResponsiveContainer width="100%" height={220}>
       <PieChart>
@@ -705,7 +817,7 @@ function PieDist({
           labelLine={false}
         >
           {data.map((_, idx) => (
-            <Cell key={idx} fill={palette[idx % palette.length]} />
+            <Cell key={idx} fill={colorAt(idx)} />
           ))}
         </Pie>
         <Tooltip

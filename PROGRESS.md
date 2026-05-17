@@ -43,6 +43,33 @@
 
 ## Sessões recentes (detalhe)
 
+### Sessão 72 📊 Métricas — 5 gráficos novos com cores alinhadas aos badges
+
+Maria pediu mais gráficos e exigiu que as cores **estivessem uniformizadas** com o resto da app. Acrescentei 5 visualizações novas a [src/app/(admin)/metricas/metricas-client.tsx](src/app/(admin)/metricas/metricas-client.tsx), todas com paletas semânticas espelhadas dos badges em [types/database.ts](src/types/database.ts):
+
+**Cálculos novos em [src/lib/metrics.ts](src/lib/metrics.ts)** (`computeMetrics` → `MetricsResult`):
+- `flowerDeliveryDist` — distribuição de `FlowerDeliveryMethod`.
+- `frameDeliveryDist` — distribuição de `FrameDeliveryMethod`.
+- `contactPrefDist` — WhatsApp vs Email.
+- `couponUsageDist` — só conta encomendas onde `coupon_status !== "na"` (cupão já emitido).
+- `upsellsBreakdown` — para os 3 upsells (`extra_small_frames`, `christmas_ornaments`, `necklace_pendants`) conta `"sim"` e `"mais_info"` separadamente.
+
+**UI**:
+- Nova fila de 3 donuts "Logística & comunicação": Método de envio das flores (ícone Car violet) / Método de receção do quadro (Package sky) / Preferência de contacto (MessageCircle emerald).
+- Nova fila de 2 cards: Utilização de cupões 5% (donut, Ticket amber) + Interesse em upsells (stacked bar horizontal "Sim" emerald + "Mais info" amber, Sparkle emerald).
+- `PieDist` ganhou prop opcional `fills?: string[]` — array pré-mapeado por índice — para usar cor por chave em vez da paleta sequencial. As callers das 3 fileiras antigas (Tamanho/Fundo/Evento) continuam com `palette`.
+
+**Paletas semânticas** (constantes no topo de `metricas-client.tsx`, alinhadas com Tailwind dos badges):
+- `FLOWER_DELIVERY_HEX`: emerald/sky/violet/stone (idêntico a `FLOWER_DELIVERY_METHOD_COLORS`).
+- `FRAME_DELIVERY_HEX`: emerald/sky/stone.
+- `CONTACT_PREF_HEX`: emerald (WhatsApp — alinhado com `partners.ts` linha 167 e tab WhatsApp no workbench) / sky (email).
+- `COUPON_STATUS_HEX`: emerald/amber/stone (idêntico a `COUPON_STATUS_COLORS`).
+- `UPSELL_HEX`: sim=emerald, maisInfo=amber.
+
+`tsc --noEmit` limpo. **Maria: abrir /metricas e verificar os 5 novos cards.**
+
+---
+
 ### Sessão 71 🎨 Coerência visual — "Recolha no local" = 🚗 Car + violet em toda a app
 
 Maria reparou que "recolha no local" aparecia incoerente: ora vermelho, ora verde, com `Truck` (carrinha) ou `Car`. Decisão: **sempre `Car` + violet**. Como `envio_ctt_quadro` já estava violet em Entregas e Recolhas, mudou para **rose** (alusivo ao vermelho CTT mas sem ar de urgência).
