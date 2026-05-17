@@ -26,7 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Truck,
+  Car,
   Hand,
   Mail,
   MessageCircle,
@@ -64,10 +64,10 @@ const MAX_VISIBLE_MONTH = 3;
 // • recolha_evento → equipa precisa deslocar-se ao evento
 // • maos          → cliente entrega em mãos (sem deslocação)
 // CTT e "não sei" ficam sem ícone (não há acção da equipa).
-function deliveryBadge(o: Order): { icon: typeof Truck; color: string; label: string } | null {
+function deliveryBadge(o: Order): { icon: typeof Car; color: string; label: string } | null {
   switch (o.flower_delivery_method) {
     case "recolha_evento":
-      return { icon: Truck, color: "text-rose-600", label: "Recolha no local — equipa desloca-se" };
+      return { icon: Car, color: "text-violet-600", label: "Recolha no local — equipa desloca-se" };
     case "maos":
       return { icon: Hand, color: "text-sky-600", label: "Entrega em mãos pelo cliente" };
     default:
@@ -219,7 +219,7 @@ export default function CalendarView({ orders, onOpenOrder, loadingOrderId }: Pr
         ))}
         {/* Ícones logísticos */}
         <span className="inline-flex items-center gap-1.5 text-[10px] text-cocoa-700 ml-2">
-          <Truck className="h-3 w-3 text-rose-600" /> Recolha
+          <Car className="h-3 w-3 text-violet-600" /> Recolha
         </span>
         <span className="inline-flex items-center gap-1.5 text-[10px] text-cocoa-700">
           <Hand className="h-3 w-3 text-sky-600" /> Entrega em mãos

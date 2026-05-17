@@ -43,6 +43,22 @@
 
 ## Sessões recentes (detalhe)
 
+### Sessão 71 🎨 Coerência visual — "Recolha no local" = 🚗 Car + violet em toda a app
+
+Maria reparou que "recolha no local" aparecia incoerente: ora vermelho, ora verde, com `Truck` (carrinha) ou `Car`. Decisão: **sempre `Car` + violet**. Como `envio_ctt_quadro` já estava violet em Entregas e Recolhas, mudou para **rose** (alusivo ao vermelho CTT mas sem ar de urgência).
+
+Ficheiros tocados:
+- [src/lib/dashboard.ts:97-101](src/lib/dashboard.ts#L97-L101) — `PICKUP_KIND_COLORS`: recolha emerald → violet; CTT quadro violet → rose.
+- [src/app/(admin)/entregas-recolhas/entregas-recolhas-client.tsx:84-91](src/app/(admin)/entregas-recolhas/entregas-recolhas-client.tsx#L84-L91) — `KIND_COLORS` idem; chips de filtro (linhas 327-350) alinhados.
+- [src/app/(admin)/preservacao/calendar-view.tsx](src/app/(admin)/preservacao/calendar-view.tsx) — `deliveryBadge` agora devolve `Car` violet; legenda do calendário idem; `Truck` removido do import.
+- [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) — `SHIPPING_METHOD_ICONS.recolha_evento`: Truck → Car; cor rose → violet; `Truck` removido do import.
+
+`types/database.ts` (`FLOWER_DELIVERY_METHOD_COLORS`) já estava violet — nada mudou aí. `lib/google/calendar.ts` usa emoji 🚗 (já carro) — nada a fazer. `logistics-map.tsx` colore marcadores por proximidade de data, não por tipo — nada a fazer.
+
+Smoke: `tsc --noEmit` limpo. **Maria: verificar manualmente** a página Entregas e Recolhas, a vista Calendário da Preservação, a coluna "Envio" da tabela de Preservação e o card "Recolhas e entregas" do Dashboard.
+
+---
+
 ### Sessão 70 💬 Chat interno — notificações de mensagens por ler na sidebar
 
 Maria pediu uma "bolinha com o nr de mensagens por ler na aba" do Chat interno. Ao explorar descobriu-se que a coluna `read_by` (array de emails) já existia desde a migração 029 mas **nunca tinha sido ligada** — `markChatMessagesReadAction` existia em [actions.ts](src/app/(admin)/chat/actions.ts) mas não era chamada de lado nenhum, e além disso a política RLS UPDATE só deixava o autor mexer na própria mensagem (impossível marcar como lida a mensagem de outro).

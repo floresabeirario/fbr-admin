@@ -95,9 +95,9 @@ export const PICKUP_KIND_LABELS: Record<PickupItem["kind"], string> = {
 };
 
 export const PICKUP_KIND_COLORS: Record<PickupItem["kind"], string> = {
-  recolha_evento:   "bg-emerald-100 text-emerald-800 border-emerald-300",
+  recolha_evento:   "bg-violet-100 text-violet-800 border-violet-300",
   envio_ctt_flores: "bg-sky-100 text-sky-800 border-sky-300",
-  envio_ctt_quadro: "bg-violet-100 text-violet-800 border-violet-300",
+  envio_ctt_quadro: "bg-rose-100 text-rose-800 border-rose-300",
 };
 
 // ── Alertas visuais ──────────────────────────────────────────

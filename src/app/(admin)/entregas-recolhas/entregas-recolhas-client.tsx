@@ -83,11 +83,11 @@ const KIND_LABELS: Record<LogisticsKind, string> = {
 
 const KIND_COLORS: Record<LogisticsKind, string> = {
   recolha_evento:
-    "from-emerald-50 to-green-100 border-emerald-300 text-emerald-900 dark:from-emerald-950/40 dark:to-emerald-900/30 dark:border-emerald-800 dark:text-emerald-200",
+    "from-violet-50 to-purple-100 border-violet-300 text-violet-900 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-800 dark:text-violet-200",
   envio_ctt_flores:
     "from-sky-50 to-blue-100 border-sky-300 text-sky-900 dark:from-sky-950/40 dark:to-blue-900/30 dark:border-sky-800 dark:text-sky-200",
   envio_ctt_quadro:
-    "from-violet-50 to-purple-100 border-violet-300 text-violet-900 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-800 dark:text-violet-200",
+    "from-rose-50 to-pink-100 border-rose-300 text-rose-900 dark:from-rose-950/40 dark:to-pink-900/30 dark:border-rose-800 dark:text-rose-200",
 };
 
 const KIND_ICON: Record<LogisticsKind, React.ComponentType<{ className?: string }>> = {
@@ -327,7 +327,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         <KindFilterCard
           label="Recolha no local"
           icon={Car}
-          color="from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-emerald-900/30 dark:border-emerald-800"
+          color="from-violet-50 to-purple-100 border-violet-200 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-800"
           active={kindFilter === "recolha_evento"}
           count={counts.recolha_evento}
           onClick={() => setKindFilter("recolha_evento")}
@@ -343,7 +343,7 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
         <KindFilterCard
           label="Envio CTT — quadro"
           icon={Frame}
-          color="from-violet-50 to-purple-100 border-violet-200 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-800"
+          color="from-rose-50 to-pink-100 border-rose-200 dark:from-rose-950/40 dark:to-pink-900/30 dark:border-rose-800"
           active={kindFilter === "envio_ctt_quadro"}
           count={counts.envio_ctt_quadro}
           onClick={() => setKindFilter("envio_ctt_quadro")}
