@@ -54,7 +54,7 @@ export function Card({
   const a = accent ? ACCENTS[accent] : null;
   return (
     <div className={`rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""}`}>
-      <div className={`flex items-center justify-between gap-2 px-5 py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
+      <div className={`flex items-center justify-between gap-2 px-3 py-2 lg:px-5 lg:py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
         <div className="flex items-center gap-2">
           {icon && <span className={a?.icon ?? "text-cocoa-500"}>{icon}</span>}
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700">{title}</p>
@@ -62,7 +62,7 @@ export function Card({
         </div>
         {action}
       </div>
-      <div className="p-5 space-y-4">{children}</div>
+      <div className="p-3 lg:p-5 space-y-3 lg:space-y-4">{children}</div>
     </div>
   );
 }

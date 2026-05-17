@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 14) — Healthchecks sem email + bolinha colorida na sidebar
+## Fase actual: FASE 6 (parte 15) — Workbench Preservação: afinações mobile
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -42,6 +42,27 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 68 📱 Workbench Preservação — afinações mobile (coluna central primeiro + paddings menores)
+
+Maria reportou que o workbench mobile estava "todo partido" e pediu que a coluna central aparecesse primeiro. Pediu para não tocar no desktop. Mudanças só com utilities `lg:` (1024+) — abaixo disso aplicam-se os defaults novos:
+
+**1. Reordenar colunas em mobile** ([src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L731)):
+- `<main>` (detalhes principais) — `order-1 lg:order-none`
+- `<aside>` esquerda (Comunicações/Galeria) — `order-2 lg:order-none`
+- `<aside>` direita (Finanças/Parceria/Cupão) — `order-3 lg:order-none`
+
+Em desktop o grid de 12 colunas continua intocado; em mobile (`grid-cols-1`) a `order` resolve a sequência vertical.
+
+**2. Gap entre colunas/cards reduzido em mobile** — `gap-5` → `gap-4 lg:gap-5`; `space-y-5` → `space-y-4 lg:space-y-5` nas 3 colunas e no wrapper sticky da esquerda.
+
+**3. Padding do body** ([workbench-client.tsx:730](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L730)) — `p-3 sm:p-6` → `p-2 sm:p-4 lg:p-6` (apenas restitui o `p-6` em desktop, ganha respiração no mobile).
+
+**4. Padding dos Cards** ([src/app/(admin)/preservacao/[id]/_components/layout.tsx](src/app/(admin)/preservacao/[id]/_components/layout.tsx#L57)) — Card header `px-5 py-3` → `px-3 py-2 lg:px-5 lg:py-3`; Card body `p-5 space-y-4` → `p-3 lg:p-5 space-y-3 lg:space-y-4`. Desktop intocado.
+
+Preflight OK. Sem migrações. Maria deve testar em telemóvel para confirmar.
+
+---
 
 ### Sessão 67 💬 Comunicações — tab default por preferência + scroll WhatsApp ao fundo
 

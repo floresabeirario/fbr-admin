@@ -727,14 +727,15 @@ export default function WorkbenchClient({
 
       {/* ── Corpo: 3 colunas ──────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-[1400px] mx-auto p-3 sm:p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <div className="max-w-[1400px] mx-auto p-2 sm:p-4 lg:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
 
             {/* ═══════════════════════════════
                 COLUNA ESQUERDA — COMUNICAÇÕES + GALERIA (sticky)
+                Em mobile: aparece depois da coluna central (order-2).
             ═══════════════════════════════ */}
-            <aside className="lg:col-span-3">
-              <div className="space-y-5 lg:sticky lg:top-2">
+            <aside className="order-2 lg:order-none lg:col-span-3">
+              <div className="space-y-4 lg:space-y-5 lg:sticky lg:top-2">
 
               <Card
                 title="Comunicações"
@@ -1060,8 +1061,9 @@ export default function WorkbenchClient({
 
             {/* ═══════════════════════════════
                 COLUNA DO MEIO — DETALHES PRINCIPAIS
+                Em mobile: aparece em primeiro lugar (order-1).
             ═══════════════════════════════ */}
-            <main className="lg:col-span-6 space-y-5">
+            <main className="order-1 lg:order-none lg:col-span-6 space-y-4 lg:space-y-5">
 
               {/* Hero unificado: foto + dados do cliente + dados do evento */}
               <div className="rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
@@ -1620,8 +1622,9 @@ export default function WorkbenchClient({
 
             {/* ═══════════════════════════════
                 COLUNA DIREITA — FINANÇAS / PARCERIA / ENTREGA / CUPÃO
+                Em mobile: fica em último (order-3).
             ═══════════════════════════════ */}
-            <aside className="lg:col-span-3 space-y-5">
+            <aside className="order-3 lg:order-none lg:col-span-3 space-y-4 lg:space-y-5">
 
               <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
                 <div className="space-y-3">
