@@ -43,6 +43,19 @@
 
 ## Sessões recentes (detalhe)
 
+### Sessão 73 🎨 Tabela Preservação — "Em mãos" sky → emerald (contraste com violet)
+
+Maria reparou que na coluna **Envio das flores** da tabela, os ícones de "Em mãos" (sky) e "Recolha no local" (violet) eram demasiado parecidos a olho — ambos pasteis cool de saturação média. Descobriu-se também que havia inconsistência: os badges no workbench e os gráficos de Métricas já usavam **emerald** para `maos` (via `FLOWER_DELIVERY_METHOD_COLORS`), só os ícones da tabela e do calendário usavam sky.
+
+Alinhei tudo em **emerald** (verde) para `maos`, mantendo violet para `recolha_evento`:
+- [src/app/(admin)/preservacao/preservacao-client.tsx:90](src/app/(admin)/preservacao/preservacao-client.tsx#L90) — `SHIPPING_METHOD_ICON_COLORS.maos`: `text-sky-600` → `text-emerald-600`; comentário em [linha 78](src/app/(admin)/preservacao/preservacao-client.tsx#L78) actualizado.
+- [src/app/(admin)/preservacao/calendar-view.tsx:72](src/app/(admin)/preservacao/calendar-view.tsx#L72) — `deliveryBadge` case `maos`: `text-sky-600` → `text-emerald-600`.
+- [src/app/(admin)/preservacao/calendar-view.tsx:225](src/app/(admin)/preservacao/calendar-view.tsx#L225) — legenda compacta da vista Semana: ícone Hand sky → emerald.
+
+Convenção final em todo o app para método de envio das flores: **maos = emerald, ctt = amber/sky, recolha_evento = violet, nao_sei = stone**. `tsc --noEmit` limpo. **Maria: abrir /preservacao e confirmar que verde + violeta se distinguem bem na coluna Envio.**
+
+---
+
 ### Sessão 72 📊 Métricas — 5 gráficos novos com cores alinhadas aos badges
 
 Maria pediu mais gráficos e exigiu que as cores **estivessem uniformizadas** com o resto da app. Acrescentei 5 visualizações novas a [src/app/(admin)/metricas/metricas-client.tsx](src/app/(admin)/metricas/metricas-client.tsx), todas com paletas semânticas espelhadas dos badges em [types/database.ts](src/types/database.ts):

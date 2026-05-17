@@ -69,7 +69,7 @@ function deliveryBadge(o: Order): { icon: typeof Car; color: string; label: stri
     case "recolha_evento":
       return { icon: Car, color: "text-violet-600", label: "Recolha no local — equipa desloca-se" };
     case "maos":
-      return { icon: Hand, color: "text-sky-600", label: "Entrega em mãos pelo cliente" };
+      return { icon: Hand, color: "text-emerald-600", label: "Entrega em mãos pelo cliente" };
     default:
       return null;
   }
@@ -222,7 +222,7 @@ export default function CalendarView({ orders, onOpenOrder, loadingOrderId }: Pr
           <Car className="h-3 w-3 text-violet-600" /> Recolha
         </span>
         <span className="inline-flex items-center gap-1.5 text-[10px] text-cocoa-700">
-          <Hand className="h-3 w-3 text-sky-600" /> Entrega em mãos
+          <Hand className="h-3 w-3 text-emerald-600" /> Entrega em mãos
         </span>
       </div>
     </div>

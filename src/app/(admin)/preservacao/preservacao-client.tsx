@@ -75,8 +75,8 @@ import {
 
 // Ícones por método de envio — para tornar a coluna "Envio" da tabela
 // visualmente legível de relance (CTT vs recolha vs em mãos vs não sei).
-// Mantemos os mesmos ícones e cores da vista de calendário (Hand sky para
-// entrega em mãos, Car violet para recolha no local) para coerência visual.
+// Mantemos os mesmos ícones e cores da vista de calendário (Hand emerald
+// para entrega em mãos, Car violet para recolha no local) para coerência visual.
 // Estilo: só o ícone fica colorido; o texto permanece cinza neutro, para
 // não competir visualmente com os dropdowns de Estado e Pagamento ao lado.
 const SHIPPING_METHOD_ICONS: Record<string, LucideIcon> = {
@@ -87,7 +87,7 @@ const SHIPPING_METHOD_ICONS: Record<string, LucideIcon> = {
 };
 
 const SHIPPING_METHOD_ICON_COLORS: Record<string, string> = {
-  maos: "text-sky-600",
+  maos: "text-emerald-600",
   ctt: "text-amber-600",
   recolha_evento: "text-violet-600",
   nao_sei: "text-stone-500",
