@@ -30,6 +30,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
+import { useUnreadChatCount } from "@/hooks/use-unread-chat";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -85,7 +86,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isDesktop = useIsDesktop();
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; photo: string; role: Role } | null>(null);
+  const [profile, setProfile] = useState<{ name: string; photo: string; role: Role; email: string } | null>(null);
   const [healthSummary, setHealthSummary] = useState<{
     ok: number;
     warnings: number;
@@ -98,10 +99,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) {
         const match = PROFILES.find(p => p.email === data.user!.email);
-        if (match) setProfile({ ...match, role: roleForEmail(data.user!.email) });
+        if (match) setProfile({ ...match, role: roleForEmail(data.user!.email), email: data.user!.email });
       }
     });
   }, []);
+
+  // Bolinha de notificação no item "Chat interno" — esconde quando estamos
+  // na própria página /chat (as mensagens são marcadas como lidas em
+  // tempo real, por isso aparecer e desaparecer logo só piscaria).
+  const rawUnreadChat = useUnreadChatCount(profile?.email ?? null);
+  const unreadChat = pathname.startsWith("/chat") ? 0 : rawUnreadChat;
 
   useEffect(() => {
     if (profile?.role !== "admin") return;
@@ -235,14 +242,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           const isSub = !!parent;
           const isCollapsedOnDesktop = isDesktop && collapsed;
           const isSistema = label === "Sistema";
+          const isChat = href === "/chat";
           const showDot = isSistema && healthStatus !== null;
           const dotColor =
             healthStatus === "error" ? "bg-rose-500"
             : healthStatus === "warning" ? "bg-amber-500"
             : "bg-emerald-500";
+          const showChatBadge = isChat && unreadChat > 0;
+          const chatBadgeLabel = unreadChat > 99 ? "99+" : String(unreadChat);
           const titleParts: string[] = [];
           if (isCollapsedOnDesktop) titleParts.push(label);
           if (showDot) titleParts.push(healthTooltip);
+          if (showChatBadge) titleParts.push(`${unreadChat} mensage${unreadChat === 1 ? "m" : "ns"} por ler`);
           return (
             <Link
               key={href}
@@ -271,6 +282,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     )}
                   />
                 )}
+                {showChatBadge && isCollapsedOnDesktop && (
+                  <span
+                    aria-label={`${unreadChat} por ler`}
+                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-white text-[9px] font-bold leading-none ring-2 ring-surface inline-flex items-center justify-center"
+                  >
+                    {chatBadgeLabel}
+                  </span>
+                )}
               </span>
               {!isCollapsedOnDesktop && <span className="truncate">{label}</span>}
               {showDot && !isCollapsedOnDesktop && (
@@ -278,6 +297,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   aria-label={`Healthchecks: ${healthStatus}`}
                   className={cn("ml-auto h-2 w-2 rounded-full shrink-0", dotColor)}
                 />
+              )}
+              {showChatBadge && !isCollapsedOnDesktop && (
+                <span
+                  aria-label={`${unreadChat} por ler`}
+                  className="ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full bg-sky-500 text-white text-[10px] font-bold leading-none inline-flex items-center justify-center shrink-0"
+                >
+                  {chatBadgeLabel}
+                </span>
               )}
             </Link>
           );

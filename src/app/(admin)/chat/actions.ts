@@ -38,23 +38,13 @@ export async function deleteChatMessageAction(id: string): Promise<void> {
 export async function markChatMessagesReadAction(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   await requireUser();
-  const email = await getCurrentEmail();
-  if (!email) return;
   const supabase = await createClient();
-  // Fetch + write em batch para anexar email ao read_by sem duplicar
-  const { data: rows } = await supabase
-    .from("chat_messages")
-    .select("id, read_by")
-    .in("id", ids);
-  if (!rows) return;
-  await Promise.all(
-    rows
-      .filter((r) => !(r.read_by as string[]).includes(email))
-      .map((r) =>
-        supabase
-          .from("chat_messages")
-          .update({ read_by: [...(r.read_by as string[]), email] })
-          .eq("id", r.id)
-      )
-  );
+  // Usa RPC SECURITY DEFINER (migração 043) — a política UPDATE de
+  // chat_messages só permite ao autor mexer na própria mensagem,
+  // pelo que UPDATE directo falharia silenciosamente para mensagens
+  // dos outros, que são precisamente as que queremos marcar como lidas.
+  const { error } = await supabase.rpc("mark_chat_messages_read", {
+    message_ids: ids,
+  });
+  if (error) throw new Error(error.message);
 }

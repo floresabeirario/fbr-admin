@@ -110,7 +110,7 @@ function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
 }
 
 import type { ChatMessage } from "@/types/chat";
-import { sendChatMessageAction, deleteChatMessageAction } from "./actions";
+import { sendChatMessageAction, deleteChatMessageAction, markChatMessagesReadAction } from "./actions";
 
 const TEAM = [
   { email: "info+antonio@floresabeirario.pt", name: "António", photo: "/userphotos/antonio.webp", color: "bg-emerald-500" },
@@ -215,6 +215,19 @@ export default function ChatClient({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  // ── Marcar como lidas todas as mensagens que vejo e ainda não li ──
+  // (mensagens próprias não contam; tab/aba só mostra "por ler" das outras)
+  useEffect(() => {
+    if (!currentEmail) return;
+    const toMark = messages
+      .filter((m) => m.author_email !== currentEmail && !m.read_by.includes(currentEmail))
+      .map((m) => m.id);
+    if (toMark.length === 0) return;
+    markChatMessagesReadAction(toMark).catch(() => {
+      // silencioso: não vale a pena chatear o user com um toast só por isto
+    });
+  }, [messages, currentEmail]);
 
   function handleSend() {
     const text = draft.trim();

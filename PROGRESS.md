@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 16) — Finanças: selector de ano + alinhamento com Métricas
+## Fase actual: FASE 6 (parte 17) — Chat interno: notificações de mensagens por ler
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,39 @@
 
 ## Sessões recentes (detalhe)
 
+### Sessão 70 💬 Chat interno — notificações de mensagens por ler na sidebar
+
+Maria pediu uma "bolinha com o nr de mensagens por ler na aba" do Chat interno. Ao explorar descobriu-se que a coluna `read_by` (array de emails) já existia desde a migração 029 mas **nunca tinha sido ligada** — `markChatMessagesReadAction` existia em [actions.ts](src/app/(admin)/chat/actions.ts) mas não era chamada de lado nenhum, e além disso a política RLS UPDATE só deixava o autor mexer na própria mensagem (impossível marcar como lida a mensagem de outro).
+
+**1. Migração 043 — RPC `mark_chat_messages_read`** ([supabase/migrations/043_chat_mark_read_rpc.sql](supabase/migrations/043_chat_mark_read_rpc.sql)):
+- Função `SECURITY DEFINER` cirúrgica que só consegue acrescentar o email do JWT ao `read_by` das mensagens dadas — nenhuma outra coluna pode ser tocada por esta via.
+- Valida que o JWT pertence a um dos 3 emails da equipa antes de qualquer alteração.
+- `GRANT EXECUTE` apenas para `authenticated`.
+- Preferida a esta abordagem em vez de relaxar a RLS UPDATE (que abriria edição/eliminação cruzada).
+
+**2. Action passa a chamar a RPC** ([src/app/(admin)/chat/actions.ts:38-50](src/app/(admin)/chat/actions.ts#L38-L50)):
+- Implementação anterior fazia `SELECT + UPDATE` por linha, mas a RLS bloqueia o UPDATE silenciosamente para mensagens de outros. Agora é um único `supabase.rpc("mark_chat_messages_read", { message_ids })`.
+
+**3. Mark-as-read automático em `chat-client.tsx`** ([src/app/(admin)/chat/chat-client.tsx:220-232](src/app/(admin)/chat/chat-client.tsx#L220-L232)):
+- `useEffect` que, sempre que o array `messages` muda, filtra as não-próprias que ainda não têm o meu email em `read_by` e chama a action em batch. Cobre tanto a abertura da página como mensagens novas que cheguem via Realtime.
+
+**4. Hook `useUnreadChatCount`** ([src/hooks/use-unread-chat.ts](src/hooks/use-unread-chat.ts)):
+- Faz `SELECT id, author_email, read_by, deleted_at` (limit 500) e subscreve INSERT/UPDATE em `chat_messages` no canal `chat-unread` — separado do canal usado dentro do chat (`chat-messages`) para não interferir.
+- Devolve o número de mensagens onde `author_email !== currentEmail` e `!read_by.includes(currentEmail)`.
+
+**5. Bolinha sky na sidebar** ([src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx)):
+- Email do utilizador autenticado guardado em `profile.email` (em vez de só `{name, photo, role}`).
+- Badge `bg-sky-500` com número (cap "99+") — alinhado com a cor do ícone do header do chat.
+- Sidebar expandida: badge à direita, depois do label. Sidebar colapsada (desktop): badge no canto superior direito do ícone com `ring-2 ring-surface`.
+- **Esconde quando `pathname.startsWith("/chat")`** — estás a ler, marca-se como lido imediatamente; mostrar e desaparecer só piscaria.
+- Tooltip "N mensagens por ler" / "1 mensagem por ler" com plural correcto.
+
+Preflight (tsc + next build) OK. Smoke Playwright não disponível na máquina actual — **Maria: testar manualmente** (1) abrir chat com outro user e enviar mensagem; (2) confirmar bolinha azul aparece na sidebar do outro user; (3) clicar em "Chat interno" e confirmar que desaparece; (4) sair de /chat e confirmar que mensagens antigas não voltam a aparecer como por ler.
+
+**Migração para aplicar**: `043_chat_mark_read_rpc.sql`.
+
+---
+
 ### Sessão 69 💶 Finanças — selector de ano + Potencial total corrigido + alinhamento com Métricas
 
 Maria reportou três problemas na aba Finanças: (1) o card "Potencial total" estava a incluir pré-reservas e sem-resposta (encomendas não confirmadas); (2) os valores de Finanças e Métricas não batiam certo; (3) precisava conseguir ver os valores de cada ano (há encomendas de 2025).
@@ -58,7 +91,8 @@ Maria reportou três problemas na aba Finanças: (1) o card "Potencial total" es
 - Texto do card actualizado: "Potencial total {ano} — se todas as encomendas confirmadas estivessem 100% pagas".
 
 **3. Selector de ano em Finanças** ([src/app/(admin)/financas/financas-client.tsx:1422-1445](src/app/(admin)/financas/financas-client.tsx#L1422-L1445)):
-- Selector no topo do card Faturação. Lista de anos calculada a partir dos dados (event_date de orders, created_at de vouchers, expense_date de despesas) + ano actual garantido.
+- Selector no topo do card Faturação. Primeira opção: **"Todos (desde sempre)"**; depois lista de anos calculada a partir dos dados (event_date de orders, created_at de vouchers, expense_date de despesas) + ano actual garantido.
+- Em "Todos": KPIs mudam para "Receita/Despesas/Lucro total"; gráfico passa de meses para 1 barra por ano; Potencial mostra todas as encomendas confirmadas em qualquer ano.
 - **Regra de atribuição ao ano** (a Maria especificou):
   - Encomendas → ano da **data do evento** (`event_date`).
   - Vales → ano de **criação** (`created_at`).
