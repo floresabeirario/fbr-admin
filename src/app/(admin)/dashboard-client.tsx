@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Loader2,
   X,
+  Users,
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -51,6 +52,7 @@ import {
   createTaskAction,
   updateTaskAction,
   deleteTaskAction,
+  markTasksSeenAction,
   createChecklistItemAction,
   updateChecklistItemAction,
   deleteChecklistItemAction,
@@ -108,6 +110,37 @@ export default function DashboardClient({
   // Para admins: pode ver checklist de outro utilizador
   const [viewingEmail, setViewingEmail] = useState<string>(currentEmail);
 
+  // ── Notificações: ao abrir o Dashboard, mostra toast com as tarefas
+  // que me foram atribuídas e ainda não vi, e marca-as como vistas ──
+  const seenOnMount = useRef(false);
+  useEffect(() => {
+    if (seenOnMount.current) return;
+    seenOnMount.current = true;
+    if (!currentEmail) return;
+
+    const unseen = initialTasks.filter(
+      (t) =>
+        !t.done &&
+        t.assignee_emails.includes(currentEmail) &&
+        !t.seen_by.includes(currentEmail),
+    );
+    if (unseen.length === 0) return;
+
+    const titles = unseen.slice(0, 2).map((t) => `“${t.title}”`).join(" e ");
+    const extra = unseen.length > 2 ? ` (+${unseen.length - 2})` : "";
+    toast(`Tens ${unseen.length} tarefa${unseen.length === 1 ? "" : "s"} nova${unseen.length === 1 ? "" : "s"}`, {
+      description: titles + extra,
+      icon: <Bell className="h-4 w-4 text-sky-600" />,
+      duration: 6000,
+    });
+
+    // Marca como vistas server-side. Não actualizamos o estado local
+    // porque o flag `seenOnMount.current` impede o toast de re-aparecer
+    // nesta sessão, e o próximo SSR vem com seen_by já actualizado.
+    // (ESLint react-hooks/set-state-in-effect — [[feedback_react_set_state_in_effect]].)
+    void markTasksSeenAction(unseen.map((t) => t.id)).catch(() => {});
+  }, [currentEmail, initialTasks]);
+
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
@@ -137,6 +170,8 @@ export default function DashboardClient({
         <ChecklistCard
           items={checklist}
           setItems={setChecklist}
+          tasks={tasks}
+          setTasks={setTasks}
           currentEmail={currentEmail}
           viewingEmail={viewingEmail}
           setViewingEmail={setViewingEmail}
@@ -189,9 +224,18 @@ function SectionCard({
 // Checklist pessoal
 // ============================================================
 
+// Lista mesclada: itens da checklist pessoal + tarefas globais atribuídas a mim.
+// Tarefas têm um badge "Global" e prioridade/prazo; o toggle de done chama
+// updateTaskAction (Opção A — qualquer assignee marca = feita para todos).
+type MergedItem =
+  | { kind: "checklist"; id: string; item: ChecklistItem }
+  | { kind: "task"; id: string; task: Task };
+
 function ChecklistCard({
   items,
   setItems,
+  tasks,
+  setTasks,
   currentEmail,
   viewingEmail,
   setViewingEmail,
@@ -199,6 +243,8 @@ function ChecklistCard({
 }: {
   items: ChecklistItem[];
   setItems: React.Dispatch<React.SetStateAction<ChecklistItem[]>>;
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   currentEmail: string;
   viewingEmail: string;
   setViewingEmail: (email: string) => void;
@@ -212,17 +258,41 @@ function ChecklistCard({
   // Só pode escrever na sua própria checklist
   const canWrite = viewingEmail === currentEmail;
 
-  const visibleItems = useMemo(
-    () =>
-      items
-        .filter((i) => i.owner_email === viewingEmail)
-        .sort((a, b) => {
-          // Concluídos no fim, depois por position
-          if (a.done !== b.done) return a.done ? 1 : -1;
-          return a.position - b.position;
-        }),
-    [items, viewingEmail],
-  );
+  const visibleItems = useMemo<MergedItem[]>(() => {
+    const ownChecklist: MergedItem[] = items
+      .filter((i) => i.owner_email === viewingEmail)
+      .map((item) => ({ kind: "checklist" as const, id: item.id, item }));
+
+    // Tarefas atribuídas a este utilizador, ainda não concluídas.
+    // (As concluídas saem da lista para a Maria não as ver para sempre.)
+    const assignedTasks: MergedItem[] = tasks
+      .filter((t) => !t.done && t.assignee_emails.includes(viewingEmail))
+      .map((task) => ({ kind: "task" as const, id: task.id, task }));
+
+    return [...ownChecklist, ...assignedTasks].sort((a, b) => {
+      // Concluídos (só checklist; tarefas done já saíram) no fim
+      const aDone = a.kind === "checklist" ? a.item.done : false;
+      const bDone = b.kind === "checklist" ? b.item.done : false;
+      if (aDone !== bDone) return aDone ? 1 : -1;
+
+      // Tarefas com prazo no topo, por prazo asc, depois prioridade
+      const aDue = a.kind === "task" ? a.task.due_date : null;
+      const bDue = b.kind === "task" ? b.task.due_date : null;
+      if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
+      if (aDue && !bDue) return -1;
+      if (!aDue && bDue) return 1;
+
+      if (a.kind === "task" && b.kind === "task") {
+        return TASK_PRIORITY_ORDER[a.task.priority] - TASK_PRIORITY_ORDER[b.task.priority];
+      }
+
+      // Checklist por position
+      if (a.kind === "checklist" && b.kind === "checklist") {
+        return a.item.position - b.item.position;
+      }
+      return 0;
+    });
+  }, [items, tasks, viewingEmail]);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -255,6 +325,26 @@ function ChecklistCard({
         toast.error("Erro ao actualizar: " + (err as Error).message);
         setItems((prev) =>
           prev.map((i) => (i.id === item.id ? { ...i, done: item.done } : i)),
+        );
+      }
+    });
+  }
+
+  // Opção A: qualquer assignee marca como feita = some para todos.
+  // O toggle de tarefas funciona mesmo quando se está a ver a lista de
+  // outro utilizador (admin) — porque tarefas globais não pertencem a
+  // ninguém em específico.
+  function handleToggleTask(task: Task) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, done: true } : t)),
+    );
+    startTransition(async () => {
+      try {
+        await updateTaskAction(task.id, { done: true });
+      } catch (err) {
+        toast.error("Erro: " + (err as Error).message);
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? { ...t, done: false } : t)),
         );
       }
     });
@@ -318,46 +408,118 @@ function ChecklistCard({
               : `${memberName(viewingEmail)} ainda não tem itens.`}
           </p>
         )}
-        {visibleItems.map((item) => (
-          <div
-            key={item.id}
-            className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors"
-          >
-            <button
-              type="button"
-              onClick={() => handleToggle(item)}
-              disabled={!canWrite}
-              className="mt-0.5 shrink-0 disabled:cursor-not-allowed"
-              title={canWrite ? (item.done ? "Reabrir" : "Marcar como feito") : "Só leitura"}
+        {visibleItems.map((entry) => {
+          if (entry.kind === "checklist") {
+            const item = entry.item;
+            return (
+              <div
+                key={`c-${item.id}`}
+                className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleToggle(item)}
+                  disabled={!canWrite}
+                  className="mt-0.5 shrink-0 disabled:cursor-not-allowed"
+                  title={canWrite ? (item.done ? "Reabrir" : "Marcar como feito") : "Só leitura"}
+                >
+                  {item.done ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-[#C4A882] group-hover:text-cocoa-700" />
+                  )}
+                </button>
+                <span
+                  className={cn(
+                    "flex-1 text-sm leading-snug",
+                    item.done
+                      ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
+                      : "text-cocoa-900",
+                  )}
+                >
+                  {item.text}
+                </span>
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600"
+                    title="Apagar"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          // Tarefa global atribuída a este utilizador
+          const task = entry.task;
+          const overdue = task.due_date
+            ? differenceInDays(parseISO(task.due_date), new Date()) < 0
+            : false;
+          const sharedWith = task.assignee_emails.filter((e) => e !== viewingEmail);
+          return (
+            <div
+              key={`t-${task.id}`}
+              className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors"
             >
-              {item.done ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <Circle className="h-4 w-4 text-[#C4A882] group-hover:text-cocoa-700" />
-              )}
-            </button>
-            <span
-              className={cn(
-                "flex-1 text-sm leading-snug",
-                item.done
-                  ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
-                  : "text-cocoa-900",
-              )}
-            >
-              {item.text}
-            </span>
-            {canWrite && (
               <button
                 type="button"
-                onClick={() => handleDelete(item)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600"
-                title="Apagar"
+                onClick={() => handleToggleTask(task)}
+                className="mt-0.5 shrink-0"
+                title="Marcar como feita (some para todos os atribuídos)"
               >
-                <X className="h-3.5 w-3.5" />
+                <Circle className="h-4 w-4 text-violet-500 group-hover:text-violet-700" />
               </button>
-            )}
-          </div>
-        ))}
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <div className="text-sm leading-snug text-cocoa-900">
+                  {task.title}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <Badge
+                    variant="outline"
+                    className="h-4 px-1.5 py-0 text-[10px] font-normal bg-violet-50 text-violet-700 border-violet-200"
+                  >
+                    Global
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-4 px-1.5 py-0 text-[10px] font-normal border",
+                      TASK_PRIORITY_COLORS[task.priority],
+                    )}
+                  >
+                    {TASK_PRIORITY_LABELS[task.priority]}
+                  </Badge>
+                  {task.due_date && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-4 px-1.5 py-0 text-[10px] font-normal",
+                        overdue
+                          ? "bg-rose-100 text-rose-800 border-rose-300"
+                          : "bg-slate-100 text-slate-700 border-slate-300",
+                      )}
+                    >
+                      <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
+                      {formatDate(task.due_date)}
+                    </Badge>
+                  )}
+                  {sharedWith.length > 0 && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[10px] text-cocoa-700"
+                      title={`Partilhada com ${sharedWith.map(memberName).join(", ")}`}
+                    >
+                      <Users className="h-3 w-3" />
+                      +{sharedWith.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {canWrite && (
@@ -404,13 +566,13 @@ function TasksCard({
 
   // Form da nova tarefa
   const [newTitle, setNewTitle] = useState("");
-  const [newAssignee, setNewAssignee] = useState<string>("");
+  const [newAssignees, setNewAssignees] = useState<string[]>([]);
   const [newPriority, setNewPriority] = useState<TaskPriority>("media");
   const [newDueDate, setNewDueDate] = useState<string>("");
 
   const visibleTasks = useMemo(() => {
     let list = tasks;
-    if (filter === "minhas") list = list.filter((t) => t.assignee_email === currentEmail);
+    if (filter === "minhas") list = list.filter((t) => t.assignee_emails.includes(currentEmail));
     if (filter === "feitas") list = list.filter((t) => t.done);
     if (filter !== "feitas") list = list.filter((t) => !t.done);
     return list.sort((a, b) => {
@@ -428,7 +590,7 @@ function TasksCard({
 
   function resetNewForm() {
     setNewTitle("");
-    setNewAssignee("");
+    setNewAssignees([]);
     setNewPriority("media");
     setNewDueDate("");
     setShowNew(false);
@@ -440,9 +602,12 @@ function TasksCard({
     if (!title) return;
     startTransition(async () => {
       try {
+        // Quem cria já viu a tarefa — se está entre os assignees, marca como vista
+        const seenBy = newAssignees.includes(currentEmail) ? [currentEmail] : [];
         const created = await createTaskAction({
           title,
-          assignee_email: newAssignee || null,
+          assignee_emails: newAssignees,
+          seen_by: seenBy,
           priority: newPriority,
           due_date: newDueDate || null,
         });
@@ -483,17 +648,29 @@ function TasksCard({
     });
   }
 
-  function handleAssigneeChange(task: Task, email: string | null) {
+  function handleAssigneesChange(task: Task, emails: string[]) {
+    // Quando um assignee é removido, também sai do seen_by — não faz sentido
+    // mantê-lo lá (se for re-atribuído mais tarde, deve voltar a notificá-lo).
+    const seen_by = task.seen_by.filter((e) => emails.includes(e));
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, assignee_email: email } : t)),
+      prev.map((t) =>
+        t.id === task.id ? { ...t, assignee_emails: emails, seen_by } : t,
+      ),
     );
     startTransition(async () => {
       try {
-        await updateTaskAction(task.id, { assignee_email: email });
+        await updateTaskAction(task.id, { assignee_emails: emails, seen_by });
       } catch (err) {
         toast.error("Erro: " + (err as Error).message);
       }
     });
+  }
+
+  function toggleAssignee(task: Task, email: string) {
+    const next = task.assignee_emails.includes(email)
+      ? task.assignee_emails.filter((e) => e !== email)
+      : [...task.assignee_emails, email];
+    handleAssigneesChange(task, next);
   }
 
   function handlePriorityChange(task: Task, priority: TaskPriority) {
@@ -552,22 +729,49 @@ function TasksCard({
             className="h-8 text-sm"
             autoFocus
           />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Select value={newAssignee} onValueChange={(v) => setNewAssignee((v as string) ?? "")}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue
-                  placeholder="Atribuir a…"
-                  labels={Object.fromEntries(TEAM_MEMBERS.map((m) => [m.email, m.name]))}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {TEAM_MEMBERS.map((m) => (
-                  <SelectItem key={m.email} value={m.email}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-cocoa-700">Atribuir a:</span>
+            {TEAM_MEMBERS.map((m) => {
+              const active = newAssignees.includes(m.email);
+              return (
+                <button
+                  key={m.email}
+                  type="button"
+                  onClick={() =>
+                    setNewAssignees((prev) =>
+                      prev.includes(m.email)
+                        ? prev.filter((e) => e !== m.email)
+                        : [...prev, m.email],
+                    )
+                  }
+                  title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
+                  aria-pressed={active}
+                  className={cn(
+                    "relative h-7 w-7 rounded-full overflow-hidden transition-all",
+                    active
+                      ? "ring-2 ring-violet-600 ring-offset-1 ring-offset-cream-50"
+                      : "opacity-40 hover:opacity-100",
+                  )}
+                >
+                  <Image
+                    src={m.photo}
+                    alt={m.name}
+                    fill
+                    sizes="28px"
+                    className="object-cover"
+                  />
+                </button>
+              );
+            })}
+            <span className="text-[11px] text-cocoa-500 ml-auto">
+              {newAssignees.length === 0
+                ? "Sem responsável"
+                : newAssignees.length === 1
+                  ? "1 responsável"
+                  : `${newAssignees.length} responsáveis (partilhada)`}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Select value={newPriority} onValueChange={(v) => v && setNewPriority(v as TaskPriority)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue labels={TASK_PRIORITY_LABELS} />
@@ -638,30 +842,35 @@ function TasksCard({
                   {task.title}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  {/* Assignee */}
-                  <Select
-                    value={task.assignee_email ?? "__none__"}
-                    onValueChange={(v) =>
-                      handleAssigneeChange(task, v === "__none__" ? null : (v as string))
-                    }
-                  >
-                    <SelectTrigger className="h-5 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1">
-                      <SelectValue
-                        labels={{
-                          __none__: "Sem responsável",
-                          ...Object.fromEntries(TEAM_MEMBERS.map((m) => [m.email, m.name])),
-                        }}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sem responsável</SelectItem>
-                      {TEAM_MEMBERS.map((m) => (
-                        <SelectItem key={m.email} value={m.email}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Assignees (multi) — clicar num avatar adiciona/remove */}
+                  <div className="flex items-center gap-0.5">
+                    {TEAM_MEMBERS.map((m) => {
+                      const active = task.assignee_emails.includes(m.email);
+                      return (
+                        <button
+                          key={m.email}
+                          type="button"
+                          onClick={() => toggleAssignee(task, m.email)}
+                          title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
+                          aria-pressed={active}
+                          className={cn(
+                            "relative h-5 w-5 rounded-full overflow-hidden transition-all",
+                            active
+                              ? "ring-1 ring-violet-600 ring-offset-1 ring-offset-surface"
+                              : "opacity-30 hover:opacity-100",
+                          )}
+                        >
+                          <Image
+                            src={m.photo}
+                            alt={m.name}
+                            fill
+                            sizes="20px"
+                            className="object-cover"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
 
                   {/* Prioridade */}
                   <Select

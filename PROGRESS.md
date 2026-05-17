@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 18) — Tabela Preservação: remover botão "Sem resposta" + corrigir pill "100% por pagar" no workbench
+## Fase actual: FASE 6 (parte 20) — Finanças/Despesas: descrição como campo principal + fornecedor opcional (texto ou link) + KPI "Total desde sempre"
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -37,11 +37,81 @@
 - **RGPD**: exportação JSON+PDF, retenção 10 anos com anonimização, audit log UI
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
-- 42 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
+- 44 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 76 ✅ Finanças/Despesas — descrição primária + fornecedor opcional (texto ou link) + KPI "Total desde sempre"
+
+Maria pediu: (a) ao inserir despesas, trocar a hierarquia — descrição passa a ser o principal (obrigatório), fornecedor secundário (opcional); (b) o fornecedor pode ser um link OU só texto; (c) a página deve mostrar também o total de despesas desde sempre. Confirmadas todas as 4 opções recomendadas (fornecedor opcional, campo único auto-detect URL, total inclui subscrições acumuladas, aplicar a subscrições também).
+
+**Migração 045 — [supabase/migrations/045_expenses_supplier_optional.sql](supabase/migrations/045_expenses_supplier_optional.sql):**
+- `ALTER TABLE expenses ALTER COLUMN supplier DROP NOT NULL`. Regra "descrição obrigatória" é só ao nível do formulário (não bloqueia linhas históricas sem descrição).
+
+**Types — [src/types/expense.ts](src/types/expense.ts):**
+- `Expense.supplier: string | null`.
+- `ExpenseInsert` agora requer `description: string` (em vez de `supplier`).
+- Nova `subscriptionTotalToDate(expense, at)` — calcula total acumulado de uma subscrição desde o início até `at` (ou até `recurrence_end_date` se terminou antes), usando `monthlyEquivalent × meses elapsed` (inclusivo no mês de início).
+
+**Forms + tabelas — [src/app/(admin)/financas/financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- Helper `renderSupplier(s)`: auto-detecta `^https?://` ou `^www\.` → link clicável (sky-700, ExternalLink icon, target=_blank, stopPropagation, truncate 220px); caso contrário texto puro; null/empty → `—`.
+- KPIs: grid `sm:grid-cols-2 lg:grid-cols-4` (de 3 para 4). Novo KPI **"Total desde sempre"** (emerald) = `sum(unicas.amount) + sum(subscriptionTotalToDate(sub, now))`.
+- Form despesas únicas: Input **Descrição** no lugar do antigo "Fornecedor" (autoFocus, required). Input **Fornecedor (opcional)** no lugar do antigo Textarea descrição, com hint "texto ou link".
+- Form subscrições: mesmo padrão — `<label>Descrição *</label>` no topo (autoFocus, ex.: "Vercel Pro, Adobe CC"); Input Fornecedor opcional substitui o Textarea de notas no fim.
+- ExpenseRow: ordem das colunas trocada — `Data | Descrição | Categoria | Fornecedor (xl+) | Valor | …`. Em ecrãs <xl, fornecedor mostra-se por baixo da descrição (`xl:hidden`) para não desaparecer. Descrição com fallback `(sem descrição)` italic quando null.
+- SubscriptionRow: igual — `Estado | Descrição | Categoria | …`, fornecedor inline por baixo se existir.
+- Pesquisa: placeholder "Pesquisar descrição ou fornecedor…", agora inclui ambos os campos no filtro.
+- Import `Textarea` mantido (ainda usado no `InvoiceCell`).
+
+**Actions — [src/app/(admin)/financas/actions.ts](src/app/(admin)/financas/actions.ts):**
+- `uploadExpenseInvoiceAction` selecciona também `description`; usa-a como fallback para o nome do ficheiro no Drive quando `supplier` é null (`folderLabel = supplier || description || "sem-fornecedor"`).
+
+`tsc --noEmit` + `next build` limpos (preflight OK).
+
+**Maria: passos manuais:**
+1. Correr **migração 045** no Supabase SQL Editor → verificar: `SELECT is_nullable FROM information_schema.columns WHERE table_name='expenses' AND column_name='supplier';` → `YES`
+2. Push para Vercel
+3. Smoke: abrir `/financas` → ver 4 KPIs em vez de 3 (último = "Total desde sempre"). Criar nova despesa única: preencher só descrição + valor (sem fornecedor) → deve registar. Criar despesa com fornecedor `https://amazon.es/produto` → na tabela aparece clicável. Mesmo na sub-aba "Subscrições".
+4. Confirmar que despesas antigas (que tinham só supplier sem description) continuam a aparecer com `(sem descrição)` em italic + supplier por baixo.
+
+---
+
+### Sessão 75 ✅ Tarefas multi-assignee (Opção A) + checklist mescla tarefas + notificações
+
+Maria pediu: (a) ao atribuir uma tarefa global a alguém, essa tarefa deve aparecer na checklist pessoal dessa pessoa; (b) poder atribuir uma tarefa a duas pessoas — Opção A escolhida: qualquer assignee marca como feita = some para todos; (c) sistema de notificações quando me atribuem tarefa — bolinha na sidebar + toast ao abrir a plataforma. Push notifications guardadas para futuro.
+
+**Migração 044 — [supabase/migrations/044_tasks_multi_assignee_and_seen.sql](supabase/migrations/044_tasks_multi_assignee_and_seen.sql):**
+- `tasks.assignee_email TEXT` → `tasks.assignee_emails TEXT[] NOT NULL DEFAULT '{}'` com backfill (`assignee_email` único → array de 1). Coluna antiga removida (sem backwards-compat — Vercel deploya tudo de uma vez). Índice GIN para membership rápida.
+- `tasks.seen_by TEXT[] NOT NULL DEFAULT '{}'` — emails que já viram a atribuição. Tarefas pré-existentes ficam pré-marcadas como `seen_by = assignee_emails` (não fazer a Maria ver tarefas antigas como "novas").
+- RPC `mark_tasks_seen(uuid[])` SECURITY DEFINER — só consegue acrescentar o email do JWT ao `seen_by` e só se o user for assignee. Mesmo padrão da `mark_chat_messages_read` (mig 043).
+
+**Types + actions — [src/types/tasks.ts](src/types/tasks.ts) + [src/app/(admin)/actions.ts](src/app/(admin)/actions.ts):**
+- `Task.assignee_emails: string[]` + `Task.seen_by: string[]`.
+- Nova `markTasksSeenAction(taskIds)` chama a RPC.
+
+**Hook + sidebar — [src/hooks/use-unread-tasks.ts](src/hooks/use-unread-tasks.ts) + [src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx):**
+- `useUnreadTasks(email)` faz `SELECT id, title, assignee_emails, seen_by, done, deleted_at` (limit 500, `done=false`) e subscreve INSERT/UPDATE no canal `tasks-unread`. Devolve `{count, tasks}`.
+- Bolinha sky no item Dashboard (igual à do Chat interno): em colapsado mostra no canto do ícone, em expandido à direita do label. Esconde quando `pathname === "/"`.
+- Lógica `showBadge / badgeValue / badgeLabel` unificada entre chat e tarefas para evitar duplicação.
+
+**Dashboard — [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
+- `useEffect` ao montar: filtra `initialTasks` por unseen (assignee + !done + !seen_by), mostra toast (sonner) com título da primeira tarefa + "(+N)", chama `markTasksSeenAction` server-side. Ref `seenOnMount.current` impede re-execução. Não actualiza estado local — viola ESLint `react-hooks/set-state-in-effect` ([[feedback_react_set_state_in_effect]]); próximo SSR vem com `seen_by` actualizado.
+- **ChecklistCard** mescla `personal_checklist` do owner + `tasks` onde `viewingEmail ∈ assignee_emails && !done`. Tarefas têm badge violet "Global" + prioridade + prazo + chip `+N Users` quando partilhada. Toggle de tarefa chama `updateTaskAction({done: true})` — qualquer assignee pode (Opção A).
+- **TasksCard** new task form: row de 3 avatares clicáveis (António/MJ/Ana) com ring violet quando activos + contador "1 responsável" / "2 responsáveis (partilhada)". Substitui o Select dropdown anterior.
+- **TasksCard** per-row: 3 mini-avatares (h-5) em vez do Select de assignee — clicar adiciona/remove. `toggleAssignee` ajusta `seen_by` (remove emails que já não são assignees).
+
+`tsc --noEmit` + `next build` + `eslint` limpos.
+
+**Maria: passos manuais:**
+1. Correr **migração 044** no Supabase SQL Editor → verificar: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('assignee_emails','seen_by');` → 2 linhas ARRAY
+2. Push para Vercel
+3. Smoke: abrir `/` → ver checklist pessoal com tarefas atribuídas (badge "Global"). Criar nova tarefa: clicar 2 avatares (ex. MJ + António) → criar → ver "2 responsáveis (partilhada)" e tarefa na checklist de ambos. Login como MJ → ver bolinha sky no Dashboard + toast "Tens 1 tarefa nova: 'X'". Voltar à página `/` → bolinha desaparece. Marcar tarefa como feita pela MJ → António deixa de a ver.
+4. Login como **Ana** (viewer) → confirma que continua a editar tarefas (a Ana tem permissão Dashboard).
+
+---
 
 ### Sessão 74 🛠️ Tabela Preservação — remover botão "Sem resposta" (drag-and-drop chega) + fix pill "100% por pagar" no workbench
 
@@ -116,40 +186,27 @@ Smoke: `tsc --noEmit` limpo. **Maria: verificar manualmente** a página Entregas
 
 ---
 
-### Sessão 70 💬 Chat interno — notificações de mensagens por ler na sidebar
+## Próximo passo CONCRETO
 
-Maria pediu uma "bolinha com o nr de mensagens por ler na aba" do Chat interno. Ao explorar descobriu-se que a coluna `read_by` (array de emails) já existia desde a migração 029 mas **nunca tinha sido ligada** — `markChatMessagesReadAction` existia em [actions.ts](src/app/(admin)/chat/actions.ts) mas não era chamada de lado nenhum, e além disso a política RLS UPDATE só deixava o autor mexer na própria mensagem (impossível marcar como lida a mensagem de outro).
+**Sessão 75 — passos manuais para activar tarefas multi-assignee + notificações:**
 
-**1. Migração 043 — RPC `mark_chat_messages_read`** ([supabase/migrations/043_chat_mark_read_rpc.sql](supabase/migrations/043_chat_mark_read_rpc.sql)):
-- Função `SECURITY DEFINER` cirúrgica que só consegue acrescentar o email do JWT ao `read_by` das mensagens dadas — nenhuma outra coluna pode ser tocada por esta via.
-- Valida que o JWT pertence a um dos 3 emails da equipa antes de qualquer alteração.
-- `GRANT EXECUTE` apenas para `authenticated`.
-- Preferida a esta abordagem em vez de relaxar a RLS UPDATE (que abriria edição/eliminação cruzada).
-
-**2. Action passa a chamar a RPC** ([src/app/(admin)/chat/actions.ts:38-50](src/app/(admin)/chat/actions.ts#L38-L50)):
-- Implementação anterior fazia `SELECT + UPDATE` por linha, mas a RLS bloqueia o UPDATE silenciosamente para mensagens de outros. Agora é um único `supabase.rpc("mark_chat_messages_read", { message_ids })`.
-
-**3. Mark-as-read automático em `chat-client.tsx`** ([src/app/(admin)/chat/chat-client.tsx:220-232](src/app/(admin)/chat/chat-client.tsx#L220-L232)):
-- `useEffect` que, sempre que o array `messages` muda, filtra as não-próprias que ainda não têm o meu email em `read_by` e chama a action em batch. Cobre tanto a abertura da página como mensagens novas que cheguem via Realtime.
-
-**4. Hook `useUnreadChatCount`** ([src/hooks/use-unread-chat.ts](src/hooks/use-unread-chat.ts)):
-- Faz `SELECT id, author_email, read_by, deleted_at` (limit 500) e subscreve INSERT/UPDATE em `chat_messages` no canal `chat-unread` — separado do canal usado dentro do chat (`chat-messages`) para não interferir.
-- Devolve o número de mensagens onde `author_email !== currentEmail` e `!read_by.includes(currentEmail)`.
-
-**5. Bolinha sky na sidebar** ([src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx)):
-- Email do utilizador autenticado guardado em `profile.email` (em vez de só `{name, photo, role}`).
-- Badge `bg-sky-500` com número (cap "99+") — alinhado com a cor do ícone do header do chat.
-- Sidebar expandida: badge à direita, depois do label. Sidebar colapsada (desktop): badge no canto superior direito do ícone com `ring-2 ring-surface`.
-- **Esconde quando `pathname.startsWith("/chat")`** — estás a ler, marca-se como lido imediatamente; mostrar e desaparecer só piscaria.
-- Tooltip "N mensagens por ler" / "1 mensagem por ler" com plural correcto.
-
-Preflight (tsc + next build) OK. Smoke Playwright não disponível na máquina actual — **Maria: testar manualmente** (1) abrir chat com outro user e enviar mensagem; (2) confirmar bolinha azul aparece na sidebar do outro user; (3) clicar em "Chat interno" e confirmar que desaparece; (4) sair de /chat e confirmar que mensagens antigas não voltam a aparecer como por ler.
-
-**Migração para aplicar**: `043_chat_mark_read_rpc.sql`.
+1. **Correr migração 044** no Supabase SQL Editor:
+   - Cola [supabase/migrations/044_tasks_multi_assignee_and_seen.sql](supabase/migrations/044_tasks_multi_assignee_and_seen.sql) → Run
+   - Verifica: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('assignee_emails','seen_by');` → 2 linhas, ambas `ARRAY`
+   - Verifica que `assignee_email` (singular) já não existe: `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name='assignee_email';` → 0 linhas
+   - Confirma backfill: `SELECT count(*) FROM tasks WHERE cardinality(assignee_emails) > 0;` → mesmo nº que tinhas com responsável antes
+2. **Push para Vercel** — afecta apenas o Dashboard (`/`) e a sidebar global.
+3. **Testes em produção:**
+   - Abrir `/` (Dashboard) → ver checklist pessoal com itens antigos. Se tiveres alguma tarefa atribuída a ti, deve aparecer também (badge violet "Global").
+   - **Criar tarefa partilhada**: + → escrever título → clicar 2 avatares (ex: MJ + António) → ver "2 responsáveis (partilhada)" → Criar.
+   - Confirmar que a nova tarefa aparece na checklist pessoal de quem criou (se for assignee) E nos "Afazeres globais" com 2 avatares com ring violet.
+   - **Login como MJ** (outro browser/incognito) → no Dashboard ver toast "Tens 1 tarefa nova: 'X'" + bolinha sky no item Dashboard quando estiveres noutra página. Voltar a `/` → bolinha desaparece.
+   - **Opção A — completação partilhada**: MJ marca tarefa como ✓ → recarregar como António → a tarefa desapareceu da sua checklist e dos Afazeres globais (filtrado por !done).
+   - **Editar assignees** numa tarefa existente: clicar nos mini-avatares (h-5) por baixo do título → adicionar/remover. Tirar o último → "Sem responsável".
+   - **Filtro "Minhas"** continua a funcionar (agora com `.includes()`).
+4. **Smoke da Ana (viewer)**: login como Ana → / → ver as suas tarefas + checklist + criar/editar tarefas globais. Confirmar bolinha + toast quando lhe atribuírem tarefa.
 
 ---
-
-## Próximo passo CONCRETO
 
 **Sessão 65 — passos manuais para activar o registo manual de WhatsApp:**
 
@@ -299,7 +356,8 @@ Sem migrações novas. Push do código actual para Vercel. Para o cron funcionar
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-69)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-70)
+- **70** — Chat interno: bolinha sky de mensagens por ler na sidebar (mig 043 RPC `mark_chat_messages_read` SECURITY DEFINER; hook `useUnreadChatCount` com Realtime; auto mark-as-read em chat-client.tsx; esconde em `/chat`)
 - **69** — Finanças: selector de ano + "Potencial total" exclui pré-reservas/sem-resposta/canceladas; `metrics.ts` usa lógica proporcional (igual a Finanças); regra de atribuição ao ano (orders → event_date, vouchers → created_at, despesas → expense_date)
 - **68** — Workbench Preservação mobile: coluna central `order-1`, gaps/paddings menores `<lg:` (desktop intocado)
 - **67** — Comunicações: tab default segue `contact_preference`; WhatsApp log abre scrollado ao fim
@@ -406,6 +464,7 @@ Sem migrações novas. Push do código actual para Vercel. Para o cron funcionar
 - **Calculadora de transporte** em Entregas e Recolhas (placeholder na sessão 42 → na sessão 62 substituído por link CTT)
 - **Aba "Healthchecks"** — versão útil entregue na sessão 43, mas pode crescer (form checks, SEO, etc.)
 - **Filtros guardáveis em Preservação** (proposto na sessão 62, adiado pela Maria) — chips ao lado da pesquisa com filtros pré-feitos: "Urgentes (≤7 dias)", "Pagamento pendente", "Em prensa", etc. Reduz cliques no dia-a-dia. Estimativa: 1h, risco zero. Avaliar também em Parcerias.
+- **Push notifications PWA** (pedido pela Maria na sessão 75, adiado por complexidade) — usar Web Push API + VAPID keys para notificar no telemóvel/desktop nativo quando uma tarefa é atribuída (ou pré-reserva nova chega, etc.). Service worker já existe (PWA da sessão 39). Implica: subscribe no client, guardar push subscriptions na BD por user+device, endpoint server que envia via VAPID, fallback gracioso para browsers sem permissão.
 - Outras ideias geridas dentro da própria aba `/ideias` desde a sessão 42
 
 ---

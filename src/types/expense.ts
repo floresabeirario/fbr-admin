@@ -33,7 +33,7 @@ export interface Expense {
   updated_by: string | null;
 
   expense_date: string;
-  supplier: string;
+  supplier: string | null;
   category: ExpenseCategory;
   description: string | null;
   amount: number;
@@ -54,7 +54,7 @@ export interface Expense {
 
 export type ExpenseInsert = Partial<Omit<Expense, "id" | "created_at" | "updated_at">> & {
   expense_date: string;
-  supplier: string;
+  description: string;
   amount: number;
 };
 
@@ -134,6 +134,35 @@ export function monthlyEquivalent(e: Pick<Expense,
     case "custom":  return amt; // tratamos como mensal dentro do intervalo
     default:        return 0;
   }
+}
+
+/**
+ * Total estimado pago numa subscrição desde o seu início até `at`
+ * (ou até `recurrence_end_date` se já terminou antes). Usa o custo
+ * mensal equivalente × nº de meses elapsed (inclusivo no mês de
+ * início), portanto é uma aproximação razoável — não conta dias
+ * parciais. Devolve 0 se não é recorrente ou ainda não começou.
+ */
+export function subscriptionTotalToDate(
+  e: Pick<Expense,
+    | "is_recurring"
+    | "recurrence_period"
+    | "recurrence_start_date"
+    | "recurrence_end_date"
+    | "amount"
+  >,
+  at: Date,
+): number {
+  if (!e.is_recurring || !e.recurrence_start_date) return 0;
+  const start = new Date(e.recurrence_start_date);
+  if (at < start) return 0;
+  const end = e.recurrence_end_date ? new Date(e.recurrence_end_date) : at;
+  const effectiveEnd = end < at ? end : at;
+  if (effectiveEnd < start) return 0;
+  const months =
+    (effectiveEnd.getFullYear() - start.getFullYear()) * 12 +
+    (effectiveEnd.getMonth() - start.getMonth()) + 1;
+  return Math.max(0, months) * monthlyEquivalent(e);
 }
 
 /**

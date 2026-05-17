@@ -72,6 +72,7 @@ import {
   EXPENSE_RECURRENCE_PERIOD_LABELS,
   monthlyEquivalent,
   isSubscriptionActive,
+  subscriptionTotalToDate,
 } from "@/types/expense";
 import {
   createCompetitorAction,
@@ -466,6 +467,29 @@ function PriceRow({
 
 type DespesasSubTab = "unicas" | "subscricoes";
 
+// Fornecedor é opcional e pode ser texto OU link. Auto-detecta URL
+// (http(s):// ou www.) e renderiza clicável. Caso contrário texto puro.
+function renderSupplier(s: string | null | undefined): React.ReactNode {
+  const v = (s ?? "").trim();
+  if (!v) return <span className="text-cocoa-500">—</span>;
+  const isUrl = /^(https?:\/\/|www\.)/i.test(v);
+  if (!isUrl) return <span className="text-cocoa-700">{v}</span>;
+  const href = v.startsWith("http") ? v : `https://${v}`;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1 text-sky-700 hover:text-sky-900 hover:underline underline-offset-2 max-w-[220px] truncate"
+      title={v}
+    >
+      <span className="truncate">{v.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</span>
+      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+    </a>
+  );
+}
+
 function DespesasTab({
   expenses,
   canEdit,
@@ -496,10 +520,17 @@ function DespesasTab({
   const monthlyRecurring = activeSubs.reduce((s, e) => s + monthlyEquivalent(e), 0);
   const totalMonth = unicasMonth + monthlyRecurring;
 
+  // Total desde sempre = todas as despesas únicas + acumulado estimado
+  // de cada subscrição desde o seu início até hoje (ou até ao seu fim
+  // se já terminou).
+  const unicasEver = unicas.reduce((s, e) => s + Number(e.amount), 0);
+  const subsEver = subscript.reduce((s, e) => s + subscriptionTotalToDate(e, now), 0);
+  const totalEver = unicasEver + subsEver;
+
   return (
     <div className="space-y-4">
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiBox
           label="Despesas únicas — este mês"
           value={formatEUR(unicasMonth)}
@@ -517,6 +548,12 @@ function DespesasTab({
           value={formatEUR(totalMonth)}
           icon={<TrendingUp className="h-4 w-4" />}
           color="amber"
+        />
+        <KpiBox
+          label="Total desde sempre"
+          value={formatEUR(totalEver)}
+          icon={<Euro className="h-4 w-4" />}
+          color="emerald"
         />
       </div>
 
@@ -604,10 +641,10 @@ function DespesasUnicas({
   const [search, setSearch] = useState("");
   const [newExpense, setNewExpense] = useState({
     expense_date: format(new Date(), "yyyy-MM-dd"),
-    supplier: "",
+    description: "",
     category: "materiais" as ExpenseCategory, // default Maria: materiais
     amount: "",
-    description: "",
+    supplier: "",
   });
 
   const filtered = useMemo(() => {
@@ -616,8 +653,8 @@ function DespesasUnicas({
       if (categoryFilter !== "todas" && e.category !== categoryFilter) return false;
       if (!q) return true;
       return (
-        e.supplier.toLowerCase().includes(q) ||
         (e.description ?? "").toLowerCase().includes(q) ||
+        (e.supplier ?? "").toLowerCase().includes(q) ||
         (e.notes ?? "").toLowerCase().includes(q)
       );
     });
@@ -625,28 +662,28 @@ function DespesasUnicas({
 
   function handleCreate() {
     const amount = parseFloat(newExpense.amount.replace(",", "."));
-    if (!newExpense.supplier.trim() || !amount || amount <= 0) {
-      toast.error("Preenche fornecedor e valor válido.");
+    if (!newExpense.description.trim() || !amount || amount <= 0) {
+      toast.error("Preenche a descrição e um valor válido.");
       return;
     }
     startTransition(async () => {
       try {
         await createExpenseAction({
           expense_date: newExpense.expense_date,
-          supplier: newExpense.supplier.trim(),
+          description: newExpense.description.trim(),
           category: newExpense.category,
           amount,
-          description: newExpense.description.trim() || null,
+          supplier: newExpense.supplier.trim() || null,
           is_recurring: false,
         });
         toast.success("Despesa registada.");
         setCreating(false);
         setNewExpense({
           expense_date: format(new Date(), "yyyy-MM-dd"),
-          supplier: "",
+          description: "",
           category: "materiais",
           amount: "",
-          description: "",
+          supplier: "",
         });
         router.refresh();
       } catch (err) {
@@ -662,7 +699,7 @@ function DespesasUnicas({
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
           <Input
-            placeholder="Pesquisar fornecedor ou descrição..."
+            placeholder="Pesquisar descrição ou fornecedor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-9"
@@ -702,9 +739,10 @@ function DespesasUnicas({
               onChange={(e) => setNewExpense((p) => ({ ...p, expense_date: e.target.value }))}
             />
             <Input
-              placeholder="Fornecedor"
-              value={newExpense.supplier}
-              onChange={(e) => setNewExpense((p) => ({ ...p, supplier: e.target.value }))}
+              placeholder="Descrição (ex.: Caixas de cartão, almoço com cliente…)"
+              value={newExpense.description}
+              onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))}
+              autoFocus
             />
             <Select value={newExpense.category} onValueChange={(v) => setNewExpense((p) => ({ ...p, category: v as ExpenseCategory }))}>
               <SelectTrigger>
@@ -728,11 +766,10 @@ function DespesasUnicas({
               />
             </div>
           </div>
-          <Textarea
-            placeholder="Descrição (opcional)"
-            value={newExpense.description}
-            onChange={(e) => setNewExpense((p) => ({ ...p, description: e.target.value }))}
-            rows={2}
+          <Input
+            placeholder="Fornecedor (opcional) — texto ou link (ex.: Continente, https://amazon.es/…)"
+            value={newExpense.supplier}
+            onChange={(e) => setNewExpense((p) => ({ ...p, supplier: e.target.value }))}
           />
           <div className="flex gap-2">
             <Button onClick={handleCreate} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg">Registar</Button>
@@ -761,9 +798,9 @@ function DespesasUnicas({
               <thead className="bg-cream-50">
                 <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
                   <th className="px-3 py-2 font-medium">Data</th>
-                  <th className="px-3 py-2 font-medium">Fornecedor</th>
+                  <th className="px-3 py-2 font-medium">Descrição</th>
                   <th className="px-3 py-2 font-medium">Categoria</th>
-                  <th className="px-3 py-2 font-medium hidden xl:table-cell">Descrição</th>
+                  <th className="px-3 py-2 font-medium hidden xl:table-cell">Fornecedor</th>
                   <th className="px-3 py-2 font-medium text-right">Valor</th>
                   <th className="px-3 py-2 font-medium">Pagamento</th>
                   <th className="px-3 py-2 font-medium">Factura</th>
@@ -797,10 +834,10 @@ function DespesasSubscricoes({
   const [creating, setCreating] = useState(false);
   const today = new Date();
   const [newSub, setNewSub] = useState({
-    supplier: "",
+    description: "",
     category: "software" as ExpenseCategory,
     amount: "",
-    description: "",
+    supplier: "",
     recurrence_period: "monthly" as ExpenseRecurrencePeriod,
     recurrence_start_date: format(today, "yyyy-MM-dd"),
     recurrence_end_date: "",
@@ -808,8 +845,8 @@ function DespesasSubscricoes({
 
   function handleCreate() {
     const amount = parseFloat(newSub.amount.replace(",", "."));
-    if (!newSub.supplier.trim() || !amount || amount <= 0) {
-      toast.error("Preenche fornecedor e valor válido.");
+    if (!newSub.description.trim() || !amount || amount <= 0) {
+      toast.error("Preenche a descrição e um valor válido.");
       return;
     }
     if (!newSub.recurrence_start_date) {
@@ -830,10 +867,10 @@ function DespesasSubscricoes({
           // expense_date guarda a data de referência (1º pagamento) para
           // a tabela aparecer no relatório do mês de início.
           expense_date: newSub.recurrence_start_date,
-          supplier: newSub.supplier.trim(),
+          description: newSub.description.trim(),
           category: newSub.category,
           amount,
-          description: newSub.description.trim() || null,
+          supplier: newSub.supplier.trim() || null,
           is_recurring: true,
           recurrence_period: newSub.recurrence_period,
           recurrence_start_date: newSub.recurrence_start_date,
@@ -842,10 +879,10 @@ function DespesasSubscricoes({
         toast.success("Subscrição registada.");
         setCreating(false);
         setNewSub({
-          supplier: "",
+          description: "",
           category: "software",
           amount: "",
-          description: "",
+          supplier: "",
           recurrence_period: "monthly",
           recurrence_start_date: format(new Date(), "yyyy-MM-dd"),
           recurrence_end_date: "",
@@ -895,11 +932,12 @@ function DespesasSubscricoes({
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-cocoa-700">Fornecedor *</label>
+              <label className="text-xs text-cocoa-700">Descrição *</label>
               <Input
-                placeholder="Ex.: Vercel, Adobe, Spotify…"
-                value={newSub.supplier}
-                onChange={(e) => setNewSub((p) => ({ ...p, supplier: e.target.value }))}
+                placeholder="Ex.: Vercel Pro, Adobe CC, Spotify Family…"
+                value={newSub.description}
+                onChange={(e) => setNewSub((p) => ({ ...p, description: e.target.value }))}
+                autoFocus
               />
             </div>
             <div>
@@ -967,11 +1005,10 @@ function DespesasSubscricoes({
               </div>
             </div>
           </div>
-          <Textarea
-            placeholder="Notas (opcional) — ex.: plano Pro, conta partilhada com…"
-            value={newSub.description}
-            onChange={(e) => setNewSub((p) => ({ ...p, description: e.target.value }))}
-            rows={2}
+          <Input
+            placeholder="Fornecedor (opcional) — texto ou link (ex.: Vercel, https://vercel.com/account)"
+            value={newSub.supplier}
+            onChange={(e) => setNewSub((p) => ({ ...p, supplier: e.target.value }))}
           />
           <div className="flex gap-2">
             <Button onClick={handleCreate} className="bg-violet-600 hover:bg-violet-700 text-white">Registar</Button>
@@ -999,7 +1036,7 @@ function DespesasSubscricoes({
               <thead className="bg-cream-50">
                 <tr className="text-left text-xs uppercase tracking-wide text-cocoa-700">
                   <th className="px-3 py-2 font-medium">Estado</th>
-                  <th className="px-3 py-2 font-medium">Fornecedor</th>
+                  <th className="px-3 py-2 font-medium">Descrição</th>
                   <th className="px-3 py-2 font-medium">Categoria</th>
                   <th className="px-3 py-2 font-medium">Periodicidade</th>
                   <th className="px-3 py-2 font-medium hidden xl:table-cell">Início → Fim</th>
@@ -1055,7 +1092,16 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
       <td className="px-3 py-2 text-cocoa-900 whitespace-nowrap">
         {format(parseISO(expense.expense_date), "dd/MM/yyyy")}
       </td>
-      <td className="px-3 py-2 text-cocoa-900 font-medium">{expense.supplier}</td>
+      <td className="px-3 py-2 text-cocoa-900 font-medium max-w-[320px]">
+        <div className="truncate" title={expense.description ?? expense.supplier ?? ""}>
+          {expense.description ?? <span className="text-cocoa-500 italic">(sem descrição)</span>}
+        </div>
+        {/* Em ecrãs estreitos o fornecedor não tem coluna própria — mostramo-lo
+            por baixo da descrição para não se perder. */}
+        <div className="xl:hidden text-xs mt-0.5">
+          {renderSupplier(expense.supplier)}
+        </div>
+      </td>
       <td className="px-3 py-2">
         <span className={cn(
           "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border",
@@ -1064,8 +1110,8 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
           {EXPENSE_CATEGORY_LABELS[expense.category]}
         </span>
       </td>
-      <td className="px-3 py-2 text-cocoa-700 text-xs max-w-[300px] truncate hidden xl:table-cell">
-        {expense.description ?? ""}
+      <td className="px-3 py-2 text-xs hidden xl:table-cell max-w-[240px]">
+        {renderSupplier(expense.supplier)}
       </td>
       <td className="px-3 py-2 text-right font-semibold text-rose-700 whitespace-nowrap">
         {formatEUR(Number(expense.amount))}
@@ -1148,7 +1194,14 @@ function SubscriptionRow({ expense, canEdit }: { expense: Expense; canEdit: bool
           {active ? "Activa" : "Terminada"}
         </span>
       </td>
-      <td className="px-3 py-2 text-cocoa-900 font-medium">{expense.supplier}</td>
+      <td className="px-3 py-2 text-cocoa-900 font-medium max-w-[260px]">
+        <div className="truncate" title={expense.description ?? expense.supplier ?? ""}>
+          {expense.description ?? <span className="text-cocoa-500 italic">(sem descrição)</span>}
+        </div>
+        {expense.supplier && (
+          <div className="text-xs mt-0.5">{renderSupplier(expense.supplier)}</div>
+        )}
+      </td>
       <td className="px-3 py-2">
         <span className={cn(
           "inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border",

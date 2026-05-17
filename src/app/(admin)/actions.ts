@@ -70,6 +70,18 @@ export async function deleteTaskAction(id: string): Promise<void> {
   revalidatePath("/");
 }
 
+// Marca um conjunto de tarefas como "vistas" pelo utilizador actual.
+// Usa a RPC mark_tasks_seen (mig 044): SECURITY DEFINER cirúrgica que
+// só consegue acrescentar o email do JWT ao array seen_by, e só se
+// o utilizador estiver entre os assignees da tarefa.
+export async function markTasksSeenAction(taskIds: string[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("mark_tasks_seen", { task_ids: taskIds });
+  if (error) throw new Error(error.message);
+}
+
 // ============================================================
 // Checklist pessoal (personal_checklist)
 // ============================================================

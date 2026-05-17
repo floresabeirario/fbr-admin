@@ -15,13 +15,19 @@ export interface Task {
   title: string;
   description: string | null;
 
-  assignee_email: string | null;
+  // Opção A: tarefa pode ter 2+ responsáveis; qualquer um marca como
+  // concluída e desaparece da checklist de todos (completação partilhada).
+  assignee_emails: string[];
   priority: TaskPriority;
   due_date: string | null;
 
   done: boolean;
   done_at: string | null;
   done_by: string | null;
+
+  // Emails que já abriram o Dashboard depois desta tarefa lhes ser atribuída.
+  // Usado para a bolinha de notificação na sidebar e o toast inicial.
+  seen_by: string[];
 
   order_id: string | null;
 }

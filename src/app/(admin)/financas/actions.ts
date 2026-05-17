@@ -254,17 +254,24 @@ export async function uploadExpenseInvoiceAction(formData: FormData): Promise<{
   const supabase = await createClient();
   const { data: expense, error: fetchErr } = await supabase
     .from("expenses")
-    .select("expense_date, supplier")
+    .select("expense_date, supplier, description")
     .eq("id", expenseId)
     .single();
   if (fetchErr || !expense) {
     throw new Error("Despesa não encontrada.");
   }
 
+  // Fornecedor agora é opcional — usa a descrição como fallback
+  // para o nome do ficheiro no Drive ficar identificável.
+  const folderLabel =
+    (expense.supplier ?? "").trim() ||
+    (expense.description ?? "").trim() ||
+    "sem-fornecedor";
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const uploaded = await uploadExpenseInvoice({
     expenseDate: expense.expense_date,
-    supplier: expense.supplier,
+    supplier: folderLabel,
     filename: file.name,
     mimeType: file.type || "application/octet-stream",
     buffer,
