@@ -178,7 +178,7 @@ export default function FinancasClient({
       </div>
 
       {/* Tabs como cartões grandes — visíveis e claros */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
         {TABS.map((t) => {
           const active = t.key === tab;
           const Icon = t.icon;

@@ -1,7 +1,7 @@
 import { createClient } from "./client";
 import type { Order, OrderInsert, OrderUpdate, OrderStatus } from "@/types/database";
 import { differenceInDays } from "date-fns";
-import { generateCouponCode } from "@/lib/coupon";
+import { generateUniqueCouponCode } from "@/lib/coupon";
 
 // ── Leitura ───────────────────────────────────────────────────
 
@@ -85,9 +85,10 @@ export async function deleteOrder(id: string): Promise<void> {
 export async function updateOrderStatus(id: string, status: OrderStatus): Promise<Order> {
   const updates: OrderUpdate = { status };
 
-  // Ao passar para "A ser emoldurado" → gerar cupão 5%
+  // Ao passar para "A ser emoldurado" → gerar cupão 5% único (retry em colisão)
   if (status === "a_ser_emoldurado") {
-    updates.coupon_code = generateCouponCode();
+    const supabase = createClient();
+    updates.coupon_code = await generateUniqueCouponCode(supabase);
     updates.coupon_status = "nao_utilizado";
   }
 

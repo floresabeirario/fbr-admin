@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 22) — Dashboard: checkbox + toast Undo + "Concluídas recentes (10)" colapsada; fix de baseline em Métricas (preset → previousYearRange/previousEqualRange) + locale pt no gráfico mensal
+## Fase actual: FASE 6 (parte 23) — Preservação: destaque "Nova" (<24h) em tabela+cards; Finanças: grid 5 tabs; cupão único c/ retry em colisão; refactor Dashboard 1051→112 linhas em `_components/dashboard/`
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,36 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 79 🧰 Preservação destaque "Nova"; Finanças grid; cupão único; refactor Dashboard
+
+Após análise global da plataforma (sessão 78), Maria autorizou um lote de quick wins seguros + um refactor mecânico. Trabalhos desta sessão:
+
+**Finanças — grid de tabs (zero risco):** [src/app/(admin)/financas/financas-client.tsx:181](src/app/(admin)/financas/financas-client.tsx#L181) — `grid-cols-2 lg:grid-cols-4` → `grid-cols-2 lg:grid-cols-5`. Antes deixava 1 tab sozinho na 2ª linha; agora as 5 tabs alinham numa linha em desktop. Mobile (2 cols) intocado.
+
+**Cupão único c/ retry — B1 da análise:** [src/lib/coupon.ts](src/lib/coupon.ts) ganhou `generateUniqueCouponCode(supabase, maxAttempts=5)` que valida contra `orders.coupon_code` (UNIQUE) antes de devolver. Resolve futura colisão silenciosa: o INSERT/UPDATE rebentava com `duplicate key (23505)` quando o random batia num código existente — provável com escala. [src/app/(admin)/preservacao/actions.ts:178](src/app/(admin)/preservacao/actions.ts#L178) passa a usar o helper async e é **idempotente** — não gera cupão novo se já existir um (re-passar por `a_ser_emoldurado` não cria duplicado). [src/lib/supabase/orders.ts:85](src/lib/supabase/orders.ts#L85) (`updateOrderStatus`, não usado em runtime mas mantido) também actualizado para consistência. `coupon_expiry` (B2) **adiado a pedido da Maria** — fica `NULL` como hoje.
+
+**Destaque "Nova" — encomenda criada há <24h:** Maria pediu visual fácil para encomendas que nunca abriu. Escolheu abordagem simples (heurística 24h) em vez de coluna `seen_by` por utilizador. [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):
+- Import `differenceInHours` adicionado.
+- `OrderRow` (tabela): `isNew = differenceInHours(now, created_at) < 24`. `<tr>` ganha `bg-amber-50/50` quando isNew. Badge "Nova" amber pill junto ao nome do cliente, com tooltip mostrando a data de criação.
+- `OrderCard` (vista cards): mesma lógica. Card border passa a `border-amber-300 bg-amber-50/60` quando isNew. Badge "Nova" mais pequeno ao lado do nome.
+- O destaque some sozinho ao fim de 24h — todos os utilizadores veem o mesmo (não é por pessoa). Calendário e Timeline intocados (não fazem sentido pelo mesmo critério).
+
+**Refactor Dashboard — C2 da análise:** [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx) passou de **1051 → 112 linhas** (orquestrador puro). Lógica extraída para 8 ficheiros em `src/app/(admin)/_components/dashboard/`:
+- `team-members.ts` (15 linhas) — `TEAM_MEMBERS` + `memberName` helpers
+- `format-helpers.ts` (37) — `formatDate`, `formatRelativeDays`, `formatDoneAgo`
+- `section-card.tsx` (30) — wrapper visual genérico (header + corpo)
+- `recent-done-row.tsx` (50) — linha das concluídas, partilhada entre checklist e tasks
+- `pickups-card.tsx` (75) — recolhas e entregas próximas
+- `alerts-card.tsx` (48) — alertas
+- `checklist-card.tsx` (450) — checklist pessoal + tarefas atribuídas mescladas
+- `tasks-card.tsx` (504) — afazeres globais
+
+**Zero mudança visual ou de comportamento** — só código a mover. Mesmo estado interno, mesmos handlers, mesmas RLS, mesmas chamadas a actions. `TEAM_MEMBERS` continua duplicado de `roles.ts` (consolidação fica para C1 — unificar admins numa só tabela — adiada para sessão dedicada).
+
+Preflight `tsc --noEmit` + `next build` limpos. Sem migrações. **Maria: push para Vercel → smoke (1) abrir Finanças → confirmar 5 tabs numa só linha em desktop; (2) abrir Preservação → criar nova encomenda (ou ver as criadas <24h) → confirmar fundo amber + badge "Nova" na tabela; trocar para vista cards → mesmo destaque; (3) abrir Dashboard → tudo deve estar EXACTAMENTE igual ao que estava antes — se notares qualquer diferença visual ou de comportamento, é regressão do refactor.**
+
+---
 
 ### Sessão 78 🧰 Dashboard — checkbox + Undo + "Concluídas recentes (10)"; fix baseline Métricas
 
@@ -160,37 +190,18 @@ Maria pediu: (a) ao atribuir uma tarefa global a alguém, essa tarefa deve apare
 
 ---
 
-### Sessão 74 🛠️ Tabela Preservação — remover botão "Sem resposta" (drag-and-drop chega) + fix pill "100% por pagar" no workbench
-
-Maria reparou dois problemas: (a) no workbench, o pill **Pagamento "100% por pagar"** estava a sair pela borda direita do card Finanças; (b) na tabela, os badges da célula de acções estavam sobrepostos. Tentativa inicial de realocar larguras das colunas + `flex-wrap` foi rejeitada pela Maria — "está terrível, preferia como estava dantes". Pediu também para remover o botão **Sem resposta**, que não é necessário (já consegue arrastar para o grupo "Sem resposta" via drag-and-drop).
-
-**Fix table — [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx)**:
-- Larguras do colgroup [linhas 609-619](src/app/(admin)/preservacao/preservacao-client.tsx#L609-L619): **restauradas ao original** (Cliente 16%, Estado 16%, Pagamento 14%, Acções 6%, etc.).
-- Célula de acções [linha 481](src/app/(admin)/preservacao/preservacao-client.tsx#L481): voltou a `flex items-center justify-end gap-2` (sem `flex-wrap`).
-- **Botão "Sem resposta" removido** (e função `moveToSemResposta` órfã removida; import de `Clock` removido). Restam na célula: "Marcar contactada" (quando pré-reserva por contactar) + "Voltar para Pré-reservas" (quando manualmente marcada como sem-resposta) + ExternalLink. O grupo "Sem resposta" continua a existir — Maria move para lá por drag-and-drop.
-- `PaymentSelect` mantém o `max-w-full` adicionado [linha 216](src/app/(admin)/preservacao/preservacao-client.tsx#L216) — rede de segurança caso a célula transborde.
-
-**Fix workbench — [src/app/(admin)/preservacao/[id]/workbench-client.tsx:1661](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L1661)**:
-- `SelectTrigger` do Pagamento passa a `w-full max-w-full` — pill respeita a largura da coluna `3fr` do grid `2fr_3fr` em vez de transbordar; `line-clamp-1` já existente no trigger base trunca se necessário.
-
-`tsc --noEmit` limpo. Sem migrações. **Maria: abrir /preservacao para confirmar que o layout está igual ao original (Cliente não quebra, colunas alinhadas) e que o botão "Sem resposta" desapareceu da célula de acções; abrir um workbench com pagamento "100% por pagar" e confirmar que o pill já não sai da borda direita do card Finanças.**
-
----
-
 ## Próximo passo CONCRETO
 
-**Sessão 78 — passos manuais para activar checkbox + Undo + "Concluídas recentes":**
+**Sessão 79 — passos manuais:**
 
-1. **Sem migrações novas.** `done_at` já existia em `tasks` e `personal_checklist` desde a mig 012.
-2. **Push para Vercel** — afecta `/` (Dashboard) e `/metricas`.
+1. **Sem migrações novas.**
+2. **Push para Vercel** — afecta `/financas`, `/preservacao`, `/` (Dashboard).
 3. **Smoke test (Maria):**
-   - Abrir `/` → ver que checklist e tarefas globais têm agora **checkbox quadrado** (em vez da bolinha).
-   - Marcar um item como feito → ver toast "Feita: …" com botão **Anular** durante 5s. Clicar **Anular** → item volta para a lista pendente.
-   - Marcar outro item como feito → não clicar em Anular → confirmar que aparece em **"Concluídas recentes (N)"** colapsado no fim do card.
-   - Expandir → ver últimas 10 com strikethrough + "há X min" + botão **↺ Reabrir** no hover. Clicar → volta para a lista pendente.
-   - Em **"Afazeres globais"**: filtro "Minhas" deve filtrar tanto pendentes como concluídas recentes. Filtro "Feitas" continua a mostrar o histórico completo (e esconde a secção "Concluídas recentes").
-   - Em `/metricas`: trocar entre "Este mês", "Últimos 3 meses", "Este ano" → as percentagens debaixo dos KPIs (Receita, Encomendas) devem fazer sentido (≠ ±∞ ou 800%). Gráfico "Receita mensal (12 meses)" mostra labels em pt: "jan 26", "fev 26", etc.
-4. **Smoke da Ana (viewer)**: login como Ana → / → as suas tarefas usam checkbox; toast Anular funciona; secção Concluídas recentes aparece e o botão Reabrir funciona (a Ana tem permissão de editar tarefas globais — `requireUser`, não `requireAdmin`).
+   - **Finanças** → confirma 5 tabs alinhadas numa só linha em desktop (Despesas, Tabela de preços, Custos de produção, Faturação, Competição). Em mobile continua 2 colunas.
+   - **Preservação** → uma encomenda criada nas últimas 24h deve aparecer com **fundo amber + badge "Nova"** na coluna Cliente. Passar o rato no badge mostra a data/hora de criação. Trocar para vista **Cards** → card tem border amber e badge "Nova" mais pequeno ao lado do nome.
+   - **Dashboard** → confirmar que tudo está **exactamente igual** ao que estava antes da sessão 78. O refactor moveu código para `_components/dashboard/` mas não deve ter alterado nada visualmente. Se notares qualquer mudança visual ou de comportamento, é regressão — diz-me logo.
+   - **Cupão** (opcional, só se passares uma encomenda para "A ser emoldurado"): deve continuar a gerar 6 chars (ex.: `K2P9XR`); não deve dar erro de duplicate key mesmo em situações de azar.
+4. **Smoke da Ana (viewer)**: nenhuma mudança específica para a Ana nesta sessão.
 
 **Passos manuais antigos (sessões 52-65)** — já foram aplicadas em produção. Se montares ambiente do zero, vê os ficheiros das migrações 034-044 directamente e o histórico condensado abaixo.
 
@@ -198,7 +209,8 @@ Maria reparou dois problemas: (a) no workbench, o pill **Pagamento "100% por pag
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-73)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-74)
+- **74** — Tabela Preservação: botão "Sem resposta" removido (drag-and-drop substitui); larguras de colgroup restauradas (Cliente 16%, Estado 16%, Pagamento 14%, Acções 6%); workbench `SelectTrigger` do Pagamento ganha `w-full max-w-full` para pill "100% por pagar" não transbordar coluna 3fr
 - **73** — Tabela Preservação: ícone "Em mãos" sky → emerald (contraste com violet "Recolha no local"); alinhado com `FLOWER_DELIVERY_METHOD_COLORS` (badges workbench/métricas já eram emerald). Convenção final: maos=emerald, ctt=amber/sky, recolha_evento=violet, nao_sei=stone
 - **72** — Métricas: +5 gráficos com paletas semânticas alinhadas aos badges (`flowerDeliveryDist`, `frameDeliveryDist`, `contactPrefDist`, `couponUsageDist`, `upsellsBreakdown` em `metrics.ts`); `PieDist` ganhou prop `fills?: string[]` para cor por chave
 - **71** — Coerência visual "Recolha no local" = 🚗 Car + violet em toda a app; CTT quadro violet → rose (`dashboard.ts`, `entregas-recolhas-client.tsx`, `calendar-view.tsx`, `preservacao-client.tsx`)

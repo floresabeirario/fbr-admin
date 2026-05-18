@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/server";
-import { generateCouponCode } from "@/lib/coupon";
+import { generateUniqueCouponCode } from "@/lib/coupon";
 import { computePricingSnapshot } from "@/lib/pricing";
 import { buildProductionCostSnapshot } from "@/lib/production-cost";
 import type { PricingItem } from "@/types/pricing";
@@ -172,10 +172,19 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   await requireAdmin();
   const supabase = await createClient();
 
-  // Ao passar para "A ser emoldurado" → gerar cupão automático
+  // Ao passar para "A ser emoldurado" → gerar cupão automático (único).
+  // Só gera se a encomenda ainda não tem código (idempotente — não cria
+  // novo cupão se já foi gerado antes e estamos só a re-passar pelo estado).
   if (updates.status === "a_ser_emoldurado") {
-    updates.coupon_code = generateCouponCode();
-    updates.coupon_status = "nao_utilizado";
+    const { data: existing } = await supabase
+      .from("orders")
+      .select("coupon_code")
+      .eq("id", id)
+      .single();
+    if (!existing?.coupon_code) {
+      updates.coupon_code = await generateUniqueCouponCode(supabase);
+      updates.coupon_status = "nao_utilizado";
+    }
   }
 
   // Fetch ANTES do update para podermos detectar transições (1º pagamento,

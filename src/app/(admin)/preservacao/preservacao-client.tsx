@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
-import { format, parseISO, differenceInDays, differenceInCalendarDays } from "date-fns";
+import { format, parseISO, differenceInDays, differenceInCalendarDays, differenceInHours } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
   ChevronDown,
@@ -292,6 +292,11 @@ function OrderRow({
   const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
   const autoFlaggedSemResposta = isPreReserva && !currentContacted && daysSinceCreated >= 4;
 
+  // Destaque "Nova" — encomenda criada há <24h. Heurística simples
+  // (sem schema): o destaque some ao fim de 24h independentemente de
+  // alguém a ter aberto. Padrão por encomenda, não por utilizador.
+  const isNew = differenceInHours(new Date(), new Date(order.created_at)) < 24;
+
   // Última actividade: só mostrar quando a encomenda está parada há >=7 dias
   // e não está em estado terminal (concluído / cancelado). 14+ dias = âmbar.
   const isTerminalState = currentStatus === "quadro_recebido" || currentStatus === "cancelado";
@@ -365,9 +370,11 @@ function OrderRow({
     <tr
       ref={setDragNodeRef}
       {...attributes}
-      className={`border-b border-cream-100 cursor-pointer transition-colors active:bg-cream-200 ${
-        isLoading ? "bg-cream-100/60" : "hover:bg-cream-50"
-      } ${isDraggingThis || isDragging ? "opacity-40" : ""}`}
+      className={cn(
+        "border-b border-cream-100 cursor-pointer transition-colors active:bg-cream-200",
+        isLoading ? "bg-cream-100/60" : isNew ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-cream-50",
+        (isDraggingThis || isDragging) && "opacity-40",
+      )}
       onClick={() => onOpen(order)}
     >
       <td className="px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -391,6 +398,14 @@ function OrderRow({
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-medium text-cocoa-900">{order.client_name}</span>
+              {isNew && (
+                <span
+                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide"
+                  title={`Criada ${format(parseISO(order.created_at), "dd/MM/yyyy HH:mm")} (há <24h)`}
+                >
+                  Nova
+                </span>
+              )}
               {/* Ícone presente: aparece quando a encomenda veio de um vale-presente
                   cujo código existe ainda nos vales activos. Click → abre o vale. */}
               {order.gift_voucher_code && voucherCodeToId[order.gift_voucher_code] && (
@@ -1150,13 +1165,19 @@ function OrderCard({
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
   const photoUrl = showPhoto ? toEmbeddableImageUrl(order.flowers_photo_url) : null;
+  const isNew = differenceInHours(new Date(), new Date(order.created_at)) < 24;
 
   return (
     <button
       onClick={() => onOpen(order)}
-      className={`group text-left rounded-2xl border bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md active:scale-[0.99] transition-all ${
-        isLoading ? "border-cocoa-500 ring-2 ring-[#C4A882]/30" : "border-cream-200 hover:border-cocoa-500"
-      }`}
+      className={cn(
+        "group text-left rounded-2xl border overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md active:scale-[0.99] transition-all",
+        isLoading
+          ? "border-cocoa-500 ring-2 ring-[#C4A882]/30 bg-surface"
+          : isNew
+            ? "border-amber-300 bg-amber-50/60 hover:border-amber-400"
+            : "border-cream-200 bg-surface hover:border-cocoa-500",
+      )}
     >
       {showPhoto && (
         <div className="relative aspect-square bg-gradient-to-br from-cream-50 to-cream-100">
@@ -1197,9 +1218,19 @@ function OrderCard({
         {!showPhoto && isLoading && (
           <Loader2 className="h-4 w-4 animate-spin text-cocoa-900 mb-1" />
         )}
-        <p className="text-sm font-semibold text-cocoa-900 truncate">
-          {order.client_name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-cocoa-900 truncate">
+            {order.client_name}
+          </p>
+          {isNew && (
+            <span
+              className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 uppercase tracking-wide shrink-0"
+              title="Criada há <24h"
+            >
+              Nova
+            </span>
+          )}
+        </div>
         <p className="text-[11px] text-cocoa-700 truncate mt-0.5">
           {order.event_date ? formatDate(order.event_date) : "Sem data"}
           {order.event_type && ` · ${EVENT_TYPE_LABELS[order.event_type]}`}
