@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 25) — Preservação: redesenho da célula "Cliente" + bolinha "encomendas por abrir" na sidebar (per-user via mig 047 orders.seen_by, mensagem lida/não lida); badge "Nova" passa a sky e some quando o user abre o workbench
+## Fase actual: FASE 6 (parte 26) — Mig 048: trigger SQL `auto_mark_voucher_used` em orders fecha o caminho do form público (anti-dupla-contagem de vales agora cobre INSERT/UPDATE de qualquer origem, não só do action admin)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -38,11 +38,33 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 46 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 48 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 82 🔐 Mig 048 — trigger SQL fecha caminho do form público (anti-dupla-contagem)
+
+Maria perguntou o que era "trigger SQL" (mencionei como follow-up na sessão 80). Expliquei + ela autorizou ("faz o que achares melhor, sê ponderado, considera o que pode correr mal").
+
+**Contexto:** Na sessão 80, o helper TS `markVoucherAsScheduled` foi adicionado a `createOrderAction` e `updateOrderAction` para auto-marcar `vouchers.usage_status = 'preservacao_agendada'` quando uma encomenda usa um código de vale (anti-dupla-contagem na faturação). Mas isso cobria só o caminho do admin — encomendas vindas do form público (PostgREST anon directo) não passavam pelo action e portanto o vale continuava "preservacao_nao_agendada", duplicando.
+
+**Migração 048 — [supabase/migrations/048_auto_mark_voucher_trigger.sql](supabase/migrations/048_auto_mark_voucher_trigger.sql):**
+- Função `auto_mark_voucher_used()` `SECURITY DEFINER` (bypassa RLS de vouchers). Faz `UPDATE vouchers SET usage_status='preservacao_agendada', updated_at=now() WHERE code=NEW.gift_voucher_code AND deleted_at IS NULL AND usage_status <> 'preservacao_agendada'`.
+- **EXCEPTION WHEN OTHERS** envolto à volta do UPDATE — se algo falhar (RLS, FK, qualquer coisa), `RAISE NOTICE` para os logs do Postgres mas **NUNCA bloqueia** o INSERT/UPDATE em orders. Encomenda nunca falha por causa do trigger.
+- Trigger `orders_auto_mark_voucher_insert` AFTER INSERT, com `WHEN (NEW.gift_voucher_code IS NOT NULL AND TRIM(...) <> '')` — só dispara se a linha vier com código preenchido.
+- Trigger `orders_auto_mark_voucher_update` AFTER UPDATE OF gift_voucher_code, com `WHEN (NEW IS DISTINCT FROM OLD AND NEW IS NOT NULL AND TRIM(...) <> '')` — só dispara quando a coluna específica muda E o novo valor é válido. Evita disparar em todos os saves da Maria.
+- Idempotente: `WHERE usage_status <> 'preservacao_agendada'` evita writes inúteis (e ciclos).
+
+**Sem alterações no código TS** — o helper `markVoucherAsScheduled` da sessão 80 fica como está. "Belt and suspenders": dois caminhos (TS + trigger) cobrem todos os fluxos, ambos idempotentes, sem risco de duplicação. O helper TS ainda tem valor próprio: faz `revalidatePath("/vale-presente")` (refresh imediato no admin) que o trigger não consegue.
+
+Preflight `tsc --noEmit` limpo (nada em TS mudou). **Maria: passos manuais:**
+1. Correr [supabase/migrations/048_auto_mark_voucher_trigger.sql](supabase/migrations/048_auto_mark_voucher_trigger.sql) no Supabase SQL Editor.
+2. Correr os 5 smoke tests que estão em comentário no fim do ficheiro (substituir `XXXXXX` por um código real). O importante é confirmar (a) INSERT com código válido marca o vale; (b) INSERT com código inválido não bloqueia a encomenda; (c) UPDATE noutra coluna NÃO dispara o trigger.
+3. Sem push para Vercel (esta sessão é só BD).
+
+---
 
 ### Sessão 81 🎨 Preservação — célula "Cliente" + notificações per-user (mig 047 orders.seen_by)
 
@@ -165,29 +187,20 @@ Preflight `tsc --noEmit` + `next build` limpo. Sem migrações. **Maria: abrir D
 
 ---
 
-### Sessão 77 🛠️ Preservação — fix drag-and-drop entre grupos (linha snap-back silencioso)
-
-Maria reportou: "arrasto para mover para outro grupo, mas a linha nao fica no outro grupo" — confirmou que conseguia agarrar com o rato, mas a linha voltava para o grupo original. Diagnóstico em [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) revelou 3 problemas combinados que tornavam a falha invisível:
-
-1. **Catch blocks completamente silenciosos** (`catch { // silencioso }` × 3) — qualquer falha do `updateOrderAction` (RLS, schema, rede) era engolida sem feedback.
-2. **Collision detection default (`rectIntersection`)** exige que o rect do overlay (card pequeno de ~280px) intersecte o rect do grupo — falha quando se solta perto das margens.
-3. **Sem optimistic update** — a linha só se movia depois do `router.refresh()` completar, o que dava a sensação de "snap-back" mesmo quando o update tinha corrido bem.
-
-**Fix em [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):**
-- Import `pointerWithin` + `rectIntersection` + `type CollisionDetection` de `@dnd-kit/core`; import `toast` de `sonner`.
-- Nova função `collisionDetection` híbrida: tenta `pointerWithin` primeiro (mais intuitivo — basta o cursor estar dentro do grupo), com `rectIntersection` como fallback. Aplicada via prop `collisionDetection` no `DndContext`.
-- Novo state `optimisticMoves: Map<orderId, {status, manually_no_response}>` — override óptico por encomenda. Limpo com `setTimeout` 600ms depois de `router.refresh()` (deixa os dados novos chegar) ou imediatamente em falha.
-- Helper `runMove(order, updates, optimisticStatus, optimisticNoResp)` consolida o padrão: aplica optimistic → chama action → refresh + clear; em catch faz `console.error` + `toast.error("Não foi possível mover \"<nome>\". <msg>")`.
-- `handleDragEnd` quando `over` é null deixa de ser silencioso: `console.warn` + `toast.info("Larga em cima de um grupo (cabeçalho ou linhas) para mover.")`.
-- Cálculo do `grouped` agora aplica overrides ópticos antes de filtrar/agrupar: `ordersWithOptimistic` mescla `initialOrders` com o map; `grouped` reagrupa local quando há pesquisa OU overrides activos.
-
-`tsc --noEmit` + `eslint` limpos. Sem migrações, sem nova tabela. **Maria: push para Vercel + abrir `/preservacao` → arrastar uma encomenda para outro grupo → deve mover-se imediatamente e ficar lá. Se algo falhar, agora vês toast vermelho com o motivo (envia screenshot).**
-
----
-
 ## Próximo passo CONCRETO
 
-**Sessão 81 — passos manuais:**
+**Sessão 82 — passos manuais (só BD):**
+
+1. **Correr [supabase/migrations/048_auto_mark_voucher_trigger.sql](supabase/migrations/048_auto_mark_voucher_trigger.sql)** no Supabase SQL Editor (cola, Run).
+2. **Correr os 5 smoke tests em comentário no fim do ficheiro** (substituir `XXXXXX` por um código de vale real `preservacao_nao_agendada + 100_pago`):
+   - INSERT manual com código válido → vale passa a `preservacao_agendada`.
+   - INSERT com código inválido → não bloqueia.
+   - UPDATE noutra coluna → não dispara o trigger.
+   - `SELECT tgname FROM pg_trigger WHERE tgrelid='orders'::regclass AND NOT tgisinternal` deve incluir `orders_auto_mark_voucher_insert` + `orders_auto_mark_voucher_update`.
+3. **Sem push para Vercel** (esta sessão é só BD).
+4. **Smoke real:** ir ao site público `floresabeirario.pt/reservar-preservacao` em incognito, submeter uma reserva com um `Código vale-presente` válido. Confirmar que no admin o vale aparece como "Preservação agendada" sem intervenção manual.
+
+**Sessão 81 — passos manuais (se ainda não corridos):**
 
 1. **Correr [supabase/migrations/047_orders_seen_by.sql](supabase/migrations/047_orders_seen_by.sql)** no Supabase SQL Editor (cola, Run). Confirmar com:
    - `SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='seen_by';` → 1 linha
@@ -220,7 +233,8 @@ Maria reportou: "arrasto para mover para outro grupo, mas a linha nao fica no ou
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-76)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-77)
+- **77** — Preservação fix drag-and-drop entre grupos: `pointerWithin`+`rectIntersection` híbrido como collisionDetection; novo state `optimisticMoves: Map` para mover linha imediatamente; helper `runMove` consolida optimistic→action→refresh+clear com error toast; `handleDragEnd` com `over=null` deixa de ser silencioso (info toast)
 - **76** — Finanças/Despesas: descrição passa a ser o campo primário (obrigatório); fornecedor opcional e auto-detect URL→link (mig 045); novo KPI "Total desde sempre" inclui subscrições acumuladas via `subscriptionTotalToDate`
 - **75** — Tarefas multi-assignee Opção A (mig 044): `tasks.assignee_emails TEXT[]` (qualquer assignee marca = some para todos); `seen_by TEXT[]` + RPC `mark_tasks_seen`; checklist mescla tarefas atribuídas; bolinha sky na sidebar + toast inicial; UI multi-assignee com 3 avatares clicáveis
 - **74** — Tabela Preservação: botão "Sem resposta" removido (drag-and-drop substitui); larguras de colgroup restauradas (Cliente 16%, Estado 16%, Pagamento 14%, Acções 6%); workbench `SelectTrigger` do Pagamento ganha `w-full max-w-full` para pill "100% por pagar" não transbordar coluna 3fr
