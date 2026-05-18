@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 28) — Sessão 85: afazeres globais agrupam por categoria (packaging / flores / presença online / estúdio / administrativo / outros) em **layout kanban** (6 colunas full-width); mig 050 adiciona coluna `category` default 'outros'; tile compacto com priority/categoria/data; "↔" abre selector para mover entre colunas
+## Fase actual: FASE 6 (parte 29) — Sessão 86: afazeres globais como **kanban** (6 colunas, ícones+barra colorida no topo) com **drag-and-drop invisível** para mover entre categorias; título+detalhes (description) visíveis e editáveis em cada tile (afazeres + checklist pessoal); mig 050 (category) + mig 051 (personal_checklist.description); pencil icon abre modo edição inline com título/detalhes/prioridade/data
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,59 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 86 🎨 Kanban refinado + drag-and-drop invisível + título/detalhes editáveis (mig 051)
+
+Maria iterou na sessão 85: (1) o botão "↔" para mover entre colunas era ruidoso e desnecessário — quer DnD invisível; (2) as pills coloridas das categorias eram indistinguíveis das outras pills da app; (3) cada task (global E pessoal) precisa de título + detalhes; (4) tem que dar para editar items da checklist pessoal.
+
+**Migração 051 — [supabase/migrations/051_checklist_description.sql](supabase/migrations/051_checklist_description.sql):**
+- `ALTER TABLE personal_checklist ADD COLUMN IF NOT EXISTS description TEXT;`
+- Tasks já tinham `description` desde a mig 012; agora a checklist pessoal tem paridade.
+
+**Tipo — [src/types/tasks.ts](src/types/tasks.ts):** `ChecklistItem.description: string | null`.
+
+**Identidade visual nova por categoria — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- `CATEGORY_META` map com ícone (lucide) + cor de barra superior + tom subtil de fundo + accent da borda esquerda do tile. Combinação distintiva:
+  - Packaging → `Package` + orange-500 barra
+  - Flores → `Flower2` + pink-500
+  - Presença online → `Globe` + cyan-500
+  - Estúdio → `Camera` + purple-500
+  - Administrativo → `FileText` + zinc-500
+  - Outros → `MoreHorizontal` + stone-400
+- Cabeçalho da coluna: barra colorida 3px no topo + ícone num quadradinho com tint da categoria + label semibold + contador. **Zero pills.**
+- Tile: borda esquerda 3px na cor da categoria (sinal subtil de identidade).
+
+**Drag-and-drop (sem botão visível) — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- `DndContext` + `useDraggable` em cada tile + `useDroppable` em cada coluna. PointerSensor com `distance: 6` para não capturar cliques nos pills/checkbox.
+- Cada elemento interactivo do tile (checkbox, avatares, Select, edit/delete) tem `onPointerDown={(e) => e.stopPropagation()}` para não disparar drag.
+- `DragOverlay` mostra mini-card do título+detalhes durante o drag. Coluna destino ganha `ring-2 ring-cocoa-400` quando o pointer está em cima; placeholder muda de "—" para "Largar aqui" se vazia.
+- Drop em coluna diferente → `handleCategoryChange` é chamado (mesmo path do antigo botão "↔"). Drop na própria coluna é no-op.
+- Botão "↔" **removido**.
+
+**Título + detalhes — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) e [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx):**
+- Tile do kanban: título em font-medium + `description` por baixo em text-cocoa-600 text-[11px] `whitespace-pre-wrap` (preserva quebras de linha).
+- Checklist pessoal: paridade — text em font-medium + description abaixo. Aplica-se também às tarefas mostradas na checklist pessoal (vista mesclada).
+- Form de criação ganha `Textarea` "Detalhes (opcional)" entre o título e os selects.
+
+**Modo edição inline — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) e [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx):**
+- Estado `editingId: string | null` no card.
+- Ícone Pencil aparece na hover dos tiles (afazeres globais) e dos items da checklist pessoal (a par do botão de apagar).
+- Click em Pencil → tile/row substituído por sub-componente `TaskEditForm` / `ChecklistEditForm`: Input para título + Textarea para detalhes + Select prioridade + Input date + botões Check (guardar) / X (cancelar).
+- Save: optimistic update local + `updateTaskAction` / `updateChecklistItemAction`. Validação básica — título não pode ficar vazio.
+
+**Dashboard layout — [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):** sem mudanças relativas à sessão 85 (TasksCard full-width no topo, restantes 3 cards na grelha 2×2 abaixo).
+
+Preflight `tsc --noEmit` + `next build` limpos. **Maria: passos manuais:**
+1. **Correr migrações 050 e 051** (se 050 ainda não foi). Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='personal_checklist' AND column_name='description';` → 1 linha.
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/` → afazeres globais com 6 colunas, cada uma com **ícone único** + barra colorida no topo.
+   - Hover num tile → aparecem ícones de Pencil (editar) e Trash. Click no Pencil → tile transforma-se em formulário com título/detalhes/prioridade/data + ✓/✗ no canto.
+   - Criar tarefa nova → o form agora tem campo "Detalhes (opcional)".
+   - Arrastar um tile para outra coluna → muda de categoria. Drop na mesma coluna não faz nada.
+   - Checklist pessoal: mesmo Pencil em cada item; descrição nova editável; tarefas atribuídas a mim mostram também description quando preenchida.
 
 ### Sessão 85 🗂️ Afazeres globais — kanban por categoria (mig 050 + layout full-width)
 
@@ -234,17 +287,21 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
 
 ## Próximo passo CONCRETO
 
-**Sessão 85 — passos manuais:**
+**Sessão 86 — passos manuais:**
 
-1. **Correr [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql)** no Supabase SQL Editor. Verificar:
-   - `SELECT column_name, column_default FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha com default `'outros'`.
-   - `SELECT category, count(*) FROM tasks WHERE deleted_at IS NULL GROUP BY category;` → tudo em `outros`.
+1. **Correr migrações no Supabase SQL Editor** (por ordem):
+   - [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql) — se ainda não.
+   - [supabase/migrations/051_checklist_description.sql](supabase/migrations/051_checklist_description.sql).
+   - Verificar:
+     - `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha.
+     - `SELECT column_name FROM information_schema.columns WHERE table_name='personal_checklist' AND column_name='description';` → 1 linha.
 2. **Push para Vercel**.
 3. **Smoke**:
-   - `/` → afazeres globais ocupa **linha inteira** por cima das outras cards; 6 colunas em desktop, 2 em mobile.
-   - Coluna "Outros" tem as tarefas existentes; outras 5 mostram "—".
-   - "+": form com 3 colunas (categoria + prioridade + data). Criar tarefa em "Packaging" → tile aparece na coluna amber.
-   - Tile: clicar no botão "↔" → Select abre com 6 categorias → tarefa salta para a coluna escolhida.
+   - `/` → afazeres globais com 6 colunas, cada com ícone único (📦/🌸/🌐/📷/📄/⋯) e barra colorida no topo. Sem pills coloridas.
+   - Hover num tile → ícones Pencil + Trash aparecem. Click Pencil → forma edita inline com título/detalhes/prioridade/data.
+   - "+": form de criação inclui campo "Detalhes (opcional)".
+   - **Arrastar tile** para outra coluna → muda categoria. Coluna destino fica com ring escuro.
+   - Checklist pessoal: Pencil em cada item → editar texto/detalhes/prioridade/data.
 
 **Sessão 83 — passos manuais:**
 

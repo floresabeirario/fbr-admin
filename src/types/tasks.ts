@@ -113,6 +113,8 @@ export interface ChecklistItem {
 
   owner_email: string;
   text: string;
+  // Detalhes opcionais (mig 051). Aparece por baixo do título no tile.
+  description: string | null;
   done: boolean;
   done_at: string | null;
   position: number;

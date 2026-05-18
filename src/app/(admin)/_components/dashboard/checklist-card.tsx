@@ -5,13 +5,15 @@ import Image from "next/image";
 import { differenceInDays, parseISO } from "date-fns";
 import {
   CalendarDays as CalendarIcon,
+  Check,
+  ChevronDown,
+  ChevronRight,
   ListTodo,
   Loader2,
+  Pencil,
   Plus,
   Square,
   X,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import type { Task, TaskPriority, ChecklistItem } from "@/types/tasks";
@@ -78,8 +81,12 @@ export function ChecklistCard({
   // Form da nova item (escondido por defeito, abre via "+")
   const [showNew, setShowNew] = useState(false);
   const [newText, setNewText] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [newPriority, setNewPriority] = useState<TaskPriority>("media");
   const [newDueDate, setNewDueDate] = useState<string>("");
+
+  // Edição inline por item da checklist.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const visibleItems = useMemo<MergedItem[]>(() => {
     const ownChecklist: MergedItem[] = items
@@ -134,6 +141,7 @@ export function ChecklistCard({
 
   function resetNewForm() {
     setNewText("");
+    setNewDescription("");
     setNewPriority("media");
     setNewDueDate("");
     setShowNew(false);
@@ -148,6 +156,7 @@ export function ChecklistCard({
         const created = await createChecklistItemAction({
           owner_email: currentEmail,
           text,
+          description: newDescription.trim() || null,
           priority: newPriority,
           due_date: newDueDate || null,
         });
@@ -255,6 +264,43 @@ export function ChecklistCard({
     });
   }
 
+  function handleEditSave(
+    item: ChecklistItem,
+    next: { text: string; description: string; priority: TaskPriority; due_date: string | null },
+  ) {
+    const trimmed = next.text.trim();
+    if (!trimmed) {
+      toast.error("O texto não pode ficar vazio.");
+      return;
+    }
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id
+          ? {
+              ...i,
+              text: trimmed,
+              description: next.description.trim() || null,
+              priority: next.priority,
+              due_date: next.due_date,
+            }
+          : i,
+      ),
+    );
+    setEditingId(null);
+    startTransition(async () => {
+      try {
+        await updateChecklistItemAction(item.id, {
+          text: trimmed,
+          description: next.description.trim() || null,
+          priority: next.priority,
+          due_date: next.due_date,
+        });
+      } catch (err) {
+        toast.error("Erro ao guardar: " + (err as Error).message);
+      }
+    });
+  }
+
   return (
     <SectionCard
       title="Checklist pessoal"
@@ -315,6 +361,12 @@ export function ChecklistCard({
             className="h-8 text-sm"
             autoFocus
           />
+          <Textarea
+            placeholder="Detalhes (opcional)…"
+            value={newDescription}
+            onChange={(e) => setNewDescription(e.target.value)}
+            className="min-h-14 text-sm py-1.5"
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Select
               value={newPriority}
@@ -360,7 +412,7 @@ export function ChecklistCard({
         </form>
       )}
 
-      <div className="px-5 py-4 space-y-1.5 max-h-[420px] overflow-y-auto">
+      <div className="px-5 py-4 space-y-1.5 max-h-[440px] overflow-y-auto">
         {visibleItems.length === 0 && (
           <p className="text-sm text-cocoa-700 py-6 text-center">
             {canWrite
@@ -371,13 +423,23 @@ export function ChecklistCard({
         {visibleItems.map((entry) => {
           if (entry.kind === "checklist") {
             const item = entry.item;
+            if (editingId === item.id && canWrite) {
+              return (
+                <ChecklistEditForm
+                  key={`c-${item.id}`}
+                  item={item}
+                  onCancel={() => setEditingId(null)}
+                  onSave={(next) => handleEditSave(item, next)}
+                />
+              );
+            }
             const overdue = item.due_date
               ? differenceInDays(parseISO(item.due_date), new Date()) < 0
               : false;
             return (
               <div
                 key={`c-${item.id}`}
-                className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors"
+                className="group flex items-start gap-2 py-1.5 px-1 rounded-lg hover:bg-cream-50 transition-colors"
               >
                 <button
                   type="button"
@@ -392,11 +454,16 @@ export function ChecklistCard({
                     strokeWidth={2}
                   />
                 </button>
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <div className="text-sm leading-snug text-cocoa-900">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm leading-snug text-cocoa-900 font-medium">
                     {item.text}
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  {item.description && (
+                    <div className="text-[12px] text-cocoa-600 leading-snug whitespace-pre-wrap mt-0.5">
+                      {item.description}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] mt-1">
                     <Badge
                       variant="outline"
                       className={cn(
@@ -423,14 +490,24 @@ export function ChecklistCard({
                   </div>
                 </div>
                 {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600"
-                    title="Apagar"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(item.id)}
+                      className="text-[#C4A882] hover:text-cocoa-700"
+                      title="Editar"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item)}
+                      className="text-[#C4A882] hover:text-rose-600"
+                      title="Apagar"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             );
@@ -444,7 +521,7 @@ export function ChecklistCard({
           return (
             <div
               key={`t-${task.id}`}
-              className="group flex items-start gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors"
+              className="group flex items-start gap-2 py-1.5 px-1 rounded-lg hover:bg-cream-50 transition-colors"
             >
               <button
                 type="button"
@@ -458,9 +535,16 @@ export function ChecklistCard({
                   strokeWidth={2}
                 />
               </button>
-              <div className="flex-1 min-w-0 space-y-0.5">
-                <div className="text-sm leading-snug text-cocoa-900">{task.title}</div>
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm leading-snug text-cocoa-900 font-medium">
+                  {task.title}
+                </div>
+                {task.description && (
+                  <div className="text-[12px] text-cocoa-600 leading-snug whitespace-pre-wrap mt-0.5">
+                    {task.description}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] mt-1">
                   <Badge
                     variant="outline"
                     className={cn(
@@ -552,5 +636,97 @@ export function ChecklistCard({
         </div>
       )}
     </SectionCard>
+  );
+}
+
+// ============================================================
+// ChecklistEditForm — modo edição inline
+// ============================================================
+
+function ChecklistEditForm({
+  item,
+  onCancel,
+  onSave,
+}: {
+  item: ChecklistItem;
+  onCancel: () => void;
+  onSave: (next: {
+    text: string;
+    description: string;
+    priority: TaskPriority;
+    due_date: string | null;
+  }) => void;
+}) {
+  const [text, setText] = useState(item.text);
+  const [description, setDescription] = useState(item.description ?? "");
+  const [priority, setPriority] = useState<TaskPriority>(item.priority);
+  const [dueDate, setDueDate] = useState<string>(item.due_date ?? "");
+
+  return (
+    <div className="rounded-lg border border-emerald-300 bg-cream-50 px-2 py-2 space-y-1.5">
+      <Input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Texto"
+        className="h-8 text-sm"
+        autoFocus
+      />
+      <Textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Detalhes (opcional)"
+        className="min-h-14 text-[12px] py-1.5 leading-snug"
+      />
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Select value={priority} onValueChange={(v) => v && setPriority(v as TaskPriority)}>
+          <SelectTrigger
+            className={cn(
+              "h-6 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1 border",
+              TASK_PRIORITY_COLORS[priority],
+            )}
+          >
+            <SelectValue labels={TASK_PRIORITY_LABELS} />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
+              <SelectItem key={v} value={v}>
+                {l}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="h-6 text-[11px] px-1.5 w-auto"
+        />
+      </div>
+      <div className="flex justify-end gap-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-cocoa-500 hover:text-cocoa-700 p-1"
+          title="Cancelar"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onSave({
+              text,
+              description,
+              priority,
+              due_date: dueDate || null,
+            })
+          }
+          className="text-emerald-600 hover:text-emerald-700 p-1"
+          title="Guardar"
+        >
+          <Check className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
