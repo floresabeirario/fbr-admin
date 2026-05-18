@@ -19,6 +19,7 @@ import {
   endOfYear,
   format,
 } from "date-fns";
+import { pt } from "date-fns/locale";
 import type {
   Order,
   OrderStatus,
@@ -108,6 +109,45 @@ export function previousMonthRange(range: DateRange): DateRange {
     start: subMonths(range.start, 1),
     end: subMonths(range.end, 1),
   };
+}
+
+// Devolve o range imediatamente anterior, com a mesma duração — usado
+// para comparar "Últimos 3/6 meses" ou ranges personalizados com o
+// período equivalente que os precede.
+export function previousEqualRange(range: DateRange): DateRange {
+  const lengthMs = range.end.getTime() - range.start.getTime();
+  return {
+    start: new Date(range.start.getTime() - lengthMs),
+    end: new Date(range.start.getTime() - 1),
+  };
+}
+
+// Devolve o range "baseline" correcto para calcular variações conforme
+// o preset escolhido:
+//   • Mensais (este_mes, mes_passado)             → mês anterior
+//   • Anuais  (este_ano, ano_passado)             → ano anterior homólogo
+//   • Janelas (ultimos_3_meses, ultimos_6_meses,
+//              personalizado)                      → janela equivalente anterior
+//
+// Antes (sessão 75): usávamos sempre `previousMonthRange`, o que dava
+// percentagens sem sentido em ranges grandes (ex.: "Este ano" comparado
+// com Dez–Nov do ano anterior — sobreposição).
+export function baselineRangeForPreset(
+  preset: RangePreset,
+  range: DateRange,
+): DateRange {
+  switch (preset) {
+    case "este_mes":
+    case "mes_passado":
+      return previousMonthRange(range);
+    case "este_ano":
+    case "ano_passado":
+      return previousYearRange(range);
+    case "ultimos_3_meses":
+    case "ultimos_6_meses":
+    case "personalizado":
+      return previousEqualRange(range);
+  }
 }
 
 // ── Helpers de filtragem ─────────────────────────────────────
@@ -271,10 +311,13 @@ export function computeMetrics(
   vouchers: Voucher[],
   range: DateRange,
   today: Date = new Date(),
+  preset: RangePreset = "este_mes",
 ): MetricsResult {
   const ordersInRange = ordersIn(orders, range);
-  const prevRange = previousMonthRange(range);
-  const prevYearRange = previousYearRange(range);
+  // Baseline coerente com o preset: mês anterior para presets mensais,
+  // ano anterior homólogo para anuais, janela equivalente para últimos
+  // N meses e personalizado. Ver `baselineRangeForPreset`.
+  const prevRange = baselineRangeForPreset(preset, range);
 
   // Receita
   const revenue = totalRevenue(orders, vouchers, range);
@@ -525,7 +568,7 @@ export function monthlyRevenue(
     const range = { start: startOfMonth(m), end: endOfMonth(m) };
     out.push({
       month: format(m, "yyyy-MM"),
-      label: format(m, "MMM yy", { locale: undefined }),
+      label: format(m, "MMM yy", { locale: pt }),
       revenue: totalRevenue(orders, vouchers, range),
     });
   }

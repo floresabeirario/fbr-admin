@@ -303,8 +303,8 @@ export default function MetricasClient({
   }, [preset, customStart, customEnd]);
 
   const metrics = useMemo(
-    () => (range ? computeMetrics(initialOrders, initialVouchers, range) : null),
-    [range, initialOrders, initialVouchers],
+    () => (range ? computeMetrics(initialOrders, initialVouchers, range, new Date(), preset) : null),
+    [range, initialOrders, initialVouchers, preset],
   );
 
   const insights = useMemo(() => (metrics ? generateInsights(metrics) : []), [metrics]);

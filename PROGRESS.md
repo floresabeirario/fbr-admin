@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 21) — Preservação: fix drag-and-drop entre grupos (deteção de colisão + erros visíveis + movimento óptico)
+## Fase actual: FASE 6 (parte 22) — Dashboard: checkbox + toast Undo + "Concluídas recentes (10)" colapsada; fix de baseline em Métricas (preset → previousYearRange/previousEqualRange) + locale pt no gráfico mensal
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -38,11 +38,38 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 44 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 45 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 78 🧰 Dashboard — checkbox + Undo + "Concluídas recentes (10)"; fix baseline Métricas
+
+Maria pediu para repensar o "marcar como feito": a bolinha `Circle` confundia-se com checkbox de selecção múltipla, e queria poder recuperar as últimas 10 tarefas/itens caso clicasse sem querer. Antes, na checklist pessoal as feitas ficavam no fim com strikethrough mas sem botão de reabrir; nas tarefas globais desapareciam por completo (filtro `!t.done`).
+
+**[src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
+- Trocados `Circle` / `CheckCircle2` por `Square` / `CheckSquare` (lucide) em ambos os cards — affordance inequívoca de checkbox.
+- `handleToggle` (checklist), `handleToggleTask` (tarefa global a partir da lista mesclada) e `handleToggle` (TasksCard) emitem agora `toast.success("Feita: …", { action: { label: "Anular", onClick: revert } })` com `duration: 5000` quando marcam como feita. O `done_at` é optimisticamente preenchido com `new Date().toISOString()` e revertido em caso de erro.
+- Novo `MergedItem` `visibleItems` excluí explicitamente `done === true` (antes incluía e ordenava para o fim) — feitas vão para a secção dedicada.
+- Novo `recentDone` (checklist+tasks atribuídas) ordenado por `done_at ?? updated_at` desc, top 10.
+- Nova secção colapsada "Concluídas recentes (N)" no fim da `ChecklistCard` (chevron + contador), com novo componente `RecentDoneRow` (CheckSquare emerald + strikethrough + "há X min/h/d" + botão "↺ Reabrir" no hover).
+- `TasksCard` ganhou versão equivalente: `recentDoneTasks` (respeita filtro "Minhas"), state `showDoneTasks`, helper `reopenTask`. A secção esconde-se quando filtro é "Feitas" (porque aí a lista já é o histórico completo).
+- Imports actualizados: `Square`, `CheckSquare`, `ChevronDown`, `RotateCcw` adicionados; `Circle`, `CheckCircle2` removidos.
+
+**[src/lib/metrics.ts](src/lib/metrics.ts) — fix de baselines incorrectas (ponto B da análise):**
+- Antes: `revenuePctChange` e `newOrdersPctChange` usavam sempre `previousMonthRange(range)`. Em ranges anuais ou "Últimos N meses", isto comparava com uma janela deslocada apenas 1 mês — sobreposição + percentagens sem significado.
+- Novo helper `previousEqualRange(range)`: janela imediatamente anterior com a mesma duração.
+- Novo helper `baselineRangeForPreset(preset, range)`: escolhe `previousMonthRange` para presets mensais, `previousYearRange` para anuais, `previousEqualRange` para "Últimos 3/6 meses" e "Personalizado".
+- `computeMetrics(..., preset?: RangePreset = "este_mes")` ganha parâmetro opcional `preset` e usa o baseline correcto internamente; variável morta `prevYearRange` removida.
+- Caller `metricas-client.tsx` passa `preset` na chamada.
+
+**[src/lib/metrics.ts:528](src/lib/metrics.ts) — fix locale (ponto C da análise):**
+- `monthlyRevenue` formatava `MMM yy` com `locale: undefined` (inglês). Trocado para `locale: pt` — eixo do gráfico passa a "jan 26" em vez de "Jan 26".
+
+Preflight `tsc --noEmit` + `next build` limpo. Sem migrações. **Maria: abrir Dashboard → confirmar (1) que os items/tarefas têm agora checkbox quadrado; (2) marcar uma como feita → toast com "Anular" durante 5s — testar o anular; (3) expandir "Concluídas recentes" → ver últimas 10, com botão "Reabrir" no hover; (4) abrir Métricas → trocar preset entre "Este mês", "Últimos 3 meses", "Este ano" → confirmar que as percentagens debaixo dos KPIs fazem sentido (e não 800% ou -∞); (5) gráfico "Receita mensal" mostra "jan 26", "fev 26", etc.**
+
+---
 
 ### Sessão 77 🛠️ Preservação — fix drag-and-drop entre grupos (linha snap-back silencioso)
 
@@ -150,217 +177,30 @@ Maria reparou dois problemas: (a) no workbench, o pill **Pagamento "100% por pag
 
 ---
 
-### Sessão 73 🎨 Tabela Preservação — "Em mãos" sky → emerald (contraste com violet)
-
-Maria reparou que na coluna **Envio das flores** da tabela, os ícones de "Em mãos" (sky) e "Recolha no local" (violet) eram demasiado parecidos a olho — ambos pasteis cool de saturação média. Descobriu-se também que havia inconsistência: os badges no workbench e os gráficos de Métricas já usavam **emerald** para `maos` (via `FLOWER_DELIVERY_METHOD_COLORS`), só os ícones da tabela e do calendário usavam sky.
-
-Alinhei tudo em **emerald** (verde) para `maos`, mantendo violet para `recolha_evento`:
-- [src/app/(admin)/preservacao/preservacao-client.tsx:90](src/app/(admin)/preservacao/preservacao-client.tsx#L90) — `SHIPPING_METHOD_ICON_COLORS.maos`: `text-sky-600` → `text-emerald-600`; comentário em [linha 78](src/app/(admin)/preservacao/preservacao-client.tsx#L78) actualizado.
-- [src/app/(admin)/preservacao/calendar-view.tsx:72](src/app/(admin)/preservacao/calendar-view.tsx#L72) — `deliveryBadge` case `maos`: `text-sky-600` → `text-emerald-600`.
-- [src/app/(admin)/preservacao/calendar-view.tsx:225](src/app/(admin)/preservacao/calendar-view.tsx#L225) — legenda compacta da vista Semana: ícone Hand sky → emerald.
-
-Convenção final em todo o app para método de envio das flores: **maos = emerald, ctt = amber/sky, recolha_evento = violet, nao_sei = stone**. `tsc --noEmit` limpo. **Maria: abrir /preservacao e confirmar que verde + violeta se distinguem bem na coluna Envio.**
-
----
-
-### Sessão 72 📊 Métricas — 5 gráficos novos com cores alinhadas aos badges
-
-Maria pediu mais gráficos e exigiu que as cores **estivessem uniformizadas** com o resto da app. Acrescentei 5 visualizações novas a [src/app/(admin)/metricas/metricas-client.tsx](src/app/(admin)/metricas/metricas-client.tsx), todas com paletas semânticas espelhadas dos badges em [types/database.ts](src/types/database.ts):
-
-**Cálculos novos em [src/lib/metrics.ts](src/lib/metrics.ts)** (`computeMetrics` → `MetricsResult`):
-- `flowerDeliveryDist` — distribuição de `FlowerDeliveryMethod`.
-- `frameDeliveryDist` — distribuição de `FrameDeliveryMethod`.
-- `contactPrefDist` — WhatsApp vs Email.
-- `couponUsageDist` — só conta encomendas onde `coupon_status !== "na"` (cupão já emitido).
-- `upsellsBreakdown` — para os 3 upsells (`extra_small_frames`, `christmas_ornaments`, `necklace_pendants`) conta `"sim"` e `"mais_info"` separadamente.
-
-**UI**:
-- Nova fila de 3 donuts "Logística & comunicação": Método de envio das flores (ícone Car violet) / Método de receção do quadro (Package sky) / Preferência de contacto (MessageCircle emerald).
-- Nova fila de 2 cards: Utilização de cupões 5% (donut, Ticket amber) + Interesse em upsells (stacked bar horizontal "Sim" emerald + "Mais info" amber, Sparkle emerald).
-- `PieDist` ganhou prop opcional `fills?: string[]` — array pré-mapeado por índice — para usar cor por chave em vez da paleta sequencial. As callers das 3 fileiras antigas (Tamanho/Fundo/Evento) continuam com `palette`.
-
-**Paletas semânticas** (constantes no topo de `metricas-client.tsx`, alinhadas com Tailwind dos badges):
-- `FLOWER_DELIVERY_HEX`: emerald/sky/violet/stone (idêntico a `FLOWER_DELIVERY_METHOD_COLORS`).
-- `FRAME_DELIVERY_HEX`: emerald/sky/stone.
-- `CONTACT_PREF_HEX`: emerald (WhatsApp — alinhado com `partners.ts` linha 167 e tab WhatsApp no workbench) / sky (email).
-- `COUPON_STATUS_HEX`: emerald/amber/stone (idêntico a `COUPON_STATUS_COLORS`).
-- `UPSELL_HEX`: sim=emerald, maisInfo=amber.
-
-`tsc --noEmit` limpo. **Maria: abrir /metricas e verificar os 5 novos cards.**
-
----
-
 ## Próximo passo CONCRETO
 
-**Sessão 75 — passos manuais para activar tarefas multi-assignee + notificações:**
+**Sessão 78 — passos manuais para activar checkbox + Undo + "Concluídas recentes":**
 
-1. **Correr migração 044** no Supabase SQL Editor:
-   - Cola [supabase/migrations/044_tasks_multi_assignee_and_seen.sql](supabase/migrations/044_tasks_multi_assignee_and_seen.sql) → Run
-   - Verifica: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('assignee_emails','seen_by');` → 2 linhas, ambas `ARRAY`
-   - Verifica que `assignee_email` (singular) já não existe: `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name='assignee_email';` → 0 linhas
-   - Confirma backfill: `SELECT count(*) FROM tasks WHERE cardinality(assignee_emails) > 0;` → mesmo nº que tinhas com responsável antes
-2. **Push para Vercel** — afecta apenas o Dashboard (`/`) e a sidebar global.
-3. **Testes em produção:**
-   - Abrir `/` (Dashboard) → ver checklist pessoal com itens antigos. Se tiveres alguma tarefa atribuída a ti, deve aparecer também (badge violet "Global").
-   - **Criar tarefa partilhada**: + → escrever título → clicar 2 avatares (ex: MJ + António) → ver "2 responsáveis (partilhada)" → Criar.
-   - Confirmar que a nova tarefa aparece na checklist pessoal de quem criou (se for assignee) E nos "Afazeres globais" com 2 avatares com ring violet.
-   - **Login como MJ** (outro browser/incognito) → no Dashboard ver toast "Tens 1 tarefa nova: 'X'" + bolinha sky no item Dashboard quando estiveres noutra página. Voltar a `/` → bolinha desaparece.
-   - **Opção A — completação partilhada**: MJ marca tarefa como ✓ → recarregar como António → a tarefa desapareceu da sua checklist e dos Afazeres globais (filtrado por !done).
-   - **Editar assignees** numa tarefa existente: clicar nos mini-avatares (h-5) por baixo do título → adicionar/remover. Tirar o último → "Sem responsável".
-   - **Filtro "Minhas"** continua a funcionar (agora com `.includes()`).
-4. **Smoke da Ana (viewer)**: login como Ana → / → ver as suas tarefas + checklist + criar/editar tarefas globais. Confirmar bolinha + toast quando lhe atribuírem tarefa.
+1. **Sem migrações novas.** `done_at` já existia em `tasks` e `personal_checklist` desde a mig 012.
+2. **Push para Vercel** — afecta `/` (Dashboard) e `/metricas`.
+3. **Smoke test (Maria):**
+   - Abrir `/` → ver que checklist e tarefas globais têm agora **checkbox quadrado** (em vez da bolinha).
+   - Marcar um item como feito → ver toast "Feita: …" com botão **Anular** durante 5s. Clicar **Anular** → item volta para a lista pendente.
+   - Marcar outro item como feito → não clicar em Anular → confirmar que aparece em **"Concluídas recentes (N)"** colapsado no fim do card.
+   - Expandir → ver últimas 10 com strikethrough + "há X min" + botão **↺ Reabrir** no hover. Clicar → volta para a lista pendente.
+   - Em **"Afazeres globais"**: filtro "Minhas" deve filtrar tanto pendentes como concluídas recentes. Filtro "Feitas" continua a mostrar o histórico completo (e esconde a secção "Concluídas recentes").
+   - Em `/metricas`: trocar entre "Este mês", "Últimos 3 meses", "Este ano" → as percentagens debaixo dos KPIs (Receita, Encomendas) devem fazer sentido (≠ ±∞ ou 800%). Gráfico "Receita mensal (12 meses)" mostra labels em pt: "jan 26", "fev 26", etc.
+4. **Smoke da Ana (viewer)**: login como Ana → / → as suas tarefas usam checkbox; toast Anular funciona; secção Concluídas recentes aparece e o botão Reabrir funciona (a Ana tem permissão de editar tarefas globais — `requireUser`, não `requireAdmin`).
 
----
-
-**Sessão 65 — passos manuais para activar o registo manual de WhatsApp:**
-
-1. **Correr migração 042** no Supabase SQL Editor:
-   - Cola o ficheiro [supabase/migrations/042_whatsapp_log.sql](supabase/migrations/042_whatsapp_log.sql) → Run
-   - Verifica: `SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='whatsapp_log';` → 1 linha
-2. Push para Vercel (rota afectada: `/preservacao/[id]`)
-3. **Testes a fazer em produção:**
-   - Abrir uma encomenda → Card "Comunicações" → tab **WhatsApp** → ver "Sem registos. Adiciona manualmente abaixo, ou importa…".
-   - **Adicionar entrada manual**: toggle "Enviámos" → escrever "Teste 1" → Adicionar → ver bolha verde à direita com hora actual.
-   - Toggle "Recebemos" → escrever "Teste 2" → Adicionar → ver bolha cream à esquerda.
-   - **Editar** uma bolha → mudar texto/direcção/data → Guardar → confirmar.
-   - **Apagar** uma bolha → confirmar → desaparece.
-   - **Importar**: clicar "Importar" → cola o conteúdo de qualquer ficheiro `.txt` da pasta [public/conversas whatsapp/](public/conversas%20whatsapp/) → manter "Acrescentar" → "Flores à Beira Rio" como nosso nome → Importar.
-     - Toast deve dizer ex: "Importadas 65 mensagens (1 de sistema ignorada)."
-     - Bolhas aparecem cronologicamente, separadores de dia entre datas diferentes, direcção correcta (a "Flores à Beira Rio" sempre à direita, cliente à esquerda).
-   - Testar **screenshot**: clicar ícone "Screenshot" no composer → colar URL Drive → Adicionar → bolha mostra "📎 Anexo 1" clicável.
-   - **Limpar tudo**: botão "Limpar" → confirmar → log vazio.
-4. **Smoke da Ana (viewer)**: login como Ana → abrir encomenda → tab WhatsApp → confirma que **vê** as mensagens mas **não tem** botões de Adicionar / Importar / Editar / Apagar (canEdit=false).
-
-**Sessão 64 — passos manuais para activar os templates de mensagens:**
-
-1. **Correr migração 041** no Supabase SQL Editor:
-   - Abre Supabase Dashboard → SQL Editor → New query → cola o ficheiro [supabase/migrations/041_message_templates.sql](supabase/migrations/041_message_templates.sql) inteiro → Run
-   - Verifica: `SELECT count(*) FROM message_templates WHERE is_seed=true;` → deve dar **29**
-   - Verifica: `SELECT key, value FROM system_settings ORDER BY key;` → deve mostrar 7 chaves (account_holder, iban, bic, bank_name, mbway, studio_address_url, studio_address_text)
-2. Push para Vercel (rotas novas: `/settings/templates`)
-3. **Testes a fazer em produção (smoke):**
-   - Abrir **Sistema → Templates** → ver lista de 29 templates agrupados por categoria. Filtrar por idioma EN → só ver os EN. Pesquisar "pré-reserva" → só os 4 que têm o nome.
-   - Abrir um template → editar uma palavra no corpo → Guardar → reabrir → ver alteração persistida.
-   - **Sub-tab "Dados de pagamento e morada"** → confirmar que os 5 campos de pagamento estão preenchidos com os valores certos (MB Way 935 896 353, IBAN PT50…, BIC CGDIPTPL, etc.). Mudar uma morada → Guardar → recarregar a página → ver persistido.
-   - Abrir **/preservacao/<encomenda-actual>** → no Card "Comunicações" há um botão "Inserir template". Clicar → ver lista com **Sugeridos para esta fase** no topo (conforme estado da encomenda).
-   - Escolher um template sugerido → ver mensagem renderizada com `{nome}` substituído pelo nome do cliente, `{valor_sinal}` calculado a 30% do total, `{data_evento_extenso}` em português, `{dados_pagamento}` no bloco PT (MB Way+IBAN).
-   - Confirmar saudação muda conforme hora: abrir antes das 12h → "Bom dia"; depois das 12h → "Boa tarde"; depois das 19h → "Boa noite".
-   - Clicar **Copiar para clipboard** → ver toast "💐" → colar no WhatsApp → confirmar texto íntegro.
-   - Editar **uma palavra antes de copiar** → confirmar que a edição vai para o clipboard.
-   - Testar **um template EN** numa encomenda com `form_language=en` → confirmar bloco de pagamento internacional (Account Holder + IBAN + BIC + Banco) e que NÃO inclui convite para chamada.
-   - Abrir **/vale-presente/<código>** → confirmar botão "Inserir template" na coluna esquerda; templates de vale aparecem (vale-presente category).
-4. **Smoke da Ana (viewer)**: login com Ana → /settings/templates → confirma que **NÃO consegue** abrir esta página (admin-only via `redirect("/")`). Mas no workbench Preservação, o picker de templates deve estar **visível e funcional** (a Ana só lê os templates).
-
-**Sessão 63 — passos manuais para activar os healthchecks automáticos:**
-
-Sem migrações novas. Push do código actual para Vercel. Para o cron funcionar, **3 env vars novas** no Vercel (Settings → Environment Variables):
-
-1. **`SUPABASE_SERVICE_ROLE_KEY`** (Production + Preview)
-   - Onde ir buscar: Supabase Dashboard → Settings → API → "Project API keys" → secção `service_role` (não confundir com `anon`). **NUNCA expor isto no client** — só servidor.
-2. **`CRON_SECRET`** (Production)
-   - Gerar string aleatória: ex. `openssl rand -hex 32` ou usar 1Password. 64+ caracteres.
-   - O Vercel Cron envia automaticamente este valor como `Authorization: Bearer ...` quando dispara o job em produção.
-3. **`RESEND_API_KEY`** (Production) — opcional mas recomendado
-   - Resend.com → API Keys → Create. Adicionar e verificar o domínio `floresabeirario.pt` para conseguir enviar do `healthcheck@floresabeirario.pt`.
-   - Sem isto, o cron continua a correr e devolve JSON com os problemas, mas não envia email.
-4. (Opcional) **`RESEND_FROM_EMAIL`** = `"FBR Healthcheck <healthcheck@floresabeirario.pt>"` e **`RESEND_ALERT_TO`** = `"info@floresabeirario.pt"` se quiseres customizar.
-
-**Smoke tests:**
-- Em produção: `curl -H "Authorization: Bearer $CRON_SECRET" https://admin.floresabeirario.pt/api/cron/healthcheck` → JSON com sumário.
-- Em dev local: abrir `http://localhost:3000/api/cron/healthcheck` no browser (sem secret em dev) → mesma resposta.
-- Abrir `/healthchecks` no admin → ver as novas linhas para `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET` na secção "Config".
-- Abrir `/preservacao/<encomenda-antiga>` → confirmar badge âmbar "parada há X dias" se passaram ≥14 dias desde a última edição.
-- Voltar à listagem `/preservacao` → confirmar pequeno texto cinza/âmbar "parada há X dias" debaixo do tipo de evento nas encomendas estagnadas.
-
-**Outras notas:**
-- Smoke do laptop 13" / iPad confirmar que tabelas (Preservação, Finanças, Status, Parcerias, Vale-Presente) já não pedem scroll horizontal.
-- No chat em mobile: tocar 😀 → escolher emoji → confirmar que aparece no input no cursor; teclado não tapa o composer.
-
-**Sessões 58+59 — passos manuais da Maria (segurança):**
-1. Correr **mig 038 + mig 039** no Supabase SQL Editor (por esta ordem)
-2. Confirmar que ambas dizem "Success. No rows returned"
-3. Verificações rápidas (queries no fim de cada migração):
-   - **038**: `SELECT column_name FROM information_schema.column_privileges WHERE table_name='vouchers' AND grantee='anon' ORDER BY column_name;` → só 10 colunas: amount, code, created_at, deleted_at, expiry_date, id, message, payment_status, recipient_name, sender_name
-   - **039**: `SELECT grantee, privilege_type FROM information_schema.table_privileges WHERE table_name='audit_log' AND grantee='anon';` → nenhuma linha INSERT
-   - **039**: `SELECT * FROM get_voucher_by_code('XXXXXX');` (substituir XXXXXX por um código real) → deve devolver o vale
-4. Push para Vercel (`next.config.ts` + `supabase/migrations/038_*.sql` + `supabase/migrations/039_*.sql` + `PROGRESS.md`)
-5. Smoke test pós-deploy:
-   - Login como **Ana** (viewer): tentar abrir `/preservacao` → deve funcionar (read-only). Editar uma encomenda na UI → deve dar erro "Sem permissão" (ou o input deve estar disabled).
-   - Login como **António/MJ** (admin): tudo deve continuar a funcionar normalmente; gravar uma encomenda deve gerar uma entrada nova no audit log (Settings → Audit).
-   - Abrir `voucher.floresabeirario.pt` com um código válido → deve continuar a mostrar o vale (se partir, falta-me uma coluna no GRANT — diz-me qual e adiciono).
-   - Abrir `status.floresabeirario.pt/?id=<order_id>` → deve continuar a mostrar o estado.
-   - Form público de Reserva e Vale (no `fbr-website`): submeter um teste → deve aparecer no admin com audit log.
-6. Verificar headers HTTP em produção: abrir DevTools → Network → ver Response Headers de qualquer request → deve mostrar `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy`, `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
-
-**Sessão 61 — passos manuais (continuação):**
-
-1. **Supabase Dashboard → Auth → Policies** (quick wins, 2 min):
-   - Password policy: mínimo 12 chars + requer letras maiúsculas + números + símbolos
-   - Session timeout (JWT expiry): reduzir de 1 semana para 1 dia (86400 s)
-   - "Prevent use of leaked passwords": **ON**
-2. **Correr mig 040** no Supabase SQL Editor (depois de já ter corrido 038+039)
-   - Verificar: `SELECT polname FROM pg_policy WHERE polrelid='vouchers'::regclass AND 'anon'::regrole=ANY(polroles)` → só deve mostrar `vouchers_public_insert` + `vouchers_public_select_recent`
-3. **Substituir ficheiros no repo `fbr-website`** (no GitHub `floresabeirario/fbr-website`, branch `develop`):
-   - **Novo**: `app/_components/TurnstileWidget.jsx`
-   - **Modificado**: `app/reservar-preservacao/ReservarPreservacaoForm.jsx`
-   - **Modificado**: `app/vale-presente/ValeApresenteForm.jsx`
-   - Os 3 ficheiros estão em `c:\Users\maria\Documents\fbr-website\fbr-website\app\…`
-4. **Vercel do `fbr-website`** — adicionar 2 env vars (Site Key + Secret Key do Turnstile que já criámos para o admin; podem ser as mesmas se adicionares o hostname `floresabeirario.pt` no widget Cloudflare):
-   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = Site Key (público)
-   - `TURNSTILE_SECRET` = Secret Key (privado)
-   - Force redeploy
-5. **Testar em incognito**: `floresabeirario.pt/reservar-preservacao` e `floresabeirario.pt/vale-presente` → widget Turnstile aparece antes do botão "Submeter", botão fica disabled até completar, e submissão chega ao admin.
-
-**Sessão 60 — activar CAPTCHA Turnstile no admin (5 passos, ~10 min):**
-1. **Cloudflare Dashboard** → Turnstile → "Add Site"
-   - Site name: `FBR Admin`
-   - Domain: `admin.floresabeirario.pt` (e `localhost` se quiseres testar local)
-   - Widget Mode: **Managed** (recomendado — Cloudflare decide quando mostrar challenge)
-   - Pre-clearance: No
-   - Copiar **Site Key** (público) e **Secret Key** (privado)
-2. **Supabase Dashboard** → Authentication → Settings → "Bot and Abuse Protection" → enable CAPTCHA → escolher **Turnstile** → colar Secret Key → Save
-3. **Vercel** → Project Settings → Environment Variables → adicionar `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = Site Key (escope: Production + Preview + Development)
-4. **Forçar redeploy** Vercel (Settings → Deployments → … → Redeploy) — env vars não auto-redeployam
-5. Testar em browser **incognito** (cache fresca): abrir `admin.floresabeirario.pt` → escolher perfil → ver widget Turnstile aparecer → completar → entrar. Tentar com password errada → widget reseta sozinho.
-
-**Para mais tarde:**
-- **MFA/2FA** Supabase Auth (Maria pediu para deixar para depois)
-- **CSP completa** (script-src, style-src, etc.) — precisa testes para não partir Google Maps/OAuth
-- **Turnstile** aos forms públicos do `fbr-website` (outro repo) — pode partilhar o mesmo site key
-- **Migrar voucher.floresabeirario.pt para usar a RPC** `get_voucher_by_code` (mig 039) e depois revogar `SELECT (code) ON vouchers FROM anon`
-
-**Sessão 57 — passos manuais da Maria:**
-1. Push para Vercel (build local passa)
-2. No telemóvel, **desinstalar primeiro** o atalho actual do ecrã principal (caso contrário o Android pode continuar a mostrar o ícone antigo em cache)
-3. Abrir `admin.floresabeirario.pt` no Chrome Android → menu → "Adicionar ao ecrã principal" → confirmar que aparece o ícone com as 3 flores em fundo cocoa (já não transparente)
-4. Confirmar em iOS: Safari → Partilhar → "Adicionar ao Ecrã Principal" → ícone com fundo cocoa
-5. Abrir várias páginas no telemóvel para verificar mobile:
-   - **Nova encomenda** (sheet em Preservação): inputs Email/Telemóvel passam a estar empilhados em vez de espremidos lado-a-lado
-   - **Workbench de uma encomenda**: campos como "Custo flores" e "Pago?" empilham em vez de ficarem com 165px cada
-   - **Novo parceiro** (sheet em Parcerias): Categoria/Estado empilham
-   - Tabelas continuam com scroll horizontal (esperado — desktop é prioridade)
-6. **Crítico**: testar em desktop (≥1024px) que **nada mudou** — todos os forms 2-col continuam 2-col
-
-**Sessões 52-55 — passos manuais da Maria** (cumulativo se ainda não correu nada desde 52):
-1. Correr **migrações 034, 035, 036 e 037** no Supabase SQL Editor (por ordem)
-2. Push para Vercel
-3. Em Finanças → "Tabela de preços", definir o preço do suplemento `extra.pyramid_frame` (cliente paga a mais pela pirâmide)
-4. (Opcional) Confirmar custo de impressão de fotografia para mini 20x25
-5. Smoke test:
-   - **Slide**: setas ◀ ▶ no header + setas teclado ← → + contador "12/47"
-   - **Custos**: € visível, "Vidro"/"Cartão" nos cabeçalhos, 8 consumíveis aparecem com valores correctos
-   - **Consumíveis**: lixeira remove; clicar label permite renomear; "Adicionar" cria com 0€ × 3 tamanhos
-   - **Pirâmide**: workbench → Sim sobe orçamento; badge de custo no card Finanças mostra margem
-   - **Encomenda antiga**: botão "Capturar custos de produção" → passa a mostrar custo+margem
-   - **Hotfix 54**: abrir `/preservacao/<qualquer-encomenda>` → carrega normalmente (sem React #185)
-   - **Sessão 55**: numa encomenda com método "Recolha no local" preencher contacto (Nome + Telemóvel) no workbench; criar/forçar evento Calendar → confirmar 🚗 + 💐 no título, data por extenso, link no ID que abre workbench, caixa verde na página Entregas e Recolhas. Fazer refresh da página → botão "No Calendar" deve abrir directamente o evento (mesmo em encomendas antigas, via `computeEventHtmlLink`).
-6. (Opcional) Activar smoke test local: `npm i -D playwright && npx playwright install chromium` + `SMOKE_EMAIL`/`SMOKE_PASSWORD` em `.env.local`
+**Passos manuais antigos (sessões 52-65)** — já foram aplicadas em produção. Se montares ambiente do zero, vê os ficheiros das migrações 034-044 directamente e o histórico condensado abaixo.
 
 ---
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-71)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-73)
+- **73** — Tabela Preservação: ícone "Em mãos" sky → emerald (contraste com violet "Recolha no local"); alinhado com `FLOWER_DELIVERY_METHOD_COLORS` (badges workbench/métricas já eram emerald). Convenção final: maos=emerald, ctt=amber/sky, recolha_evento=violet, nao_sei=stone
+- **72** — Métricas: +5 gráficos com paletas semânticas alinhadas aos badges (`flowerDeliveryDist`, `frameDeliveryDist`, `contactPrefDist`, `couponUsageDist`, `upsellsBreakdown` em `metrics.ts`); `PieDist` ganhou prop `fills?: string[]` para cor por chave
 - **71** — Coerência visual "Recolha no local" = 🚗 Car + violet em toda a app; CTT quadro violet → rose (`dashboard.ts`, `entregas-recolhas-client.tsx`, `calendar-view.tsx`, `preservacao-client.tsx`)
 - **70** — Chat interno: bolinha sky de mensagens por ler na sidebar (mig 043 RPC `mark_chat_messages_read` SECURITY DEFINER; hook `useUnreadChatCount` com Realtime; auto mark-as-read em chat-client.tsx; esconde em `/chat`)
 - **69** — Finanças: selector de ano + "Potencial total" exclui pré-reservas/sem-resposta/canceladas; `metrics.ts` usa lógica proporcional (igual a Finanças); regra de atribuição ao ano (orders → event_date, vouchers → created_at, despesas → expense_date)

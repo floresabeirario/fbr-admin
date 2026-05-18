@@ -5,8 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   LayoutDashboard,
-  CheckCircle2,
-  Circle,
+  Square,
+  CheckSquare,
   Plus,
   Trash2,
   Truck,
@@ -15,7 +15,9 @@ import {
   Calendar as CalendarIcon,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
   Loader2,
+  RotateCcw,
   X,
   Users,
 } from "lucide-react";
@@ -258,23 +260,20 @@ function ChecklistCard({
   // Só pode escrever na sua própria checklist
   const canWrite = viewingEmail === currentEmail;
 
+  // Pendentes (visibleItems) e Concluídas recentes (recentDone) — ver
+  // sessão 75: a Maria reparou que a bolinha se confundia com selecção
+  // múltipla e queria poder recuperar cliques acidentais. Mantemos as
+  // últimas 10 feitas numa secção colapsada com botão "Reabrir".
   const visibleItems = useMemo<MergedItem[]>(() => {
     const ownChecklist: MergedItem[] = items
-      .filter((i) => i.owner_email === viewingEmail)
+      .filter((i) => i.owner_email === viewingEmail && !i.done)
       .map((item) => ({ kind: "checklist" as const, id: item.id, item }));
 
-    // Tarefas atribuídas a este utilizador, ainda não concluídas.
-    // (As concluídas saem da lista para a Maria não as ver para sempre.)
     const assignedTasks: MergedItem[] = tasks
       .filter((t) => !t.done && t.assignee_emails.includes(viewingEmail))
       .map((task) => ({ kind: "task" as const, id: task.id, task }));
 
     return [...ownChecklist, ...assignedTasks].sort((a, b) => {
-      // Concluídos (só checklist; tarefas done já saíram) no fim
-      const aDone = a.kind === "checklist" ? a.item.done : false;
-      const bDone = b.kind === "checklist" ? b.item.done : false;
-      if (aDone !== bDone) return aDone ? 1 : -1;
-
       // Tarefas com prazo no topo, por prazo asc, depois prioridade
       const aDue = a.kind === "task" ? a.task.due_date : null;
       const bDue = b.kind === "task" ? b.task.due_date : null;
@@ -294,6 +293,27 @@ function ChecklistCard({
     });
   }, [items, tasks, viewingEmail]);
 
+  const recentDone = useMemo<MergedItem[]>(() => {
+    const doneChecklist: MergedItem[] = items
+      .filter((i) => i.owner_email === viewingEmail && i.done)
+      .map((item) => ({ kind: "checklist" as const, id: item.id, item }));
+
+    const doneTasks: MergedItem[] = tasks
+      .filter((t) => t.done && t.assignee_emails.includes(viewingEmail))
+      .map((task) => ({ kind: "task" as const, id: task.id, task }));
+
+    const ts = (x: MergedItem): string =>
+      x.kind === "checklist"
+        ? (x.item.done_at ?? x.item.updated_at)
+        : (x.task.done_at ?? x.task.updated_at);
+
+    return [...doneChecklist, ...doneTasks]
+      .sort((a, b) => ts(b).localeCompare(ts(a)))
+      .slice(0, 10);
+  }, [items, tasks, viewingEmail]);
+
+  const [showDone, setShowDone] = useState(false);
+
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     const text = newText.trim();
@@ -312,11 +332,21 @@ function ChecklistCard({
     });
   }
 
+  // Marca um item da checklist como feito ou reabre. Quando marca como
+  // feito, mostra um toast com "Anular" (5s) para desfazer cliques
+  // acidentais — o checkbox é fácil de tocar e a Maria pediu rede de
+  // segurança para erros de manuseamento.
   function handleToggle(item: ChecklistItem) {
     if (!canWrite) return;
     const next = !item.done;
+    const previous = item.done;
+    const optimisticNow = new Date().toISOString();
     setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, done: next } : i)),
+      prev.map((i) =>
+        i.id === item.id
+          ? { ...i, done: next, done_at: next ? optimisticNow : null }
+          : i,
+      ),
     );
     startTransition(async () => {
       try {
@@ -324,28 +354,76 @@ function ChecklistCard({
       } catch (err) {
         toast.error("Erro ao actualizar: " + (err as Error).message);
         setItems((prev) =>
-          prev.map((i) => (i.id === item.id ? { ...i, done: item.done } : i)),
+          prev.map((i) =>
+            i.id === item.id ? { ...i, done: previous, done_at: item.done_at } : i,
+          ),
         );
+        return;
+      }
+      if (next) {
+        toast.success(`Feita: “${item.text}”`, {
+          duration: 5000,
+          action: {
+            label: "Anular",
+            onClick: () => {
+              setItems((prev) =>
+                prev.map((i) =>
+                  i.id === item.id ? { ...i, done: false, done_at: null } : i,
+                ),
+              );
+              void updateChecklistItemAction(item.id, { done: false }).catch(
+                (e) => toast.error("Erro ao anular: " + (e as Error).message),
+              );
+            },
+          },
+        });
       }
     });
   }
 
   // Opção A: qualquer assignee marca como feita = some para todos.
   // O toggle de tarefas funciona mesmo quando se está a ver a lista de
-  // outro utilizador (admin) — porque tarefas globais não pertencem a
-  // ninguém em específico.
-  function handleToggleTask(task: Task) {
+  // outro utilizador (admin) — tarefas globais não pertencem a ninguém
+  // em específico. Toast com "Anular" idem à checklist pessoal.
+  function handleToggleTask(task: Task, nextDone: boolean = true) {
+    const previous = task.done;
+    const optimisticNow = new Date().toISOString();
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, done: true } : t)),
+      prev.map((t) =>
+        t.id === task.id
+          ? { ...t, done: nextDone, done_at: nextDone ? optimisticNow : null }
+          : t,
+      ),
     );
     startTransition(async () => {
       try {
-        await updateTaskAction(task.id, { done: true });
+        await updateTaskAction(task.id, { done: nextDone });
       } catch (err) {
         toast.error("Erro: " + (err as Error).message);
         setTasks((prev) =>
-          prev.map((t) => (t.id === task.id ? { ...t, done: false } : t)),
+          prev.map((t) =>
+            t.id === task.id ? { ...t, done: previous, done_at: task.done_at } : t,
+          ),
         );
+        return;
+      }
+      if (nextDone) {
+        toast.success(`Feita: “${task.title}”`, {
+          duration: 5000,
+          action: {
+            label: "Anular",
+            onClick: () => {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === task.id ? { ...t, done: false, done_at: null } : t,
+                ),
+              );
+              void updateTaskAction(task.id, { done: false }).catch((e) =>
+                toast.error("Erro ao anular: " + (e as Error).message),
+              );
+            },
+          },
+        });
       }
     });
   }
@@ -421,13 +499,10 @@ function ChecklistCard({
                   onClick={() => handleToggle(item)}
                   disabled={!canWrite}
                   className="mt-0.5 shrink-0 disabled:cursor-not-allowed"
-                  title={canWrite ? (item.done ? "Reabrir" : "Marcar como feito") : "Só leitura"}
+                  aria-label={canWrite ? (item.done ? "Reabrir" : "Marcar como feito") : "Só leitura"}
+                  title={canWrite ? "Marcar como feito" : "Só leitura"}
                 >
-                  {item.done ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-[#C4A882] group-hover:text-cocoa-700" />
-                  )}
+                  <Square className="h-4 w-4 text-[#C4A882] group-hover:text-emerald-600 transition-colors" strokeWidth={2} />
                 </button>
                 <span
                   className={cn(
@@ -466,11 +541,12 @@ function ChecklistCard({
             >
               <button
                 type="button"
-                onClick={() => handleToggleTask(task)}
+                onClick={() => handleToggleTask(task, true)}
                 className="mt-0.5 shrink-0"
+                aria-label="Marcar tarefa como feita"
                 title="Marcar como feita (some para todos os atribuídos)"
               >
-                <Circle className="h-4 w-4 text-violet-500 group-hover:text-violet-700" />
+                <Square className="h-4 w-4 text-violet-500 group-hover:text-emerald-600 transition-colors" strokeWidth={2} />
               </button>
               <div className="flex-1 min-w-0 space-y-0.5">
                 <div className="text-sm leading-snug text-cocoa-900">
@@ -522,6 +598,48 @@ function ChecklistCard({
         })}
       </div>
 
+      {recentDone.length > 0 && (
+        <div className="border-t border-cream-200">
+          <button
+            type="button"
+            onClick={() => setShowDone((s) => !s)}
+            className="w-full flex items-center gap-2 px-5 py-2 text-xs text-cocoa-700 hover:bg-cream-50 transition-colors"
+            aria-expanded={showDone}
+          >
+            {showDone ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+            <span>Concluídas recentes ({recentDone.length})</span>
+          </button>
+          {showDone && (
+            <div className="px-5 pb-3 space-y-1">
+              {recentDone.map((entry) =>
+                entry.kind === "checklist" ? (
+                  <RecentDoneRow
+                    key={`dc-${entry.item.id}`}
+                    text={entry.item.text}
+                    doneAt={entry.item.done_at}
+                    onReopen={
+                      canWrite ? () => handleToggle(entry.item) : undefined
+                    }
+                  />
+                ) : (
+                  <RecentDoneRow
+                    key={`dt-${entry.task.id}`}
+                    text={entry.task.title}
+                    doneAt={entry.task.done_at}
+                    badge="Global"
+                    onReopen={() => handleToggleTask(entry.task, false)}
+                  />
+                ),
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {canWrite && (
         <form
           onSubmit={handleAdd}
@@ -545,6 +663,64 @@ function ChecklistCard({
       )}
     </SectionCard>
   );
+}
+
+// Linha reutilizável para a secção "Concluídas recentes" — usada tanto
+// pela checklist como pelas tarefas globais.
+function RecentDoneRow({
+  text,
+  doneAt,
+  badge,
+  onReopen,
+}: {
+  text: string;
+  doneAt: string | null;
+  badge?: string;
+  onReopen?: () => void;
+}) {
+  const when = doneAt ? formatDoneAgo(doneAt) : null;
+  return (
+    <div className="group flex items-center gap-2 py-1 px-1 rounded-lg hover:bg-cream-50 transition-colors">
+      <CheckSquare className="h-4 w-4 text-emerald-600 shrink-0" strokeWidth={2} />
+      <span className="flex-1 text-sm text-cocoa-500 dark:text-[#6E6E73] line-through truncate">
+        {text}
+      </span>
+      {badge && (
+        <Badge
+          variant="outline"
+          className="h-4 px-1.5 py-0 text-[10px] font-normal bg-violet-50 text-violet-700 border-violet-200"
+        >
+          {badge}
+        </Badge>
+      )}
+      {when && (
+        <span className="text-[10px] text-cocoa-500 shrink-0">{when}</span>
+      )}
+      {onReopen && (
+        <button
+          type="button"
+          onClick={onReopen}
+          className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-[11px] text-cocoa-700 hover:text-cocoa-900"
+          title="Reabrir"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Reabrir
+        </button>
+      )}
+    </div>
+  );
+}
+
+function formatDoneAgo(iso: string): string {
+  const date = parseISO(iso);
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `há ${days} d`;
+  return format(date, "dd/MM", { locale: pt });
 }
 
 // ============================================================
@@ -588,6 +764,41 @@ function TasksCard({
     });
   }, [tasks, filter, currentEmail]);
 
+  // Últimas 10 tarefas concluídas (respeitando o filtro "Minhas" quando
+  // activo) — secção colapsada por defeito para recuperar cliques
+  // acidentais sem poluir a lista principal.
+  const recentDoneTasks = useMemo(() => {
+    let list = tasks.filter((t) => t.done);
+    if (filter === "minhas") {
+      list = list.filter((t) => t.assignee_emails.includes(currentEmail));
+    }
+    return list
+      .sort((a, b) =>
+        (b.done_at ?? b.updated_at).localeCompare(a.done_at ?? a.updated_at),
+      )
+      .slice(0, 10);
+  }, [tasks, filter, currentEmail]);
+
+  const [showDoneTasks, setShowDoneTasks] = useState(false);
+
+  function reopenTask(task: Task) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, done: false, done_at: null } : t)),
+    );
+    startTransition(async () => {
+      try {
+        await updateTaskAction(task.id, { done: false });
+      } catch (err) {
+        toast.error("Erro ao reabrir: " + (err as Error).message);
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, done: true, done_at: task.done_at } : t,
+          ),
+        );
+      }
+    });
+  }
+
   function resetNewForm() {
     setNewTitle("");
     setNewAssignees([]);
@@ -621,8 +832,14 @@ function TasksCard({
 
   function handleToggle(task: Task) {
     const next = !task.done;
+    const previous = task.done;
+    const optimisticNow = new Date().toISOString();
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, done: next } : t)),
+      prev.map((t) =>
+        t.id === task.id
+          ? { ...t, done: next, done_at: next ? optimisticNow : null }
+          : t,
+      ),
     );
     startTransition(async () => {
       try {
@@ -630,8 +847,29 @@ function TasksCard({
       } catch (err) {
         toast.error("Erro: " + (err as Error).message);
         setTasks((prev) =>
-          prev.map((t) => (t.id === task.id ? { ...t, done: task.done } : t)),
+          prev.map((t) =>
+            t.id === task.id ? { ...t, done: previous, done_at: task.done_at } : t,
+          ),
         );
+        return;
+      }
+      if (next) {
+        toast.success(`Feita: “${task.title}”`, {
+          duration: 5000,
+          action: {
+            label: "Anular",
+            onClick: () => {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === task.id ? { ...t, done: false, done_at: null } : t,
+                ),
+              );
+              void updateTaskAction(task.id, { done: false }).catch((e) =>
+                toast.error("Erro ao anular: " + (e as Error).message),
+              );
+            },
+          },
+        });
       }
     });
   }
@@ -822,12 +1060,13 @@ function TasksCard({
                 type="button"
                 onClick={() => handleToggle(task)}
                 className="mt-0.5 shrink-0"
+                aria-label={task.done ? "Reabrir" : "Marcar como feita"}
                 title={task.done ? "Reabrir" : "Marcar como feita"}
               >
                 {task.done ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <CheckSquare className="h-4 w-4 text-emerald-600" strokeWidth={2} />
                 ) : (
-                  <Circle className="h-4 w-4 text-[#C4A882] hover:text-cocoa-700" />
+                  <Square className="h-4 w-4 text-[#C4A882] hover:text-emerald-600 transition-colors" strokeWidth={2} />
                 )}
               </button>
               <div className="flex-1 min-w-0 space-y-1">
@@ -923,6 +1162,36 @@ function TasksCard({
           );
         })}
       </div>
+
+      {filter !== "feitas" && recentDoneTasks.length > 0 && (
+        <div className="border-t border-cream-200">
+          <button
+            type="button"
+            onClick={() => setShowDoneTasks((s) => !s)}
+            className="w-full flex items-center gap-2 px-5 py-2 text-xs text-cocoa-700 hover:bg-cream-50 transition-colors"
+            aria-expanded={showDoneTasks}
+          >
+            {showDoneTasks ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+            <span>Concluídas recentes ({recentDoneTasks.length})</span>
+          </button>
+          {showDoneTasks && (
+            <div className="px-5 pb-3 space-y-1">
+              {recentDoneTasks.map((task) => (
+                <RecentDoneRow
+                  key={`dt-${task.id}`}
+                  text={task.title}
+                  doneAt={task.done_at}
+                  onReopen={() => reopenTask(task)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </SectionCard>
   );
 }
