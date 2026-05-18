@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 25) — Preservação: redesenho da célula "Cliente" (nome em linha própria + badges abaixo, evita wrap caótico em colunas estreitas); bolinha de notificação na sidebar ao lado de "Preservação de Flores" para encomendas criadas <24h
+## Fase actual: FASE 6 (parte 25) — Preservação: redesenho da célula "Cliente" + bolinha "encomendas por abrir" na sidebar (per-user via mig 047 orders.seen_by, mensagem lida/não lida); badge "Nova" passa a sky e some quando o user abre o workbench
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -44,26 +44,45 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 81 🎨 Preservação — fix layout célula "Cliente" + bolinha "novas encomendas" na sidebar
+### Sessão 81 🎨 Preservação — célula "Cliente" + notificações per-user (mig 047 orders.seen_by)
 
-Maria reportou via screenshot: na linha de "Pré-reservas", o nome do cliente "Flores à Beira-Rio" (longo) wrappa em 4 linhas verticais quando combinado com os badges NOVA + Contactada na mesma flex row — visualmente caótico. Também pediu uma bolinha na sidebar ao lado de "Preservação de Flores" sempre que há "uma nova reserva por abrir".
+Dois pedidos da Maria via screenshot:
+1. Na linha de "Pré-reservas", o nome do cliente "Flores à Beira-Rio" wrappa em 4 linhas verticais quando combinado com os badges NOVA + Contactada na mesma flex row.
+2. Bolinha de notificação na sidebar ao lado de "Preservação de Flores" para encomendas por abrir; depois de uma 1ª iteração com heurística "criada <24h global", Maria pediu **per-user** ("tipo mensagem lida/não lida"): a bolinha some assim que **esse** utilizador abrir o workbench. Também: tirar o fundo amber da linha (já há badge na tabela) e mudar a cor do badge "Nova" — agora sky em vez de amber, para não competir com o amber dos badges "Recolha no local" (warning).
 
-**Fix da célula Cliente — [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) `OrderRow`:**
-- Antes: 1ª `<div flex items-center gap-1.5>` continha `<span>{client_name}</span>` + badges (Nova, Vale, Contactada) → o nome wrappava no espaço estreito mas os badges mantinham-se inline, criando "escada vertical".
-- Agora: nome em `<span>` próprio com `truncate` + `title={client_name}` (mostra completo no tooltip). Todos os badges (Nova, Vale, Contactada, parada-há-X-dias) descem para a 2ª row alongside `event_type`, num único `<div flex items-center gap-1.5 flex-wrap mt-0.5>`. Cada badge ganhou `shrink-0` para não ser comprimido.
-- Resultado: a 1ª linha tem só o nome (truncado se preciso); a 2ª tem o tipo de evento + todos os pills coloridos a wrappar livremente. Funciona com nomes longos, curtos, e qualquer combinação de badges. `OrderCard` (vista cards) já usava `truncate` — não tocado.
+**Fix da célula Cliente — [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) `OrderRow`:**
+- Antes: 1ª `<div flex items-center gap-1.5>` continha `<span>{client_name}</span>` + badges (Nova, Vale, Contactada) → o nome wrappava no espaço estreito e os badges mantinham-se inline, criando "escada vertical".
+- Agora: nome em `<span>` próprio com `truncate` + tooltip. Todos os badges (Nova, Vale, Contactada, parada-há-X-dias) descem para a 2ª row alongside `event_type`, num único `<div flex items-center gap-1.5 flex-wrap mt-0.5>`. Cada badge ganhou `shrink-0`.
 
-**Bolinha na sidebar — novo hook [src/hooks/use-new-orders.ts](src/hooks/use-new-orders.ts):**
-- `useNewOrdersCount()` subscreve a `orders` (Realtime INSERT + UPDATE), filtra `deleted_at IS NULL` + `created_at >= now-24h`, devolve a contagem.
-- Re-avalia a janela de 24h a cada 5 minutos (interval) — sem isto, uma encomenda criada há 23h59m continuaria a contar para sempre na mesma sessão do browser.
-- Mesmo critério que o badge "Nova" do row/card (`differenceInHours < 24`, sessão 79) — coerente.
+**Migração 047 — [supabase/migrations/047_orders_seen_by.sql](supabase/migrations/047_orders_seen_by.sql):**
+- `ALTER TABLE orders ADD COLUMN seen_by TEXT[] NOT NULL DEFAULT '{}'`.
+- Backfill: todas as encomendas existentes ficam marcadas como vistas pelos 3 utilizadores conhecidos (António/MJ/Ana). Sem isto, no 1º login depois da migração apareceriam 24 encomendas "novas" — não é o objectivo.
+- Nova RPC `mark_order_seen(p_order_id uuid)` SECURITY DEFINER (mesmo padrão que `mark_tasks_seen` da mig 044): valida que `auth.jwt() ->> 'email'` está na lista de 3 emails permitidos, faz `array_append(seen_by, user_email)` só quando ainda não lá está. GRANT a `authenticated` (Ana inclusive — viewer também precisa de marcar "lida" para si).
 
-**[src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx):**
-- Import do hook + `const rawNewOrders = useNewOrdersCount();` + `const newOrders = pathname.startsWith("/preservacao") ? 0 : rawNewOrders;` (esconde quando já estou na página).
-- Novo `isPreservacao` + `showOrdersBadge` + extensão de `showBadge`/`badgeValue` para incluir o caso. Mesmo visual sky pill que Chat interno e Dashboard.
-- `titleParts` ganha `"N encomenda(s) nova(s) (últimas 24h)"`; `aria-label` actualizado em ambas as renderizações (colapsada e expandida) para o caso `showOrdersBadge`.
+**Hook + sidebar — [src/hooks/use-new-orders.ts](src/hooks/use-new-orders.ts):**
+- Renomeado para `useUnreadOrdersCount(currentEmail)`. Subscreve `orders` (Realtime INSERT/UPDATE), select `id, seen_by, deleted_at`, filtra `!seen_by.includes(currentEmail)`. Per-user.
+- [layout.tsx](src/app/(admin)/layout.tsx): hook chamado com `profile?.email`; bolinha esconde quando `pathname.startsWith("/preservacao")`. `titleParts` agora diz "N encomenda(s) por abrir" (já não "últimas 24h").
 
-**Sem mudanças de schema, sem migrações.** `npm run preflight` (tsc + build) OK. **Maria: push para Vercel → smoke (1) abrir `/preservacao` → a célula Cliente deve mostrar o nome numa linha (com `…` se muito longo) e todos os badges abaixo, alinhados horizontalmente; em qualquer grupo (Pré-reservas, Reservas, etc.); (2) na sidebar, ao lado de "Preservação de Flores" deve aparecer uma bolinha sky com o número de encomendas criadas nas últimas 24h — desaparece quando entras em `/preservacao`; (3) criar uma encomenda nova (manualmente ou via form público) → bolinha deve aparecer/incrementar em tempo real via Realtime.**
+**Marcar como visto ao abrir workbench — [preservacao/[id]/page.tsx](src/app/(admin)/preservacao/[id]/page.tsx):**
+- Nova server action `markOrderSeenAction(id)` em [preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts) — usa `requireUser` (não `requireAdmin`, para Ana funcionar) + `supabase.rpc("mark_order_seen", { p_order_id: id })`. Silencioso em falha — abrir o workbench nunca pode falhar por causa disto.
+- Chamado fire-and-forget (`void markOrderSeenAction(order.id)`) imediatamente depois do load da encomenda. Idempotente a partir da 2ª visita (a RPC verifica `NOT user_email = ANY(seen_by)`).
+
+**Cores + isNew per-user — [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):**
+- `Order` type ganha `seen_by: string[]` em [types/database.ts](src/types/database.ts).
+- `isNew = !!currentEmail && !(order.seen_by ?? []).includes(currentEmail)` em ambos OrderRow e OrderCard.
+- `<tr>` perde a classe `bg-amber-50/50 hover:bg-amber-50` (só ficamos com `hover:bg-cream-50` neutro). Card perde `border-amber-300 bg-amber-50/60 hover:border-amber-400`.
+- Badge "Nova" passa de `bg-amber-100 border-amber-300 text-amber-800` para `bg-sky-100 border-sky-300 text-sky-800` (tabela e cards). Tooltip mudado de "Criada há <24h" para "Ainda não abriste esta encomenda". Import `differenceInHours` removido (já não usado).
+- `PreservacaoClient`/`GroupSection`/`CardGroup` ganham prop `currentEmail` (vem do page.tsx via `getCurrentEmail()`); cascateia para `OrderRow` e `OrderCard`.
+
+`npm run preflight` (tsc + build) OK. **Maria: passos manuais:**
+1. **Correr [supabase/migrations/047_orders_seen_by.sql](supabase/migrations/047_orders_seen_by.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='seen_by';` → 1 linha
+   - `SELECT count(*) FILTER (WHERE cardinality(seen_by) = 0) FROM orders;` → 0 (todas as encomendas existentes marcadas como vistas)
+2. **Push para Vercel**.
+3. **Smoke**:
+   - Abrir `/preservacao` → nenhuma encomenda existente deve mostrar badge "Nova" (porque o backfill marcou todas como vistas por ti). Linha sem fundo amber; nome na linha 1, badges na linha 2.
+   - Criar uma encomenda nova manualmente → na sidebar aparece bolinha sky `1` ao lado de "Preservação de Flores"; na tabela a linha tem badge "Nova" sky junto ao tipo de evento. Entrar em `/preservacao` → bolinha some (estou na lista). Abrir o workbench da encomenda nova → ao voltar, o badge "Nova" some para mim (mas o António ainda vê).
+   - Smoke com 2 navegadores/utilizadores: António cria encomenda → ambos veem badge "Nova" e bolinha; António abre workbench → para o António some; para a MJ continua até ela abrir.
 
 ---
 
@@ -168,13 +187,16 @@ Maria reportou: "arrasto para mover para outro grupo, mas a linha nao fica no ou
 
 ## Próximo passo CONCRETO
 
-**Sessão 81 — passos manuais (UI only, sem migração):**
+**Sessão 81 — passos manuais:**
 
-1. **Push para Vercel** (zero schema, só código).
-2. **Smoke (Maria):**
-   - Abrir `/preservacao` → linha de qualquer grupo: o nome do cliente deve aparecer numa única linha (truncado com `…` se for muito longo, tooltip mostra completo); todos os badges (Nova/Vale/Contactada/parada-há-X) descem para a linha de baixo, alongside tipo de evento.
-   - Na sidebar, ao lado de "Preservação de Flores" → confirmar bolinha sky azul com o número de encomendas criadas nas últimas 24h (mesmo critério do badge "Nova" da tabela). Entrar em `/preservacao` → bolinha desaparece; sair → reaparece.
-   - Criar uma encomenda nova (manualmente ou via form público) com browser noutro separador → bolinha aparece/incrementa em tempo real (Realtime).
+1. **Correr [supabase/migrations/047_orders_seen_by.sql](supabase/migrations/047_orders_seen_by.sql)** no Supabase SQL Editor (cola, Run). Confirmar com:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='seen_by';` → 1 linha
+   - `SELECT count(*) FILTER (WHERE cardinality(seen_by) = 0) FROM orders;` → 0
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/preservacao` → encomendas existentes sem badge "Nova" (backfill); nome do cliente truncado em 1 linha, badges abaixo.
+   - Criar encomenda nova → bolinha sky `1` na sidebar + badge "Nova" sky na tabela.
+   - Abrir workbench dessa encomenda → ao voltar, "Nova" desaparece para mim (mas outros utilizadores continuam a ver).
 
 **Sessão 80 — passos manuais (se ainda não corridos):**
 

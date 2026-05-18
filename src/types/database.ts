@@ -237,6 +237,13 @@ export interface Order {
   // Array de entradas { id, timestamp, direction, content, screenshot_urls[] }.
   // Sem API oficial — a Maria cola/importa conversas manualmente.
   whatsapp_log: WhatsAppEntry[];
+
+  // ── Marcador "lida" per-user (mig 047) ─────────────────────
+  // Array de emails que já abriram o workbench desta encomenda
+  // pelo menos uma vez. Quando o utilizador actual NÃO está aqui,
+  // a encomenda aparece como "Nova" (badge na tabela/cards +
+  // bolinha na sidebar). Mesmo padrão que tasks.seen_by.
+  seen_by: string[];
 }
 
 // Tipo para criar uma nova encomenda (campos obrigatórios mínimos)

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
-import { format, parseISO, differenceInDays, differenceInCalendarDays, differenceInHours } from "date-fns";
+import { format, parseISO, differenceInDays, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
   ChevronDown,
@@ -246,6 +246,7 @@ function OrderRow({
   canEdit,
   inSemResposta,
   voucherCodeToId,
+  currentEmail,
   isDragging = false,
 }: {
   order: Order;
@@ -255,6 +256,7 @@ function OrderRow({
   canEdit: boolean;
   inSemResposta: boolean;
   voucherCodeToId: Record<string, string>;
+  currentEmail: string | null;
   isDragging?: boolean;
 }) {
   const router = useRouter();
@@ -292,10 +294,10 @@ function OrderRow({
   const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
   const autoFlaggedSemResposta = isPreReserva && !currentContacted && daysSinceCreated >= 4;
 
-  // Destaque "Nova" — encomenda criada há <24h. Heurística simples
-  // (sem schema): o destaque some ao fim de 24h independentemente de
-  // alguém a ter aberto. Padrão por encomenda, não por utilizador.
-  const isNew = differenceInHours(new Date(), new Date(order.created_at)) < 24;
+  // Destaque "Nova" — per-user, baseado em orders.seen_by[] (mig 047).
+  // O badge desaparece para o utilizador actual depois de ele abrir o
+  // workbench desta encomenda pela 1ª vez. Mensagem lida/não lida.
+  const isNew = !!currentEmail && !(order.seen_by ?? []).includes(currentEmail);
 
   // Última actividade: só mostrar quando a encomenda está parada há >=7 dias
   // e não está em estado terminal (concluído / cancelado). 14+ dias = âmbar.
@@ -372,7 +374,7 @@ function OrderRow({
       {...attributes}
       className={cn(
         "border-b border-cream-100 cursor-pointer transition-colors active:bg-cream-200",
-        isLoading ? "bg-cream-100/60" : isNew ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-cream-50",
+        isLoading ? "bg-cream-100/60" : "hover:bg-cream-50",
         (isDraggingThis || isDragging) && "opacity-40",
       )}
       onClick={() => onOpen(order)}
@@ -410,8 +412,8 @@ function OrderRow({
               )}
               {isNew && (
                 <span
-                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide shrink-0"
-                  title={`Criada ${format(parseISO(order.created_at), "dd/MM/yyyy HH:mm")} (há <24h)`}
+                  className="inline-flex items-center rounded-full bg-sky-100 border border-sky-300 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 uppercase tracking-wide shrink-0"
+                  title={`Ainda não abriste esta encomenda. Criada ${format(parseISO(order.created_at), "dd/MM/yyyy HH:mm")}`}
                 >
                   Nova
                 </span>
@@ -551,6 +553,7 @@ interface GroupSectionProps {
   isSemResposta?: boolean;
   alert?: boolean;
   voucherCodeToId: Record<string, string>;
+  currentEmail: string | null;
   /** Chave de grupo para drag-and-drop. Se omitida, a secção não é drop zone. */
   droppableId?: OrderGroupKey;
   /** ID da encomenda actualmente a ser arrastada (para opacificar a fonte). */
@@ -558,7 +561,7 @@ interface GroupSectionProps {
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId, droppableId, draggingOrderId,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId, currentEmail, droppableId, draggingOrderId,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   const isEmpty = orders.length === 0;
@@ -645,6 +648,7 @@ function GroupSection({
                   canEdit={canEdit}
                   inSemResposta={isSemResposta}
                   voucherCodeToId={voucherCodeToId}
+                  currentEmail={currentEmail}
                   isDragging={draggingOrderId === order.id}
                 />
               ))}
@@ -667,11 +671,12 @@ interface Props {
   archivedOrders: Order[];
   canEdit: boolean;
   voucherCodeToId: Record<string, string>;
+  currentEmail: string | null;
 }
 
 // ── Componente principal ──────────────────────────────────────
 
-export default function PreservacaoClient({ initialOrders, initialGrouped, archivedOrders, canEdit, voucherCodeToId }: Props) {
+export default function PreservacaoClient({ initialOrders, initialGrouped, archivedOrders, canEdit, voucherCodeToId, currentEmail }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<ViewType>("tabela");
@@ -1030,15 +1035,15 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
           >
             <div className="space-y-3">
               {grouped.orfas.length > 0 && (
-                <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} draggingOrderId={draggingOrder?.id ?? null} />
+                <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} draggingOrderId={draggingOrder?.id ?? null} />
               )}
-              <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} droppableId="sem_resposta"        draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="pre_reservas"        draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="reservas"            draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="preservacao_design"  draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="finalizacao"         draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="concluidos"          draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} droppableId="cancelamentos"       draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="sem_resposta"        draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="pre_reservas"        draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="reservas"            draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="preservacao_design"  draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="finalizacao"         draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="concluidos"          draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="cancelamentos"       draggingOrderId={draggingOrder?.id ?? null} />
 
               {filteredOrders.length === 0 && initialOrders.length > 0 && (
                 <div className="rounded-xl border border-cream-200 bg-surface p-8 text-center">
@@ -1065,15 +1070,15 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
         {!showArchived && activeView === "cards" && (
           <div className="space-y-6">
             {grouped.orfas.length > 0 && (
-              <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} alert showPhoto={false} />
+              <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} />
             )}
-            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} alert showPhoto={false} />
-            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
-            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
-            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto />
-            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto />
-            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto />
-            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} showPhoto={false} />
+            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} />
+            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} />
+            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} />
+            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
+            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
+            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
+            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} />
           </div>
         )}
 
@@ -1115,6 +1120,7 @@ function CardGroup({
   colorClass,
   onOpenOrder,
   loadingOrderId,
+  currentEmail,
   alert = false,
   showPhoto = true,
 }: {
@@ -1123,6 +1129,7 @@ function CardGroup({
   colorClass: string;
   onOpenOrder: (o: Order) => void;
   loadingOrderId: string | null;
+  currentEmail: string | null;
   alert?: boolean;
   showPhoto?: boolean;
 }) {
@@ -1148,6 +1155,7 @@ function CardGroup({
               onOpen={onOpenOrder}
               isLoading={loadingOrderId === o.id}
               showPhoto={showPhoto}
+              currentEmail={currentEmail}
             />
           ))}
         </div>
@@ -1157,18 +1165,21 @@ function CardGroup({
 }
 
 function OrderCard({
-  order, onOpen, isLoading, showPhoto = true,
+  order, onOpen, isLoading, showPhoto = true, currentEmail,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
   isLoading: boolean;
   showPhoto?: boolean;
+  currentEmail: string | null;
 }) {
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
   const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
   const photoUrl = showPhoto ? toEmbeddableImageUrl(order.flowers_photo_url) : null;
-  const isNew = differenceInHours(new Date(), new Date(order.created_at)) < 24;
+  // Per-user: o card só fica destacado para quem ainda não abriu o
+  // workbench desta encomenda. Mensagem lida/não lida (mig 047).
+  const isNew = !!currentEmail && !(order.seen_by ?? []).includes(currentEmail);
 
   return (
     <button
@@ -1177,9 +1188,7 @@ function OrderCard({
         "group text-left rounded-2xl border overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md active:scale-[0.99] transition-all",
         isLoading
           ? "border-cocoa-500 ring-2 ring-[#C4A882]/30 bg-surface"
-          : isNew
-            ? "border-amber-300 bg-amber-50/60 hover:border-amber-400"
-            : "border-cream-200 bg-surface hover:border-cocoa-500",
+          : "border-cream-200 bg-surface hover:border-cocoa-500",
       )}
     >
       {showPhoto && (
@@ -1227,8 +1236,8 @@ function OrderCard({
           </p>
           {isNew && (
             <span
-              className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800 uppercase tracking-wide shrink-0"
-              title="Criada há <24h"
+              className="inline-flex items-center rounded-full bg-sky-100 border border-sky-300 px-1.5 py-0.5 text-[9px] font-semibold text-sky-800 uppercase tracking-wide shrink-0"
+              title="Ainda não abriste esta encomenda"
             >
               Nova
             </span>

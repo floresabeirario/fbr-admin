@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentRole } from "@/lib/auth/server";
+import { getCurrentRole, getCurrentEmail } from "@/lib/auth/server";
 import { groupOrders } from "@/lib/supabase/orders";
 import type { Order } from "@/types/database";
 import PreservacaoClient from "./preservacao-client";
@@ -7,6 +7,7 @@ import PreservacaoClient from "./preservacao-client";
 export default async function PreservacaoPage() {
   const supabase = await createClient();
   const role = await getCurrentRole();
+  const currentEmail = await getCurrentEmail();
 
   const [activeRes, archivedRes, vouchersRes] = await Promise.all([
     supabase
@@ -41,6 +42,7 @@ export default async function PreservacaoPage() {
       archivedOrders={archivedOrders}
       canEdit={role === "admin"}
       voucherCodeToId={Object.fromEntries(voucherCodeToId)}
+      currentEmail={currentEmail}
     />
   );
 }

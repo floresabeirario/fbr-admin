@@ -5,6 +5,7 @@ import type { Order } from "@/types/database";
 import type { Partner } from "@/types/partner";
 import { loadIntegration } from "@/lib/google/oauth";
 import { computeEventHtmlLink } from "@/lib/google/calendar";
+import { markOrderSeenAction } from "../actions";
 import WorkbenchClient from "./workbench-client";
 
 export default async function WorkbenchPage({
@@ -35,6 +36,11 @@ export default async function WorkbenchPage({
   const partnerOptions = (partnersRes.data ?? []) as Pick<Partner, "id" | "name" | "category" | "status">[];
 
   let order = orderRes.data as Order;
+
+  // Marcar como vista pelo utilizador actual (acrescenta email ao seen_by[]).
+  // Fire-and-forget — não bloqueia o render se a RPC falhar. Idempotente
+  // a partir da segunda visita (a RPC verifica NOT email = ANY(seen_by)).
+  void markOrderSeenAction(order.id);
 
   // Backfill do htmlLink para encomendas com evento Calendar criado
   // antes da migração 037. Constrói o URL a partir do calendar_id da

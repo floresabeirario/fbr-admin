@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/server";
+import { requireAdmin, requireUser } from "@/lib/auth/server";
 import { generateUniqueCouponCode } from "@/lib/coupon";
 import { computePricingSnapshot } from "@/lib/pricing";
 import { buildProductionCostSnapshot } from "@/lib/production-cost";
@@ -492,6 +492,23 @@ export async function deleteOrderAction(id: string): Promise<void> {
     .eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/preservacao");
+}
+
+// Marca uma encomenda como "vista" pelo utilizador actual (acrescenta o
+// email do JWT ao array seen_by). Usado ao abrir o workbench pela 1ª
+// vez. Suporta admin E viewer (Ana também precisa de marcar como lida
+// para si própria). A RPC mark_order_seen (mig 047) é SECURITY DEFINER
+// e tem a sua própria lista de emails permitidos. Silencioso em falha
+// — abrir o workbench não pode falhar por causa disto.
+export async function markOrderSeenAction(id: string): Promise<void> {
+  try {
+    await requireUser();
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("mark_order_seen", { p_order_id: id });
+    if (error) console.error("[markOrderSeenAction] RPC falhou:", error.message);
+  } catch (err) {
+    console.error("[markOrderSeenAction] Excepção:", err);
+  }
 }
 
 export async function restoreOrderAction(id: string): Promise<void> {

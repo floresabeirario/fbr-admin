@@ -32,7 +32,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
 import { useUnreadChatCount } from "@/hooks/use-unread-chat";
 import { useUnreadTasks } from "@/hooks/use-unread-tasks";
-import { useNewOrdersCount } from "@/hooks/use-new-orders";
+import { useUnreadOrdersCount } from "@/hooks/use-new-orders";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -119,10 +119,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const unreadTasks = pathname === "/" ? 0 : rawUnreadTasks;
 
   // Bolinha de notificação no item "Preservação de Flores" — conta
-  // encomendas criadas nas últimas 24h (alinhado com o badge "Nova"
-  // da tabela/cards). Esconde quando estou em "/preservacao" para não
-  // distrair enquanto estou a olhar para a lista.
-  const rawNewOrders = useNewOrdersCount();
+  // encomendas que o utilizador actual ainda não abriu nenhuma vez
+  // (não está em orders.seen_by, mig 047). Per-user, à imagem de
+  // mensagem lida/não lida. Esconde quando estou em "/preservacao"
+  // (já estou na lista; abrir workbenches deles marca como vistas).
+  const rawNewOrders = useUnreadOrdersCount(profile?.email ?? null);
   const newOrders = pathname.startsWith("/preservacao") ? 0 : rawNewOrders;
 
   useEffect(() => {
@@ -282,7 +283,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (showDot) titleParts.push(healthTooltip);
           if (showChatBadge) titleParts.push(`${unreadChat} mensage${unreadChat === 1 ? "m" : "ns"} por ler`);
           if (showTasksBadge) titleParts.push(`${unreadTasks} tarefa${unreadTasks === 1 ? "" : "s"} nova${unreadTasks === 1 ? "" : "s"}`);
-          if (showOrdersBadge) titleParts.push(`${newOrders} encomenda${newOrders === 1 ? "" : "s"} nova${newOrders === 1 ? "" : "s"} (últimas 24h)`);
+          if (showOrdersBadge) titleParts.push(`${newOrders} encomenda${newOrders === 1 ? "" : "s"} por abrir`);
           return (
             <Link
               key={href}
