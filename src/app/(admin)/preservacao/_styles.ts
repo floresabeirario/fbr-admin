@@ -151,6 +151,19 @@ export const STATUS_GROUPS: Array<{ label: StatusGroupLabel; statuses: OrderStat
     ),
   }));
 
+// Estados em que o aviso de "evento próximo / passado" ainda faz sentido.
+// A partir de `flores_recebidas` já temos as flores em mãos — o evento
+// torna-se metadado, não acção. Esconder evita ansiedade desnecessária.
+const EVENT_ALERT_RELEVANT_SET: ReadonlySet<OrderStatus> = new Set<OrderStatus>([
+  "entrega_flores_agendar",
+  "entrega_agendada",
+  "flores_enviadas",
+]);
+
+export function isEventAlertRelevant(status: OrderStatus): boolean {
+  return EVENT_ALERT_RELEVANT_SET.has(status);
+}
+
 // Gradiente vermelho → âmbar → lime → verde, conforme a quantia já paga
 export const PAYMENT_COLORS: Record<PaymentStatus, string> = {
   "100_pago":      "bg-green-100 text-green-800 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900",

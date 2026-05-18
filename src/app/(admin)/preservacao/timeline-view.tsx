@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CalendarDays,
   AlertTriangle,
+  Clock,
   Loader2,
   ExternalLink,
   MapPin,
@@ -23,7 +24,7 @@ import {
   EVENT_TYPE_LABELS,
   STATUS_LABELS,
 } from "@/types/database";
-import { STATUS_COLORS, STATUS_DOT_COLORS } from "./_styles";
+import { STATUS_COLORS, STATUS_DOT_COLORS, isEventAlertRelevant } from "./_styles";
 
 interface Props {
   orders: Order[];
@@ -282,8 +283,9 @@ function TimelineRow({
   const eventDate = order.event_date ? parseISO(order.event_date) : null;
   const daysAway =
     eventDate && today ? differenceInCalendarDays(eventDate, today) : null;
-  const overdue = daysAway !== null && daysAway < 0;
-  const soon = daysAway !== null && daysAway >= 0 && daysAway <= 5;
+  const alertRelevant = isEventAlertRelevant(order.status);
+  const overdue = alertRelevant && daysAway !== null && daysAway < 0;
+  const soon = alertRelevant && daysAway !== null && daysAway >= 0 && daysAway <= 5;
 
   return (
     <button
@@ -296,10 +298,12 @@ function TimelineRow({
       {showDate && eventDate ? (
         <div
           className={`flex flex-col items-center justify-center w-14 shrink-0 rounded-lg px-2 py-1.5 ${
-            past || overdue
+            past
+              ? "bg-stone-100 text-stone-500"
+              : overdue
               ? "bg-red-50 text-red-700 border border-red-200"
               : soon
-              ? "bg-amber-50 text-amber-800 border border-amber-200"
+              ? "bg-amber-100 text-amber-900 border border-amber-300"
               : "bg-cream-50 text-cocoa-900 border border-cream-200"
           }`}
         >
@@ -337,8 +341,8 @@ function TimelineRow({
             </span>
           )}
           {soon && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">
-              <CalendarDays className="h-2.5 w-2.5" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 border border-amber-400 px-1.5 py-0.5 text-[9px] font-bold text-amber-900">
+              <Clock className="h-2.5 w-2.5" />
               {daysAway === 0 ? "Hoje" : `em ${daysAway}d`}
             </span>
           )}

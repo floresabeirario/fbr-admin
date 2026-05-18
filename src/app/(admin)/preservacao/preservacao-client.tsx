@@ -14,6 +14,7 @@ import {
   CalendarDays,
   LayoutGrid,
   AlertTriangle,
+  Clock,
   ExternalLink,
   Check,
   Loader2,
@@ -109,6 +110,7 @@ import {
   STATUS_GROUPS,
   PAYMENT_COLORS,
   PAYMENT_DOT_COLORS,
+  isEventAlertRelevant,
 } from "./_styles";
 import CalendarView from "./calendar-view";
 import TimelineView from "./timeline-view";
@@ -287,9 +289,14 @@ function OrderRow({
     order.event_date
       ? differenceInCalendarDays(parseISO(order.event_date), new Date())
       : null;
-  const overdueEvent = daysUntilEvent !== null && daysUntilEvent < 0;
+  const eventAlertRelevant = isEventAlertRelevant(currentStatus);
+  const overdueEvent =
+    eventAlertRelevant && daysUntilEvent !== null && daysUntilEvent < 0;
   const soonEvent =
-    daysUntilEvent !== null && daysUntilEvent >= 0 && daysUntilEvent <= 5;
+    eventAlertRelevant &&
+    daysUntilEvent !== null &&
+    daysUntilEvent >= 0 &&
+    daysUntilEvent <= 5;
 
   const isPreReserva = currentStatus === "entrega_flores_agendar";
   const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
@@ -456,15 +463,16 @@ function OrderRow({
       <td className="px-4 py-1.5">
         {order.event_date ? (
           <span
-            className={`text-sm ${
+            className={`inline-flex items-center gap-1 text-sm ${
               overdueEvent
                 ? "text-red-600 font-semibold"
                 : soonEvent
-                ? "text-amber-800 font-medium"
+                ? "text-amber-900 font-semibold"
                 : "text-cocoa-900"
             }`}
           >
             {overdueEvent && "⚠ "}
+            {soonEvent && <Clock className="h-3 w-3" />}
             {formatDate(order.event_date)}
           </span>
         ) : (
@@ -1182,9 +1190,14 @@ function OrderCard({
 }) {
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
-  const overdueEvent = daysUntilEvent !== null && daysUntilEvent < 0;
+  const eventAlertRelevant = isEventAlertRelevant(order.status);
+  const overdueEvent =
+    eventAlertRelevant && daysUntilEvent !== null && daysUntilEvent < 0;
   const soonEvent =
-    daysUntilEvent !== null && daysUntilEvent >= 0 && daysUntilEvent <= 5;
+    eventAlertRelevant &&
+    daysUntilEvent !== null &&
+    daysUntilEvent >= 0 &&
+    daysUntilEvent <= 5;
   const photoUrl = showPhoto ? toEmbeddableImageUrl(order.flowers_photo_url) : null;
   // Per-user: o card só fica destacado para quem ainda não abriu o
   // workbench desta encomenda. Mensagem lida/não lida (mig 047).
@@ -1223,8 +1236,8 @@ function OrderCard({
             </div>
           )}
           {soonEvent && (
-            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm">
-              <CalendarDays className="h-2.5 w-2.5" />
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-amber-200 border border-amber-400 px-2 py-0.5 text-[10px] font-bold text-amber-900 shadow-sm">
+              <Clock className="h-2.5 w-2.5" />
               {daysUntilEvent === 0 ? "Hoje" : `em ${daysUntilEvent}d`}
             </div>
           )}
@@ -1243,8 +1256,8 @@ function OrderCard({
           </div>
         )}
         {!showPhoto && soonEvent && (
-          <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold text-amber-800 mb-1.5">
-            <CalendarDays className="h-2.5 w-2.5" />
+          <div className="inline-flex items-center gap-1 rounded-full bg-amber-200 border border-amber-400 px-2 py-0.5 text-[10px] font-bold text-amber-900 mb-1.5">
+            <Clock className="h-2.5 w-2.5" />
             {daysUntilEvent === 0 ? "Hoje" : `em ${daysUntilEvent}d`}
           </div>
         )}

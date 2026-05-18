@@ -36,6 +36,7 @@ import {
   Check,
   ExternalLink,
   AlertTriangle,
+  Clock,
   Image as ImageIcon,
   FolderOpen,
   Globe,
@@ -67,6 +68,7 @@ import {
   createOrderCalendarEventAction,
   deleteOrderCalendarEventAction,
 } from "../actions";
+import { isEventAlertRelevant } from "../_styles";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import AddressAutocomplete from "@/components/address-autocomplete";
@@ -511,9 +513,14 @@ export default function WorkbenchClient({
   const daysUntilEvent = local.event_date
     ? differenceInCalendarDays(parseISO(local.event_date), new Date())
     : null;
-  const overdueEvent = daysUntilEvent !== null && daysUntilEvent < 0;
+  const eventAlertRelevant = isEventAlertRelevant(local.status);
+  const overdueEvent =
+    eventAlertRelevant && daysUntilEvent !== null && daysUntilEvent < 0;
   const soonEvent =
-    daysUntilEvent !== null && daysUntilEvent >= 0 && daysUntilEvent <= 5;
+    eventAlertRelevant &&
+    daysUntilEvent !== null &&
+    daysUntilEvent >= 0 &&
+    daysUntilEvent <= 5;
   const isWedding = local.event_type === "casamento";
   const eventRelative = local.event_date ? relativeMonthsDays(local.event_date) : null;
 
@@ -680,8 +687,8 @@ export default function WorkbenchClient({
             </div>
           )}
           {soonEvent && (
-            <div className="flex items-center gap-1 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-800 font-medium shrink-0">
-              <CalendarPlus className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1 rounded-lg bg-amber-200 border border-amber-400 px-2 py-1 text-xs text-amber-900 font-bold shrink-0">
+              <Clock className="h-3.5 w-3.5" />
               {daysUntilEvent === 0 ? "Evento hoje" : `Evento em ${daysUntilEvent}d`}
             </div>
           )}
@@ -1191,7 +1198,7 @@ export default function WorkbenchClient({
                               overdueEvent
                                 ? "border-red-300 bg-red-50"
                                 : soonEvent
-                                ? "border-amber-300 bg-amber-50"
+                                ? "border-amber-400 bg-amber-100"
                                 : ""
                             }`}
                             type="date"
@@ -1199,14 +1206,16 @@ export default function WorkbenchClient({
                             onChange={(e) => clientUpdate("event_date", e.target.value || null, "Data do evento", (v) => v ? format(parseISO(v as string), "dd/MM/yyyy") : "—")}
                           />
                           {eventRelative && (
-                            <p className={`text-[10px] px-2 ${
+                            <p className={`text-[10px] px-2 inline-flex items-center gap-1 ${
                               overdueEvent
                                 ? "text-red-600 font-medium"
                                 : soonEvent
-                                ? "text-amber-800 font-medium"
+                                ? "text-amber-900 font-semibold"
                                 : "text-cocoa-500"
                             }`}>
-                              {overdueEvent && "⚠ "}{eventRelative}
+                              {overdueEvent && "⚠ "}
+                              {soonEvent && <Clock className="h-2.5 w-2.5" />}
+                              {eventRelative}
                             </p>
                           )}
                         </HeroField>

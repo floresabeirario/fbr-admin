@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 27) — Sessão 84: aviso de evento próximo passa de vermelho para âmbar (vermelho causava ansiedade quando faltavam dias e o evento ainda nem tinha acontecido) — vermelho fica reservado a eventos já passados
+## Fase actual: FASE 6 (parte 27) — Sessão 84: aviso de evento próximo passa de vermelho para âmbar (vermelho só para eventos passados), aviso desaparece quando estado >= flores_recebidas (já temos as flores), ícone Clock + âmbar mais saturado para distinguir do cream
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -44,20 +44,22 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 84 🟠 Vermelho ≠ "evento próximo" — passa a âmbar; vermelho só para passados
+### Sessão 84 🟠 Vermelho ≠ "evento próximo" — passa a âmbar; vermelho só para passados; esconder após flores_recebidas
 
-Maria via screenshots (Timeline + Tabela): eventos a 5 dias estavam marcados a vermelho com ⚠ ("5d") mesmo sem terem acontecido. Causava ansiedade — o vermelho parece alarme de "perdeste/falhaste algo". Pediu que o vermelho seja reservado a eventos que **já passaram**.
+Maria via screenshots (Timeline + Tabela): eventos a 5 dias estavam marcados a vermelho com ⚠ ("5d") mesmo sem terem acontecido. Causava ansiedade — o vermelho parece alarme de "perdeste/falhaste algo". Em 2ª iteração pediu também: (1) esconder o alerta a partir de `flores_recebidas` ou `flores_na_prensa` (já temos as flores, a data do evento deixa de ser sinal de acção); (2) âmbar mal se distinguia do cream — bump da saturação + trocar ícone para algo mais visível.
 
-**Mudança transversal:** substituí o flag único `urgentEvent` (≤5 dias && ≥0) por dois: `overdueEvent` (`daysAway < 0`) e `soonEvent` (`0 ≤ daysAway ≤ 5`).
-- **overdueEvent** → tratamento vermelho + `AlertTriangle` + label `há Xd` (alarme legítimo).
-- **soonEvent** → tratamento âmbar (`bg-amber-50/100`, `border-amber-200/300`, `text-amber-800`) + ícone `CalendarDays`/`CalendarPlus` + label `Hoje` ou `em Xd` (heads-up calmo, sem ⚠).
+**Mudança transversal — 3 cortes lógicos:**
+1. Substituí o flag único `urgentEvent` (≤5 dias && ≥0) por **`overdueEvent`** (`daysAway < 0`) e **`soonEvent`** (`0 ≤ daysAway ≤ 5`).
+2. Helper novo em [src/app/(admin)/preservacao/_styles.ts](src/app/(admin)/preservacao/_styles.ts): `isEventAlertRelevant(status)` — `true` só para `entrega_flores_agendar | entrega_agendada | flores_enviadas`. A partir de `flores_recebidas` devolve `false` e ambos os flags ficam falsos.
+3. Cores e ícone: vermelho mantém `AlertTriangle` + `há Xd`. Âmbar sobe de `bg-amber-50/border-amber-200/text-amber-800` para **`bg-amber-200 border-amber-400 text-amber-900 font-bold`** + ícone `Clock` (escolhido entre Clock/Timer/Bell — não bate com nenhum `STATUS_ICONS`).
 
 Ficheiros tocados:
-- [src/app/(admin)/preservacao/timeline-view.tsx](src/app/(admin)/preservacao/timeline-view.tsx) — pill de data lateral + badge inline.
-- [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) — célula `DATA EVENTO` da tabela (era `text-red-600 font-semibold` + "⚠"; agora condicional vermelho/âmbar) + badge sobre a foto no OrderCard + variante sem foto.
-- [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) — banner do topo "Evento em Xd" + Input `Data do evento` (border+bg condicionais) + texto relativo abaixo.
+- [src/app/(admin)/preservacao/_styles.ts](src/app/(admin)/preservacao/_styles.ts) — `EVENT_ALERT_RELEVANT_SET` + `isEventAlertRelevant`.
+- [src/app/(admin)/preservacao/timeline-view.tsx](src/app/(admin)/preservacao/timeline-view.tsx) — pill de data lateral (passados em stone separado de overdue em red) + badge inline com `Clock`.
+- [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) — `OrderRow` usa `currentStatus` (respeita optimistic), `OrderCard` usa `order.status`. Célula `DATA EVENTO` da tabela com Clock inline.
+- [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) — banner topo, border+bg do Input `Data do evento`, texto relativo abaixo.
 
-Mantém a spec do CLAUDE.md ("Diferenciação visual quando faltam ≤5 dias para data do evento") — continua a haver diferenciação, mas em tom informativo, não alarmista. Preflight OK.
+Mantém a spec do CLAUDE.md ("Diferenciação visual quando faltam ≤5 dias para data do evento") — continua a haver diferenciação para os estados em que ainda há acção a tomar; nos restantes a data do evento é metadado e fica neutra. Preflight OK.
 
 ### Sessão 83 🎨 Dashboard — paridade checklist↔afazeres + indigo + cards não esticam (mig 049)
 
