@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 20) — Finanças/Despesas: descrição como campo principal + fornecedor opcional (texto ou link) + KPI "Total desde sempre"
+## Fase actual: FASE 6 (parte 21) — Preservação: fix drag-and-drop entre grupos (deteção de colisão + erros visíveis + movimento óptico)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,26 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 77 🛠️ Preservação — fix drag-and-drop entre grupos (linha snap-back silencioso)
+
+Maria reportou: "arrasto para mover para outro grupo, mas a linha nao fica no outro grupo" — confirmou que conseguia agarrar com o rato, mas a linha voltava para o grupo original. Diagnóstico em [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) revelou 3 problemas combinados que tornavam a falha invisível:
+
+1. **Catch blocks completamente silenciosos** (`catch { // silencioso }` × 3) — qualquer falha do `updateOrderAction` (RLS, schema, rede) era engolida sem feedback.
+2. **Collision detection default (`rectIntersection`)** exige que o rect do overlay (card pequeno de ~280px) intersecte o rect do grupo — falha quando se solta perto das margens.
+3. **Sem optimistic update** — a linha só se movia depois do `router.refresh()` completar, o que dava a sensação de "snap-back" mesmo quando o update tinha corrido bem.
+
+**Fix em [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):**
+- Import `pointerWithin` + `rectIntersection` + `type CollisionDetection` de `@dnd-kit/core`; import `toast` de `sonner`.
+- Nova função `collisionDetection` híbrida: tenta `pointerWithin` primeiro (mais intuitivo — basta o cursor estar dentro do grupo), com `rectIntersection` como fallback. Aplicada via prop `collisionDetection` no `DndContext`.
+- Novo state `optimisticMoves: Map<orderId, {status, manually_no_response}>` — override óptico por encomenda. Limpo com `setTimeout` 600ms depois de `router.refresh()` (deixa os dados novos chegar) ou imediatamente em falha.
+- Helper `runMove(order, updates, optimisticStatus, optimisticNoResp)` consolida o padrão: aplica optimistic → chama action → refresh + clear; em catch faz `console.error` + `toast.error("Não foi possível mover \"<nome>\". <msg>")`.
+- `handleDragEnd` quando `over` é null deixa de ser silencioso: `console.warn` + `toast.info("Larga em cima de um grupo (cabeçalho ou linhas) para mover.")`.
+- Cálculo do `grouped` agora aplica overrides ópticos antes de filtrar/agrupar: `ordersWithOptimistic` mescla `initialOrders` com o map; `grouped` reagrupa local quando há pesquisa OU overrides activos.
+
+`tsc --noEmit` + `eslint` limpos. Sem migrações, sem nova tabela. **Maria: push para Vercel + abrir `/preservacao` → arrastar uma encomenda para outro grupo → deve mover-se imediatamente e ficar lá. Se algo falhar, agora vês toast vermelho com o motivo (envia screenshot).**
+
+---
 
 ### Sessão 76 ✅ Finanças/Despesas — descrição primária + fornecedor opcional (texto ou link) + KPI "Total desde sempre"
 
@@ -167,22 +187,6 @@ Maria pediu mais gráficos e exigiu que as cores **estivessem uniformizadas** co
 - `UPSELL_HEX`: sim=emerald, maisInfo=amber.
 
 `tsc --noEmit` limpo. **Maria: abrir /metricas e verificar os 5 novos cards.**
-
----
-
-### Sessão 71 🎨 Coerência visual — "Recolha no local" = 🚗 Car + violet em toda a app
-
-Maria reparou que "recolha no local" aparecia incoerente: ora vermelho, ora verde, com `Truck` (carrinha) ou `Car`. Decisão: **sempre `Car` + violet**. Como `envio_ctt_quadro` já estava violet em Entregas e Recolhas, mudou para **rose** (alusivo ao vermelho CTT mas sem ar de urgência).
-
-Ficheiros tocados:
-- [src/lib/dashboard.ts:97-101](src/lib/dashboard.ts#L97-L101) — `PICKUP_KIND_COLORS`: recolha emerald → violet; CTT quadro violet → rose.
-- [src/app/(admin)/entregas-recolhas/entregas-recolhas-client.tsx:84-91](src/app/(admin)/entregas-recolhas/entregas-recolhas-client.tsx#L84-L91) — `KIND_COLORS` idem; chips de filtro (linhas 327-350) alinhados.
-- [src/app/(admin)/preservacao/calendar-view.tsx](src/app/(admin)/preservacao/calendar-view.tsx) — `deliveryBadge` agora devolve `Car` violet; legenda do calendário idem; `Truck` removido do import.
-- [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) — `SHIPPING_METHOD_ICONS.recolha_evento`: Truck → Car; cor rose → violet; `Truck` removido do import.
-
-`types/database.ts` (`FLOWER_DELIVERY_METHOD_COLORS`) já estava violet — nada mudou aí. `lib/google/calendar.ts` usa emoji 🚗 (já carro) — nada a fazer. `logistics-map.tsx` colore marcadores por proximidade de data, não por tipo — nada a fazer.
-
-Smoke: `tsc --noEmit` limpo. **Maria: verificar manualmente** a página Entregas e Recolhas, a vista Calendário da Preservação, a coluna "Envio" da tabela de Preservação e o card "Recolhas e entregas" do Dashboard.
 
 ---
 
@@ -356,7 +360,8 @@ Sem migrações novas. Push do código actual para Vercel. Para o cron funcionar
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-70)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-71)
+- **71** — Coerência visual "Recolha no local" = 🚗 Car + violet em toda a app; CTT quadro violet → rose (`dashboard.ts`, `entregas-recolhas-client.tsx`, `calendar-view.tsx`, `preservacao-client.tsx`)
 - **70** — Chat interno: bolinha sky de mensagens por ler na sidebar (mig 043 RPC `mark_chat_messages_read` SECURITY DEFINER; hook `useUnreadChatCount` com Realtime; auto mark-as-read em chat-client.tsx; esconde em `/chat`)
 - **69** — Finanças: selector de ano + "Potencial total" exclui pré-reservas/sem-resposta/canceladas; `metrics.ts` usa lógica proporcional (igual a Finanças); regra de atribuição ao ano (orders → event_date, vouchers → created_at, despesas → expense_date)
 - **68** — Workbench Preservação mobile: coluna central `order-1`, gaps/paddings menores `<lg:` (desktop intocado)

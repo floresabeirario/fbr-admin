@@ -37,13 +37,17 @@ import {
   DragOverlay,
   PointerSensor,
   KeyboardSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   useDraggable,
   useDroppable,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { toast } from "sonner";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -677,6 +681,12 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   const [showArchived, setShowArchived] = useState(false);
   const [draggingOrder, setDraggingOrder] = useState<Order | null>(null);
   const [, startDropTransition] = useTransition();
+  // Override óptico por encomenda: movimento visual imediato no drop, antes
+  // do refresh do servidor. Map<order.id, { status, manually_no_response }>.
+  // Limpado por encomenda no fim de cada drop (sucesso ou falha).
+  const [optimisticMoves, setOptimisticMoves] = useState<
+    Map<string, { status: OrderStatus; manually_no_response: boolean }>
+  >(() => new Map());
 
   // Sensores: activação por distância (8px) deixa o click do row continuar a
   // funcionar normalmente; KeyboardSensor dá acessibilidade básica (Space para
@@ -686,20 +696,75 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
     useSensor(KeyboardSensor),
   );
 
+  // pointerWithin é mais intuitivo (basta o cursor estar dentro do grupo),
+  // mas falha quando o cursor sai pelos lados; rectIntersection é a rede
+  // de segurança baseada na sobreposição de rects do overlay.
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointer = pointerWithin(args);
+    return pointer.length > 0 ? pointer : rectIntersection(args);
+  };
+
   function handleDragStart(event: DragStartEvent) {
     const order = event.active.data.current?.order as Order | undefined;
     if (order) setDraggingOrder(order);
   }
 
+  function clearOptimistic(orderId: string) {
+    setOptimisticMoves((prev) => {
+      if (!prev.has(orderId)) return prev;
+      const next = new Map(prev);
+      next.delete(orderId);
+      return next;
+    });
+  }
+
+  function applyOptimistic(orderId: string, status: OrderStatus, manuallyNoResponse: boolean) {
+    setOptimisticMoves((prev) => {
+      const next = new Map(prev);
+      next.set(orderId, { status, manually_no_response: manuallyNoResponse });
+      return next;
+    });
+  }
+
+  function runMove(
+    order: Order,
+    updates: Parameters<typeof updateOrderAction>[1],
+    optimisticStatus: OrderStatus,
+    optimisticNoResp: boolean,
+  ) {
+    applyOptimistic(order.id, optimisticStatus, optimisticNoResp);
+    startDropTransition(async () => {
+      try {
+        await updateOrderAction(order.id, updates);
+        router.refresh();
+        // limpa o override só depois do refresh trazer os dados novos
+        setTimeout(() => clearOptimistic(order.id), 600);
+      } catch (err) {
+        console.error("[preservacao] drag-and-drop falhou", err);
+        toast.error(
+          `Não foi possível mover "${order.client_name}". ${
+            err instanceof Error ? err.message : "Tenta de novo."
+          }`,
+        );
+        clearOptimistic(order.id);
+      }
+    });
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     setDraggingOrder(null);
     const { active, over } = event;
-    if (!over) return;
     const order = active.data.current?.order as Order | undefined;
     if (!order) return;
+    if (!over) {
+      // Drop fora de qualquer grupo: avisar para a Maria perceber que não
+      // largou em cima de um destino válido (antes era silencioso).
+      console.warn("[preservacao] drop sem destino — over=null");
+      toast.info("Larga em cima de um grupo (cabeçalho ou linhas) para mover.");
+      return;
+    }
 
     const targetGroup = String(over.id) as OrderGroupKey;
-    // Drop em zona não-droppable (orfas) ou em ID desconhecido: ignorar.
     if (!(targetGroup in GROUP_TO_TARGET_STATUS)) return;
 
     const targetStatus = GROUP_TO_TARGET_STATUS[targetGroup];
@@ -707,32 +772,16 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
     // sem_resposta: especial — não muda status, só activa a flag manual.
     if (targetGroup === "sem_resposta") {
       if (order.status !== "entrega_flores_agendar") {
-        // Para chegar a sem_resposta a partir de outro grupo, primeiro voltamos
-        // a entrega_flores_agendar (drop em pre_reservas seria mais intuitivo).
-        // Aqui forçamos o status base + activa flag manual num só update.
-        startDropTransition(async () => {
-          try {
-            await updateOrderAction(order.id, {
-              status: "entrega_flores_agendar",
-              manually_no_response: true,
-              contacted: false,
-            });
-            router.refresh();
-          } catch {
-            // silencioso — UI volta ao estado anterior no refresh
-          }
-        });
+        runMove(
+          order,
+          { status: "entrega_flores_agendar", manually_no_response: true, contacted: false },
+          "entrega_flores_agendar",
+          true,
+        );
         return;
       }
       if (order.manually_no_response) return; // já lá está
-      startDropTransition(async () => {
-        try {
-          await updateOrderAction(order.id, { manually_no_response: true });
-          router.refresh();
-        } catch {
-          // silencioso
-        }
-      });
+      runMove(order, { manually_no_response: true }, order.status, true);
       return;
     }
 
@@ -745,44 +794,46 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
       }
       if (order.manually_no_response) updates.manually_no_response = false;
       if (Object.keys(updates).length === 0) return; // já lá está
-      startDropTransition(async () => {
-        try {
-          await updateOrderAction(order.id, updates);
-          router.refresh();
-        } catch {
-          // silencioso
-        }
-      });
+      runMove(order, updates, "entrega_flores_agendar", false);
       return;
     }
 
     // Outros grupos: status muda para o primeiro estado do grupo destino.
     // Defensivo: limpa manually_no_response (só faz sentido em pré-reservas).
     if (order.status === targetStatus && !order.manually_no_response) return;
-    startDropTransition(async () => {
-      try {
-        await updateOrderAction(order.id, {
-          status: targetStatus,
-          manually_no_response: false,
-        });
-        router.refresh();
-      } catch {
-        // silencioso
-      }
-    });
+    runMove(
+      order,
+      { status: targetStatus, manually_no_response: false },
+      targetStatus,
+      false,
+    );
   }
 
+  // Aplica overrides óptimicos antes de filtrar/agrupar — assim a linha
+  // aparece imediatamente no grupo destino quando se larga, sem esperar
+  // pelo round-trip ao servidor.
+  const ordersWithOptimistic = optimisticMoves.size === 0
+    ? initialOrders
+    : initialOrders.map((o) => {
+        const move = optimisticMoves.get(o.id);
+        return move ? { ...o, status: move.status, manually_no_response: move.manually_no_response } : o;
+      });
+
   const filteredOrders = search.trim()
-    ? initialOrders.filter(
+    ? ordersWithOptimistic.filter(
         (o) =>
           o.client_name.toLowerCase().includes(search.toLowerCase()) ||
           o.order_id.toLowerCase().includes(search.toLowerCase()) ||
           o.email?.toLowerCase().includes(search.toLowerCase()) ||
           o.event_location?.toLowerCase().includes(search.toLowerCase())
       )
-    : initialOrders;
+    : ordersWithOptimistic;
 
-  const grouped = search.trim() ? groupOrders(filteredOrders) : initialGrouped;
+  // Quando há overrides ópticos OU pesquisa activa, reagrupamos local;
+  // caso contrário usamos o grouped já feito no servidor.
+  const grouped = search.trim() || optimisticMoves.size > 0
+    ? groupOrders(filteredOrders)
+    : initialGrouped;
 
   // Calendário e timeline só mostram encomendas com data agendada (excluem
   // pré-reservas "por agendar" e canceladas — não fazem sentido na grelha temporal).
@@ -954,6 +1005,7 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
         {!showArchived && activeView === "tabela" && (
           <DndContext
             sensors={sensors}
+            collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={() => setDraggingOrder(null)}
