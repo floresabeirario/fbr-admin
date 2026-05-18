@@ -21,6 +21,37 @@ import {
 } from "@/lib/google/order-calendar-trigger";
 import type { OrderInsert, OrderUpdate, OrderStatus, Order } from "@/types/database";
 
+// Marca um vale como "preservação agendada" quando uma encomenda passa
+// a usar o seu código. Evita dupla contagem na faturação: sem isto, o
+// vale (100% pago, "preservação não agendada") continuava a contar para
+// receita ao mesmo tempo que a nova encomenda — duplicação na janela em
+// que a Maria não actualizava o vale manualmente.
+//
+// Silencioso em falha — não bloqueia a operação principal. Idempotente:
+// o `.neq("usage_status", "preservacao_agendada")` evita writes inúteis.
+async function markVoucherAsScheduled(
+  // Note: tipo inferido para evitar import circular com supabase/server.
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  voucherCode: string,
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from("vouchers")
+      .update({ usage_status: "preservacao_agendada" })
+      .eq("code", voucherCode)
+      .is("deleted_at", null)
+      .neq("usage_status", "preservacao_agendada");
+    if (error) {
+      console.error(
+        `[markVoucherAsScheduled] Falhou para código ${voucherCode}:`,
+        error.message,
+      );
+    }
+  } catch (err) {
+    console.error("[markVoucherAsScheduled] Excepção:", err);
+  }
+}
+
 export async function createOrderAction(order: OrderInsert): Promise<Order> {
   await requireAdmin();
   const supabase = await createClient();
@@ -80,6 +111,14 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
     .select()
     .single();
   if (error) throw new Error(error.message);
+
+  // Se a encomenda usa um código de vale-presente, marcar esse vale
+  // como "preservação agendada" para evitar dupla contagem na faturação.
+  if (payload.gift_voucher_code) {
+    await markVoucherAsScheduled(supabase, payload.gift_voucher_code);
+    revalidatePath("/vale-presente");
+  }
+
   revalidatePath("/preservacao");
   return data as Order;
 }
@@ -208,16 +247,18 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.pickup_contact_phone !== undefined ||
     updates.email !== undefined ||
     updates.phone !== undefined ||
-    updates.contact_preference !== undefined;
+    updates.contact_preference !== undefined ||
+    updates.gift_voucher_code !== undefined;
 
   let triggerDriveCreation = false;
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
+  let voucherToMark: string | null = null;
 
   if (needsPrev) {
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, email, phone, contact_preference",
+        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, email, phone, contact_preference, gift_voucher_code",
       )
       .eq("id", id)
       .single();
@@ -230,6 +271,17 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         isFirstOrderPayment(prev.payment_status as Order["payment_status"], updates.payment_status)
       ) {
         triggerDriveCreation = true;
+      }
+
+      // Vale-presente: se o código foi adicionado ou mudou, marcar o
+      // vale como "preservação agendada" depois do UPDATE (anti-dupla
+      // contagem na faturação).
+      if (
+        updates.gift_voucher_code !== undefined &&
+        updates.gift_voucher_code &&
+        updates.gift_voucher_code !== prev.gift_voucher_code
+      ) {
+        voucherToMark = updates.gift_voucher_code;
       }
 
       // Calendar: decide ordem de prioridade
@@ -321,6 +373,11 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       id: updatedOrder.id,
       calendar_event_id: updatedOrder.calendar_event_id,
     });
+  }
+
+  if (voucherToMark) {
+    await markVoucherAsScheduled(supabase, voucherToMark);
+    revalidatePath("/vale-presente");
   }
 
   revalidatePath("/preservacao");

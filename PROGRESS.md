@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 23) — Preservação: destaque "Nova" (<24h) em tabela+cards; Finanças: grid 5 tabs; cupão único c/ retry em colisão; refactor Dashboard 1051→112 linhas em `_components/dashboard/`
+## Fase actual: FASE 6 (parte 24) — Vales: fim da dupla contagem na faturação (auto-mark `preservacao_agendada` ao criar/editar encomenda c/ código); C1 mig 046 — tabela `team_members` + `is_team_admin/is_team_member` com fallback; policies de `orders` migradas para usar as funções (POC progressivo)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -38,11 +38,33 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 45 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 46 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 80 🧰 Fim da dupla contagem de vales + C1 (mig 046) progressivo
+
+Continuação da limpeza pós-análise global (sessão 78). Dois itens da lista de pendentes.
+
+**Dupla contagem de vales** — antes: vale `100_pago + preservacao_nao_agendada` contava para receita ao mesmo tempo que a encomenda nova que o usava, durante a janela em que a Maria não actualizava o vale manualmente. Resultado: faturação sobre-estimada. [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts):
+- Novo helper local `markVoucherAsScheduled(supabase, code)` — UPDATE silencioso e idempotente (`.neq("usage_status", "preservacao_agendada")` evita writes inúteis). Falhas (vale não existe, RLS) loggadas mas não bloqueiam a operação principal.
+- `createOrderAction`: depois do INSERT bem sucedido, se `payload.gift_voucher_code` está preenchido, chama o helper + `revalidatePath("/vale-presente")`.
+- `updateOrderAction`: `gift_voucher_code` adicionado à condição `needsPrev` e ao SELECT prev; nova variável `voucherToMark` capturada quando o código muda; helper chamado depois do UPDATE + Drive/Calendar triggers.
+- **Limitação conhecida**: encomendas criadas via form público (repo `fbr-website`) fazem INSERT directo via PostgREST anon — não passam pelo action, logo não são automaticamente cobertas. Para cobrir esse caso seria preciso um trigger SQL (fica como follow-up).
+
+**C1 — centralizar admins (mig 046, progressivo)** — abordagem A (só BD) com **fallback de segurança**. Maria delegou ("faz como achares melhor mas quero o melhor possível") e eu escolhi conservadora — B (alterar código TS para async) toca em muitos sítios subtis (sidebar, layout, middleware) e tem alto risco de regressão. [supabase/migrations/046_team_members_centralized.sql](supabase/migrations/046_team_members_centralized.sql):
+- Tabela `team_members(email PK, name, role CHECK admin|viewer, photo, deleted_at)` com seed dos 3 utilizadores actuais; trigger updated_at + audit_log.
+- RLS na própria tabela: admins escrevem (hardcoded — galinha-e-ovo); todos os authenticated lêem.
+- **Função `is_team_admin(p_email)` `STABLE SECURITY DEFINER`** — lookup à tabela primeiro; **fallback** para os 2 emails hardcoded se a lookup falhar/devolver nada. GRANT EXECUTE a authenticated + anon.
+- **Função `is_team_member(p_email)`** análoga (admin OU viewer).
+- **POC progressivo**: só as policies de `orders` foram migradas para usar as funções (`admins_all` + `viewer_select` em [supabase/migrations/038_security_hardening.sql](supabase/migrations/038_security_hardening.sql) DROP + recriadas com `is_team_admin/member`). As policies de `tasks`, `personal_checklist`, `message_templates`, `system_settings`, `chat_messages`, `audit_log` + RPCs `mark_chat_messages_read`/`mark_tasks_seen` continuam com emails hardcoded — migram em sessões futuras se esta correr bem.
+- **Código TS continua hardcoded** ([roles.ts](src/lib/auth/roles.ts), [layout.tsx](src/app/(admin)/layout.tsx), [_components/dashboard/team-members.ts](src/app/(admin)/_components/dashboard/team-members.ts)) — não toquei. Mudar utilizadores agora exige: (1) `INSERT INTO team_members` (RLS funciona logo); (2) editar 3 ficheiros TS para o UI (nomes, fotos). Progresso parcial mas seguro.
+
+Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/migrations/046_team_members_centralized.sql](supabase/migrations/046_team_members_centralized.sql) inteiro no Supabase SQL Editor. (2) Correr as queries de verificação no fim do ficheiro — confirmar 3 linhas em team_members, funções devolvem valores correctos. (3) Push para Vercel. (4) Smoke: António edita encomenda → continua a funcionar (passou a usar `is_team_admin` via RLS); Ana abre `/preservacao` → continua a ver mas não a editar; form público de reserva → continua a aceitar submissões. Se algo bloquear inesperadamente, a função tem fallback e ninguém deve ficar bloqueado.**
+
+---
 
 ### Sessão 79 🧰 Preservação destaque "Nova"; Finanças grid; cupão único; refactor Dashboard
 
@@ -156,52 +178,23 @@ Maria pediu: (a) ao inserir despesas, trocar a hierarquia — descrição passa 
 
 ---
 
-### Sessão 75 ✅ Tarefas multi-assignee (Opção A) + checklist mescla tarefas + notificações
-
-Maria pediu: (a) ao atribuir uma tarefa global a alguém, essa tarefa deve aparecer na checklist pessoal dessa pessoa; (b) poder atribuir uma tarefa a duas pessoas — Opção A escolhida: qualquer assignee marca como feita = some para todos; (c) sistema de notificações quando me atribuem tarefa — bolinha na sidebar + toast ao abrir a plataforma. Push notifications guardadas para futuro.
-
-**Migração 044 — [supabase/migrations/044_tasks_multi_assignee_and_seen.sql](supabase/migrations/044_tasks_multi_assignee_and_seen.sql):**
-- `tasks.assignee_email TEXT` → `tasks.assignee_emails TEXT[] NOT NULL DEFAULT '{}'` com backfill (`assignee_email` único → array de 1). Coluna antiga removida (sem backwards-compat — Vercel deploya tudo de uma vez). Índice GIN para membership rápida.
-- `tasks.seen_by TEXT[] NOT NULL DEFAULT '{}'` — emails que já viram a atribuição. Tarefas pré-existentes ficam pré-marcadas como `seen_by = assignee_emails` (não fazer a Maria ver tarefas antigas como "novas").
-- RPC `mark_tasks_seen(uuid[])` SECURITY DEFINER — só consegue acrescentar o email do JWT ao `seen_by` e só se o user for assignee. Mesmo padrão da `mark_chat_messages_read` (mig 043).
-
-**Types + actions — [src/types/tasks.ts](src/types/tasks.ts) + [src/app/(admin)/actions.ts](src/app/(admin)/actions.ts):**
-- `Task.assignee_emails: string[]` + `Task.seen_by: string[]`.
-- Nova `markTasksSeenAction(taskIds)` chama a RPC.
-
-**Hook + sidebar — [src/hooks/use-unread-tasks.ts](src/hooks/use-unread-tasks.ts) + [src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx):**
-- `useUnreadTasks(email)` faz `SELECT id, title, assignee_emails, seen_by, done, deleted_at` (limit 500, `done=false`) e subscreve INSERT/UPDATE no canal `tasks-unread`. Devolve `{count, tasks}`.
-- Bolinha sky no item Dashboard (igual à do Chat interno): em colapsado mostra no canto do ícone, em expandido à direita do label. Esconde quando `pathname === "/"`.
-- Lógica `showBadge / badgeValue / badgeLabel` unificada entre chat e tarefas para evitar duplicação.
-
-**Dashboard — [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
-- `useEffect` ao montar: filtra `initialTasks` por unseen (assignee + !done + !seen_by), mostra toast (sonner) com título da primeira tarefa + "(+N)", chama `markTasksSeenAction` server-side. Ref `seenOnMount.current` impede re-execução. Não actualiza estado local — viola ESLint `react-hooks/set-state-in-effect` ([[feedback_react_set_state_in_effect]]); próximo SSR vem com `seen_by` actualizado.
-- **ChecklistCard** mescla `personal_checklist` do owner + `tasks` onde `viewingEmail ∈ assignee_emails && !done`. Tarefas têm badge violet "Global" + prioridade + prazo + chip `+N Users` quando partilhada. Toggle de tarefa chama `updateTaskAction({done: true})` — qualquer assignee pode (Opção A).
-- **TasksCard** new task form: row de 3 avatares clicáveis (António/MJ/Ana) com ring violet quando activos + contador "1 responsável" / "2 responsáveis (partilhada)". Substitui o Select dropdown anterior.
-- **TasksCard** per-row: 3 mini-avatares (h-5) em vez do Select de assignee — clicar adiciona/remove. `toggleAssignee` ajusta `seen_by` (remove emails que já não são assignees).
-
-`tsc --noEmit` + `next build` + `eslint` limpos.
-
-**Maria: passos manuais:**
-1. Correr **migração 044** no Supabase SQL Editor → verificar: `SELECT column_name, data_type FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('assignee_emails','seen_by');` → 2 linhas ARRAY
-2. Push para Vercel
-3. Smoke: abrir `/` → ver checklist pessoal com tarefas atribuídas (badge "Global"). Criar nova tarefa: clicar 2 avatares (ex. MJ + António) → criar → ver "2 responsáveis (partilhada)" e tarefa na checklist de ambos. Login como MJ → ver bolinha sky no Dashboard + toast "Tens 1 tarefa nova: 'X'". Voltar à página `/` → bolinha desaparece. Marcar tarefa como feita pela MJ → António deixa de a ver.
-4. Login como **Ana** (viewer) → confirma que continua a editar tarefas (a Ana tem permissão Dashboard).
-
----
-
 ## Próximo passo CONCRETO
 
-**Sessão 79 — passos manuais:**
+**Sessão 80 — passos manuais:**
 
-1. **Sem migrações novas.**
-2. **Push para Vercel** — afecta `/financas`, `/preservacao`, `/` (Dashboard).
+1. **Correr [supabase/migrations/046_team_members_centralized.sql](supabase/migrations/046_team_members_centralized.sql)** no Supabase SQL Editor:
+   - Cola o ficheiro inteiro → Run. Deve dizer "Success".
+   - Correr as 5 queries de verificação que estão em comentário no fim do ficheiro (uma a uma):
+     - `SELECT email, name, role FROM team_members ORDER BY email;` → 3 linhas
+     - `SELECT is_team_admin('info+antonio@floresabeirario.pt');` → TRUE
+     - `SELECT is_team_admin('info+ana@floresabeirario.pt');` → FALSE
+     - `SELECT is_team_member('info+ana@floresabeirario.pt');` → TRUE
+     - `SELECT polname, polcmd FROM pg_policy WHERE polrelid='orders'::regclass ORDER BY polname;` → lista deve incluir `admins_all` + `viewer_select`
+2. **Push para Vercel** — afecta `/preservacao` (dupla contagem de vales).
 3. **Smoke test (Maria):**
-   - **Finanças** → confirma 5 tabs alinhadas numa só linha em desktop (Despesas, Tabela de preços, Custos de produção, Faturação, Competição). Em mobile continua 2 colunas.
-   - **Preservação** → uma encomenda criada nas últimas 24h deve aparecer com **fundo amber + badge "Nova"** na coluna Cliente. Passar o rato no badge mostra a data/hora de criação. Trocar para vista **Cards** → card tem border amber e badge "Nova" mais pequeno ao lado do nome.
-   - **Dashboard** → confirmar que tudo está **exactamente igual** ao que estava antes da sessão 78. O refactor moveu código para `_components/dashboard/` mas não deve ter alterado nada visualmente. Se notares qualquer mudança visual ou de comportamento, é regressão — diz-me logo.
-   - **Cupão** (opcional, só se passares uma encomenda para "A ser emoldurado"): deve continuar a gerar 6 chars (ex.: `K2P9XR`); não deve dar erro de duplicate key mesmo em situações de azar.
-4. **Smoke da Ana (viewer)**: nenhuma mudança específica para a Ana nesta sessão.
+   - **C1 (admins centralizados)**: António/MJ continuam a poder editar encomendas; Ana continua a ver mas não a editar; form público de reserva continua a aceitar submissões. Se algo bloquear inesperadamente, a função `is_team_admin` tem fallback e ninguém deve ficar bloqueado.
+   - **Dupla contagem de vales**: criar uma encomenda nova manualmente com `gift_voucher_code` preenchido (ou editar uma existente e adicionar o código). Verificar em /vale-presente que o vale correspondente passou automaticamente para "Preservação agendada".
+4. **Smoke da Ana (viewer)**: login como Ana → /preservacao → deve continuar a ver mas não editar; / (Dashboard) → tarefas continuam editáveis (Ana tem permissão de edição em tarefas).
 
 **Passos manuais antigos (sessões 52-65)** — já foram aplicadas em produção. Se montares ambiente do zero, vê os ficheiros das migrações 034-044 directamente e o histórico condensado abaixo.
 
@@ -209,7 +202,8 @@ Maria pediu: (a) ao atribuir uma tarefa global a alguém, essa tarefa deve apare
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-74)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-75)
+- **75** — Tarefas multi-assignee Opção A (mig 044): `tasks.assignee_emails TEXT[]` (qualquer assignee marca = some para todos); `seen_by TEXT[]` + RPC `mark_tasks_seen`; checklist mescla tarefas atribuídas; bolinha sky na sidebar + toast inicial; UI multi-assignee com 3 avatares clicáveis
 - **74** — Tabela Preservação: botão "Sem resposta" removido (drag-and-drop substitui); larguras de colgroup restauradas (Cliente 16%, Estado 16%, Pagamento 14%, Acções 6%); workbench `SelectTrigger` do Pagamento ganha `w-full max-w-full` para pill "100% por pagar" não transbordar coluna 3fr
 - **73** — Tabela Preservação: ícone "Em mãos" sky → emerald (contraste com violet "Recolha no local"); alinhado com `FLOWER_DELIVERY_METHOD_COLORS` (badges workbench/métricas já eram emerald). Convenção final: maos=emerald, ctt=amber/sky, recolha_evento=violet, nao_sei=stone
 - **72** — Métricas: +5 gráficos com paletas semânticas alinhadas aos badges (`flowerDeliveryDist`, `frameDeliveryDist`, `contactPrefDist`, `couponUsageDist`, `upsellsBreakdown` em `metrics.ts`); `PieDist` ganhou prop `fills?: string[]` para cor por chave
