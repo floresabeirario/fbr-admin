@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 24) — Vales: fim da dupla contagem na faturação (auto-mark `preservacao_agendada` ao criar/editar encomenda c/ código); C1 mig 046 — tabela `team_members` + `is_team_admin/is_team_member` com fallback; policies de `orders` migradas para usar as funções (POC progressivo)
+## Fase actual: FASE 6 (parte 25) — Preservação: redesenho da célula "Cliente" (nome em linha própria + badges abaixo, evita wrap caótico em colunas estreitas); bolinha de notificação na sidebar ao lado de "Preservação de Flores" para encomendas criadas <24h
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,29 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 81 🎨 Preservação — fix layout célula "Cliente" + bolinha "novas encomendas" na sidebar
+
+Maria reportou via screenshot: na linha de "Pré-reservas", o nome do cliente "Flores à Beira-Rio" (longo) wrappa em 4 linhas verticais quando combinado com os badges NOVA + Contactada na mesma flex row — visualmente caótico. Também pediu uma bolinha na sidebar ao lado de "Preservação de Flores" sempre que há "uma nova reserva por abrir".
+
+**Fix da célula Cliente — [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) `OrderRow`:**
+- Antes: 1ª `<div flex items-center gap-1.5>` continha `<span>{client_name}</span>` + badges (Nova, Vale, Contactada) → o nome wrappava no espaço estreito mas os badges mantinham-se inline, criando "escada vertical".
+- Agora: nome em `<span>` próprio com `truncate` + `title={client_name}` (mostra completo no tooltip). Todos os badges (Nova, Vale, Contactada, parada-há-X-dias) descem para a 2ª row alongside `event_type`, num único `<div flex items-center gap-1.5 flex-wrap mt-0.5>`. Cada badge ganhou `shrink-0` para não ser comprimido.
+- Resultado: a 1ª linha tem só o nome (truncado se preciso); a 2ª tem o tipo de evento + todos os pills coloridos a wrappar livremente. Funciona com nomes longos, curtos, e qualquer combinação de badges. `OrderCard` (vista cards) já usava `truncate` — não tocado.
+
+**Bolinha na sidebar — novo hook [src/hooks/use-new-orders.ts](src/hooks/use-new-orders.ts):**
+- `useNewOrdersCount()` subscreve a `orders` (Realtime INSERT + UPDATE), filtra `deleted_at IS NULL` + `created_at >= now-24h`, devolve a contagem.
+- Re-avalia a janela de 24h a cada 5 minutos (interval) — sem isto, uma encomenda criada há 23h59m continuaria a contar para sempre na mesma sessão do browser.
+- Mesmo critério que o badge "Nova" do row/card (`differenceInHours < 24`, sessão 79) — coerente.
+
+**[src/app/(admin)/layout.tsx](src/app/(admin)/layout.tsx):**
+- Import do hook + `const rawNewOrders = useNewOrdersCount();` + `const newOrders = pathname.startsWith("/preservacao") ? 0 : rawNewOrders;` (esconde quando já estou na página).
+- Novo `isPreservacao` + `showOrdersBadge` + extensão de `showBadge`/`badgeValue` para incluir o caso. Mesmo visual sky pill que Chat interno e Dashboard.
+- `titleParts` ganha `"N encomenda(s) nova(s) (últimas 24h)"`; `aria-label` actualizado em ambas as renderizações (colapsada e expandida) para o caso `showOrdersBadge`.
+
+**Sem mudanças de schema, sem migrações.** `npm run preflight` (tsc + build) OK. **Maria: push para Vercel → smoke (1) abrir `/preservacao` → a célula Cliente deve mostrar o nome numa linha (com `…` se muito longo) e todos os badges abaixo, alinhados horizontalmente; em qualquer grupo (Pré-reservas, Reservas, etc.); (2) na sidebar, ao lado de "Preservação de Flores" deve aparecer uma bolinha sky com o número de encomendas criadas nas últimas 24h — desaparece quando entras em `/preservacao`; (3) criar uma encomenda nova (manualmente ou via form público) → bolinha deve aparecer/incrementar em tempo real via Realtime.**
+
+---
 
 ### Sessão 80 🧰 Fim da dupla contagem de vales + C1 (mig 046) progressivo
 
@@ -143,44 +166,17 @@ Maria reportou: "arrasto para mover para outro grupo, mas a linha nao fica no ou
 
 ---
 
-### Sessão 76 ✅ Finanças/Despesas — descrição primária + fornecedor opcional (texto ou link) + KPI "Total desde sempre"
-
-Maria pediu: (a) ao inserir despesas, trocar a hierarquia — descrição passa a ser o principal (obrigatório), fornecedor secundário (opcional); (b) o fornecedor pode ser um link OU só texto; (c) a página deve mostrar também o total de despesas desde sempre. Confirmadas todas as 4 opções recomendadas (fornecedor opcional, campo único auto-detect URL, total inclui subscrições acumuladas, aplicar a subscrições também).
-
-**Migração 045 — [supabase/migrations/045_expenses_supplier_optional.sql](supabase/migrations/045_expenses_supplier_optional.sql):**
-- `ALTER TABLE expenses ALTER COLUMN supplier DROP NOT NULL`. Regra "descrição obrigatória" é só ao nível do formulário (não bloqueia linhas históricas sem descrição).
-
-**Types — [src/types/expense.ts](src/types/expense.ts):**
-- `Expense.supplier: string | null`.
-- `ExpenseInsert` agora requer `description: string` (em vez de `supplier`).
-- Nova `subscriptionTotalToDate(expense, at)` — calcula total acumulado de uma subscrição desde o início até `at` (ou até `recurrence_end_date` se terminou antes), usando `monthlyEquivalent × meses elapsed` (inclusivo no mês de início).
-
-**Forms + tabelas — [src/app/(admin)/financas/financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
-- Helper `renderSupplier(s)`: auto-detecta `^https?://` ou `^www\.` → link clicável (sky-700, ExternalLink icon, target=_blank, stopPropagation, truncate 220px); caso contrário texto puro; null/empty → `—`.
-- KPIs: grid `sm:grid-cols-2 lg:grid-cols-4` (de 3 para 4). Novo KPI **"Total desde sempre"** (emerald) = `sum(unicas.amount) + sum(subscriptionTotalToDate(sub, now))`.
-- Form despesas únicas: Input **Descrição** no lugar do antigo "Fornecedor" (autoFocus, required). Input **Fornecedor (opcional)** no lugar do antigo Textarea descrição, com hint "texto ou link".
-- Form subscrições: mesmo padrão — `<label>Descrição *</label>` no topo (autoFocus, ex.: "Vercel Pro, Adobe CC"); Input Fornecedor opcional substitui o Textarea de notas no fim.
-- ExpenseRow: ordem das colunas trocada — `Data | Descrição | Categoria | Fornecedor (xl+) | Valor | …`. Em ecrãs <xl, fornecedor mostra-se por baixo da descrição (`xl:hidden`) para não desaparecer. Descrição com fallback `(sem descrição)` italic quando null.
-- SubscriptionRow: igual — `Estado | Descrição | Categoria | …`, fornecedor inline por baixo se existir.
-- Pesquisa: placeholder "Pesquisar descrição ou fornecedor…", agora inclui ambos os campos no filtro.
-- Import `Textarea` mantido (ainda usado no `InvoiceCell`).
-
-**Actions — [src/app/(admin)/financas/actions.ts](src/app/(admin)/financas/actions.ts):**
-- `uploadExpenseInvoiceAction` selecciona também `description`; usa-a como fallback para o nome do ficheiro no Drive quando `supplier` é null (`folderLabel = supplier || description || "sem-fornecedor"`).
-
-`tsc --noEmit` + `next build` limpos (preflight OK).
-
-**Maria: passos manuais:**
-1. Correr **migração 045** no Supabase SQL Editor → verificar: `SELECT is_nullable FROM information_schema.columns WHERE table_name='expenses' AND column_name='supplier';` → `YES`
-2. Push para Vercel
-3. Smoke: abrir `/financas` → ver 4 KPIs em vez de 3 (último = "Total desde sempre"). Criar nova despesa única: preencher só descrição + valor (sem fornecedor) → deve registar. Criar despesa com fornecedor `https://amazon.es/produto` → na tabela aparece clicável. Mesmo na sub-aba "Subscrições".
-4. Confirmar que despesas antigas (que tinham só supplier sem description) continuam a aparecer com `(sem descrição)` em italic + supplier por baixo.
-
----
-
 ## Próximo passo CONCRETO
 
-**Sessão 80 — passos manuais:**
+**Sessão 81 — passos manuais (UI only, sem migração):**
+
+1. **Push para Vercel** (zero schema, só código).
+2. **Smoke (Maria):**
+   - Abrir `/preservacao` → linha de qualquer grupo: o nome do cliente deve aparecer numa única linha (truncado com `…` se for muito longo, tooltip mostra completo); todos os badges (Nova/Vale/Contactada/parada-há-X) descem para a linha de baixo, alongside tipo de evento.
+   - Na sidebar, ao lado de "Preservação de Flores" → confirmar bolinha sky azul com o número de encomendas criadas nas últimas 24h (mesmo critério do badge "Nova" da tabela). Entrar em `/preservacao` → bolinha desaparece; sair → reaparece.
+   - Criar uma encomenda nova (manualmente ou via form público) com browser noutro separador → bolinha aparece/incrementa em tempo real (Realtime).
+
+**Sessão 80 — passos manuais (se ainda não corridos):**
 
 1. **Correr [supabase/migrations/046_team_members_centralized.sql](supabase/migrations/046_team_members_centralized.sql)** no Supabase SQL Editor:
    - Cola o ficheiro inteiro → Run. Deve dizer "Success".
@@ -202,7 +198,8 @@ Maria pediu: (a) ao inserir despesas, trocar a hierarquia — descrição passa 
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-75)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-76)
+- **76** — Finanças/Despesas: descrição passa a ser o campo primário (obrigatório); fornecedor opcional e auto-detect URL→link (mig 045); novo KPI "Total desde sempre" inclui subscrições acumuladas via `subscriptionTotalToDate`
 - **75** — Tarefas multi-assignee Opção A (mig 044): `tasks.assignee_emails TEXT[]` (qualquer assignee marca = some para todos); `seen_by TEXT[]` + RPC `mark_tasks_seen`; checklist mescla tarefas atribuídas; bolinha sky na sidebar + toast inicial; UI multi-assignee com 3 avatares clicáveis
 - **74** — Tabela Preservação: botão "Sem resposta" removido (drag-and-drop substitui); larguras de colgroup restauradas (Cliente 16%, Estado 16%, Pagamento 14%, Acções 6%); workbench `SelectTrigger` do Pagamento ganha `w-full max-w-full` para pill "100% por pagar" não transbordar coluna 3fr
 - **73** — Tabela Preservação: ícone "Em mãos" sky → emerald (contraste com violet "Recolha no local"); alinhado com `FLOWER_DELIVERY_METHOD_COLORS` (badges workbench/métricas já eram emerald). Convenção final: maos=emerald, ctt=amber/sky, recolha_evento=violet, nao_sei=stone

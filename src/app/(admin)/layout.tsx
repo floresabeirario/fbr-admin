@@ -32,6 +32,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
 import { useUnreadChatCount } from "@/hooks/use-unread-chat";
 import { useUnreadTasks } from "@/hooks/use-unread-tasks";
+import { useNewOrdersCount } from "@/hooks/use-new-orders";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -116,6 +117,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // próprio Dashboard marca como vistas ao abrir (mig 044).
   const rawUnreadTasks = useUnreadTasks(profile?.email ?? null).count;
   const unreadTasks = pathname === "/" ? 0 : rawUnreadTasks;
+
+  // Bolinha de notificação no item "Preservação de Flores" — conta
+  // encomendas criadas nas últimas 24h (alinhado com o badge "Nova"
+  // da tabela/cards). Esconde quando estou em "/preservacao" para não
+  // distrair enquanto estou a olhar para a lista.
+  const rawNewOrders = useNewOrdersCount();
+  const newOrders = pathname.startsWith("/preservacao") ? 0 : rawNewOrders;
 
   useEffect(() => {
     if (profile?.role !== "admin") return;
@@ -251,6 +259,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           const isSistema = label === "Sistema";
           const isChat = href === "/chat";
           const isDashboard = href === "/";
+          const isPreservacao = href === "/preservacao";
           const showDot = isSistema && healthStatus !== null;
           const dotColor =
             healthStatus === "error" ? "bg-rose-500"
@@ -258,14 +267,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             : "bg-emerald-500";
           const showChatBadge = isChat && unreadChat > 0;
           const showTasksBadge = isDashboard && unreadTasks > 0;
-          const showBadge = showChatBadge || showTasksBadge;
-          const badgeValue = showChatBadge ? unreadChat : showTasksBadge ? unreadTasks : 0;
+          const showOrdersBadge = isPreservacao && newOrders > 0;
+          const showBadge = showChatBadge || showTasksBadge || showOrdersBadge;
+          const badgeValue = showChatBadge
+            ? unreadChat
+            : showTasksBadge
+              ? unreadTasks
+              : showOrdersBadge
+                ? newOrders
+                : 0;
           const badgeLabel = badgeValue > 99 ? "99+" : String(badgeValue);
           const titleParts: string[] = [];
           if (isCollapsedOnDesktop) titleParts.push(label);
           if (showDot) titleParts.push(healthTooltip);
           if (showChatBadge) titleParts.push(`${unreadChat} mensage${unreadChat === 1 ? "m" : "ns"} por ler`);
           if (showTasksBadge) titleParts.push(`${unreadTasks} tarefa${unreadTasks === 1 ? "" : "s"} nova${unreadTasks === 1 ? "" : "s"}`);
+          if (showOrdersBadge) titleParts.push(`${newOrders} encomenda${newOrders === 1 ? "" : "s"} nova${newOrders === 1 ? "" : "s"} (últimas 24h)`);
           return (
             <Link
               key={href}
@@ -296,7 +313,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
                 {showBadge && isCollapsedOnDesktop && (
                   <span
-                    aria-label={showChatBadge ? `${unreadChat} por ler` : `${unreadTasks} novas`}
+                    aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${unreadTasks} novas` : `${newOrders} novas`}
                     className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-white text-[9px] font-bold leading-none ring-2 ring-surface inline-flex items-center justify-center"
                   >
                     {badgeLabel}
@@ -312,7 +329,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
               {showBadge && !isCollapsedOnDesktop && (
                 <span
-                  aria-label={showChatBadge ? `${unreadChat} por ler` : `${unreadTasks} novas`}
+                  aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${unreadTasks} novas` : `${newOrders} novas`}
                   className="ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full bg-sky-500 text-white text-[10px] font-bold leading-none inline-flex items-center justify-center shrink-0"
                 >
                   {badgeLabel}

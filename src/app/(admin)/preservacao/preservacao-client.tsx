@@ -393,14 +393,24 @@ function OrderRow({
         )}
       </td>
       <td className="px-4 py-1.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium text-cocoa-900">{order.client_name}</span>
+            <span
+              className="text-sm font-medium text-cocoa-900 truncate"
+              title={order.client_name}
+            >
+              {order.client_name}
+            </span>
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+              {order.event_type && (
+                <span className="text-xs text-cocoa-700">
+                  {EVENT_TYPE_LABELS[order.event_type]}
+                </span>
+              )}
               {isNew && (
                 <span
-                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide"
+                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide shrink-0"
                   title={`Criada ${format(parseISO(order.created_at), "dd/MM/yyyy HH:mm")} (há <24h)`}
                 >
                   Nova
@@ -413,29 +423,22 @@ function OrderRow({
                   href={`/vale-presente/${order.gift_voucher_code}`}
                   onClick={(e) => e.stopPropagation()}
                   title={`Encomenda originada do vale ${order.gift_voucher_code}`}
-                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-100 transition-colors shrink-0"
                 >
                   <Gift className="h-2.5 w-2.5" />
                   Vale
                 </a>
               )}
               {currentContacted && isPreReserva && (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700 shrink-0">
                   <Check className="h-2.5 w-2.5" />
                   Contactada
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {order.event_type && (
-                <span className="text-xs text-cocoa-700">
-                  {EVENT_TYPE_LABELS[order.event_type]}
                 </span>
               )}
               {showStaleBadge && (
                 <span
                   className={cn(
-                    "text-[10px] font-medium",
+                    "text-[10px] font-medium shrink-0",
                     isStaleAlert ? "text-amber-700" : "text-cocoa-500",
                   )}
                   title={`Última edição: ${format(parseISO(order.updated_at), "dd/MM/yyyy HH:mm")}`}
