@@ -92,6 +92,8 @@ export default function DashboardClient({
         </div>
       </div>
 
+      <TasksCard tasks={tasks} setTasks={setTasks} currentEmail={currentEmail} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <ChecklistCard
           items={checklist}
@@ -103,7 +105,6 @@ export default function DashboardClient({
           setViewingEmail={setViewingEmail}
           role={role}
         />
-        <TasksCard tasks={tasks} setTasks={setTasks} currentEmail={currentEmail} />
         <PickupsCard pickups={pickups} />
         <AlertsCard alerts={alerts} />
       </div>

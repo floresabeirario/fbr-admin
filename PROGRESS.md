@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 28) — Sessão 85: afazeres globais agrupam visualmente por categoria (packaging / flores / presença online / estúdio / administrativo / outros); mig 050 adiciona coluna `category` com default 'outros'; selector inline em cada tarefa (pattern igual à prioridade); form de criação ganha 3ª coluna no grid
+## Fase actual: FASE 6 (parte 28) — Sessão 85: afazeres globais agrupam por categoria (packaging / flores / presença online / estúdio / administrativo / outros) em **layout kanban** (6 colunas full-width); mig 050 adiciona coluna `category` default 'outros'; tile compacto com priority/categoria/data; "↔" abre selector para mover entre colunas
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -44,27 +44,33 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 85 🗂️ Afazeres globais agrupados por categoria (mig 050)
+### Sessão 85 🗂️ Afazeres globais — kanban por categoria (mig 050 + layout full-width)
 
 Maria pediu para agrupar visualmente os afazeres globais por categorias. Sugeriu 5 (packaging / flores / presença online / estúdio / outros); propus adicionar "administrativo" (fatura/NIF/contabilidade) para que "Outros" não se torne lixeira. Total: 6 categorias.
 
+1ª iteração foi com agrupamento vertical (cabeçalhos colapsáveis). Maria pediu para passar a **colunas (kanban)**. Optei por full-width no Dashboard porque 6 colunas em meio-ecrã ficavam ~110px e ilegíveis.
+
 **Migração 050 — [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql):**
 - `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'outros' CHECK (...)`.
-- Index parcial `tasks_category_idx` sobre tarefas vivas e não feitas (lista actual da UI).
-- Default 'outros' garante que (a) backfill é imediato e seguro e (b) inserts antigos do código TS pré-migração continuam a funcionar.
+- Index parcial `tasks_category_idx` sobre tarefas vivas e não feitas.
+- Default `'outros'` garante backfill imediato e seguro e que inserts pré-migração continuam a funcionar.
 
 **Tipo — [src/types/tasks.ts](src/types/tasks.ts):**
-- Novo `TaskCategory` union: `packaging | flores | presenca_online | estudio | administrativo | outros`.
+- `TaskCategory`: `packaging | flores | presenca_online | estudio | administrativo | outros`.
 - `Task.category: TaskCategory` (obrigatório, default da BD).
-- Constantes `TASK_CATEGORY_LABELS` (PT), `TASK_CATEGORY_COLORS` (paleta distinta — amber/rose/sky/violet/slate/stone para não bater com prioridades), `TASK_CATEGORY_ORDER` (packaging primeiro, outros último).
+- Constantes `TASK_CATEGORY_LABELS` (PT), `TASK_CATEGORY_COLORS` (amber/rose/sky/violet/slate/stone — distintas de prioridades), `TASK_CATEGORY_ORDER`.
 
-**UI — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- Form de criação: grid passou de 2 colunas para **3** (categoria + prioridade + data). Default `outros`.
-- Lista: novo `groupedTasks` (memo) agrupa `visibleTasks` por `category` respeitando `TASK_CATEGORY_ORDER`. Só renderiza grupos com pelo menos uma tarefa (lista limpa em vez de 6 headers vazios).
-- Cabeçalho de cada grupo: chevron + badge colorido com label + contador. Clique colapsa/expande (estado em `Set<TaskCategory>`).
-- Cada task ganha um Select inline de categoria a seguir ao de prioridade (mesmo padrão visual: h-5 pill colorida). Permite mover tarefas entre grupos sem drag-and-drop.
+**Layout Dashboard — [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
+- TasksCard sai da grelha 2×2 e passa a ocupar **linha inteira** no topo do Dashboard.
+- Por baixo: 2×2 com Checklist + Pickups na 1ª linha e Alerts na 2ª (com 1 célula livre — `items-start` evita stretch).
+
+**UI kanban — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- Form de criação: grid 3 colunas (categoria + prioridade + data). Default `outros`.
+- Lista renderiza **grelha `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`** com 6 colunas estáveis (sempre visíveis, mesmo vazias — placeholder "—"). Empty columns servem como destino para mover.
+- Cada coluna é uma "raia" com fundo `cream-50/50` e cabeçalho fixo (badge categoria + contador). Body com `max-h-[440px]` + `overflow-y-auto` por coluna (scroll independente).
+- Tile compacto por tarefa: checkbox + título + Apagar (hover); linha de 3 avatares pequenos (h-4); linha de pills (prioridade + botão "↔" para mover + data se houver). Botão "↔" abre Select que move a tarefa entre colunas (substitui o pill da categoria do tile — redundante porque a coluna já mostra).
 - Filtro Todas/Minhas/Feitas continua a funcionar — aplica-se **antes** do agrupamento.
-- `recentDoneTasks` mantém-se flat (são poucos itens, agrupar seria ruído).
+- `recentDoneTasks` mantém-se flat no fundo da card.
 
 Preflight `tsc --noEmit` + `next build` limpos. **Maria: passos manuais:**
 1. **Correr [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql)** no Supabase SQL Editor. Verificar:
@@ -72,10 +78,11 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: passos manuais:**
    - `SELECT category, count(*) FROM tasks WHERE deleted_at IS NULL GROUP BY category;` → todas em `outros`.
 2. **Push para Vercel**.
 3. **Smoke**:
-   - `/` → afazeres globais agora têm cabeçalho "Outros" com todas as tarefas existentes lá dentro.
-   - Carregar em "+" → form com 3 colunas (categoria + prioridade + data). Criar uma tarefa em "Packaging" → aparece novo grupo "Packaging" no topo.
-   - Em cada tarefa, clicar no pill da categoria → muda de grupo imediatamente.
-   - Clicar no chevron de um cabeçalho → colapsa o grupo (e expande).
+   - `/` → afazeres globais ocupa toda a largura por cima do Checklist/Pickups/Alerts.
+   - 6 colunas visíveis em `lg:` (2 em mobile, 3 em sm); coluna "Outros" tem as tarefas existentes; restantes têm "—".
+   - "+": form com 3 colunas (categoria + prioridade + data). Criar tarefa em "Packaging" → tile aparece na coluna amber.
+   - No tile, clicar no botão "↔" → abre Select com 6 categorias → tarefa muda de coluna imediatamente.
+   - Verificar em telemóvel: 2 colunas + scroll vertical.
 
 ### Sessão 84 🟠 Vermelho ≠ "evento próximo" — passa a âmbar; vermelho só para passados; esconder após flores_recebidas
 
@@ -234,10 +241,10 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
    - `SELECT category, count(*) FROM tasks WHERE deleted_at IS NULL GROUP BY category;` → tudo em `outros`.
 2. **Push para Vercel**.
 3. **Smoke**:
-   - `/` → afazeres globais com cabeçalho "Outros" (stone) e contagem.
-   - "+": form com 3 colunas (categoria + prioridade + data). Criar tarefa em "Packaging" → novo grupo amber no topo.
-   - Clicar no pill de categoria de uma tarefa → move-se para outro grupo.
-   - Clicar no chevron de um cabeçalho → colapsa/expande.
+   - `/` → afazeres globais ocupa **linha inteira** por cima das outras cards; 6 colunas em desktop, 2 em mobile.
+   - Coluna "Outros" tem as tarefas existentes; outras 5 mostram "—".
+   - "+": form com 3 colunas (categoria + prioridade + data). Criar tarefa em "Packaging" → tile aparece na coluna amber.
+   - Tile: clicar no botão "↔" → Select abre com 6 categorias → tarefa salta para a coluna escolhida.
 
 **Sessão 83 — passos manuais:**
 

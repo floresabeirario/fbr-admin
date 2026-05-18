@@ -49,6 +49,11 @@ import { RecentDoneRow } from "./recent-done-row";
 import { formatDate } from "./format-helpers";
 import { TEAM_MEMBERS } from "./team-members";
 
+// Ordem das colunas — Packaging → Flores → Presença online → Estúdio → Admin → Outros.
+const CATEGORY_ORDER = (
+  Object.keys(TASK_CATEGORY_LABELS) as TaskCategory[]
+).sort((a, b) => TASK_CATEGORY_ORDER[a] - TASK_CATEGORY_ORDER[b]);
+
 export function TasksCard({
   tasks,
   setTasks,
@@ -69,11 +74,6 @@ export function TasksCard({
   const [newCategory, setNewCategory] = useState<TaskCategory>("outros");
   const [newDueDate, setNewDueDate] = useState<string>("");
 
-  // Grupos colapsados (por defeito todos abertos).
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<TaskCategory>>(
-    () => new Set(),
-  );
-
   const visibleTasks = useMemo(() => {
     let list = tasks;
     if (filter === "minhas") list = list.filter((t) => t.assignee_emails.includes(currentEmail));
@@ -91,19 +91,23 @@ export function TasksCard({
     });
   }, [tasks, filter, currentEmail]);
 
-  // Agrupar tarefas visíveis por categoria, respeitando TASK_CATEGORY_ORDER.
-  // Só mostra grupos com pelo menos uma tarefa (lista mais limpa).
-  const groupedTasks = useMemo(() => {
-    const byCat = new Map<TaskCategory, Task[]>();
+  // Mapa categoria → tarefas. Inclui todas as 6 categorias (mesmo vazias)
+  // porque o kanban depende de colunas estáveis para visualização e para
+  // o utilizador saber onde mover.
+  const tasksByCategory = useMemo(() => {
+    const map: Record<TaskCategory, Task[]> = {
+      packaging: [],
+      flores: [],
+      presenca_online: [],
+      estudio: [],
+      administrativo: [],
+      outros: [],
+    };
     for (const t of visibleTasks) {
       const cat = (t.category ?? "outros") as TaskCategory;
-      const arr = byCat.get(cat);
-      if (arr) arr.push(t);
-      else byCat.set(cat, [t]);
+      map[cat].push(t);
     }
-    return Array.from(byCat.entries()).sort(
-      ([a], [b]) => TASK_CATEGORY_ORDER[a] - TASK_CATEGORY_ORDER[b],
-    );
+    return map;
   }, [visibleTasks]);
 
   const recentDoneTasks = useMemo(() => {
@@ -119,15 +123,6 @@ export function TasksCard({
   }, [tasks, filter, currentEmail]);
 
   const [showDoneTasks, setShowDoneTasks] = useState(false);
-
-  function toggleGroup(cat: TaskCategory) {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  }
 
   function reopenTask(task: Task) {
     setTasks((prev) =>
@@ -234,8 +229,6 @@ export function TasksCard({
   }
 
   function handleAssigneesChange(task: Task, emails: string[]) {
-    // Quando um assignee é removido, também sai do seen_by — não faz sentido
-    // mantê-lo lá (se for re-atribuído mais tarde, deve voltar a notificá-lo).
     const seen_by = task.seen_by.filter((e) => emails.includes(e));
     setTasks((prev) =>
       prev.map((t) =>
@@ -410,119 +403,126 @@ export function TasksCard({
         </form>
       )}
 
-      <div className="px-5 py-3 max-h-[420px] overflow-y-auto">
-        {visibleTasks.length === 0 && (
+      {visibleTasks.length === 0 ? (
+        <div className="px-5 py-3">
           <p className="text-sm text-cocoa-700 py-6 text-center">
             Sem tarefas {filter === "minhas" ? "atribuídas a ti" : filter === "feitas" ? "concluídas" : ""}.
           </p>
-        )}
-
-        {groupedTasks.map(([category, catTasks]) => {
-          const collapsed = collapsedGroups.has(category);
-          return (
-            <div key={category} className="mb-3 last:mb-0">
-              <button
-                type="button"
-                onClick={() => toggleGroup(category)}
-                className="w-full flex items-center gap-2 mb-1.5 group/hdr"
-                aria-expanded={!collapsed}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 px-5 py-3">
+          {CATEGORY_ORDER.map((category) => {
+            const catTasks = tasksByCategory[category];
+            return (
+              <div
+                key={category}
+                className="flex flex-col min-w-0 rounded-lg bg-cream-50/50 border border-cream-200"
               >
-                {collapsed ? (
-                  <ChevronRight className="h-3.5 w-3.5 text-cocoa-500" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5 text-cocoa-500" />
-                )}
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "h-5 px-2 py-0 text-[11px] font-medium border",
-                    TASK_CATEGORY_COLORS[category],
-                  )}
-                >
-                  {TASK_CATEGORY_LABELS[category]}
-                </Badge>
-                <span className="text-[11px] text-cocoa-500">
-                  {catTasks.length}
-                </span>
-              </button>
+                <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-cream-200">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-5 px-1.5 py-0 text-[10px] font-medium border truncate",
+                      TASK_CATEGORY_COLORS[category],
+                    )}
+                  >
+                    {TASK_CATEGORY_LABELS[category]}
+                  </Badge>
+                  <span className="text-[10px] text-cocoa-500 ml-auto">
+                    {catTasks.length}
+                  </span>
+                </div>
 
-              {!collapsed && (
-                <div className="space-y-2">
-                  {catTasks.map((task) => {
-                    const overdue =
-                      task.due_date && !task.done
-                        ? differenceInDays(parseISO(task.due_date), new Date()) < 0
-                        : false;
-                    return (
-                      <div
-                        key={task.id}
-                        className="group flex items-start gap-2 py-2 px-1 border-b border-cream-100 last:border-0"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(task)}
-                          className="mt-0.5 shrink-0"
-                          aria-label={task.done ? "Reabrir" : "Marcar como feita"}
-                          title={task.done ? "Reabrir" : "Marcar como feita"}
+                <div className="flex-1 p-1.5 space-y-1.5 max-h-[440px] overflow-y-auto">
+                  {catTasks.length === 0 ? (
+                    <p className="text-[10px] text-cocoa-500 italic text-center py-3">
+                      —
+                    </p>
+                  ) : (
+                    catTasks.map((task) => {
+                      const overdue =
+                        task.due_date && !task.done
+                          ? differenceInDays(parseISO(task.due_date), new Date()) < 0
+                          : false;
+                      return (
+                        <div
+                          key={task.id}
+                          className="group rounded-md border border-cream-200 bg-surface px-1.5 py-1.5 space-y-1 hover:border-cream-300 transition-colors"
                         >
-                          {task.done ? (
-                            <CheckSquare className="h-4 w-4 text-emerald-600" strokeWidth={2} />
-                          ) : (
-                            <Square
-                              className="h-4 w-4 text-[#C4A882] hover:text-emerald-600 transition-colors"
-                              strokeWidth={2}
-                            />
-                          )}
-                        </button>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div
-                            className={cn(
-                              "text-sm leading-snug",
-                              task.done
-                                ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
-                                : "text-cocoa-900",
-                            )}
-                          >
-                            {task.title}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                            {/* Assignees (multi) — clicar num avatar adiciona/remove */}
-                            <div className="flex items-center gap-0.5">
-                              {TEAM_MEMBERS.map((m) => {
-                                const active = task.assignee_emails.includes(m.email);
-                                return (
-                                  <button
-                                    key={m.email}
-                                    type="button"
-                                    onClick={() => toggleAssignee(task, m.email)}
-                                    title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
-                                    aria-pressed={active}
-                                    className={cn(
-                                      "relative h-5 w-5 rounded-full overflow-hidden transition-all",
-                                      active
-                                        ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
-                                        : "opacity-30 hover:opacity-100",
-                                    )}
-                                  >
-                                    <Image
-                                      src={m.photo}
-                                      alt={m.name}
-                                      fill
-                                      sizes="20px"
-                                      className="object-cover"
-                                    />
-                                  </button>
-                                );
-                              })}
+                          <div className="flex items-start gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggle(task)}
+                              className="mt-0.5 shrink-0"
+                              aria-label={task.done ? "Reabrir" : "Marcar como feita"}
+                              title={task.done ? "Reabrir" : "Marcar como feita"}
+                            >
+                              {task.done ? (
+                                <CheckSquare className="h-3.5 w-3.5 text-emerald-600" strokeWidth={2} />
+                              ) : (
+                                <Square
+                                  className="h-3.5 w-3.5 text-[#C4A882] hover:text-emerald-600 transition-colors"
+                                  strokeWidth={2}
+                                />
+                              )}
+                            </button>
+                            <div
+                              className={cn(
+                                "flex-1 min-w-0 text-[12px] leading-snug break-words",
+                                task.done
+                                  ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
+                                  : "text-cocoa-900",
+                              )}
+                            >
+                              {task.title}
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(task)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600 shrink-0"
+                              title="Apagar"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
 
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {TEAM_MEMBERS.map((m) => {
+                              const active = task.assignee_emails.includes(m.email);
+                              return (
+                                <button
+                                  key={m.email}
+                                  type="button"
+                                  onClick={() => toggleAssignee(task, m.email)}
+                                  title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
+                                  aria-pressed={active}
+                                  className={cn(
+                                    "relative h-4 w-4 rounded-full overflow-hidden transition-all shrink-0",
+                                    active
+                                      ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
+                                      : "opacity-30 hover:opacity-100",
+                                  )}
+                                >
+                                  <Image
+                                    src={m.photo}
+                                    alt={m.name}
+                                    fill
+                                    sizes="16px"
+                                    className="object-cover"
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-wrap">
                             <Select
                               value={task.priority}
                               onValueChange={(v) => v && handlePriorityChange(task, v as TaskPriority)}
                             >
                               <SelectTrigger
                                 className={cn(
-                                  "h-5 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1 border",
+                                  "h-4 px-1 py-0 text-[10px] w-auto min-w-0 gap-0.5 border",
                                   TASK_PRIORITY_COLORS[task.priority],
                                 )}
                               >
@@ -542,13 +542,10 @@ export function TasksCard({
                               onValueChange={(v) => v && handleCategoryChange(task, v as TaskCategory)}
                             >
                               <SelectTrigger
-                                className={cn(
-                                  "h-5 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1 border",
-                                  TASK_CATEGORY_COLORS[task.category ?? "outros"],
-                                )}
-                                title="Mudar de categoria"
+                                className="h-4 px-1 py-0 text-[10px] w-auto min-w-0 gap-0.5 border border-cream-200 bg-surface text-cocoa-600"
+                                title="Mover de categoria"
                               >
-                                <SelectValue labels={TASK_CATEGORY_LABELS} />
+                                <span aria-hidden>↔</span>
                               </SelectTrigger>
                               <SelectContent>
                                 {Object.entries(TASK_CATEGORY_LABELS).map(([v, l]) => (
@@ -563,7 +560,7 @@ export function TasksCard({
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  "h-5 px-1.5 py-0 text-[11px] font-normal",
+                                  "h-4 px-1 py-0 text-[10px] font-normal",
                                   overdue
                                     ? "bg-rose-100 text-rose-800 border-rose-300"
                                     : "bg-slate-100 text-slate-700 border-slate-300",
@@ -575,23 +572,15 @@ export function TasksCard({
                             )}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(task)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600"
-                          title="Apagar"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {filter !== "feitas" && recentDoneTasks.length > 0 && (
         <div className="border-t border-cream-200">
