@@ -1,17 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronRight, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
 
-import type { Task, ChecklistItem } from "@/types/tasks";
-import type { Role } from "@/lib/auth/roles";
+import type { Task } from "@/types/tasks";
 import type { PickupItem, DashboardAlert } from "@/lib/dashboard";
 
 import { markTasksSeenAction } from "./actions";
 
-import { ChecklistCard } from "./_components/dashboard/checklist-card";
 import { TasksCard } from "./_components/dashboard/tasks-card";
 import { PickupsCard } from "./_components/dashboard/pickups-card";
 import { AlertsCard } from "./_components/dashboard/alerts-card";
@@ -19,29 +17,21 @@ import { memberName } from "./_components/dashboard/team-members";
 
 interface Props {
   currentEmail: string;
-  role: Role;
   tasks: Task[];
-  checklist: ChecklistItem[];
   pickups: PickupItem[];
   alerts: DashboardAlert[];
 }
 
 export default function DashboardClient({
   currentEmail,
-  role,
   tasks: initialTasks,
-  checklist: initialChecklist,
   pickups,
   alerts,
 }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(initialChecklist);
 
-  // Admin pode ver checklist de outro utilizador (Ana/MJ/António).
-  const [viewingEmail, setViewingEmail] = useState<string>(currentEmail);
-
-  // ── Notificações: ao abrir o Dashboard, mostra toast com as tarefas
-  // que me foram atribuídas e ainda não vi, e marca-as como vistas ──
+  // Notificações: ao abrir o Dashboard, mostra toast com tarefas
+  // atribuídas a mim ainda não vistas e marca-as como vistas.
   const seenOnMount = useRef(false);
   useEffect(() => {
     if (seenOnMount.current) return;
@@ -64,10 +54,6 @@ export default function DashboardClient({
       duration: 6000,
     });
 
-    // Marca como vistas server-side. Não actualizamos o estado local
-    // porque o flag `seenOnMount.current` impede o toast de re-aparecer
-    // nesta sessão, e o próximo SSR vem com seen_by já actualizado.
-    // (ESLint react-hooks/set-state-in-effect — [[feedback_react_set_state_in_effect]].)
     void markTasksSeenAction(unseen.map((t) => t.id)).catch(() => {});
   }, [currentEmail, initialTasks]);
 
@@ -95,16 +81,6 @@ export default function DashboardClient({
       <TasksCard tasks={tasks} setTasks={setTasks} currentEmail={currentEmail} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <ChecklistCard
-          items={checklist}
-          setItems={setChecklist}
-          tasks={tasks}
-          setTasks={setTasks}
-          currentEmail={currentEmail}
-          viewingEmail={viewingEmail}
-          setViewingEmail={setViewingEmail}
-          role={role}
-        />
         <PickupsCard pickups={pickups} />
         <AlertsCard alerts={alerts} />
       </div>

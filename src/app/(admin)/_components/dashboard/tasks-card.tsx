@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Image from "next/image";
 import { differenceInDays, parseISO } from "date-fns";
 import {
-  Camera,
   CalendarDays as CalendarIcon,
   Check,
   CheckSquare,
@@ -17,6 +16,7 @@ import {
   Loader2,
   MoreHorizontal,
   Package,
+  Palette,
   Pencil,
   Plus,
   Square,
@@ -44,6 +44,11 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -78,15 +83,18 @@ import { TEAM_MEMBERS } from "./team-members";
 // da coluna + tom claro de fundo. Não usamos pills coloridos porque (i) ficavam
 // indistinguíveis das outras pills da app, e (ii) o cabeçalho fica mais limpo
 // com ícone + texto.
+//
+// Estúdio = atelier / materiais para trabalho do dia-a-dia → Palette + lime
+// (purple confundia-se com o violet das Recolhas no local).
 const CATEGORY_META: Record<
   TaskCategory,
   {
     icon: LucideIcon;
-    topBorder: string; // border-t-[3px] colour
-    iconBg: string; // pequeno quadrado por trás do ícone
+    topBorder: string;
+    iconBg: string;
     iconColor: string;
-    columnTint: string; // fundo subtil do header da coluna
-    leftAccent: string; // border-l do tile
+    columnTint: string;
+    leftAccent: string;
   }
 > = {
   packaging: {
@@ -114,12 +122,12 @@ const CATEGORY_META: Record<
     leftAccent: "border-l-cyan-400",
   },
   estudio: {
-    icon: Camera,
-    topBorder: "border-t-purple-500",
-    iconBg: "bg-purple-100",
-    iconColor: "text-purple-600",
-    columnTint: "from-purple-50/40",
-    leftAccent: "border-l-purple-400",
+    icon: Palette,
+    topBorder: "border-t-lime-500",
+    iconBg: "bg-lime-100",
+    iconColor: "text-lime-700",
+    columnTint: "from-lime-50/40",
+    leftAccent: "border-l-lime-400",
   },
   administrativo: {
     icon: FileText,
@@ -139,9 +147,42 @@ const CATEGORY_META: Record<
   },
 };
 
-const CATEGORY_ORDER = (
+const DEFAULT_CATEGORY_ORDER = (
   Object.keys(TASK_CATEGORY_LABELS) as TaskCategory[]
 ).sort((a, b) => TASK_CATEGORY_ORDER[a] - TASK_CATEGORY_ORDER[b]);
+
+const COLUMN_ORDER_STORAGE_KEY = "fbr.dashboard.tasksColumnOrder.v1";
+
+// Pontinho de prioridade — substitui o pill "Baixa/Média/Alta/Urgente" no tile
+// para poupar espaço. Cor distinta por nível; click abre popover de alteração.
+const PRIORITY_DOT_COLOR: Record<TaskPriority, string> = {
+  baixa: "bg-slate-300",
+  media: "bg-sky-500",
+  alta: "bg-amber-500",
+  urgente: "bg-rose-500",
+};
+
+function readStoredOrder(): TaskCategory[] {
+  if (typeof window === "undefined") return DEFAULT_CATEGORY_ORDER;
+  try {
+    const raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
+    if (!raw) return DEFAULT_CATEGORY_ORDER;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_CATEGORY_ORDER;
+    const filtered = parsed.filter((c): c is TaskCategory =>
+      DEFAULT_CATEGORY_ORDER.includes(c as TaskCategory),
+    );
+    // Completar com as que não estão no storage (ex.: categoria nova num release futuro)
+    for (const c of DEFAULT_CATEGORY_ORDER) {
+      if (!filtered.includes(c)) filtered.push(c);
+    }
+    return filtered.length === DEFAULT_CATEGORY_ORDER.length
+      ? filtered
+      : DEFAULT_CATEGORY_ORDER;
+  } catch {
+    return DEFAULT_CATEGORY_ORDER;
+  }
+}
 
 export function TasksCard({
   tasks,
@@ -156,6 +197,29 @@ export function TasksCard({
   const [showNew, setShowNew] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  // Ordem das colunas — persistida em localStorage (preferência por browser).
+  // SSR começa sempre com a ordem default; sync com localStorage ocorre após mount
+  // para evitar hydration mismatch.
+  const [columnOrder, setColumnOrder] = useState<TaskCategory[]>(
+    DEFAULT_CATEGORY_ORDER,
+  );
+  const [orderHydrated, setOrderHydrated] = useState(false);
+  useEffect(() => {
+    setColumnOrder(readStoredOrder());
+    setOrderHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!orderHydrated) return;
+    try {
+      window.localStorage.setItem(
+        COLUMN_ORDER_STORAGE_KEY,
+        JSON.stringify(columnOrder),
+      );
+    } catch {
+      /* ignore quota / privacy mode */
+    }
+  }, [columnOrder, orderHydrated]);
+
   // Form da nova tarefa
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -164,11 +228,13 @@ export function TasksCard({
   const [newCategory, setNewCategory] = useState<TaskCategory>("outros");
   const [newDueDate, setNewDueDate] = useState<string>("");
 
-  // Edição inline por tarefa.
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // DnD
+  // DnD — partilhado por tasks (mover entre colunas) e por reordenação de colunas.
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
+  const [draggingColumn, setDraggingColumn] = useState<TaskCategory | null>(
+    null,
+  );
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
@@ -180,7 +246,8 @@ export function TasksCard({
 
   const visibleTasks = useMemo(() => {
     let list = tasks;
-    if (filter === "minhas") list = list.filter((t) => t.assignee_emails.includes(currentEmail));
+    if (filter === "minhas")
+      list = list.filter((t) => t.assignee_emails.includes(currentEmail));
     if (filter === "feitas") list = list.filter((t) => t.done);
     if (filter !== "feitas") list = list.filter((t) => !t.done);
     return list.sort((a, b) => {
@@ -189,7 +256,8 @@ export function TasksCard({
       }
       if (a.due_date && !b.due_date) return -1;
       if (!a.due_date && b.due_date) return 1;
-      const pri = TASK_PRIORITY_ORDER[a.priority] - TASK_PRIORITY_ORDER[b.priority];
+      const pri =
+        TASK_PRIORITY_ORDER[a.priority] - TASK_PRIORITY_ORDER[b.priority];
       if (pri !== 0) return pri;
       return b.created_at.localeCompare(a.created_at);
     });
@@ -227,7 +295,9 @@ export function TasksCard({
 
   function reopenTask(task: Task) {
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, done: false, done_at: null } : t)),
+      prev.map((t) =>
+        t.id === task.id ? { ...t, done: false, done_at: null } : t,
+      ),
     );
     startTransition(async () => {
       try {
@@ -283,7 +353,9 @@ export function TasksCard({
     const optimisticNow = new Date().toISOString();
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === task.id ? { ...t, done: next, done_at: next ? optimisticNow : null } : t,
+        t.id === task.id
+          ? { ...t, done: next, done_at: next ? optimisticNow : null }
+          : t,
       ),
     );
     startTransition(async () => {
@@ -293,7 +365,9 @@ export function TasksCard({
         toast.error("Erro: " + (err as Error).message);
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === task.id ? { ...t, done: previous, done_at: task.done_at } : t,
+            t.id === task.id
+              ? { ...t, done: previous, done_at: task.done_at }
+              : t,
           ),
         );
         return;
@@ -382,7 +456,12 @@ export function TasksCard({
 
   function handleEditSave(
     task: Task,
-    next: { title: string; description: string; priority: TaskPriority; due_date: string | null },
+    next: {
+      title: string;
+      description: string;
+      priority: TaskPriority;
+      due_date: string | null;
+    },
   ) {
     const trimmed = next.title.trim();
     if (!trimmed) {
@@ -417,21 +496,53 @@ export function TasksCard({
     });
   }
 
-  // DnD handlers
+  function reorderColumn(from: TaskCategory, to: TaskCategory) {
+    if (from === to) return;
+    setColumnOrder((prev) => {
+      const i = prev.indexOf(from);
+      const j = prev.indexOf(to);
+      if (i === -1 || j === -1) return prev;
+      const next = [...prev];
+      next.splice(i, 1);
+      next.splice(j, 0, from);
+      return next;
+    });
+  }
+
+  // DnD handlers (tasks + columns)
   function handleDragStart(event: DragStartEvent) {
-    const t = event.active.data.current?.task as Task | undefined;
-    if (t) setDraggingTask(t);
+    const data = event.active.data.current as
+      | { type: "task"; task: Task }
+      | { type: "column"; category: TaskCategory }
+      | undefined;
+    if (data?.type === "task") setDraggingTask(data.task);
+    if (data?.type === "column") setDraggingColumn(data.category);
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    const activeData = event.active.data.current as
+      | { type: "task"; task: Task }
+      | { type: "column"; category: TaskCategory }
+      | undefined;
     setDraggingTask(null);
-    const { active, over } = event;
-    const task = active.data.current?.task as Task | undefined;
-    if (!task || !over) return;
-    const target = String(over.id) as TaskCategory;
-    if (!(target in CATEGORY_META)) return;
-    if (target === task.category) return;
-    handleCategoryChange(task, target);
+    setDraggingColumn(null);
+
+    const { over } = event;
+    if (!activeData || !over) return;
+    const overId = String(over.id);
+
+    if (activeData.type === "task") {
+      if (!(overId in CATEGORY_META)) return;
+      const target = overId as TaskCategory;
+      if (target === activeData.task.category) return;
+      handleCategoryChange(activeData.task, target);
+      return;
+    }
+
+    if (activeData.type === "column") {
+      if (!(overId in CATEGORY_META)) return;
+      reorderColumn(activeData.category, overId as TaskCategory);
+    }
   }
 
   return (
@@ -441,9 +552,14 @@ export function TasksCard({
       iconColor="text-indigo-600"
       action={
         <div className="flex items-center gap-1">
-          <Select value={filter} onValueChange={(v) => v && setFilter(v as typeof filter)}>
+          <Select
+            value={filter}
+            onValueChange={(v) => v && setFilter(v as typeof filter)}
+          >
             <SelectTrigger className="h-7 text-xs px-2 py-1 w-auto min-w-[100px]">
-              <SelectValue labels={{ todas: "Todas", minhas: "Minhas", feitas: "Feitas" }} />
+              <SelectValue
+                labels={{ todas: "Todas", minhas: "Minhas", feitas: "Feitas" }}
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todas">Todas</SelectItem>
@@ -524,7 +640,10 @@ export function TasksCard({
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Select value={newCategory} onValueChange={(v) => v && setNewCategory(v as TaskCategory)}>
+            <Select
+              value={newCategory}
+              onValueChange={(v) => v && setNewCategory(v as TaskCategory)}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue labels={TASK_CATEGORY_LABELS} />
               </SelectTrigger>
@@ -536,7 +655,10 @@ export function TasksCard({
                 ))}
               </SelectContent>
             </Select>
-            <Select value={newPriority} onValueChange={(v) => v && setNewPriority(v as TaskPriority)}>
+            <Select
+              value={newPriority}
+              onValueChange={(v) => v && setNewPriority(v as TaskPriority)}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue labels={TASK_PRIORITY_LABELS} />
               </SelectTrigger>
@@ -556,11 +678,26 @@ export function TasksCard({
             />
           </div>
           <div className="flex gap-2 justify-end">
-            <Button type="button" size="sm" variant="ghost" onClick={resetNewForm} className="h-7">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={resetNewForm}
+              className="h-7"
+            >
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={!newTitle.trim() || pending} className="h-7">
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Criar"}
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!newTitle.trim() || pending}
+              className="h-7"
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                "Criar"
+              )}
             </Button>
           </div>
         </form>
@@ -569,7 +706,13 @@ export function TasksCard({
       {visibleTasks.length === 0 ? (
         <div className="px-5 py-3">
           <p className="text-sm text-cocoa-700 py-6 text-center">
-            Sem tarefas {filter === "minhas" ? "atribuídas a ti" : filter === "feitas" ? "concluídas" : ""}.
+            Sem tarefas{" "}
+            {filter === "minhas"
+              ? "atribuídas a ti"
+              : filter === "feitas"
+                ? "concluídas"
+                : ""}
+            .
           </p>
         </div>
       ) : (
@@ -578,10 +721,13 @@ export function TasksCard({
           collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => setDraggingTask(null)}
+          onDragCancel={() => {
+            setDraggingTask(null);
+            setDraggingColumn(null);
+          }}
         >
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 px-5 py-3">
-            {CATEGORY_ORDER.map((category) => (
+            {columnOrder.map((category) => (
               <CategoryColumn
                 key={category}
                 category={category}
@@ -593,7 +739,8 @@ export function TasksCard({
                 onToggleAssignee={toggleAssignee}
                 onChangePriority={handlePriorityChange}
                 onEditSave={handleEditSave}
-                draggingId={draggingTask?.id ?? null}
+                draggingTaskId={draggingTask?.id ?? null}
+                draggingColumn={draggingColumn}
               />
             ))}
           </div>
@@ -610,6 +757,7 @@ export function TasksCard({
                 )}
               </div>
             )}
+            {draggingColumn && <ColumnDragOverlay category={draggingColumn} />}
           </DragOverlay>
         </DndContext>
       )}
@@ -622,7 +770,11 @@ export function TasksCard({
             className="w-full flex items-center gap-2 px-5 py-2 text-xs text-cocoa-700 hover:bg-cream-50 transition-colors"
             aria-expanded={showDoneTasks}
           >
-            {showDoneTasks ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {showDoneTasks ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
             <span>Concluídas recentes ({recentDoneTasks.length})</span>
           </button>
           {showDoneTasks && (
@@ -644,7 +796,7 @@ export function TasksCard({
 }
 
 // ============================================================
-// CategoryColumn — droppable
+// CategoryColumn — droppable (aceita tasks E columns) + header draggable
 // ============================================================
 
 function CategoryColumn({
@@ -657,7 +809,8 @@ function CategoryColumn({
   onToggleAssignee,
   onChangePriority,
   onEditSave,
-  draggingId,
+  draggingTaskId,
+  draggingColumn,
 }: {
   category: TaskCategory;
   tasks: Task[];
@@ -669,13 +822,28 @@ function CategoryColumn({
   onChangePriority: (t: Task, p: TaskPriority) => void;
   onEditSave: (
     t: Task,
-    next: { title: string; description: string; priority: TaskPriority; due_date: string | null },
+    next: {
+      title: string;
+      description: string;
+      priority: TaskPriority;
+      due_date: string | null;
+    },
   ) => void;
-  draggingId: string | null;
+  draggingTaskId: string | null;
+  draggingColumn: TaskCategory | null;
 }) {
   const meta = CATEGORY_META[category];
   const Icon = meta.icon;
   const { setNodeRef, isOver } = useDroppable({ id: category });
+
+  // Header é o handle para arrastar a coluna inteira.
+  const columnDrag = useDraggable({
+    id: `col:${category}`,
+    data: { type: "column", category },
+  });
+  const isColumnDragging = columnDrag.isDragging;
+  const isTargetForColumnSwap =
+    isOver && draggingColumn !== null && draggingColumn !== category;
 
   return (
     <div
@@ -683,16 +851,27 @@ function CategoryColumn({
       className={cn(
         "flex flex-col min-w-0 rounded-xl bg-surface border border-cream-200 border-t-[3px] overflow-hidden transition-all",
         meta.topBorder,
-        isOver && "ring-2 ring-cocoa-400 ring-offset-1",
+        isOver && !draggingColumn && "ring-2 ring-cocoa-400 ring-offset-1",
+        isTargetForColumnSwap && "ring-2 ring-indigo-500 ring-offset-1",
+        isColumnDragging && "opacity-40",
       )}
     >
       <div
+        ref={columnDrag.setNodeRef}
+        {...columnDrag.attributes}
+        {...columnDrag.listeners}
         className={cn(
-          "flex items-center gap-2 px-2.5 py-2 bg-gradient-to-b to-transparent",
+          "flex items-center gap-2 px-2.5 py-2 bg-gradient-to-b to-transparent select-none cursor-grab active:cursor-grabbing touch-none",
           meta.columnTint,
         )}
+        title="Arrastar para reordenar"
       >
-        <div className={cn("flex h-6 w-6 items-center justify-center rounded-md shrink-0", meta.iconBg)}>
+        <div
+          className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-md shrink-0",
+            meta.iconBg,
+          )}
+        >
           <Icon className={cn("h-3.5 w-3.5", meta.iconColor)} />
         </div>
         <span className="text-[12px] font-semibold text-cocoa-900 truncate">
@@ -706,7 +885,7 @@ function CategoryColumn({
       <div className="flex-1 p-1.5 space-y-1.5 min-h-[80px] max-h-[480px] overflow-y-auto">
         {tasks.length === 0 ? (
           <p className="text-[10px] text-cocoa-400 italic text-center py-4 select-none">
-            {isOver ? "Largar aqui" : "—"}
+            {isOver && !draggingColumn ? "Largar aqui" : "—"}
           </p>
         ) : (
           tasks.map((task) =>
@@ -722,7 +901,7 @@ function CategoryColumn({
               <DraggableTaskTile
                 key={task.id}
                 task={task}
-                hidden={draggingId === task.id}
+                hidden={draggingTaskId === task.id}
                 leftAccent={meta.leftAccent}
                 onToggle={() => onToggle(task)}
                 onDelete={() => onDelete(task)}
@@ -734,6 +913,31 @@ function CategoryColumn({
           )
         )}
       </div>
+    </div>
+  );
+}
+
+function ColumnDragOverlay({ category }: { category: TaskCategory }) {
+  const meta = CATEGORY_META[category];
+  const Icon = meta.icon;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 px-2.5 py-2 rounded-lg bg-surface shadow-xl border border-cocoa-300 border-t-[3px] min-w-[160px] cursor-grabbing",
+        meta.topBorder,
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-6 w-6 items-center justify-center rounded-md shrink-0",
+          meta.iconBg,
+        )}
+      >
+        <Icon className={cn("h-3.5 w-3.5", meta.iconColor)} />
+      </div>
+      <span className="text-[12px] font-semibold text-cocoa-900 truncate">
+        {TASK_CATEGORY_LABELS[category]}
+      </span>
     </div>
   );
 }
@@ -763,7 +967,7 @@ function DraggableTaskTile({
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
-    data: { task },
+    data: { type: "task", task },
   });
 
   const overdue =
@@ -792,7 +996,10 @@ function DraggableTaskTile({
           title={task.done ? "Reabrir" : "Marcar como feita"}
         >
           {task.done ? (
-            <CheckSquare className="h-3.5 w-3.5 text-emerald-600" strokeWidth={2} />
+            <CheckSquare
+              className="h-3.5 w-3.5 text-emerald-600"
+              strokeWidth={2}
+            />
           ) : (
             <Square
               className="h-3.5 w-3.5 text-[#C4A882] hover:text-emerald-600 transition-colors"
@@ -800,6 +1007,11 @@ function DraggableTaskTile({
             />
           )}
         </button>
+
+        <PriorityDot
+          priority={task.priority}
+          onChange={onChangePriority}
+        />
 
         <div className="flex-1 min-w-0">
           <div
@@ -869,36 +1081,12 @@ function DraggableTaskTile({
             </button>
           );
         })}
-      </div>
-
-      <div className="flex items-center gap-1 flex-wrap">
-        <Select
-          value={task.priority}
-          onValueChange={(v) => v && onChangePriority(v as TaskPriority)}
-        >
-          <SelectTrigger
-            onPointerDown={(e) => e.stopPropagation()}
-            className={cn(
-              "h-4 px-1 py-0 text-[10px] w-auto min-w-0 gap-0.5 border",
-              TASK_PRIORITY_COLORS[task.priority],
-            )}
-          >
-            <SelectValue labels={TASK_PRIORITY_LABELS} />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
-              <SelectItem key={v} value={v}>
-                {l}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
 
         {task.due_date && (
           <Badge
             variant="outline"
             className={cn(
-              "h-4 px-1 py-0 text-[10px] font-normal",
+              "h-4 px-1 py-0 text-[10px] font-normal ml-auto",
               overdue
                 ? "bg-rose-100 text-rose-800 border-rose-300"
                 : "bg-slate-100 text-slate-700 border-slate-300",
@@ -910,6 +1098,63 @@ function DraggableTaskTile({
         )}
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// PriorityDot — pontinho + popover para mudar prioridade
+// ============================================================
+
+function PriorityDot({
+  priority,
+  onChange,
+}: {
+  priority: TaskPriority;
+  onChange: (p: TaskPriority) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        onPointerDown={(e) => e.stopPropagation()}
+        className={cn(
+          "mt-1 h-2 w-2 rounded-full shrink-0 ring-1 ring-inset ring-black/10 hover:ring-2 hover:ring-cocoa-400 transition-all cursor-pointer",
+          PRIORITY_DOT_COLOR[priority],
+        )}
+        aria-label={`Prioridade: ${TASK_PRIORITY_LABELS[priority]}`}
+        title={`Prioridade: ${TASK_PRIORITY_LABELS[priority]}`}
+      />
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        className="w-auto min-w-0 p-1 gap-0.5"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {(Object.keys(TASK_PRIORITY_LABELS) as TaskPriority[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => {
+              onChange(p);
+              setOpen(false);
+            }}
+            className={cn(
+              "flex items-center gap-2 w-full text-left px-2 py-1 rounded text-[12px] hover:bg-cream-100 transition-colors",
+              priority === p && "bg-cream-50 font-semibold",
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full ring-1 ring-inset ring-black/10",
+                PRIORITY_DOT_COLOR[p],
+              )}
+            />
+            <span className="text-cocoa-900">{TASK_PRIORITY_LABELS[p]}</span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -959,7 +1204,10 @@ function TaskEditForm({
         className="min-h-12 text-[11px] py-1 leading-snug"
       />
       <div className="flex items-center gap-1 flex-wrap">
-        <Select value={priority} onValueChange={(v) => v && setPriority(v as TaskPriority)}>
+        <Select
+          value={priority}
+          onValueChange={(v) => v && setPriority(v as TaskPriority)}
+        >
           <SelectTrigger
             className={cn(
               "h-5 px-1.5 py-0 text-[10px] w-auto min-w-0 gap-1 border",

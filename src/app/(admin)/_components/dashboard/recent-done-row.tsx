@@ -4,9 +4,7 @@ import { CheckSquare, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDoneAgo } from "./format-helpers";
 
-// Linha de uma tarefa/item concluído na secção "Concluídas recentes".
-// Reutilizada pela ChecklistCard (mescla checklist + tarefas atribuídas)
-// e pela TasksCard (afazeres globais).
+// Linha de uma tarefa concluída na secção "Concluídas recentes" da TasksCard.
 export function RecentDoneRow({
   text,
   doneAt,

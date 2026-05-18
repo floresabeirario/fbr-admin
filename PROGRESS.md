@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 29) — Sessão 86: afazeres globais como **kanban** (6 colunas, ícones+barra colorida no topo) com **drag-and-drop invisível** para mover entre categorias; título+detalhes (description) visíveis e editáveis em cada tile (afazeres + checklist pessoal); mig 050 (category) + mig 051 (personal_checklist.description); pencil icon abre modo edição inline com título/detalhes/prioridade/data
+## Fase actual: FASE 6 (parte 30) — Sessão 87: Dashboard sem **Checklist pessoal** (filtro "Minhas" do kanban substitui); **prioridade em pontinho colorido** (poupa espaço) com popover ao clicar; **reordenação de colunas** do kanban via drag no cabeçalho, persistida em localStorage; Estúdio passa a **Palette + lime** (purple confundia-se com violet das Recolhas)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,49 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 87 🧹 Dashboard: fora checklist pessoal + prioridade compacta + reordenar colunas + estúdio lime
+
+Maria via screenshot do Dashboard: (1) checklist pessoal era redundante (filtro "Minhas" do kanban basta); (2) ícone de câmara + roxo no Estúdio confundia-se com o violet das Recolhas no local — "estúdio" para ela é atelier/materiais, não fotografia; (3) o pill "Alta/Média" da prioridade ocupava demasiado espaço no tile; (4) não dava para reordenar as colunas do kanban.
+
+**Decisões pré-implementação (perguntei à Maria):**
+- Eliminar checklist por completo do UI — manter tabela `personal_checklist` na BD intacta (defensivo).
+- Estúdio → `Palette` + `lime`.
+- Prioridade → pontinho colorido + popover ao clicar (substitui o `Select` pill inline).
+- Reordenação de colunas com drag-and-drop, persistência em **localStorage** (preferência por browser, não justifica BD).
+
+**Dashboard sem checklist — [page.tsx](src/app/(admin)/page.tsx) e [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
+- Query a `personal_checklist` removida do `Promise.all` da page; props `checklist`/`role` removidos do `DashboardClient`; toast de tarefas-novas-atribuídas + `markTasksSeenAction` mantidos (independentes da checklist).
+- Ficheiro [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx) apagado. `RecentDoneRow` continua a existir (usado por `TasksCard`).
+- Tabela e server actions de checklist deixadas intactas — sem migração de drop. Maria pode reverter abrindo o componente novamente se mudar de ideias.
+
+**Estúdio: Palette + lime — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):** `CATEGORY_META.estudio` muda de `Camera`/purple para `Palette`/lime (`border-t-lime-500`, `bg-lime-100`, `text-lime-700`, `from-lime-50/40`, `border-l-lime-400`). Distinto de cyan (presença online) e de violet (recolhas no local em toda a app).
+
+**Prioridade em pontinho — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- Constante nova `PRIORITY_DOT_COLOR`: `baixa=slate-300`, `media=sky-500`, `alta=amber-500`, `urgente=rose-500`.
+- Sub-componente `PriorityDot` — bola 8px à esquerda do título com `PopoverTrigger`; o popover lista as 4 prioridades, cada uma com a sua bolinha + label.
+- `onPointerDown={(e) => e.stopPropagation()}` no trigger e na content para o drag-and-drop dos tiles não capturar o click.
+- Modo edição inline **mantém** o `Select` original — há espaço lá.
+- Footer do tile reorganizado: avatares assignees à esquerda, badge de data à direita (`ml-auto`).
+
+**Reordenação de colunas — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- Novo state `columnOrder: TaskCategory[]` (default = `TASK_CATEGORY_ORDER`). Render usa `columnOrder.map(...)` em vez da constante hardcoded.
+- Persistência em `localStorage.fbr.dashboard.tasksColumnOrder.v1`. Leitura faz-se no primeiro `useEffect` (não no initializer) para evitar hydration mismatch — flag `orderHydrated` evita re-escrita prematura. Validação ao ler: filtra categorias inválidas, completa com defaults se faltar alguma (forward-compat com categorias futuras).
+- Cabeçalho de cada coluna é agora um `useDraggable` com `id=col:<category>` e `data: { type: "column", category }`. `setNodeRef`/`attributes`/`listeners` aplicados ao header; cursor `grab`/`grabbing`; `select-none touch-none`.
+- O `useDroppable` existente em cada coluna (id=category) passa a aceitar **dois tipos de drop**: tasks (mover entre categorias) E columns (reordenar). Branching no `handleDragEnd` por `active.data.current.type`.
+- Visual: durante drag de coluna → ring indigo na coluna sob o pointer (distingue do ring cocoa quando se arrasta task). Coluna a ser arrastada fica a 40% opacity. `DragOverlay` mostra mini-cabeçalho com ícone + label.
+- `reorderColumn(from, to)`: splice clássico — remove `from` e insere na posição de `to`.
+
+**Preflight tsc + next build limpos.** **Maria: passos manuais:**
+1. **Sem migrações** nesta sessão.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/` → Dashboard mostra **só** Afazeres globais (kanban) + Recolhas + Alertas. Sem card de "Checklist pessoal".
+   - Coluna Estúdio: ícone paleta verde-lima. Distinguível das outras 5.
+   - Cada tile mostra **pontinho colorido** à esquerda do título (cinza/azul/amber/vermelho). Click no pontinho → popover lista as 4 prioridades; selecionar → muda.
+   - **Arrastar o cabeçalho de uma coluna** para cima de outra → as duas colunas trocam de ordem. Recarregar página → ordem fica.
+   - Continuar a poder arrastar tiles entre colunas (mantém).
+   - Filtro "Minhas" → vê só tarefas atribuídas a mim (substitui a checklist pessoal antiga).
 
 ### Sessão 86 🎨 Kanban refinado + drag-and-drop invisível + título/detalhes editáveis (mig 051)
 
@@ -286,6 +329,18 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
 ---
 
 ## Próximo passo CONCRETO
+
+**Sessão 87 — passos manuais (só código, sem BD):**
+
+1. **Sem migrações** nesta sessão.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/` → Dashboard mostra só Afazeres globais (kanban) + Recolhas + Alertas. Sem card "Checklist pessoal".
+   - Estúdio com ícone Palette + lime; distinguível de cyan/violet/etc.
+   - Tile mostra pontinho colorido à esquerda do título. Click no pontinho → popover com 4 prioridades.
+   - Arrastar cabeçalho de uma coluna para outra → trocam de ordem; recarregar página → ordem mantém-se.
+   - Continuar a poder arrastar tiles entre colunas.
+   - Filtro "Minhas" → só vê tarefas atribuídas a mim (substitui checklist pessoal antiga).
 
 **Sessão 86 — passos manuais:**
 
