@@ -4,6 +4,14 @@
 
 export type TaskPriority = "baixa" | "media" | "alta" | "urgente";
 
+export type TaskCategory =
+  | "packaging"
+  | "flores"
+  | "presenca_online"
+  | "estudio"
+  | "administrativo"
+  | "outros";
+
 export interface Task {
   id: string;
   created_at: string;
@@ -19,6 +27,7 @@ export interface Task {
   // concluída e desaparece da checklist de todos (completação partilhada).
   assignee_emails: string[];
   priority: TaskPriority;
+  category: TaskCategory;
   due_date: string | null;
 
   done: boolean;
@@ -60,6 +69,38 @@ export const TASK_PRIORITY_ORDER: Record<TaskPriority, number> = {
   alta: 1,
   media: 2,
   baixa: 3,
+};
+
+// ── Categorias ───────────────────────────────────────────────
+
+export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
+  packaging: "Packaging",
+  flores: "Flores",
+  presenca_online: "Presença online",
+  estudio: "Estúdio",
+  administrativo: "Administrativo",
+  outros: "Outros",
+};
+
+// Cor de fundo + texto para cabeçalhos de grupo e badges inline.
+// Escolhidas para serem distintas mas harmoniosas com a paleta cream/cocoa.
+export const TASK_CATEGORY_COLORS: Record<TaskCategory, string> = {
+  packaging:       "bg-amber-100 text-amber-800 border-amber-300",
+  flores:          "bg-rose-100 text-rose-800 border-rose-300",
+  presenca_online: "bg-sky-100 text-sky-800 border-sky-300",
+  estudio:         "bg-violet-100 text-violet-800 border-violet-300",
+  administrativo:  "bg-slate-100 text-slate-700 border-slate-300",
+  outros:          "bg-stone-100 text-stone-700 border-stone-300",
+};
+
+// Ordem dos grupos na lista (packaging→flores→online→estúdio→admin→outros).
+export const TASK_CATEGORY_ORDER: Record<TaskCategory, number> = {
+  packaging: 0,
+  flores: 1,
+  presenca_online: 2,
+  estudio: 3,
+  administrativo: 4,
+  outros: 5,
 };
 
 // ── Checklist pessoal ────────────────────────────────────────

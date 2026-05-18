@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 27) — Sessão 84: aviso de evento próximo passa de vermelho para âmbar (vermelho só para eventos passados), aviso desaparece quando estado >= flores_recebidas (já temos as flores), ícone Clock + âmbar mais saturado para distinguir do cream
+## Fase actual: FASE 6 (parte 28) — Sessão 85: afazeres globais agrupam visualmente por categoria (packaging / flores / presença online / estúdio / administrativo / outros); mig 050 adiciona coluna `category` com default 'outros'; selector inline em cada tarefa (pattern igual à prioridade); form de criação ganha 3ª coluna no grid
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,39 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 85 🗂️ Afazeres globais agrupados por categoria (mig 050)
+
+Maria pediu para agrupar visualmente os afazeres globais por categorias. Sugeriu 5 (packaging / flores / presença online / estúdio / outros); propus adicionar "administrativo" (fatura/NIF/contabilidade) para que "Outros" não se torne lixeira. Total: 6 categorias.
+
+**Migração 050 — [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql):**
+- `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'outros' CHECK (...)`.
+- Index parcial `tasks_category_idx` sobre tarefas vivas e não feitas (lista actual da UI).
+- Default 'outros' garante que (a) backfill é imediato e seguro e (b) inserts antigos do código TS pré-migração continuam a funcionar.
+
+**Tipo — [src/types/tasks.ts](src/types/tasks.ts):**
+- Novo `TaskCategory` union: `packaging | flores | presenca_online | estudio | administrativo | outros`.
+- `Task.category: TaskCategory` (obrigatório, default da BD).
+- Constantes `TASK_CATEGORY_LABELS` (PT), `TASK_CATEGORY_COLORS` (paleta distinta — amber/rose/sky/violet/slate/stone para não bater com prioridades), `TASK_CATEGORY_ORDER` (packaging primeiro, outros último).
+
+**UI — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- Form de criação: grid passou de 2 colunas para **3** (categoria + prioridade + data). Default `outros`.
+- Lista: novo `groupedTasks` (memo) agrupa `visibleTasks` por `category` respeitando `TASK_CATEGORY_ORDER`. Só renderiza grupos com pelo menos uma tarefa (lista limpa em vez de 6 headers vazios).
+- Cabeçalho de cada grupo: chevron + badge colorido com label + contador. Clique colapsa/expande (estado em `Set<TaskCategory>`).
+- Cada task ganha um Select inline de categoria a seguir ao de prioridade (mesmo padrão visual: h-5 pill colorida). Permite mover tarefas entre grupos sem drag-and-drop.
+- Filtro Todas/Minhas/Feitas continua a funcionar — aplica-se **antes** do agrupamento.
+- `recentDoneTasks` mantém-se flat (são poucos itens, agrupar seria ruído).
+
+Preflight `tsc --noEmit` + `next build` limpos. **Maria: passos manuais:**
+1. **Correr [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT column_name, column_default FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha, default `'outros'`.
+   - `SELECT category, count(*) FROM tasks WHERE deleted_at IS NULL GROUP BY category;` → todas em `outros`.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/` → afazeres globais agora têm cabeçalho "Outros" com todas as tarefas existentes lá dentro.
+   - Carregar em "+" → form com 3 colunas (categoria + prioridade + data). Criar uma tarefa em "Packaging" → aparece novo grupo "Packaging" no topo.
+   - Em cada tarefa, clicar no pill da categoria → muda de grupo imediatamente.
+   - Clicar no chevron de um cabeçalho → colapsa o grupo (e expande).
 
 ### Sessão 84 🟠 Vermelho ≠ "evento próximo" — passa a âmbar; vermelho só para passados; esconder após flores_recebidas
 
@@ -193,6 +226,18 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
 ---
 
 ## Próximo passo CONCRETO
+
+**Sessão 85 — passos manuais:**
+
+1. **Correr [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT column_name, column_default FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha com default `'outros'`.
+   - `SELECT category, count(*) FROM tasks WHERE deleted_at IS NULL GROUP BY category;` → tudo em `outros`.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/` → afazeres globais com cabeçalho "Outros" (stone) e contagem.
+   - "+": form com 3 colunas (categoria + prioridade + data). Criar tarefa em "Packaging" → novo grupo amber no topo.
+   - Clicar no pill de categoria de uma tarefa → move-se para outro grupo.
+   - Clicar no chevron de um cabeçalho → colapsa/expande.
 
 **Sessão 83 — passos manuais:**
 

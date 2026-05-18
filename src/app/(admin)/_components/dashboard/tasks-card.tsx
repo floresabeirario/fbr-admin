@@ -28,8 +28,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-import type { Task, TaskPriority } from "@/types/tasks";
+import type { Task, TaskCategory, TaskPriority } from "@/types/tasks";
 import {
+  TASK_CATEGORY_COLORS,
+  TASK_CATEGORY_LABELS,
+  TASK_CATEGORY_ORDER,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
   TASK_PRIORITY_ORDER,
@@ -63,7 +66,13 @@ export function TasksCard({
   const [newTitle, setNewTitle] = useState("");
   const [newAssignees, setNewAssignees] = useState<string[]>([]);
   const [newPriority, setNewPriority] = useState<TaskPriority>("media");
+  const [newCategory, setNewCategory] = useState<TaskCategory>("outros");
   const [newDueDate, setNewDueDate] = useState<string>("");
+
+  // Grupos colapsados (por defeito todos abertos).
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<TaskCategory>>(
+    () => new Set(),
+  );
 
   const visibleTasks = useMemo(() => {
     let list = tasks;
@@ -82,6 +91,21 @@ export function TasksCard({
     });
   }, [tasks, filter, currentEmail]);
 
+  // Agrupar tarefas visíveis por categoria, respeitando TASK_CATEGORY_ORDER.
+  // Só mostra grupos com pelo menos uma tarefa (lista mais limpa).
+  const groupedTasks = useMemo(() => {
+    const byCat = new Map<TaskCategory, Task[]>();
+    for (const t of visibleTasks) {
+      const cat = (t.category ?? "outros") as TaskCategory;
+      const arr = byCat.get(cat);
+      if (arr) arr.push(t);
+      else byCat.set(cat, [t]);
+    }
+    return Array.from(byCat.entries()).sort(
+      ([a], [b]) => TASK_CATEGORY_ORDER[a] - TASK_CATEGORY_ORDER[b],
+    );
+  }, [visibleTasks]);
+
   const recentDoneTasks = useMemo(() => {
     let list = tasks.filter((t) => t.done);
     if (filter === "minhas") {
@@ -95,6 +119,15 @@ export function TasksCard({
   }, [tasks, filter, currentEmail]);
 
   const [showDoneTasks, setShowDoneTasks] = useState(false);
+
+  function toggleGroup(cat: TaskCategory) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
 
   function reopenTask(task: Task) {
     setTasks((prev) =>
@@ -118,6 +151,7 @@ export function TasksCard({
     setNewTitle("");
     setNewAssignees([]);
     setNewPriority("media");
+    setNewCategory("outros");
     setNewDueDate("");
     setShowNew(false);
   }
@@ -134,6 +168,7 @@ export function TasksCard({
           assignee_emails: newAssignees,
           seen_by: seenBy,
           priority: newPriority,
+          category: newCategory,
           due_date: newDueDate || null,
         });
         setTasks((prev) => [created, ...prev]);
@@ -236,6 +271,19 @@ export function TasksCard({
     });
   }
 
+  function handleCategoryChange(task: Task, category: TaskCategory) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, category } : t)),
+    );
+    startTransition(async () => {
+      try {
+        await updateTaskAction(task.id, { category });
+      } catch (err) {
+        toast.error("Erro: " + (err as Error).message);
+      }
+    });
+  }
+
   return (
     <SectionCard
       title="Afazeres globais"
@@ -319,7 +367,19 @@ export function TasksCard({
                   : `${newAssignees.length} responsáveis (partilhada)`}
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Select value={newCategory} onValueChange={(v) => v && setNewCategory(v as TaskCategory)}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue labels={TASK_CATEGORY_LABELS} />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(TASK_CATEGORY_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={newPriority} onValueChange={(v) => v && setNewPriority(v as TaskPriority)}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue labels={TASK_PRIORITY_LABELS} />
@@ -350,125 +410,184 @@ export function TasksCard({
         </form>
       )}
 
-      <div className="px-5 py-3 space-y-2 max-h-[420px] overflow-y-auto">
+      <div className="px-5 py-3 max-h-[420px] overflow-y-auto">
         {visibleTasks.length === 0 && (
           <p className="text-sm text-cocoa-700 py-6 text-center">
             Sem tarefas {filter === "minhas" ? "atribuídas a ti" : filter === "feitas" ? "concluídas" : ""}.
           </p>
         )}
-        {visibleTasks.map((task) => {
-          const overdue =
-            task.due_date && !task.done
-              ? differenceInDays(parseISO(task.due_date), new Date()) < 0
-              : false;
+
+        {groupedTasks.map(([category, catTasks]) => {
+          const collapsed = collapsedGroups.has(category);
           return (
-            <div
-              key={task.id}
-              className="group flex items-start gap-2 py-2 px-1 border-b border-cream-100 last:border-0"
-            >
+            <div key={category} className="mb-3 last:mb-0">
               <button
                 type="button"
-                onClick={() => handleToggle(task)}
-                className="mt-0.5 shrink-0"
-                aria-label={task.done ? "Reabrir" : "Marcar como feita"}
-                title={task.done ? "Reabrir" : "Marcar como feita"}
+                onClick={() => toggleGroup(category)}
+                className="w-full flex items-center gap-2 mb-1.5 group/hdr"
+                aria-expanded={!collapsed}
               >
-                {task.done ? (
-                  <CheckSquare className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                {collapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5 text-cocoa-500" />
                 ) : (
-                  <Square
-                    className="h-4 w-4 text-[#C4A882] hover:text-emerald-600 transition-colors"
-                    strokeWidth={2}
-                  />
+                  <ChevronDown className="h-3.5 w-3.5 text-cocoa-500" />
                 )}
-              </button>
-              <div className="flex-1 min-w-0 space-y-1">
-                <div
+                <Badge
+                  variant="outline"
                   className={cn(
-                    "text-sm leading-snug",
-                    task.done
-                      ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
-                      : "text-cocoa-900",
+                    "h-5 px-2 py-0 text-[11px] font-medium border",
+                    TASK_CATEGORY_COLORS[category],
                   )}
                 >
-                  {task.title}
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  {/* Assignees (multi) — clicar num avatar adiciona/remove */}
-                  <div className="flex items-center gap-0.5">
-                    {TEAM_MEMBERS.map((m) => {
-                      const active = task.assignee_emails.includes(m.email);
-                      return (
-                        <button
-                          key={m.email}
-                          type="button"
-                          onClick={() => toggleAssignee(task, m.email)}
-                          title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
-                          aria-pressed={active}
-                          className={cn(
-                            "relative h-5 w-5 rounded-full overflow-hidden transition-all",
-                            active
-                              ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
-                              : "opacity-30 hover:opacity-100",
-                          )}
-                        >
-                          <Image
-                            src={m.photo}
-                            alt={m.name}
-                            fill
-                            sizes="20px"
-                            className="object-cover"
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <Select
-                    value={task.priority}
-                    onValueChange={(v) => v && handlePriorityChange(task, v as TaskPriority)}
-                  >
-                    <SelectTrigger
-                      className={cn(
-                        "h-5 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1 border",
-                        TASK_PRIORITY_COLORS[task.priority],
-                      )}
-                    >
-                      <SelectValue labels={TASK_PRIORITY_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
-                        <SelectItem key={v} value={v}>
-                          {l}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {task.due_date && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "h-5 px-1.5 py-0 text-[11px] font-normal",
-                        overdue
-                          ? "bg-rose-100 text-rose-800 border-rose-300"
-                          : "bg-slate-100 text-slate-700 border-slate-300",
-                      )}
-                    >
-                      <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
-                      {formatDate(task.due_date)}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(task)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600"
-                title="Apagar"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
+                  {TASK_CATEGORY_LABELS[category]}
+                </Badge>
+                <span className="text-[11px] text-cocoa-500">
+                  {catTasks.length}
+                </span>
               </button>
+
+              {!collapsed && (
+                <div className="space-y-2">
+                  {catTasks.map((task) => {
+                    const overdue =
+                      task.due_date && !task.done
+                        ? differenceInDays(parseISO(task.due_date), new Date()) < 0
+                        : false;
+                    return (
+                      <div
+                        key={task.id}
+                        className="group flex items-start gap-2 py-2 px-1 border-b border-cream-100 last:border-0"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleToggle(task)}
+                          className="mt-0.5 shrink-0"
+                          aria-label={task.done ? "Reabrir" : "Marcar como feita"}
+                          title={task.done ? "Reabrir" : "Marcar como feita"}
+                        >
+                          {task.done ? (
+                            <CheckSquare className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                          ) : (
+                            <Square
+                              className="h-4 w-4 text-[#C4A882] hover:text-emerald-600 transition-colors"
+                              strokeWidth={2}
+                            />
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div
+                            className={cn(
+                              "text-sm leading-snug",
+                              task.done
+                                ? "text-cocoa-500 dark:text-[#6E6E73] line-through"
+                                : "text-cocoa-900",
+                            )}
+                          >
+                            {task.title}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                            {/* Assignees (multi) — clicar num avatar adiciona/remove */}
+                            <div className="flex items-center gap-0.5">
+                              {TEAM_MEMBERS.map((m) => {
+                                const active = task.assignee_emails.includes(m.email);
+                                return (
+                                  <button
+                                    key={m.email}
+                                    type="button"
+                                    onClick={() => toggleAssignee(task, m.email)}
+                                    title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
+                                    aria-pressed={active}
+                                    className={cn(
+                                      "relative h-5 w-5 rounded-full overflow-hidden transition-all",
+                                      active
+                                        ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
+                                        : "opacity-30 hover:opacity-100",
+                                    )}
+                                  >
+                                    <Image
+                                      src={m.photo}
+                                      alt={m.name}
+                                      fill
+                                      sizes="20px"
+                                      className="object-cover"
+                                    />
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            <Select
+                              value={task.priority}
+                              onValueChange={(v) => v && handlePriorityChange(task, v as TaskPriority)}
+                            >
+                              <SelectTrigger
+                                className={cn(
+                                  "h-5 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1 border",
+                                  TASK_PRIORITY_COLORS[task.priority],
+                                )}
+                              >
+                                <SelectValue labels={TASK_PRIORITY_LABELS} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
+                                  <SelectItem key={v} value={v}>
+                                    {l}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            <Select
+                              value={task.category ?? "outros"}
+                              onValueChange={(v) => v && handleCategoryChange(task, v as TaskCategory)}
+                            >
+                              <SelectTrigger
+                                className={cn(
+                                  "h-5 px-1.5 py-0 text-[11px] w-auto min-w-0 gap-1 border",
+                                  TASK_CATEGORY_COLORS[task.category ?? "outros"],
+                                )}
+                                title="Mudar de categoria"
+                              >
+                                <SelectValue labels={TASK_CATEGORY_LABELS} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(TASK_CATEGORY_LABELS).map(([v, l]) => (
+                                  <SelectItem key={v} value={v}>
+                                    {l}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            {task.due_date && (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "h-5 px-1.5 py-0 text-[11px] font-normal",
+                                  overdue
+                                    ? "bg-rose-100 text-rose-800 border-rose-300"
+                                    : "bg-slate-100 text-slate-700 border-slate-300",
+                                )}
+                              >
+                                <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
+                                {formatDate(task.due_date)}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(task)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[#C4A882] hover:text-rose-600"
+                          title="Apagar"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
