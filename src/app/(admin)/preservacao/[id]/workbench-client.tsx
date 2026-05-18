@@ -511,7 +511,9 @@ export default function WorkbenchClient({
   const daysUntilEvent = local.event_date
     ? differenceInCalendarDays(parseISO(local.event_date), new Date())
     : null;
-  const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
+  const overdueEvent = daysUntilEvent !== null && daysUntilEvent < 0;
+  const soonEvent =
+    daysUntilEvent !== null && daysUntilEvent >= 0 && daysUntilEvent <= 5;
   const isWedding = local.event_type === "casamento";
   const eventRelative = local.event_date ? relativeMonthsDays(local.event_date) : null;
 
@@ -671,10 +673,16 @@ export default function WorkbenchClient({
             </div>
           </div>
 
-          {urgentEvent && (
+          {overdueEvent && (
             <div className="flex items-center gap-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1 text-xs text-red-600 font-medium shrink-0">
               <AlertTriangle className="h-3.5 w-3.5" />
-              Evento em {daysUntilEvent}d
+              Evento há {Math.abs(daysUntilEvent!)}d
+            </div>
+          )}
+          {soonEvent && (
+            <div className="flex items-center gap-1 rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-xs text-amber-800 font-medium shrink-0">
+              <CalendarPlus className="h-3.5 w-3.5" />
+              {daysUntilEvent === 0 ? "Evento hoje" : `Evento em ${daysUntilEvent}d`}
             </div>
           )}
 
@@ -1179,14 +1187,26 @@ export default function WorkbenchClient({
                         </HeroField>
                         <HeroField label="Data do evento">
                           <Input
-                            className={`${inpSubtle} ${urgentEvent ? "border-red-300 bg-red-50" : ""}`}
+                            className={`${inpSubtle} ${
+                              overdueEvent
+                                ? "border-red-300 bg-red-50"
+                                : soonEvent
+                                ? "border-amber-300 bg-amber-50"
+                                : ""
+                            }`}
                             type="date"
                             value={toDateInput(local.event_date)}
                             onChange={(e) => clientUpdate("event_date", e.target.value || null, "Data do evento", (v) => v ? format(parseISO(v as string), "dd/MM/yyyy") : "—")}
                           />
                           {eventRelative && (
-                            <p className={`text-[10px] px-2 ${urgentEvent ? "text-red-600 font-medium" : "text-cocoa-500"}`}>
-                              {urgentEvent && "⚠ "}{eventRelative}
+                            <p className={`text-[10px] px-2 ${
+                              overdueEvent
+                                ? "text-red-600 font-medium"
+                                : soonEvent
+                                ? "text-amber-800 font-medium"
+                                : "text-cocoa-500"
+                            }`}>
+                              {overdueEvent && "⚠ "}{eventRelative}
                             </p>
                           )}
                         </HeroField>

@@ -9,7 +9,6 @@ import {
   Loader2,
   Plus,
   Square,
-  Users,
   X,
   ChevronDown,
   ChevronRight,
@@ -19,9 +18,16 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-import type { Task, ChecklistItem } from "@/types/tasks";
+import type { Task, TaskPriority, ChecklistItem } from "@/types/tasks";
 import {
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
@@ -41,9 +47,6 @@ import { RecentDoneRow } from "./recent-done-row";
 import { formatDate } from "./format-helpers";
 import { TEAM_MEMBERS, memberName } from "./team-members";
 
-// Lista mesclada: itens da checklist pessoal + tarefas globais atribuídas a mim.
-// Tarefas têm um badge "Global" e prioridade/prazo; o toggle de done chama
-// updateTaskAction (Opção A — qualquer assignee marca = feita para todos).
 type MergedItem =
   | { kind: "checklist"; id: string; item: ChecklistItem }
   | { kind: "task"; id: string; task: Task };
@@ -67,11 +70,16 @@ export function ChecklistCard({
   setViewingEmail: (email: string) => void;
   role: Role;
 }) {
-  const [newText, setNewText] = useState("");
   const [pending, startTransition] = useTransition();
 
   const canSwitchOwner = role === "admin";
   const canWrite = viewingEmail === currentEmail;
+
+  // Form da nova item (escondido por defeito, abre via "+")
+  const [showNew, setShowNew] = useState(false);
+  const [newText, setNewText] = useState("");
+  const [newPriority, setNewPriority] = useState<TaskPriority>("media");
+  const [newDueDate, setNewDueDate] = useState<string>("");
 
   const visibleItems = useMemo<MergedItem[]>(() => {
     const ownChecklist: MergedItem[] = items
@@ -83,15 +91,19 @@ export function ChecklistCard({
       .map((task) => ({ kind: "task" as const, id: task.id, task }));
 
     return [...ownChecklist, ...assignedTasks].sort((a, b) => {
-      const aDue = a.kind === "task" ? a.task.due_date : null;
-      const bDue = b.kind === "task" ? b.task.due_date : null;
+      const aDue = a.kind === "task" ? a.task.due_date : a.item.due_date;
+      const bDue = b.kind === "task" ? b.task.due_date : b.item.due_date;
       if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
       if (aDue && !bDue) return -1;
       if (!aDue && bDue) return 1;
 
-      if (a.kind === "task" && b.kind === "task") {
-        return TASK_PRIORITY_ORDER[a.task.priority] - TASK_PRIORITY_ORDER[b.task.priority];
-      }
+      const aPri =
+        a.kind === "task" ? a.task.priority : a.item.priority;
+      const bPri =
+        b.kind === "task" ? b.task.priority : b.item.priority;
+      const priDiff = TASK_PRIORITY_ORDER[aPri] - TASK_PRIORITY_ORDER[bPri];
+      if (priDiff !== 0) return priDiff;
+
       if (a.kind === "checklist" && b.kind === "checklist") {
         return a.item.position - b.item.position;
       }
@@ -120,18 +132,27 @@ export function ChecklistCard({
 
   const [showDone, setShowDone] = useState(false);
 
-  function handleAdd(e: React.FormEvent) {
+  function resetNewForm() {
+    setNewText("");
+    setNewPriority("media");
+    setNewDueDate("");
+    setShowNew(false);
+  }
+
+  function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const text = newText.trim();
     if (!text || !canWrite) return;
-    setNewText("");
     startTransition(async () => {
       try {
         const created = await createChecklistItemAction({
           owner_email: currentEmail,
           text,
+          priority: newPriority,
+          due_date: newDueDate || null,
         });
         setItems((prev) => [...prev, created]);
+        resetNewForm();
       } catch (err) {
         toast.error("Não consegui criar o item: " + (err as Error).message);
       }
@@ -240,9 +261,9 @@ export function ChecklistCard({
       icon={ListTodo}
       iconColor="text-emerald-600"
       action={
-        canSwitchOwner ? (
-          <div className="flex items-center gap-1.5">
-            {TEAM_MEMBERS.map((m) => {
+        <div className="flex items-center gap-1.5">
+          {canSwitchOwner &&
+            TEAM_MEMBERS.map((m) => {
               const active = m.email === viewingEmail;
               return (
                 <button
@@ -268,21 +289,91 @@ export function ChecklistCard({
                 </button>
               );
             })}
-          </div>
-        ) : null
+          {canWrite && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowNew((s) => !s)}
+              className="h-7 px-2"
+              title="Novo item"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       }
     >
+      {showNew && canWrite && (
+        <form
+          onSubmit={handleCreate}
+          className="border-b border-cream-200 px-5 py-3 space-y-2 bg-cream-50"
+        >
+          <Input
+            placeholder="Novo item…"
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            className="h-8 text-sm"
+            autoFocus
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Select
+              value={newPriority}
+              onValueChange={(v) => v && setNewPriority(v as TaskPriority)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue labels={TASK_PRIORITY_LABELS} />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              value={newDueDate}
+              onChange={(e) => setNewDueDate(e.target.value)}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={resetNewForm}
+              className="h-7"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!newText.trim() || pending}
+              className="h-7"
+            >
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Criar"}
+            </Button>
+          </div>
+        </form>
+      )}
+
       <div className="px-5 py-4 space-y-1.5 max-h-[420px] overflow-y-auto">
         {visibleItems.length === 0 && (
           <p className="text-sm text-cocoa-700 py-6 text-center">
             {canWrite
-              ? "A tua lista está vazia. Acrescenta o primeiro item abaixo."
+              ? "A tua lista está vazia. Carrega em + para criar um item."
               : `${memberName(viewingEmail)} ainda não tem itens.`}
           </p>
         )}
         {visibleItems.map((entry) => {
           if (entry.kind === "checklist") {
             const item = entry.item;
+            const overdue = item.due_date
+              ? differenceInDays(parseISO(item.due_date), new Date()) < 0
+              : false;
             return (
               <div
                 key={`c-${item.id}`}
@@ -301,9 +392,36 @@ export function ChecklistCard({
                     strokeWidth={2}
                   />
                 </button>
-                <span className="flex-1 text-sm leading-snug text-cocoa-900">
-                  {item.text}
-                </span>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="text-sm leading-snug text-cocoa-900">
+                    {item.text}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-4 px-1.5 py-0 text-[10px] font-normal border",
+                        TASK_PRIORITY_COLORS[item.priority],
+                      )}
+                    >
+                      {TASK_PRIORITY_LABELS[item.priority]}
+                    </Badge>
+                    {item.due_date && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "h-4 px-1.5 py-0 text-[10px] font-normal",
+                          overdue
+                            ? "bg-rose-100 text-rose-800 border-rose-300"
+                            : "bg-slate-100 text-slate-700 border-slate-300",
+                        )}
+                      >
+                        <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
+                        {formatDate(item.due_date)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
                 {canWrite && (
                   <button
                     type="button"
@@ -336,19 +454,13 @@ export function ChecklistCard({
                 title="Marcar como feita (some para todos os atribuídos)"
               >
                 <Square
-                  className="h-4 w-4 text-violet-500 group-hover:text-emerald-600 transition-colors"
+                  className="h-4 w-4 text-indigo-500 group-hover:text-emerald-600 transition-colors"
                   strokeWidth={2}
                 />
               </button>
               <div className="flex-1 min-w-0 space-y-0.5">
                 <div className="text-sm leading-snug text-cocoa-900">{task.title}</div>
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <Badge
-                    variant="outline"
-                    className="h-4 px-1.5 py-0 text-[10px] font-normal bg-violet-50 text-violet-700 border-violet-200"
-                  >
-                    Global
-                  </Badge>
                   <Badge
                     variant="outline"
                     className={cn(
@@ -374,11 +486,28 @@ export function ChecklistCard({
                   )}
                   {sharedWith.length > 0 && (
                     <span
-                      className="inline-flex items-center gap-0.5 text-[10px] text-cocoa-700"
+                      className="inline-flex items-center gap-0.5"
                       title={`Partilhada com ${sharedWith.map(memberName).join(", ")}`}
                     >
-                      <Users className="h-3 w-3" />
-                      +{sharedWith.length}
+                      {sharedWith.map((email) => {
+                        const m = TEAM_MEMBERS.find((tm) => tm.email === email);
+                        if (!m) return null;
+                        return (
+                          <span
+                            key={email}
+                            className="relative h-4 w-4 rounded-full overflow-hidden ring-1 ring-cream-200"
+                            title={`Também atribuída a ${m.name}`}
+                          >
+                            <Image
+                              src={m.photo}
+                              alt={m.name}
+                              fill
+                              sizes="16px"
+                              className="object-cover"
+                            />
+                          </span>
+                        );
+                      })}
                     </span>
                   )}
                 </div>
@@ -414,7 +543,6 @@ export function ChecklistCard({
                     key={`dt-${entry.task.id}`}
                     text={entry.task.title}
                     doneAt={entry.task.done_at}
-                    badge="Global"
                     onReopen={() => handleToggleTask(entry.task, false)}
                   />
                 ),
@@ -422,28 +550,6 @@ export function ChecklistCard({
             </div>
           )}
         </div>
-      )}
-
-      {canWrite && (
-        <form
-          onSubmit={handleAdd}
-          className="border-t border-cream-200 px-5 py-3 flex gap-2"
-        >
-          <Input
-            placeholder="Acrescentar item…"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            className="h-8 text-sm"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!newText.trim() || pending}
-            className="h-8 px-3"
-          >
-            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          </Button>
-        </form>
       )}
     </SectionCard>
   );

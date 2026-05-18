@@ -287,8 +287,9 @@ function OrderRow({
     order.event_date
       ? differenceInCalendarDays(parseISO(order.event_date), new Date())
       : null;
-  const urgentEvent =
-    daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
+  const overdueEvent = daysUntilEvent !== null && daysUntilEvent < 0;
+  const soonEvent =
+    daysUntilEvent !== null && daysUntilEvent >= 0 && daysUntilEvent <= 5;
 
   const isPreReserva = currentStatus === "entrega_flores_agendar";
   const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
@@ -455,9 +456,15 @@ function OrderRow({
       <td className="px-4 py-1.5">
         {order.event_date ? (
           <span
-            className={`text-sm ${urgentEvent ? "text-red-600 font-semibold" : "text-cocoa-900"}`}
+            className={`text-sm ${
+              overdueEvent
+                ? "text-red-600 font-semibold"
+                : soonEvent
+                ? "text-amber-800 font-medium"
+                : "text-cocoa-900"
+            }`}
           >
-            {urgentEvent && "⚠ "}
+            {overdueEvent && "⚠ "}
             {formatDate(order.event_date)}
           </span>
         ) : (
@@ -1175,7 +1182,9 @@ function OrderCard({
 }) {
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
-  const urgentEvent = daysUntilEvent !== null && daysUntilEvent <= 5 && daysUntilEvent >= 0;
+  const overdueEvent = daysUntilEvent !== null && daysUntilEvent < 0;
+  const soonEvent =
+    daysUntilEvent !== null && daysUntilEvent >= 0 && daysUntilEvent <= 5;
   const photoUrl = showPhoto ? toEmbeddableImageUrl(order.flowers_photo_url) : null;
   // Per-user: o card só fica destacado para quem ainda não abriu o
   // workbench desta encomenda. Mensagem lida/não lida (mig 047).
@@ -1207,10 +1216,16 @@ function OrderCard({
               </div>
             </div>
           )}
-          {urgentEvent && (
+          {overdueEvent && (
             <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
               <AlertTriangle className="h-2.5 w-2.5" />
-              {daysUntilEvent}d
+              há {Math.abs(daysUntilEvent!)}d
+            </div>
+          )}
+          {soonEvent && (
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold text-amber-800 shadow-sm">
+              <CalendarDays className="h-2.5 w-2.5" />
+              {daysUntilEvent === 0 ? "Hoje" : `em ${daysUntilEvent}d`}
             </div>
           )}
           {isLoading && (
@@ -1221,10 +1236,16 @@ function OrderCard({
         </div>
       )}
       <div className="px-3 py-2.5">
-        {!showPhoto && urgentEvent && (
+        {!showPhoto && overdueEvent && (
           <div className="inline-flex items-center gap-1 rounded-full bg-red-600/95 px-2 py-0.5 text-[10px] font-semibold text-white mb-1.5">
             <AlertTriangle className="h-2.5 w-2.5" />
-            {daysUntilEvent}d
+            há {Math.abs(daysUntilEvent!)}d
+          </div>
+        )}
+        {!showPhoto && soonEvent && (
+          <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-semibold text-amber-800 mb-1.5">
+            <CalendarDays className="h-2.5 w-2.5" />
+            {daysUntilEvent === 0 ? "Hoje" : `em ${daysUntilEvent}d`}
           </div>
         )}
         {!showPhoto && isLoading && (

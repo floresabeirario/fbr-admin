@@ -75,6 +75,10 @@ export interface ChecklistItem {
   done: boolean;
   done_at: string | null;
   position: number;
+
+  // Paridade visual com tasks (mig 049). Sem assignee — owner_email já manda.
+  priority: TaskPriority;
+  due_date: string | null;
 }
 
 export type ChecklistItemInsert = Partial<Omit<ChecklistItem, "id" | "created_at" | "updated_at">> & {

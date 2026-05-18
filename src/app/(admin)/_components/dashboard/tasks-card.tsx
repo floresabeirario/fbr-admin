@@ -240,7 +240,7 @@ export function TasksCard({
     <SectionCard
       title="Afazeres globais"
       icon={ListTodo}
-      iconColor="text-violet-600"
+      iconColor="text-indigo-600"
       action={
         <div className="flex items-center gap-1">
           <Select value={filter} onValueChange={(v) => v && setFilter(v as typeof filter)}>
@@ -297,7 +297,7 @@ export function TasksCard({
                   className={cn(
                     "relative h-7 w-7 rounded-full overflow-hidden transition-all",
                     active
-                      ? "ring-2 ring-violet-600 ring-offset-1 ring-offset-cream-50"
+                      ? "ring-2 ring-indigo-600 ring-offset-1 ring-offset-cream-50"
                       : "opacity-40 hover:opacity-100",
                   )}
                 >
@@ -408,7 +408,7 @@ export function TasksCard({
                           className={cn(
                             "relative h-5 w-5 rounded-full overflow-hidden transition-all",
                             active
-                              ? "ring-1 ring-violet-600 ring-offset-1 ring-offset-surface"
+                              ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
                               : "opacity-30 hover:opacity-100",
                           )}
                         >

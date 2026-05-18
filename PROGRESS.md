@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 26) — Mig 048: trigger SQL `auto_mark_voucher_used` em orders fecha o caminho do form público (anti-dupla-contagem de vales agora cobre INSERT/UPDATE de qualquer origem, não só do action admin)
+## Fase actual: FASE 6 (parte 27) — Sessão 84: aviso de evento próximo passa de vermelho para âmbar (vermelho causava ansiedade quando faltavam dias e o evento ainda nem tinha acontecido) — vermelho fica reservado a eventos já passados
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -38,11 +38,69 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 48 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 49 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 84 🟠 Vermelho ≠ "evento próximo" — passa a âmbar; vermelho só para passados
+
+Maria via screenshots (Timeline + Tabela): eventos a 5 dias estavam marcados a vermelho com ⚠ ("5d") mesmo sem terem acontecido. Causava ansiedade — o vermelho parece alarme de "perdeste/falhaste algo". Pediu que o vermelho seja reservado a eventos que **já passaram**.
+
+**Mudança transversal:** substituí o flag único `urgentEvent` (≤5 dias && ≥0) por dois: `overdueEvent` (`daysAway < 0`) e `soonEvent` (`0 ≤ daysAway ≤ 5`).
+- **overdueEvent** → tratamento vermelho + `AlertTriangle` + label `há Xd` (alarme legítimo).
+- **soonEvent** → tratamento âmbar (`bg-amber-50/100`, `border-amber-200/300`, `text-amber-800`) + ícone `CalendarDays`/`CalendarPlus` + label `Hoje` ou `em Xd` (heads-up calmo, sem ⚠).
+
+Ficheiros tocados:
+- [src/app/(admin)/preservacao/timeline-view.tsx](src/app/(admin)/preservacao/timeline-view.tsx) — pill de data lateral + badge inline.
+- [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) — célula `DATA EVENTO` da tabela (era `text-red-600 font-semibold` + "⚠"; agora condicional vermelho/âmbar) + badge sobre a foto no OrderCard + variante sem foto.
+- [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) — banner do topo "Evento em Xd" + Input `Data do evento` (border+bg condicionais) + texto relativo abaixo.
+
+Mantém a spec do CLAUDE.md ("Diferenciação visual quando faltam ≤5 dias para data do evento") — continua a haver diferenciação, mas em tom informativo, não alarmista. Preflight OK.
+
+### Sessão 83 🎨 Dashboard — paridade checklist↔afazeres + indigo + cards não esticam (mig 049)
+
+Maria via screenshot do Dashboard: (1) checklist pessoal estava esquisitamente alta (estava a esticar à altura da card de afazeres globais); (2) checklist pessoal devia ter histórico igual ao global (já existia mas só visível quando há concluídas — Maria confirmou que basta isso); (3) `+1` (Users icon) nas tarefas partilhadas não diz quem é; (4) pill "Global" em cada tarefa é ruído; (5) violet das afazeres globais bate com violet das recolhas; (6) form "Nova tarefa pessoal" devia ter o mesmo visual da global (sem assign).
+
+**Migração 049 — [supabase/migrations/049_checklist_priority_due_date.sql](supabase/migrations/049_checklist_priority_due_date.sql):**
+- `ALTER TABLE personal_checklist ADD COLUMN priority TEXT NOT NULL DEFAULT 'media' CHECK (...)` + `due_date DATE`.
+- Index parcial `personal_checklist_due_date_idx` para ordenar por prazo.
+- Não há assignee — `owner_email` já manda; é checklist pessoal por construção.
+
+**Type — [src/types/tasks.ts](src/types/tasks.ts):** `ChecklistItem` ganha `priority: TaskPriority` + `due_date: string | null`. `ChecklistItemInsert` mantém só `owner_email + text` como obrigatórios; os defaults da BD tratam do resto.
+
+**Refactor [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx):**
+- Form de criação saiu do fundo (sempre visível) e passou a header com "+". Toggle com `showNew` state. Form expandido tem `<Input title>` + grid de `<Select priority>` + `<Input type=date>` — igual ao tasks-card mas **sem** avatares de assignee.
+- `createChecklistItemAction` passa a receber `priority + due_date`.
+- Items de checklist pessoal mostram pill de prioridade (cor por `TASK_PRIORITY_COLORS`) + badge de data com ícone calendar (rose se overdue, slate se futura) — paridade com tasks na lista mesclada.
+- Sort da lista mesclada compara `due_date` (item ou task) primeiro e prioridade depois — não só prioridade de tasks como antes.
+- Avatares partilhados: substituído o ícone `Users + "+N"` por uma fila de bolinhas pequenas (h-4 w-4) com foto de cada team member partilhado. Tooltip por avatar + tooltip do contentor.
+- Pill "Global" **removida** (era ruído visual). A diferença visual entre checklist e task na lista mesclada agora é a cor do checkbox: `text-[#C4A882]` (mesma da checklist) para checklist; `text-indigo-500` para task (subtil mas presente).
+- Empty state ajustado para "Carrega em + para criar um item" (já não há input no fundo).
+- Recent done mantém-se como estava — só aparece quando N > 0 (Maria confirmou na pergunta 3).
+
+**Cor afazeres globais — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- `iconColor: "text-violet-600"` → `"text-indigo-600"`.
+- Ring dos avatares no form de criação: `ring-violet-600` → `ring-indigo-600`.
+- Ring dos avatares assignee inline em cada task: `ring-violet-600` → `ring-indigo-600`.
+- Não toquei nos `TASK_PRIORITY_COLORS` (esses são pills de prioridade, não da card).
+
+**Cards não esticam — [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
+- Grid 2×2 (`grid-cols-1 lg:grid-cols-2 gap-6`) ganhou `items-start`. Antes cada cell esticava à altura da linha (default `align-items: stretch`), o que fazia a checklist pessoal vazia parecer enorme. Agora cada card sizing por conteúdo; ainda há gap visual entre rows mas é só o `gap-6`. O `SectionCard` continua `flex flex-col` + body `flex-1 min-h-0` para suportar o "Concluídas recentes" no fundo quando há.
+
+Preflight `tsc --noEmit` + `next build` limpo (warning preexistente do Google Sans fallback, sem relação). **Maria: passos manuais:**
+1. **Correr [supabase/migrations/049_checklist_priority_due_date.sql](supabase/migrations/049_checklist_priority_due_date.sql)** no Supabase SQL Editor. Verificar com:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='personal_checklist' AND column_name IN ('priority','due_date');` → 2 linhas.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - Abrir `/` → checklist pessoal já não estica à altura da card de afazeres (se uma das colunas tiver pouco conteúdo, ficam alturas diferentes, lado a lado).
+   - Carregar no "+" do header da checklist pessoal → form expande com input + prioridade + data + Cancelar/Criar (sem avatares de assign).
+   - Criar item: aparece na lista com pill de prioridade e (se preenchida) badge de data.
+   - Afazeres globais: ícone agora é indigo (azul escuro), os avatares activos no form e nas linhas têm ring indigo. As recolhas mantêm-se violet — já não há confusão.
+   - Tarefa global atribuída a 2+ pessoas: na checklist pessoal aparece com avatares pequenos das pessoas com quem é partilhada (em vez de "+1"). Pill "Global" deixou de existir.
+
+---
 
 ### Sessão 82 🔐 Mig 048 — trigger SQL fecha caminho do form público (anti-dupla-contagem)
 
@@ -130,64 +188,21 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
 
 ---
 
-### Sessão 79 🧰 Preservação destaque "Nova"; Finanças grid; cupão único; refactor Dashboard
-
-Após análise global da plataforma (sessão 78), Maria autorizou um lote de quick wins seguros + um refactor mecânico. Trabalhos desta sessão:
-
-**Finanças — grid de tabs (zero risco):** [src/app/(admin)/financas/financas-client.tsx:181](src/app/(admin)/financas/financas-client.tsx#L181) — `grid-cols-2 lg:grid-cols-4` → `grid-cols-2 lg:grid-cols-5`. Antes deixava 1 tab sozinho na 2ª linha; agora as 5 tabs alinham numa linha em desktop. Mobile (2 cols) intocado.
-
-**Cupão único c/ retry — B1 da análise:** [src/lib/coupon.ts](src/lib/coupon.ts) ganhou `generateUniqueCouponCode(supabase, maxAttempts=5)` que valida contra `orders.coupon_code` (UNIQUE) antes de devolver. Resolve futura colisão silenciosa: o INSERT/UPDATE rebentava com `duplicate key (23505)` quando o random batia num código existente — provável com escala. [src/app/(admin)/preservacao/actions.ts:178](src/app/(admin)/preservacao/actions.ts#L178) passa a usar o helper async e é **idempotente** — não gera cupão novo se já existir um (re-passar por `a_ser_emoldurado` não cria duplicado). [src/lib/supabase/orders.ts:85](src/lib/supabase/orders.ts#L85) (`updateOrderStatus`, não usado em runtime mas mantido) também actualizado para consistência. `coupon_expiry` (B2) **adiado a pedido da Maria** — fica `NULL` como hoje.
-
-**Destaque "Nova" — encomenda criada há <24h:** Maria pediu visual fácil para encomendas que nunca abriu. Escolheu abordagem simples (heurística 24h) em vez de coluna `seen_by` por utilizador. [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):
-- Import `differenceInHours` adicionado.
-- `OrderRow` (tabela): `isNew = differenceInHours(now, created_at) < 24`. `<tr>` ganha `bg-amber-50/50` quando isNew. Badge "Nova" amber pill junto ao nome do cliente, com tooltip mostrando a data de criação.
-- `OrderCard` (vista cards): mesma lógica. Card border passa a `border-amber-300 bg-amber-50/60` quando isNew. Badge "Nova" mais pequeno ao lado do nome.
-- O destaque some sozinho ao fim de 24h — todos os utilizadores veem o mesmo (não é por pessoa). Calendário e Timeline intocados (não fazem sentido pelo mesmo critério).
-
-**Refactor Dashboard — C2 da análise:** [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx) passou de **1051 → 112 linhas** (orquestrador puro). Lógica extraída para 8 ficheiros em `src/app/(admin)/_components/dashboard/`:
-- `team-members.ts` (15 linhas) — `TEAM_MEMBERS` + `memberName` helpers
-- `format-helpers.ts` (37) — `formatDate`, `formatRelativeDays`, `formatDoneAgo`
-- `section-card.tsx` (30) — wrapper visual genérico (header + corpo)
-- `recent-done-row.tsx` (50) — linha das concluídas, partilhada entre checklist e tasks
-- `pickups-card.tsx` (75) — recolhas e entregas próximas
-- `alerts-card.tsx` (48) — alertas
-- `checklist-card.tsx` (450) — checklist pessoal + tarefas atribuídas mescladas
-- `tasks-card.tsx` (504) — afazeres globais
-
-**Zero mudança visual ou de comportamento** — só código a mover. Mesmo estado interno, mesmos handlers, mesmas RLS, mesmas chamadas a actions. `TEAM_MEMBERS` continua duplicado de `roles.ts` (consolidação fica para C1 — unificar admins numa só tabela — adiada para sessão dedicada).
-
-Preflight `tsc --noEmit` + `next build` limpos. Sem migrações. **Maria: push para Vercel → smoke (1) abrir Finanças → confirmar 5 tabs numa só linha em desktop; (2) abrir Preservação → criar nova encomenda (ou ver as criadas <24h) → confirmar fundo amber + badge "Nova" na tabela; trocar para vista cards → mesmo destaque; (3) abrir Dashboard → tudo deve estar EXACTAMENTE igual ao que estava antes — se notares qualquer diferença visual ou de comportamento, é regressão do refactor.**
-
----
-
-### Sessão 78 🧰 Dashboard — checkbox + Undo + "Concluídas recentes (10)"; fix baseline Métricas
-
-Maria pediu para repensar o "marcar como feito": a bolinha `Circle` confundia-se com checkbox de selecção múltipla, e queria poder recuperar as últimas 10 tarefas/itens caso clicasse sem querer. Antes, na checklist pessoal as feitas ficavam no fim com strikethrough mas sem botão de reabrir; nas tarefas globais desapareciam por completo (filtro `!t.done`).
-
-**[src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
-- Trocados `Circle` / `CheckCircle2` por `Square` / `CheckSquare` (lucide) em ambos os cards — affordance inequívoca de checkbox.
-- `handleToggle` (checklist), `handleToggleTask` (tarefa global a partir da lista mesclada) e `handleToggle` (TasksCard) emitem agora `toast.success("Feita: …", { action: { label: "Anular", onClick: revert } })` com `duration: 5000` quando marcam como feita. O `done_at` é optimisticamente preenchido com `new Date().toISOString()` e revertido em caso de erro.
-- Novo `MergedItem` `visibleItems` excluí explicitamente `done === true` (antes incluía e ordenava para o fim) — feitas vão para a secção dedicada.
-- Novo `recentDone` (checklist+tasks atribuídas) ordenado por `done_at ?? updated_at` desc, top 10.
-- Nova secção colapsada "Concluídas recentes (N)" no fim da `ChecklistCard` (chevron + contador), com novo componente `RecentDoneRow` (CheckSquare emerald + strikethrough + "há X min/h/d" + botão "↺ Reabrir" no hover).
-- `TasksCard` ganhou versão equivalente: `recentDoneTasks` (respeita filtro "Minhas"), state `showDoneTasks`, helper `reopenTask`. A secção esconde-se quando filtro é "Feitas" (porque aí a lista já é o histórico completo).
-- Imports actualizados: `Square`, `CheckSquare`, `ChevronDown`, `RotateCcw` adicionados; `Circle`, `CheckCircle2` removidos.
-
-**[src/lib/metrics.ts](src/lib/metrics.ts) — fix de baselines incorrectas (ponto B da análise):**
-- Antes: `revenuePctChange` e `newOrdersPctChange` usavam sempre `previousMonthRange(range)`. Em ranges anuais ou "Últimos N meses", isto comparava com uma janela deslocada apenas 1 mês — sobreposição + percentagens sem significado.
-- Novo helper `previousEqualRange(range)`: janela imediatamente anterior com a mesma duração.
-- Novo helper `baselineRangeForPreset(preset, range)`: escolhe `previousMonthRange` para presets mensais, `previousYearRange` para anuais, `previousEqualRange` para "Últimos 3/6 meses" e "Personalizado".
-- `computeMetrics(..., preset?: RangePreset = "este_mes")` ganha parâmetro opcional `preset` e usa o baseline correcto internamente; variável morta `prevYearRange` removida.
-- Caller `metricas-client.tsx` passa `preset` na chamada.
-
-**[src/lib/metrics.ts:528](src/lib/metrics.ts) — fix locale (ponto C da análise):**
-- `monthlyRevenue` formatava `MMM yy` com `locale: undefined` (inglês). Trocado para `locale: pt` — eixo do gráfico passa a "jan 26" em vez de "Jan 26".
-
-Preflight `tsc --noEmit` + `next build` limpo. Sem migrações. **Maria: abrir Dashboard → confirmar (1) que os items/tarefas têm agora checkbox quadrado; (2) marcar uma como feita → toast com "Anular" durante 5s — testar o anular; (3) expandir "Concluídas recentes" → ver últimas 10, com botão "Reabrir" no hover; (4) abrir Métricas → trocar preset entre "Este mês", "Últimos 3 meses", "Este ano" → confirmar que as percentagens debaixo dos KPIs fazem sentido (e não 800% ou -∞); (5) gráfico "Receita mensal" mostra "jan 26", "fev 26", etc.**
-
 ---
 
 ## Próximo passo CONCRETO
+
+**Sessão 83 — passos manuais:**
+
+1. **Correr [supabase/migrations/049_checklist_priority_due_date.sql](supabase/migrations/049_checklist_priority_due_date.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='personal_checklist' AND column_name IN ('priority','due_date');` → 2 linhas.
+2. **Push para Vercel**.
+3. **Smoke**:
+   - `/` → checklist pessoal já não estica à altura da card de afazeres.
+   - Carregar no "+" do header da checklist pessoal → form com input + prioridade + data (sem assign).
+   - Criar item → aparece com pill de prioridade e badge de data se preenchida.
+   - Afazeres globais: ícone indigo, avatares com ring indigo. Recolhas mantêm violet.
+   - Tarefa global atribuída a 2+ pessoas → na checklist pessoal aparece com avatares pequenos (em vez de "+1"); sem pill "Global".
 
 **Sessão 82 — passos manuais (só BD):**
 
@@ -233,7 +248,9 @@ Preflight `tsc --noEmit` + `next build` limpo. Sem migrações. **Maria: abrir D
 
 ## Histórico condensado (sessões 1-66)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-77)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-79)
+- **79** — Preservação destaque "Nova" (heurística 24h em `OrderRow` + `OrderCard`, amber); cupão único c/ retry e idempotente em [src/lib/coupon.ts](src/lib/coupon.ts) (`generateUniqueCouponCode` valida contra UNIQUE antes de devolver); Finanças tabs `grid-cols-2 lg:grid-cols-5`; refactor [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx) 1051→112 linhas (extracção mecânica para 8 ficheiros em `_components/dashboard/`). Sem migrações; comportamento intocado.
+- **78** — Dashboard: `Square/CheckSquare` substituem `Circle/CheckCircle2` (affordance de checkbox); toast "Anular" 5s ao marcar feita; secção "Concluídas recentes (N)" colapsável em ChecklistCard + TasksCard com botão "Reabrir" no hover; novo `RecentDoneRow`. `metrics.ts`: `previousEqualRange` + `baselineRangeForPreset` (corrige percentagens em ranges anuais e "Últimos N meses"); `monthlyRevenue` com `locale: pt`
 - **77** — Preservação fix drag-and-drop entre grupos: `pointerWithin`+`rectIntersection` híbrido como collisionDetection; novo state `optimisticMoves: Map` para mover linha imediatamente; helper `runMove` consolida optimistic→action→refresh+clear com error toast; `handleDragEnd` com `over=null` deixa de ser silencioso (info toast)
 - **76** — Finanças/Despesas: descrição passa a ser o campo primário (obrigatório); fornecedor opcional e auto-detect URL→link (mig 045); novo KPI "Total desde sempre" inclui subscrições acumuladas via `subscriptionTotalToDate`
 - **75** — Tarefas multi-assignee Opção A (mig 044): `tasks.assignee_emails TEXT[]` (qualquer assignee marca = some para todos); `seen_by TEXT[]` + RPC `mark_tasks_seen`; checklist mescla tarefas atribuídas; bolinha sky na sidebar + toast inicial; UI multi-assignee com 3 avatares clicáveis

@@ -282,7 +282,8 @@ function TimelineRow({
   const eventDate = order.event_date ? parseISO(order.event_date) : null;
   const daysAway =
     eventDate && today ? differenceInCalendarDays(eventDate, today) : null;
-  const urgent = daysAway !== null && daysAway >= 0 && daysAway <= 5;
+  const overdue = daysAway !== null && daysAway < 0;
+  const soon = daysAway !== null && daysAway >= 0 && daysAway <= 5;
 
   return (
     <button
@@ -295,10 +296,10 @@ function TimelineRow({
       {showDate && eventDate ? (
         <div
           className={`flex flex-col items-center justify-center w-14 shrink-0 rounded-lg px-2 py-1.5 ${
-            past
-              ? "bg-stone-100 text-stone-500"
-              : urgent
+            past || overdue
               ? "bg-red-50 text-red-700 border border-red-200"
+              : soon
+              ? "bg-amber-50 text-amber-800 border border-amber-200"
               : "bg-cream-50 text-cocoa-900 border border-cream-200"
           }`}
         >
@@ -329,10 +330,16 @@ function TimelineRow({
               {EVENT_TYPE_LABELS[order.event_type]}
             </span>
           )}
-          {urgent && (
+          {overdue && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
               <AlertTriangle className="h-2.5 w-2.5" />
-              {daysAway === 0 ? "Hoje" : `${daysAway}d`}
+              há {Math.abs(daysAway!)}d
+            </span>
+          )}
+          {soon && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-semibold text-amber-800">
+              <CalendarDays className="h-2.5 w-2.5" />
+              {daysAway === 0 ? "Hoje" : `em ${daysAway}d`}
             </span>
           )}
         </div>
