@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 30) — Sessão 87: Dashboard sem **Checklist pessoal** (filtro "Minhas" do kanban substitui); **prioridade em pontinho colorido** (poupa espaço) com popover ao clicar; **reordenação de colunas** do kanban via drag no cabeçalho, persistida em localStorage; Estúdio passa a **Palette + lime** (purple confundia-se com violet das Recolhas)
+## Fase actual: FASE 6 (parte 30) — Sessão 87: Dashboard sem **Checklist pessoal** + **prioridade em pill com abreviatura** (URG/ALTA/MÉD/BAIXA) com popover; **reordenação de colunas** via drag; Estúdio → **Palette + lime**; Admin → **teal** (era zinc, indistinguível do stone do Outros); **filtro por avatares** (3 fotos no header, multi-select, default todas)
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -44,29 +44,48 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 87 🧹 Dashboard: fora checklist pessoal + prioridade compacta + reordenar colunas + estúdio lime
+### Sessão 87 🧹 Dashboard: fora checklist + pill prioridade + reordenar colunas + estúdio lime + admin teal + filtro avatares
 
-Maria via screenshot do Dashboard: (1) checklist pessoal era redundante (filtro "Minhas" do kanban basta); (2) ícone de câmara + roxo no Estúdio confundia-se com o violet das Recolhas no local — "estúdio" para ela é atelier/materiais, não fotografia; (3) o pill "Alta/Média" da prioridade ocupava demasiado espaço no tile; (4) não dava para reordenar as colunas do kanban.
+Maria via screenshot do Dashboard, em 2 iterações:
+
+**Iteração 1:** (1) checklist pessoal era redundante (filtro "Minhas" do kanban basta); (2) ícone de câmara + roxo no Estúdio confundia-se com o violet das Recolhas no local — "estúdio" para ela é atelier/materiais, não fotografia; (3) o pill "Alta/Média" da prioridade ocupava demasiado espaço no tile; (4) não dava para reordenar as colunas do kanban.
+
+**Iteração 2 (mesma sessão):** (5) o pontinho de prioridade não era explícito — pediu para arranjar outra forma; (6) Admin (zinc) e Outros (stone) eram indistinguíveis; (7) filtro "Todas/Minhas/Feitas" não chegava — quer **avatares dos 3 membros no topo** (multi-select, default todas).
 
 **Decisões pré-implementação (perguntei à Maria):**
 - Eliminar checklist por completo do UI — manter tabela `personal_checklist` na BD intacta (defensivo).
 - Estúdio → `Palette` + `lime`.
-- Prioridade → pontinho colorido + popover ao clicar (substitui o `Select` pill inline).
+- Prioridade → pontinho colorido + popover (1ª iter) → **pill com abreviatura URG/ALTA/MÉD/BAIXA** + popover (2ª iter, após "não são explícitas").
 - Reordenação de colunas com drag-and-drop, persistência em **localStorage** (preferência por browser, não justifica BD).
+- Admin → **teal** (era zinc); Outros → stone muito mais claro para separar dos 5 restantes.
+- Filtro por membro: **3 avatares** no header (multi-select, default todas); substitui o select "Todas/Minhas". "Feitas" passa a um botão toggle Activas/Concluídas (estado independente).
 
 **Dashboard sem checklist — [page.tsx](src/app/(admin)/page.tsx) e [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
 - Query a `personal_checklist` removida do `Promise.all` da page; props `checklist`/`role` removidos do `DashboardClient`; toast de tarefas-novas-atribuídas + `markTasksSeenAction` mantidos (independentes da checklist).
 - Ficheiro [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx) apagado. `RecentDoneRow` continua a existir (usado por `TasksCard`).
 - Tabela e server actions de checklist deixadas intactas — sem migração de drop. Maria pode reverter abrindo o componente novamente se mudar de ideias.
 
-**Estúdio: Palette + lime — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):** `CATEGORY_META.estudio` muda de `Camera`/purple para `Palette`/lime (`border-t-lime-500`, `bg-lime-100`, `text-lime-700`, `from-lime-50/40`, `border-l-lime-400`). Distinto de cyan (presença online) e de violet (recolhas no local em toda a app).
+**Cores das colunas — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) `CATEGORY_META`:**
+- Estúdio: `Camera`/purple → **`Palette`/lime** (`border-t-lime-500`, `bg-lime-100`, `text-lime-700`, `from-lime-50/40`, `border-l-lime-400`). Distinto de cyan (presença online) e do violet das recolhas no local.
+- Admin: zinc → **teal-600/700** (`border-t-teal-600`, `bg-teal-100`, `text-teal-700`, `from-teal-50/40`, `border-l-teal-500`). Visualmente distinto de cyan (mais frio/azulado) e dos cinzentos.
+- Outros: stone-400/600 → **stone-300/500 com tint 30**: borda topo mais fina, ícone mais pálido, fundo praticamente neutro. Coluna "lixeira" fica deliberadamente discreta para o olhar não competir com as 5 categorias com identidade.
 
-**Prioridade em pontinho — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- Constante nova `PRIORITY_DOT_COLOR`: `baixa=slate-300`, `media=sky-500`, `alta=amber-500`, `urgente=rose-500`.
-- Sub-componente `PriorityDot` — bola 8px à esquerda do título com `PopoverTrigger`; o popover lista as 4 prioridades, cada uma com a sua bolinha + label.
+**Prioridade — pill compacto com abreviatura + popover — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- 1ª tentativa (rejeitada pela Maria): bola 8px colorida (`PriorityDot`). Demasiado subtil.
+- 2ª (aceite): sub-componente `PriorityPill` — pill `h-4 px-1 text-[9px] font-bold` com abreviatura curta (`URG`/`ALTA`/`MÉD`/`BAIXA`) e cores reaproveitadas de `TASK_PRIORITY_COLORS` (coerência com Preservação/Métricas).
+- Click no pill abre popover com as 4 prioridades em lista, cada uma com bolinha colorida + label completa.
 - `onPointerDown={(e) => e.stopPropagation()}` no trigger e na content para o drag-and-drop dos tiles não capturar o click.
 - Modo edição inline **mantém** o `Select` original — há espaço lá.
 - Footer do tile reorganizado: avatares assignees à esquerda, badge de data à direita (`ml-auto`).
+
+**Filtro por avatares no header — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- State antigo `filter: "todas" | "minhas" | "feitas"` substituído por **dois states** ortogonais:
+  - `selectedMembers: string[]` — emails seleccionados (default = todos os 3 TEAM_MEMBERS).
+  - `viewDone: boolean` — true mostra concluídas em vez de activas (default false).
+- Helper `allMembersSelected` (todos os 3 seleccionados) — neste caso o filtro por responsável **não** se aplica (tarefas sem assignee continuam visíveis). Quando há subset, tarefa só passa se algum dos seus assignees estiver no set; tarefas sem assignee ficam escondidas.
+- Header da card: 3 avatares (h-7 w-7) com ring indigo + offset quando activos; quando desactivos ficam `opacity-30 grayscale`. Click alterna. Tooltip por avatar: "Mostrar/Esconder tarefas de Nome".
+- Botão "Activas/Concluídas" ao lado dos avatares: variant `default` (preenchido) quando a ver concluídas, `ghost` quando a ver activas. Click alterna `viewDone`.
+- Empty state diferencia 4 casos: 0 membros seleccionados, ver concluídas vazias, subset sem resultados, sem tarefas global.
 
 **Reordenação de colunas — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
 - Novo state `columnOrder: TaskCategory[]` (default = `TASK_CATEGORY_ORDER`). Render usa `columnOrder.map(...)` em vez da constante hardcoded.
@@ -80,12 +99,13 @@ Maria via screenshot do Dashboard: (1) checklist pessoal era redundante (filtro 
 1. **Sem migrações** nesta sessão.
 2. **Push para Vercel**.
 3. **Smoke**:
-   - `/` → Dashboard mostra **só** Afazeres globais (kanban) + Recolhas + Alertas. Sem card de "Checklist pessoal".
-   - Coluna Estúdio: ícone paleta verde-lima. Distinguível das outras 5.
-   - Cada tile mostra **pontinho colorido** à esquerda do título (cinza/azul/amber/vermelho). Click no pontinho → popover lista as 4 prioridades; selecionar → muda.
-   - **Arrastar o cabeçalho de uma coluna** para cima de outra → as duas colunas trocam de ordem. Recarregar página → ordem fica.
-   - Continuar a poder arrastar tiles entre colunas (mantém).
-   - Filtro "Minhas" → vê só tarefas atribuídas a mim (substitui a checklist pessoal antiga).
+   - `/` → Dashboard mostra só Afazeres globais (kanban) + Recolhas + Alertas. Sem card "Checklist pessoal".
+   - Header da card tem **3 avatares** seguidos do botão "Concluídas" e do "+". Por default todos os avatares activos (ring indigo). Click num avatar → fica grey, e as tarefas onde só essa pessoa é responsável desaparecem.
+   - Coluna Estúdio: ícone paleta verde-lima. Coluna Admin: teal. Coluna Outros: cinza muito claro (deliberadamente discreta).
+   - Cada tile mostra **pill com abreviatura** (`URG`/`ALTA`/`MÉD`/`BAIXA`) colorida à esquerda do título. Click → popover lista as 4 prioridades; selecionar → muda.
+   - Botão "Concluídas" no header → muda toda a kanban para tarefas done; rótulo passa a "Activas" para voltar.
+   - Arrastar cabeçalho de uma coluna para cima de outra → trocam de ordem; recarregar página → ordem fica.
+   - Continuar a poder arrastar tiles entre colunas.
 
 ### Sessão 86 🎨 Kanban refinado + drag-and-drop invisível + título/detalhes editáveis (mig 051)
 
@@ -336,11 +356,12 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
 2. **Push para Vercel**.
 3. **Smoke**:
    - `/` → Dashboard mostra só Afazeres globais (kanban) + Recolhas + Alertas. Sem card "Checklist pessoal".
-   - Estúdio com ícone Palette + lime; distinguível de cyan/violet/etc.
-   - Tile mostra pontinho colorido à esquerda do título. Click no pontinho → popover com 4 prioridades.
-   - Arrastar cabeçalho de uma coluna para outra → trocam de ordem; recarregar página → ordem mantém-se.
+   - Header da card: 3 avatares + botão Concluídas + "+". Por default todos avatares activos (ring indigo). Click num → grey, tarefas dessa pessoa somem.
+   - Estúdio: Palette + lime. Admin: teal. Outros: stone muito light.
+   - Tile: pill com abreviatura (URG/ALTA/MÉD/BAIXA) ao lado do título. Click → popover muda prioridade.
+   - "Concluídas" no header → kanban mostra done.
+   - Arrastar cabeçalho de coluna → reordena; recarregar → ordem mantém-se.
    - Continuar a poder arrastar tiles entre colunas.
-   - Filtro "Minhas" → só vê tarefas atribuídas a mim (substitui checklist pessoal antiga).
 
 **Sessão 86 — passos manuais:**
 

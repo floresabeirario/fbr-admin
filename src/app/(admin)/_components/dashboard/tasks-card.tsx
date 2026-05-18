@@ -131,19 +131,19 @@ const CATEGORY_META: Record<
   },
   administrativo: {
     icon: FileText,
-    topBorder: "border-t-zinc-500",
-    iconBg: "bg-zinc-100",
-    iconColor: "text-zinc-700",
-    columnTint: "from-zinc-50/40",
-    leftAccent: "border-l-zinc-400",
+    topBorder: "border-t-teal-600",
+    iconBg: "bg-teal-100",
+    iconColor: "text-teal-700",
+    columnTint: "from-teal-50/40",
+    leftAccent: "border-l-teal-500",
   },
   outros: {
     icon: MoreHorizontal,
-    topBorder: "border-t-stone-400",
+    topBorder: "border-t-stone-300",
     iconBg: "bg-stone-100",
-    iconColor: "text-stone-600",
-    columnTint: "from-stone-50/40",
-    leftAccent: "border-l-stone-300",
+    iconColor: "text-stone-500",
+    columnTint: "from-stone-50/30",
+    leftAccent: "border-l-stone-200",
   },
 };
 
@@ -153,8 +153,18 @@ const DEFAULT_CATEGORY_ORDER = (
 
 const COLUMN_ORDER_STORAGE_KEY = "fbr.dashboard.tasksColumnOrder.v1";
 
-// Pontinho de prioridade — substitui o pill "Baixa/Média/Alta/Urgente" no tile
-// para poupar espaço. Cor distinta por nível; click abre popover de alteração.
+// Pill compacto de prioridade — substitui o Select inline (que ocupava muito
+// espaço) e o pontinho (não era explícito). Abreviatura curta, cor distinta,
+// click abre popover. Cores reutilizam TASK_PRIORITY_COLORS para coerência
+// com o resto da app (workbench Preservação, etc.).
+const PRIORITY_ABBREV: Record<TaskPriority, string> = {
+  baixa: "BAIXA",
+  media: "MÉD",
+  alta: "ALTA",
+  urgente: "URG",
+};
+
+// Bola pequena usada dentro do popover (item da lista) para reforçar a cor.
 const PRIORITY_DOT_COLOR: Record<TaskPriority, string> = {
   baixa: "bg-slate-300",
   media: "bg-sky-500",
@@ -193,9 +203,27 @@ export function TasksCard({
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   currentEmail: string;
 }) {
-  const [filter, setFilter] = useState<"todas" | "minhas" | "feitas">("todas");
+  // Filtro por membro — 3 avatares no topo, default todos seleccionados
+  // (= sem filtro). Click num avatar alterna; quando o set é o total dos
+  // membros, considera-se "default" e tarefas sem responsável também aparecem.
+  const [selectedMembers, setSelectedMembers] = useState<string[]>(() =>
+    TEAM_MEMBERS.map((m) => m.email),
+  );
+  // Estado independente: mostrar concluídas ou activas?
+  const [viewDone, setViewDone] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const allMembersSelected =
+    selectedMembers.length === TEAM_MEMBERS.length;
+
+  function toggleMember(email: string) {
+    setSelectedMembers((prev) =>
+      prev.includes(email)
+        ? prev.filter((e) => e !== email)
+        : [...prev, email],
+    );
+  }
 
   // Ordem das colunas — persistida em localStorage (preferência por browser).
   // SSR começa sempre com a ordem default; sync com localStorage ocorre após mount
@@ -246,10 +274,13 @@ export function TasksCard({
 
   const visibleTasks = useMemo(() => {
     let list = tasks;
-    if (filter === "minhas")
-      list = list.filter((t) => t.assignee_emails.includes(currentEmail));
-    if (filter === "feitas") list = list.filter((t) => t.done);
-    if (filter !== "feitas") list = list.filter((t) => !t.done);
+    list = list.filter((t) => (viewDone ? t.done : !t.done));
+    // Filtro por membro só se aplica quando há subset (não default).
+    if (!allMembersSelected) {
+      list = list.filter((t) =>
+        t.assignee_emails.some((e) => selectedMembers.includes(e)),
+      );
+    }
     return list.sort((a, b) => {
       if (a.due_date && b.due_date && a.due_date !== b.due_date) {
         return a.due_date.localeCompare(b.due_date);
@@ -261,7 +292,7 @@ export function TasksCard({
       if (pri !== 0) return pri;
       return b.created_at.localeCompare(a.created_at);
     });
-  }, [tasks, filter, currentEmail]);
+  }, [tasks, viewDone, allMembersSelected, selectedMembers]);
 
   const tasksByCategory = useMemo(() => {
     const map: Record<TaskCategory, Task[]> = {
@@ -281,15 +312,17 @@ export function TasksCard({
 
   const recentDoneTasks = useMemo(() => {
     let list = tasks.filter((t) => t.done);
-    if (filter === "minhas") {
-      list = list.filter((t) => t.assignee_emails.includes(currentEmail));
+    if (!allMembersSelected) {
+      list = list.filter((t) =>
+        t.assignee_emails.some((e) => selectedMembers.includes(e)),
+      );
     }
     return list
       .sort((a, b) =>
         (b.done_at ?? b.updated_at).localeCompare(a.done_at ?? a.updated_at),
       )
       .slice(0, 10);
-  }, [tasks, filter, currentEmail]);
+  }, [tasks, allMembersSelected, selectedMembers]);
 
   const [showDoneTasks, setShowDoneTasks] = useState(false);
 
@@ -551,22 +584,48 @@ export function TasksCard({
       icon={ListTodo}
       iconColor="text-indigo-600"
       action={
-        <div className="flex items-center gap-1">
-          <Select
-            value={filter}
-            onValueChange={(v) => v && setFilter(v as typeof filter)}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1" title="Filtrar por responsável (clica para esconder)">
+            {TEAM_MEMBERS.map((m) => {
+              const active = selectedMembers.includes(m.email);
+              return (
+                <button
+                  key={m.email}
+                  type="button"
+                  onClick={() => toggleMember(m.email)}
+                  aria-pressed={active}
+                  title={
+                    active
+                      ? `Esconder tarefas de ${m.name}`
+                      : `Mostrar tarefas de ${m.name}`
+                  }
+                  className={cn(
+                    "relative h-7 w-7 rounded-full overflow-hidden transition-all shrink-0",
+                    active
+                      ? "ring-2 ring-indigo-600 ring-offset-1 ring-offset-surface"
+                      : "opacity-30 grayscale hover:opacity-70",
+                  )}
+                >
+                  <Image
+                    src={m.photo}
+                    alt={m.name}
+                    fill
+                    sizes="28px"
+                    className="object-cover"
+                  />
+                </button>
+              );
+            })}
+          </div>
+          <Button
+            size="sm"
+            variant={viewDone ? "default" : "ghost"}
+            onClick={() => setViewDone((v) => !v)}
+            className="h-7 px-2 text-xs"
+            title={viewDone ? "Ver activas" : "Ver concluídas"}
           >
-            <SelectTrigger className="h-7 text-xs px-2 py-1 w-auto min-w-[100px]">
-              <SelectValue
-                labels={{ todas: "Todas", minhas: "Minhas", feitas: "Feitas" }}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas</SelectItem>
-              <SelectItem value="minhas">Minhas</SelectItem>
-              <SelectItem value="feitas">Feitas</SelectItem>
-            </SelectContent>
-          </Select>
+            {viewDone ? "Activas" : "Concluídas"}
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -706,13 +765,13 @@ export function TasksCard({
       {visibleTasks.length === 0 ? (
         <div className="px-5 py-3">
           <p className="text-sm text-cocoa-700 py-6 text-center">
-            Sem tarefas{" "}
-            {filter === "minhas"
-              ? "atribuídas a ti"
-              : filter === "feitas"
-                ? "concluídas"
-                : ""}
-            .
+            {selectedMembers.length === 0
+              ? "Nenhum responsável selecionado."
+              : viewDone
+                ? "Sem tarefas concluídas."
+                : !allMembersSelected
+                  ? "Sem tarefas para os responsáveis seleccionados."
+                  : "Sem tarefas."}
           </p>
         </div>
       ) : (
@@ -762,7 +821,7 @@ export function TasksCard({
         </DndContext>
       )}
 
-      {filter !== "feitas" && recentDoneTasks.length > 0 && (
+      {!viewDone && recentDoneTasks.length > 0 && (
         <div className="border-t border-cream-200">
           <button
             type="button"
@@ -1008,7 +1067,7 @@ function DraggableTaskTile({
           )}
         </button>
 
-        <PriorityDot
+        <PriorityPill
           priority={task.priority}
           onChange={onChangePriority}
         />
@@ -1102,10 +1161,10 @@ function DraggableTaskTile({
 }
 
 // ============================================================
-// PriorityDot — pontinho + popover para mudar prioridade
+// PriorityPill — pill compacto com abreviatura + popover para mudar
 // ============================================================
 
-function PriorityDot({
+function PriorityPill({
   priority,
   onChange,
 }: {
@@ -1118,12 +1177,14 @@ function PriorityDot({
       <PopoverTrigger
         onPointerDown={(e) => e.stopPropagation()}
         className={cn(
-          "mt-1 h-2 w-2 rounded-full shrink-0 ring-1 ring-inset ring-black/10 hover:ring-2 hover:ring-cocoa-400 transition-all cursor-pointer",
-          PRIORITY_DOT_COLOR[priority],
+          "shrink-0 inline-flex items-center justify-center rounded-sm border px-1 h-4 text-[9px] font-bold leading-none tracking-wide cursor-pointer hover:brightness-95 transition-all",
+          TASK_PRIORITY_COLORS[priority],
         )}
         aria-label={`Prioridade: ${TASK_PRIORITY_LABELS[priority]}`}
         title={`Prioridade: ${TASK_PRIORITY_LABELS[priority]}`}
-      />
+      >
+        {PRIORITY_ABBREV[priority]}
+      </PopoverTrigger>
       <PopoverContent
         align="start"
         side="bottom"
