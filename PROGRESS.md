@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 32) — Sessão 88-E: **Custos de produção saem do workbench e ganham default automático**. `frame_internal_type` passa a default `'baixa'` (2x2cm) tanto no `createOrderAction` como na coluna SQL (mig 053). Backfill em encomendas existentes (excepto pirâmide). Removido `ProductionCostBadge` do workbench Preservação — produção é só para Finanças. Hint do dropdown "Tipo de moldura (interno)" corrigido (era enganador: dizia "não afecta preço" mas afecta custo de produção).
+## Fase actual: FASE 6 (parte 32) — Sessão 88-E/F: **Custos de produção saem do workbench, ganham default automático e aparecem em Finanças → Faturação**. (E) `frame_internal_type` default `'baixa'` (mig 053) + remoção do `ProductionCostBadge` do workbench. (F) KPI "Custo de produção" do mês/ano + 3ª barra amber no gráfico + nova fórmula `Lucro = Receita − Despesas − COGS` (proporcional ao % pago, espelhando a lógica da receita).
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,46 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 88-F 💰 COGS visível em Finanças → Faturação (KPI + gráfico + lucro real)
+
+Continuação directa da 88-E. Ao retirar o `ProductionCostBadge` do workbench, os custos de produção ficavam invisíveis em todo o sistema (a aba "Custos de produção" é só o wiki dos preços unitários, não agrega por encomenda). Esta sessão põe o COGS por encomenda na aba **Faturação**, onde a Maria já olha para a receita.
+
+**Query expandida — [src/app/(admin)/financas/page.tsx](src/app/(admin)/financas/page.tsx):**
+- Select de `orders` ganha `frame_size, frame_background, pyramid_frame, frame_internal_type, extra_small_frames, extra_small_frames_qty, production_cost_snapshot` — todos os campos de que `computeProductionCost` precisa.
+- O Pick<Order, ...> propagado para o client passa a refletir essas colunas.
+
+**Cálculo proporcional — [financas-client.tsx](src/app/(admin)/financas/financas-client.tsx) FaturacaoTab:**
+- Novo helper `paidRatio(o)` extraído de `revenueFromOrder` (0 / 0.3 / 0.7 / 1 conforme `payment_status`); `revenueFromOrder` agora reusa-o.
+- Novo `cogsFromOrder(o)`: se a encomenda tem snapshot, calcula o breakdown via `computeProductionCost(o, snapshot)` e **multiplica pelo `paidRatio`**. Decisão deliberada: contar o COGS na mesma proporção que a receita é contada evita que um mês com uma entrega grande e só 30% paga apareça com prejuízo enorme; quando os outros 70% chegam, o COGS sobe também na mesma proporção e a margem mantém-se coerente. Encomendas anteriores à mig 034 (sem snapshot) somam 0.
+- `cogsMonth` / `cogsYear` somam por janela igual à receita (filtro por `event_date` da encomenda).
+- Lucro: `profitMonth = revenueMonth - expensesMonth - cogsMonth` (antes era só `- expensesMonth`). Mesma alteração no `profitYear`.
+
+**KPIs reorganizados — grelha 4 colunas simétrica:**
+- Ano actual primário (4): Receita do mês | Despesas do mês | **Custo de produção** | Lucro do mês.
+- Ano actual secundário (4, antes eram 2): Receita {ano} | Despesas {ano} | **Custo produção {ano}** | Lucro {ano}.
+- Ano antigo / "Todos" (4, antes eram 3): Receita | Despesas | **Custo produção** | Lucro.
+- KPI de COGS usa `Frame` icon + `amber` (coerente com a cor da aba "Custos de produção").
+- Removido o label "Receita do ano" da grelha primária (não fazia sentido aparecer ao lado de "Receita do mês"; passou para a segunda linha onde os 4 KPIs são todos anuais).
+
+**Gráfico de 3 barras — [financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- `chartData` ganha campo `cogs` por bucket (mensal ou anual). `maxBarValue` inclui agora as 3 séries.
+- Cada bucket renderiza 3 barras lado-a-lado: emerald (receita), rose (despesas), **amber (produção)**. Barras passam de `w-3` para `w-2.5` (sm) / `w-2` (base) para caberem 3 em vez de 2.
+- Legenda actualizada: "Receita / Despesas / **Produção**".
+- Título da card: "Receita vs despesas vs custo de produção".
+
+**Texto explicativo no fundo da Faturação reescrito** para enumerar os 4 conceitos (Receita / Custo de produção / Despesas / Lucro) com a fórmula explícita e o alerta de que encomendas anteriores à mig 034 não somam para o COGS.
+
+**Sem migrações nesta sessão.** Preflight `tsc + next build` limpos.
+
+**Maria: passos manuais:**
+1. Push para Vercel (assumindo que mig 053 da sessão 88-E já foi aplicada — se ainda não, correr primeiro).
+2. Smoke browser → `/financas` → aba "Faturação":
+   - Grelha de KPIs no ano actual: 4 + 4 = 8 KPIs, agora inclui "Custo de produção" amber em ambas as linhas.
+   - "Lucro do mês" agora é receita − despesas − produção (era só receita − despesas) → valor menor que antes.
+   - Gráfico tem 3ª barra amber em cada mês.
+   - Encomendas anteriores à mig 034 (com `production_cost_snapshot=NULL`) somam 0 para o COGS — confirmar que isto não rebenta o cálculo.
+   - Trocar ano: KPIs e gráfico actualizam.
 
 ### Sessão 88-E 🏷️ Custos de produção saem do workbench + default `frame_internal_type='baixa'`
 
@@ -271,6 +311,17 @@ Maria pediu para conseguir **criar tarefas a partir do workbench** (de uma encom
 - Server action `createTaskFromTemplate` ou expandir `createTaskAction` para aceitar `order_id`/`voucher_id`/`amount`
 
 ## Próximo passo CONCRETO
+
+**Sessão 88-F — passos manuais (UI apenas, sem mig nova):**
+
+1. **Confirmar que mig 053 (sessão 88-E) está aplicada** — sem ela, encomendas com `frame_internal_type=NULL` não somam para o COGS.
+2. **Push para Vercel**.
+3. **Smoke browser** → `/financas` → aba "Faturação":
+   - Ano actual: ver 2 linhas de 4 KPIs cada (8 no total). Linha 1: Receita mês | Despesas mês | Custo produção mês | Lucro mês. Linha 2: mesmas 4 mas anuais. KPI de produção é amber com ícone Frame.
+   - "Lucro do mês" agora é menor que antes (subtrai COGS além de despesas).
+   - Gráfico mostra 3 barras por mês (emerald/rose/amber).
+   - Trocar ano no selector: tudo recalcula.
+   - Encomendas com `production_cost_snapshot=NULL` (antigas, pré-mig 034) somam 0 para COGS — comportamento esperado, não bloqueia nada.
 
 **Sessão 88-E — passos manuais (mig 053 + UI):**
 

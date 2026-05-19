@@ -63,6 +63,7 @@ import {
   PRODUCTION_FRAME_TYPE_SHORT,
   PRODUCTION_GLASS_TYPE_LABELS,
 } from "@/types/production-cost";
+import { computeProductionCost } from "@/lib/production-cost";
 import type { Expense, ExpenseCategory, ExpensePaymentMethod, ExpenseRecurrencePeriod } from "@/types/expense";
 import {
   EXPENSE_CATEGORY_LABELS,
@@ -149,7 +150,7 @@ interface Props {
   initialPricing: PricingItem[];
   initialProductionCosts: ProductionCostItem[];
   initialExpenses: Expense[];
-  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date">>;
+  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot">>;
   vouchers: Array<Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">>;
   canEdit: boolean;
 }
@@ -1329,7 +1330,7 @@ function InvoiceCell({ expense, canEdit }: { expense: Expense; canEdit: boolean 
 // FATURAÇÃO
 // ============================================================
 
-type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date">;
+type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot">;
 type FaturacaoVoucher = Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">;
 
 function FaturacaoTab({
@@ -1342,19 +1343,35 @@ function FaturacaoTab({
   expenses: Expense[];
 }) {
   // Receita = orders proporcional ao % pago + vales pagos não convertidos (evitar dupla contagem)
-  const revenueFromOrder = (o: FaturacaoOrder): number => {
-    if (!o.budget) return 0;
+  const paidRatio = (o: FaturacaoOrder): number => {
     switch (o.payment_status) {
-      case "100_pago": return o.budget;
-      case "70_pago":  return o.budget * 0.7;
-      case "30_pago":  return o.budget * 0.3;
+      case "100_pago": return 1;
+      case "70_pago":  return 0.7;
+      case "30_pago":  return 0.3;
       default: return 0;
     }
+  };
+  const revenueFromOrder = (o: FaturacaoOrder): number => {
+    if (!o.budget) return 0;
+    return o.budget * paidRatio(o);
   };
   const revenueFromVoucher = (v: FaturacaoVoucher): number => {
     if (v.payment_status !== "100_pago") return 0;
     if (v.usage_status === "preservacao_agendada") return 0; // evita dupla contagem com a encomenda
     return Number(v.amount);
+  };
+  // COGS proporcional ao % pago — mesma lógica que a receita para manter a
+  // margem comparável por período. Custo "total" da encomenda só faz sentido
+  // contar quando a respectiva receita também conta; caso contrário um mês
+  // com uma entrega grande mas só 30% paga apareceria como prejuízo enorme
+  // quando os outros 70% vêm depois.
+  const cogsFromOrder = (o: FaturacaoOrder): number => {
+    if (!o.production_cost_snapshot) return 0;
+    const ratio = paidRatio(o);
+    if (ratio === 0) return 0;
+    const breakdown = computeProductionCost(o, o.production_cost_snapshot);
+    if (!breakdown) return 0;
+    return breakdown.total * ratio;
   };
 
   const now = new Date();
@@ -1449,8 +1466,17 @@ function FaturacaoTab({
     .filter((e) => inRange(e.expense_date, yearStart, yearEnd))
     .reduce((s, e) => s + Number(e.amount), 0);
 
-  const profitMonth = revenueMonth - expensesMonth;
-  const profitYear = revenueYear - expensesYear;
+  // Custo de produção (COGS) por período: atribuído à mesma janela em que a
+  // receita conta, ou seja, pela data do evento da encomenda.
+  const cogsMonth = orders
+    .filter((o) => inRange(o.event_date, monthStart, monthEnd))
+    .reduce((s, o) => s + cogsFromOrder(o), 0);
+  const cogsYear = orders
+    .filter((o) => inRange(o.event_date, yearStart, yearEnd))
+    .reduce((s, o) => s + cogsFromOrder(o), 0);
+
+  const profitMonth = revenueMonth - expensesMonth - cogsMonth;
+  const profitYear = revenueYear - expensesYear - cogsYear;
   const monthDelta = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : null;
 
   // Gráfico:
@@ -1467,15 +1493,17 @@ function FaturacaoTab({
           orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
           vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
         const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
+        const cogs = orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + cogsFromOrder(o), 0);
         return {
           key: String(y),
           label: String(y),
           revenue: rev,
           expenses: exp,
+          cogs,
         };
       });
     }
-    const buckets: { key: string; label: string; revenue: number; expenses: number }[] = [];
+    const buckets: { key: string; label: string; revenue: number; expenses: number; cogs: number }[] = [];
     for (let m = 0; m < 12; m++) {
       const start = startOfMonth(new Date(selectedYear as number, m, 1));
       const end = endOfMonth(new Date(selectedYear as number, m, 1));
@@ -1483,18 +1511,20 @@ function FaturacaoTab({
         orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
         vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
       const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
+      const cogs = orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + cogsFromOrder(o), 0);
       buckets.push({
         key: format(start, "yyyy-MM"),
         label: format(start, "MMM", { locale: pt }),
         revenue: rev,
         expenses: exp,
+        cogs,
       });
     }
     return buckets;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, vouchers, expenses, selectedYear, isAllTime, availableYears]);
 
-  const maxBarValue = Math.max(...chartData.map((m) => Math.max(m.revenue, m.expenses)), 1);
+  const maxBarValue = Math.max(...chartData.map((m) => Math.max(m.revenue, m.expenses, m.cogs)), 1);
 
   return (
     <div className="space-y-4">
@@ -1525,8 +1555,8 @@ function FaturacaoTab({
         </p>
       </div>
 
-      {/* KPIs principais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* KPIs principais — Receita / Despesas (fixas) / COGS (produção) / Lucro */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {isCurrentYear ? (
           <>
             <KpiBox
@@ -1536,8 +1566,8 @@ function FaturacaoTab({
               color="emerald"
               delta={monthDelta}
             />
-            <KpiBox label={`Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
             <KpiBox label="Despesas do mês" value={formatEUR(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
+            <KpiBox label="Custo de produção" value={formatEUR(cogsMonth)} icon={<Frame className="h-4 w-4" />} color="amber" />
             <KpiBox
               label="Lucro do mês"
               value={formatEUR(profitMonth)}
@@ -1549,14 +1579,17 @@ function FaturacaoTab({
           <>
             <KpiBox label={isAllTime ? "Receita total" : `Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
             <KpiBox label={isAllTime ? "Despesas totais" : `Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+            <KpiBox label={isAllTime ? "Custo produção total" : `Custo produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" />
             <KpiBox label={isAllTime ? "Lucro total" : `Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
           </>
         )}
       </div>
 
       {isCurrentYear && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiBox label={`Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
           <KpiBox label={`Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+          <KpiBox label={`Custo produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" />
           <KpiBox label={`Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
         </div>
       )}
@@ -1610,9 +1643,9 @@ function FaturacaoTab({
 
       {/* Bar chart: 12 meses do ano ou 1 barra por ano se "Todos" */}
       <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-semibold text-cocoa-900">
-            {isAllTime ? "Receita vs despesas por ano" : `Receita vs despesas — ${selectedYear}`}
+            {isAllTime ? "Receita vs despesas vs custo de produção por ano" : `Receita vs despesas vs custo de produção — ${selectedYear}`}
           </h3>
           <div className="flex items-center gap-3 text-xs text-cocoa-700">
             <span className="inline-flex items-center gap-1.5">
@@ -1621,6 +1654,9 @@ function FaturacaoTab({
             <span className="inline-flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-rose-400" />Despesas
             </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-amber-400" />Produção
+            </span>
           </div>
         </div>
         <div className="flex items-end gap-1 h-48">
@@ -1628,14 +1664,19 @@ function FaturacaoTab({
             <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
               <div className="w-full flex items-end justify-center gap-0.5 h-40">
                 <div
-                  className="w-2.5 sm:w-3 bg-emerald-400 rounded-t transition-all"
+                  className="w-2 sm:w-2.5 bg-emerald-400 rounded-t transition-all"
                   style={{ height: `${(m.revenue / maxBarValue) * 100}%` }}
                   title={`Receita: ${formatEUR(m.revenue)}`}
                 />
                 <div
-                  className="w-2.5 sm:w-3 bg-rose-400 rounded-t transition-all"
+                  className="w-2 sm:w-2.5 bg-rose-400 rounded-t transition-all"
                   style={{ height: `${(m.expenses / maxBarValue) * 100}%` }}
                   title={`Despesas: ${formatEUR(m.expenses)}`}
+                />
+                <div
+                  className="w-2 sm:w-2.5 bg-amber-400 rounded-t transition-all"
+                  style={{ height: `${(m.cogs / maxBarValue) * 100}%` }}
+                  title={`Custo de produção: ${formatEUR(m.cogs)}`}
                 />
               </div>
               <span className="text-[10px] text-cocoa-700 capitalize">{m.label}</span>
@@ -1645,7 +1686,7 @@ function FaturacaoTab({
       </div>
 
       <p className="text-xs text-cocoa-700 italic px-1">
-        Receita = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos que ainda não foram convertidos em preservação (evita dupla contagem). Encomendas são atribuídas ao ano pela data do evento; vales pela data de criação; despesas pela data da despesa. Para métricas mais detalhadas, ver a aba Métricas.
+        <strong>Receita</strong> = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos ainda não convertidos em preservação (evita dupla contagem). <strong>Custo de produção</strong> = soma do COGS de cada encomenda (snapshot capturado na criação, calculado a partir do tamanho, fundo, tipo de moldura e extras) também proporcional ao % pago, para que a margem seja comparável por período. <strong>Despesas</strong> = custos fixos (subscrições + únicos) na data da despesa. <strong>Lucro</strong> = receita − despesas − custo de produção. Encomendas e custo de produção atribuídos ao período pela data do evento; vales pela data de criação. Encomendas anteriores à mig 034 não têm snapshot e não somam para o COGS. Para métricas mais detalhadas, ver a aba Métricas.
       </p>
     </div>
   );
