@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 31) — Sessão 88-C: **Tarefas no workbench Vale-Presente + linkage no Dashboard kanban** — bloco "Tarefas" no Vale (só `{Total}` em vez de %), tile do kanban ganha badge clicável da encomenda/vale (próprio ícone Link2 + código curto, navega ao workbench) + valor € à direita. Componente foi promovido a `src/components/workbench-tasks-block.tsx` (partilhado). Falta sessão 88-D (página CRUD de templates).
+## Fase actual: FASE 6 (parte 31) — Sessão 88-D: **CRUD de templates de tarefas em Sistema → Tarefas**. Página nova `/settings/templates-tarefas` com lista + diálogo de edição + variáveis clicáveis. Renomeada entrada "Templates" da topbar para "Mensagens" (clareza vs nova "Tarefas"). Funcionalidade "tarefas a partir do workbench" completa.
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,54 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 88-D 🗂️ Página CRUD de templates de tarefas (Sistema → Tarefas)
+
+Fecha o ciclo da funcionalidade "tarefas a partir do workbench" iniciada em 88-A. Maria precisava de poder editar/criar/arquivar templates sem mexer em BD.
+
+**Server actions — [src/app/(admin)/settings/templates-tarefas/actions.ts](src/app/(admin)/settings/templates-tarefas/actions.ts):**
+- `createTaskTemplateAction(input)` — insere com `is_seed=false` (templates criados via UI nunca são seeds). Aceita `TaskTemplateInsert`.
+- `updateTaskTemplateAction(id, patch)` — exclui `slug` e `is_seed` do patch (defensivo; UI não os edita).
+- `archiveTaskTemplateAction(id)` / `restoreTaskTemplateAction(id)` — soft delete via `deleted_at`. Templates seed podem ser arquivados (somem do picker) e restaurados.
+- Todos com `requireAdmin()` + `revalidatePath("/settings/templates-tarefas")`.
+
+**Page — [src/app/(admin)/settings/templates-tarefas/page.tsx](src/app/(admin)/settings/templates-tarefas/page.tsx):**
+- Server component. `getCurrentRole()` → redirect a `/` se não admin.
+- Query `task_templates` ordenado por scope, position, name. Inclui arquivados (deleted_at) — UI filtra.
+
+**Client — [src/app/(admin)/settings/templates-tarefas/templates-tarefas-client.tsx](src/app/(admin)/settings/templates-tarefas/templates-tarefas-client.tsx):**
+- Header: ícone ListTodo + título + toggle "Ver activos/arquivados" + botão "+ Novo template".
+- Bloco "Variáveis disponíveis" com cada `TASK_TEMPLATE_VARIABLES.key` como chip clicável (copy-to-clipboard) e tooltip com descrição + scope.
+- Tabela: Nome (com badge "Seed" se aplicável), Título (mono, truncated), Escopo (badge colorido sky/violet/emerald), Categoria, Prioridade, Valor (ícone Receipt se `needs_amount`), Acções (editar/arquivar/restaurar).
+- Diálogo de edição (`Dialog` modal, `sm:max-w-2xl`):
+  - Nome + Escopo (grid 2 colunas)
+  - Título da tarefa (Textarea, font-mono) — abaixo botões "+ {variável}" que fazem append ao textarea
+  - Descrição opcional (Textarea)
+  - Categoria default + Prioridade default (grid 2 colunas)
+  - Caixa colapsável "Este template pede um valor (€)" — checkbox; quando true, mostra input "Etiqueta do diálogo" (ex.: "Valor a faturar")
+- Optimistic updates ao guardar/arquivar/restaurar (server revalidatePath ainda corre para garantir consistência).
+
+**Topbar — [src/components/sistema-topbar.tsx](src/components/sistema-topbar.tsx):**
+- Adicionada entrada `Tarefas` com ícone `ListTodo` → `/settings/templates-tarefas` (adminOnly).
+- Renomeada entrada existente de `Templates` para `Mensagens` (existing page agora cobre só message templates; nome mais claro).
+
+**Sem migrações nesta sessão.** Preflight `tsc --noEmit` + `next build` limpos. Página `/settings/templates-tarefas` aparece na lista de rotas.
+
+**Maria: passos manuais:**
+1. Push para Vercel.
+2. Smoke browser:
+   - `/settings/google` ou qualquer página `/settings/*` → topbar mostra agora `Mensagens` (em vez de `Templates`) e nova entrada `Tarefas`.
+   - Click `Tarefas` → vê os 4 seeds com badge "Seed", título com variáveis em mono, escopo colorido. Botão Edit em cada um.
+   - "+" → diálogo aberto com campos vazios + variáveis clicáveis. Escrever nome "Teste", título "Cliente: {nome_cliente}", click no chip "+ {nif}" no rodapé do textarea → adicionado ao final. Guardar → toast.
+   - Editar um seed → mudar prioridade default → guardar. Tarefa criada com esse template a seguir usa a nova prioridade.
+   - Marcar "Este template pede valor" → input "Etiqueta do diálogo" aparece. Guardar. No workbench, ao escolher esse template → abre diálogo com a label escolhida.
+   - Arquivar um template → desaparece da lista activa e do picker do workbench. Toggle "Ver arquivados" → vê-o; restaurar.
+
+**Funcionalidade completa!** O ciclo "criar tarefa a partir do workbench com templates editáveis" está fechado:
+- 88-A: schema (mig 052) — `tasks.voucher_id`, `tasks.amount`, tabela `task_templates` com 4 seeds
+- 88-B: UI workbench Preservação (bloco + picker + diálogo de valor)
+- 88-C: UI workbench Vale-Presente (mesmo bloco, opção "Total") + linkage do tile do kanban → workbench + € à direita
+- 88-D: CRUD de templates em Sistema → Tarefas
 
 ### Sessão 88-C 🧷 Tarefas no Vale-Presente + linkage clicável no Dashboard
 
@@ -248,119 +296,20 @@ Maria via screenshot do Dashboard, em 2 iterações:
    - Arrastar cabeçalho de uma coluna para cima de outra → trocam de ordem; recarregar página → ordem fica.
    - Continuar a poder arrastar tiles entre colunas.
 
-### Sessão 86 🎨 Kanban refinado + drag-and-drop invisível + título/detalhes editáveis (mig 051)
-
-Maria iterou na sessão 85: (1) o botão "↔" para mover entre colunas era ruidoso e desnecessário — quer DnD invisível; (2) as pills coloridas das categorias eram indistinguíveis das outras pills da app; (3) cada task (global E pessoal) precisa de título + detalhes; (4) tem que dar para editar items da checklist pessoal.
-
-**Migração 051 — [supabase/migrations/051_checklist_description.sql](supabase/migrations/051_checklist_description.sql):**
-- `ALTER TABLE personal_checklist ADD COLUMN IF NOT EXISTS description TEXT;`
-- Tasks já tinham `description` desde a mig 012; agora a checklist pessoal tem paridade.
-
-**Tipo — [src/types/tasks.ts](src/types/tasks.ts):** `ChecklistItem.description: string | null`.
-
-**Identidade visual nova por categoria — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- `CATEGORY_META` map com ícone (lucide) + cor de barra superior + tom subtil de fundo + accent da borda esquerda do tile. Combinação distintiva:
-  - Packaging → `Package` + orange-500 barra
-  - Flores → `Flower2` + pink-500
-  - Presença online → `Globe` + cyan-500
-  - Estúdio → `Camera` + purple-500
-  - Administrativo → `FileText` + zinc-500
-  - Outros → `MoreHorizontal` + stone-400
-- Cabeçalho da coluna: barra colorida 3px no topo + ícone num quadradinho com tint da categoria + label semibold + contador. **Zero pills.**
-- Tile: borda esquerda 3px na cor da categoria (sinal subtil de identidade).
-
-**Drag-and-drop (sem botão visível) — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- `DndContext` + `useDraggable` em cada tile + `useDroppable` em cada coluna. PointerSensor com `distance: 6` para não capturar cliques nos pills/checkbox.
-- Cada elemento interactivo do tile (checkbox, avatares, Select, edit/delete) tem `onPointerDown={(e) => e.stopPropagation()}` para não disparar drag.
-- `DragOverlay` mostra mini-card do título+detalhes durante o drag. Coluna destino ganha `ring-2 ring-cocoa-400` quando o pointer está em cima; placeholder muda de "—" para "Largar aqui" se vazia.
-- Drop em coluna diferente → `handleCategoryChange` é chamado (mesmo path do antigo botão "↔"). Drop na própria coluna é no-op.
-- Botão "↔" **removido**.
-
-**Título + detalhes — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) e [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx):**
-- Tile do kanban: título em font-medium + `description` por baixo em text-cocoa-600 text-[11px] `whitespace-pre-wrap` (preserva quebras de linha).
-- Checklist pessoal: paridade — text em font-medium + description abaixo. Aplica-se também às tarefas mostradas na checklist pessoal (vista mesclada).
-- Form de criação ganha `Textarea` "Detalhes (opcional)" entre o título e os selects.
-
-**Modo edição inline — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) e [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx):**
-- Estado `editingId: string | null` no card.
-- Ícone Pencil aparece na hover dos tiles (afazeres globais) e dos items da checklist pessoal (a par do botão de apagar).
-- Click em Pencil → tile/row substituído por sub-componente `TaskEditForm` / `ChecklistEditForm`: Input para título + Textarea para detalhes + Select prioridade + Input date + botões Check (guardar) / X (cancelar).
-- Save: optimistic update local + `updateTaskAction` / `updateChecklistItemAction`. Validação básica — título não pode ficar vazio.
-
-**Dashboard layout — [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):** sem mudanças relativas à sessão 85 (TasksCard full-width no topo, restantes 3 cards na grelha 2×2 abaixo).
-
-Preflight `tsc --noEmit` + `next build` limpos. **Maria: passos manuais:**
-1. **Correr migrações 050 e 051** (se 050 ainda não foi). Verificar:
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='personal_checklist' AND column_name='description';` → 1 linha.
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha.
-2. **Push para Vercel**.
-3. **Smoke**:
-   - `/` → afazeres globais com 6 colunas, cada uma com **ícone único** + barra colorida no topo.
-   - Hover num tile → aparecem ícones de Pencil (editar) e Trash. Click no Pencil → tile transforma-se em formulário com título/detalhes/prioridade/data + ✓/✗ no canto.
-   - Criar tarefa nova → o form agora tem campo "Detalhes (opcional)".
-   - Arrastar um tile para outra coluna → muda de categoria. Drop na mesma coluna não faz nada.
-   - Checklist pessoal: mesmo Pencil em cada item; descrição nova editável; tarefas atribuídas a mim mostram também description quando preenchida.
-
-### Sessão 85 🗂️ Afazeres globais — kanban por categoria (mig 050 + layout full-width)
-
-Maria pediu para agrupar visualmente os afazeres globais por categorias. Sugeriu 5 (packaging / flores / presença online / estúdio / outros); propus adicionar "administrativo" (fatura/NIF/contabilidade) para que "Outros" não se torne lixeira. Total: 6 categorias.
-
-1ª iteração foi com agrupamento vertical (cabeçalhos colapsáveis). Maria pediu para passar a **colunas (kanban)**. Optei por full-width no Dashboard porque 6 colunas em meio-ecrã ficavam ~110px e ilegíveis.
-
-**Migração 050 — [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql):**
-- `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'outros' CHECK (...)`.
-- Index parcial `tasks_category_idx` sobre tarefas vivas e não feitas.
-- Default `'outros'` garante backfill imediato e seguro e que inserts pré-migração continuam a funcionar.
-
-**Tipo — [src/types/tasks.ts](src/types/tasks.ts):**
-- `TaskCategory`: `packaging | flores | presenca_online | estudio | administrativo | outros`.
-- `Task.category: TaskCategory` (obrigatório, default da BD).
-- Constantes `TASK_CATEGORY_LABELS` (PT), `TASK_CATEGORY_COLORS` (amber/rose/sky/violet/slate/stone — distintas de prioridades), `TASK_CATEGORY_ORDER`.
-
-**Layout Dashboard — [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
-- TasksCard sai da grelha 2×2 e passa a ocupar **linha inteira** no topo do Dashboard.
-- Por baixo: 2×2 com Checklist + Pickups na 1ª linha e Alerts na 2ª (com 1 célula livre — `items-start` evita stretch).
-
-**UI kanban — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- Form de criação: grid 3 colunas (categoria + prioridade + data). Default `outros`.
-- Lista renderiza **grelha `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6`** com 6 colunas estáveis (sempre visíveis, mesmo vazias — placeholder "—"). Empty columns servem como destino para mover.
-- Cada coluna é uma "raia" com fundo `cream-50/50` e cabeçalho fixo (badge categoria + contador). Body com `max-h-[440px]` + `overflow-y-auto` por coluna (scroll independente).
-- Tile compacto por tarefa: checkbox + título + Apagar (hover); linha de 3 avatares pequenos (h-4); linha de pills (prioridade + botão "↔" para mover + data se houver). Botão "↔" abre Select que move a tarefa entre colunas (substitui o pill da categoria do tile — redundante porque a coluna já mostra).
-- Filtro Todas/Minhas/Feitas continua a funcionar — aplica-se **antes** do agrupamento.
-- `recentDoneTasks` mantém-se flat no fundo da card.
-
-Preflight `tsc --noEmit` + `next build` limpos. **Maria: passos manuais:**
-1. **Correr [supabase/migrations/050_tasks_category.sql](supabase/migrations/050_tasks_category.sql)** no Supabase SQL Editor. Verificar:
-   - `SELECT column_name, column_default FROM information_schema.columns WHERE table_name='tasks' AND column_name='category';` → 1 linha, default `'outros'`.
-   - `SELECT category, count(*) FROM tasks WHERE deleted_at IS NULL GROUP BY category;` → todas em `outros`.
-2. **Push para Vercel**.
-3. **Smoke**:
-   - `/` → afazeres globais ocupa toda a largura por cima do Checklist/Pickups/Alerts.
-   - 6 colunas visíveis em `lg:` (2 em mobile, 3 em sm); coluna "Outros" tem as tarefas existentes; restantes têm "—".
-   - "+": form com 3 colunas (categoria + prioridade + data). Criar tarefa em "Packaging" → tile aparece na coluna amber.
-   - No tile, clicar no botão "↔" → abre Select com 6 categorias → tarefa muda de coluna imediatamente.
-   - Verificar em telemóvel: 2 colunas + scroll vertical.
-
-### Sessão 84 🟠 Vermelho ≠ "evento próximo" — passa a âmbar; vermelho só para passados; esconder após flores_recebidas
-
-Maria via screenshots (Timeline + Tabela): eventos a 5 dias estavam marcados a vermelho com ⚠ ("5d") mesmo sem terem acontecido. Causava ansiedade — o vermelho parece alarme de "perdeste/falhaste algo". Em 2ª iteração pediu também: (1) esconder o alerta a partir de `flores_recebidas` ou `flores_na_prensa` (já temos as flores, a data do evento deixa de ser sinal de acção); (2) âmbar mal se distinguia do cream — bump da saturação + trocar ícone para algo mais visível.
-
-**Mudança transversal — 3 cortes lógicos:**
-1. Substituí o flag único `urgentEvent` (≤5 dias && ≥0) por **`overdueEvent`** (`daysAway < 0`) e **`soonEvent`** (`0 ≤ daysAway ≤ 5`).
-2. Helper novo em [src/app/(admin)/preservacao/_styles.ts](src/app/(admin)/preservacao/_styles.ts): `isEventAlertRelevant(status)` — `true` só para `entrega_flores_agendar | entrega_agendada | flores_enviadas`. A partir de `flores_recebidas` devolve `false` e ambos os flags ficam falsos.
-3. Cores e ícone: vermelho mantém `AlertTriangle` + `há Xd`. Âmbar sobe de `bg-amber-50/border-amber-200/text-amber-800` para **`bg-amber-200 border-amber-400 text-amber-900 font-bold`** + ícone `Clock` (escolhido entre Clock/Timer/Bell — não bate com nenhum `STATUS_ICONS`).
-
-Ficheiros tocados:
-- [src/app/(admin)/preservacao/_styles.ts](src/app/(admin)/preservacao/_styles.ts) — `EVENT_ALERT_RELEVANT_SET` + `isEventAlertRelevant`.
-- [src/app/(admin)/preservacao/timeline-view.tsx](src/app/(admin)/preservacao/timeline-view.tsx) — pill de data lateral (passados em stone separado de overdue em red) + badge inline com `Clock`.
-- [src/app/(admin)/preservacao/preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) — `OrderRow` usa `currentStatus` (respeita optimistic), `OrderCard` usa `order.status`. Célula `DATA EVENTO` da tabela com Clock inline.
-- [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) — banner topo, border+bg do Input `Data do evento`, texto relativo abaixo.
-
-Mantém a spec do CLAUDE.md ("Diferenciação visual quando faltam ≤5 dias para data do evento") — continua a haver diferenciação para os estados em que ainda há acção a tomar; nos restantes a data do evento é metadado e fica neutra. Preflight OK.
-
----
 
 ## Próximo passo CONCRETO
+
+**Sessão 88-D — passos manuais (UI; sem BD):**
+
+1. **Push para Vercel**.
+2. **Smoke browser:**
+   - Abrir qualquer `/settings/*` → topbar tem agora `Mensagens` (era `Templates`) e nova entrada `Tarefas`.
+   - Click `Tarefas` → `/settings/templates-tarefas`. Vê os 4 seeds (Passar fatura, Anexar comprovativo, Pedir feedback, Avisar parceiro) com badge "Seed".
+   - Bloco "Variáveis disponíveis" — click num chip → copia para clipboard + toast.
+   - Editar um template → diálogo abre com todos os campos. Botões "+ {variável}" no rodapé do título adicionam ao texto.
+   - Criar novo template — checkbox "Este template pede valor" mostra/esconde o campo "Etiqueta".
+   - Arquivar → some da lista. Toggle "Ver arquivados" → vê-o; restaurar.
+   - Workbench Preservação → picker reflecte alterações (template renomeado, arquivados desaparecem).
 
 **Sessão 88-C — passos manuais (UI; precisa mig 052 já corrida):**
 
@@ -476,9 +425,12 @@ Mantém a spec do CLAUDE.md ("Diferenciação visual quando faltam ≤5 dias par
 
 ---
 
-## Histórico condensado (sessões 1-83)
+## Histórico condensado (sessões 1-86)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-83)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-86)
+- **86** — Kanban refinado + DnD invisível + título/detalhes editáveis (mig 051 `personal_checklist.description`): substituição de pills de categoria por barra colorida no topo + borda esquerda 3px no tile; `@dnd-kit` PointerSensor distance=6 com `stopPropagation` em cada elemento clicável; Pencil em hover → form inline; campo "Detalhes" no form de criação; checklist com paridade visual (mesmo Pencil)
+- **85** — Afazeres globais agrupados em kanban por categoria (mig 050 `tasks.category` TEXT DEFAULT 'outros' CHECK 6 valores): TasksCard sai da grelha 2×2 e ocupa linha inteira no topo do Dashboard; grelha `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` com 6 colunas sempre visíveis (placeholder "—"); cada raia com fundo cream-50/50 e scroll independente
+- **84** — Vermelho ≠ "evento próximo" (Maria via screenshot): vermelho era ansiogénico para eventos a 5d. Split `urgentEvent` em `overdueEvent` (passados, red+AlertTriangle) + `soonEvent` (≤5d, amber-200/400/900 bold + Clock). Helper `isEventAlertRelevant(status)` esconde alerta a partir de `flores_recebidas`; banner do workbench, badge da timeline e célula da tabela usam mesma lógica
 - **83** — Dashboard paridade checklist↔afazeres (mig 049 `personal_checklist.priority + due_date`): form "+" expansível com prioridade+data igual ao tasks-card; pill "Global" removida (cor do checkbox distingue: cocoa=checklist, indigo=task); avatares mini em vez de `+N`; cor afazeres violet→indigo (não bate com recolhas); grid 2×2 `items-start` para cards não esticarem
 - **82** — Mig 048: trigger SQL `auto_mark_voucher_used()` SECURITY DEFINER fecha caminho do form público (PostgREST anon) que não passava pelo helper TS da sessão 80; EXCEPTION WHEN OTHERS para nunca bloquear INSERT em orders; WHEN clauses filtram disparos só para `gift_voucher_code` preenchido E mudado
 - **81** — Preservação fix célula Cliente (nome wrap + badges descem para 2ª row); mig 047 `orders.seen_by TEXT[]` + RPC `mark_order_seen`; hook `useUnreadOrdersCount(currentEmail)` per-user; auto `markOrderSeenAction` fire-and-forget ao abrir workbench; badge "Nova" sky (não amber, para não competir com recolha no local)
