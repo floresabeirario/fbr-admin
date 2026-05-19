@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 30) — Sessão 87: Dashboard sem **Checklist pessoal** + **prioridade em pill com abreviatura** (URG/ALTA/MÉD/BAIXA) com popover; **reordenação de colunas** via drag; Estúdio → **Palette + lime**; Admin → **teal** (era zinc, indistinguível do stone do Outros); **filtro por avatares** (3 fotos no header, multi-select, default todas)
+## Fase actual: FASE 6 (parte 31) — Sessão 88-C: **Tarefas no workbench Vale-Presente + linkage no Dashboard kanban** — bloco "Tarefas" no Vale (só `{Total}` em vez de %), tile do kanban ganha badge clicável da encomenda/vale (próprio ícone Link2 + código curto, navega ao workbench) + valor € à direita. Componente foi promovido a `src/components/workbench-tasks-block.tsx` (partilhado). Falta sessão 88-D (página CRUD de templates).
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,147 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 88-C 🧷 Tarefas no Vale-Presente + linkage clicável no Dashboard
+
+Estende a sessão 88-B aos dois sítios em falta: workbench Vale-Presente e tile do kanban do Dashboard.
+
+**Componente promovido — [src/components/workbench-tasks-block.tsx](src/components/workbench-tasks-block.tsx):**
+- O antigo `_components/order-tasks-block.tsx` da Preservação foi generalizado e movido para `src/components/`. Nome `WorkbenchTasksBlock`.
+- API nova: `link: { type: "order" | "voucher"; id }` (discriminator) substitui o `orderId`; `paymentOptions: AmountOption[]` substitui `budget` (parent precomputa). Action call: `order_id` ou `voucher_id` set conforme o link.
+- Empty state e descrição do diálogo passam a depender de `link.type` ("vale" vs "encomenda").
+- Botões de pagamento no diálogo: layout 2 colunas para encomendas (4 opções); 1 coluna para vales (1 opção "Total").
+- Ficheiro antigo `_components/order-tasks-block.tsx` **apagado**.
+
+**Preservação — [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):**
+- Import migrado para `@/components/workbench-tasks-block` + `computeAmountOptionsFromBudget` do helper.
+- Card "Tarefas" agora chama o componente partilhado com `link={{ type: "order", id }}` e `paymentOptions={computeAmountOptionsFromBudget(local.budget)}`.
+
+**Vale-Presente — [src/app/(admin)/vale-presente/[code]/page.tsx](src/app/(admin)/vale-presente/[code]/page.tsx):**
+- `Promise.all` ganha 3ª query: `task_templates` com `scope IN ('voucher','both')`. A seguir, query separada de `tasks` com `eq voucher_id` filtrada por `voucher.id`.
+- `currentEmail` carregado via `getCurrentEmail()`.
+- 3 props novos passados ao client: `taskTemplates`, `voucherTasks`, `currentEmail`.
+
+**Vale-Presente workbench — [src/app/(admin)/vale-presente/[code]/workbench-client.tsx](src/app/(admin)/vale-presente/[code]/workbench-client.tsx):**
+- Props `taskTemplates`/`voucherTasks`/`currentEmail` no `Props` interface (opcionais com default vazio para retro-compat).
+- Imports: `WorkbenchTasksBlock`, `computeAmountOptionsForVoucher`, tipos `Task`/`TaskTemplate`, ícone `CheckSquare`.
+- `<Section title="Tarefas">` inserida **no topo** da coluna direita (antes de "Pagamento e fatura"). Mesma posição que no workbench Preservação para coerência.
+- `paymentOptions={computeAmountOptionsForVoucher(data.amount)}` — uma única opção "Total (€X)" porque vales são pagos 100% num só momento.
+- `context.client_name = data.sender_name` (remetente é quem compra o vale, é com ele que se interage).
+
+**Helper de valor para vales — [src/lib/task-templates.ts](src/lib/task-templates.ts):**
+- `computeAmountOptionsForVoucher(amount)` devolve `[{ label: "Total (€X,XX)", value: amount }]`. Retorna `[]` se amount é null/0 (campo manual fica como única opção).
+
+**Dashboard linkage — [src/app/(admin)/page.tsx](src/app/(admin)/page.tsx):**
+- Constrói dois lookups uuid→código curto a partir dos `orders`/`vouchers` já carregados: `orderCodeById` (`order.id → order.order_id`) e `voucherCodeById` (`voucher.id → voucher.code`).
+- Passa ambos para `DashboardClient`.
+
+**Cascata de props até ao tile — [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx), [src/app/(admin)/_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- `DashboardClient` → `TasksCard` → `CategoryColumn` → `DraggableTaskTile` — todas as quatro camadas passam `orderCodeById`/`voucherCodeById` para baixo. Defaults `{}` permitem chamadas legacy sem partir.
+
+**Tile do kanban — [src/app/(admin)/_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- **Badge de encomenda/vale:** IIFE no topo do tile lookup o código curto a partir de `task.order_id` ou `task.voucher_id`; renderiza um `<Link>` indigo com `Link2` icon + código mono, truncado a 120px. `onPointerDown stopPropagation` evita disparar drag. URL: `/preservacao/{order_id}` ou `/vale-presente/{code}`. Não renderiza nada se nenhum dos dois.
+- **Valor € à direita:** `<span tabular-nums>` antes do badge de data na bottom row (`ml-auto` group). Só renderiza quando `task.amount != null`. Formatado via `formatEUR()` (€135,00 no formato europeu). Regra universal de € à direita aplicada — não vai inline no texto da tarefa.
+
+**Preflight `tsc --noEmit` + `next build` limpos.** **Maria: passos manuais:**
+1. Sem migrações nesta sessão (mig 052 já basta).
+2. **Push para Vercel**.
+3. **Smoke browser:**
+   - Abrir `/vale-presente/[código]` — topo da coluna direita: card "Tarefas" border indigo, igual ao da Preservação. "+" → popover só com templates `scope=voucher` ou `both` (ex.: "Passar fatura com NIF" aparece; "Pedir feedback ao cliente" NÃO aparece — esse é só de encomenda).
+   - Click "Passar fatura com NIF" → diálogo com **uma só** opção "Total (€X)" + campo manual. Escolher → form inline; criar.
+   - Voltar ao Dashboard → tarefa aparece na kanban (categoria Administrativo). No tile vês: chip indigo no topo com `Link2` + código curto do vale; valor € à direita na bottom row; click no chip → abre `/vale-presente/[code]`.
+   - Mesma coisa para encomenda: criar tarefa no workbench Preservação → tile no kanban mostra chip com `order_id` curto (16 chars) → click navega para `/preservacao/[order_id]`.
+   - Tarefa sem `order_id`/`voucher_id` (criada directamente no Dashboard): tile sem chip; € à direita só aparece se foi criada via template `passar_fatura` (com amount).
+
+**Próxima sessão (88-D):** Página CRUD de templates de tarefas em Sistema → Templates de tarefas, com lista de variáveis disponíveis (`TASK_TEMPLATE_VARIABLES`).
+
+### Sessão 88-B 🧰 Tarefas no workbench Preservação — UI completa (picker, templates, diálogo de valor)
+
+UI do plano da sessão 88-A. Não toca em schema; usa a mig 052 + tipos da sessão anterior.
+
+**Helper de interpolação — [src/lib/task-templates.ts](src/lib/task-templates.ts):**
+- `interpolateTaskTemplate(template, ctx)` substitui `{nome_cliente}`, `{nif}`, `{nome_parceiro}`, `{valor_comissao}`, `{valor}` por valores reais; variáveis sem dados ficam como `"—"` (evita mostrar literalmente `{nif}` numa fatura).
+- `computeAmountOptionsFromBudget(budget)` devolve as 4 opções 30%/40%/70%/100% formatadas (`"30% (€135,00)"` + valor numérico) para o diálogo da fatura. Retorna `[]` se budget é null/0 (UI mostra só o campo manual).
+- `TaskTemplateContext` type — `client_name`, `nif`, `partner_name`, `partner_commission`, `amount`.
+
+**Page server-side — [src/app/(admin)/preservacao/[id]/page.tsx](src/app/(admin)/preservacao/[id]/page.tsx):**
+- Adicionado import de `Task`, `TaskTemplate` e `getCurrentEmail`. `Promise.all` ganha 3ª query: `task_templates` com `scope IN ('order','both')` ordenado por position. A seguir, query separada de `tasks` para a encomenda (`eq order_id` + `is deleted_at null`) — depende do `order.id` resolvido do lookup anterior, por isso fora do Promise.all.
+- Props passadas ao client: `taskTemplates`, `orderTasks`, `currentEmail`.
+
+**Componente novo — [src/app/(admin)/preservacao/[id]/_components/order-tasks-block.tsx](src/app/(admin)/preservacao/[id]/_components/order-tasks-block.tsx):**
+- Estado interno: `tasks[]` (mutável; sync inicial via prop), `showPicker`, `amountDraft` (template a precisar de valor), `draft` (template + título + amount + assignees + prioridade + dueDate).
+- Fluxo: click "+ Nova tarefa" → popover com lista de templates + "Tarefa em branco" → click template → se `needs_amount=true`, abre `<Dialog>` "Qual é o valor a faturar?" com 4 botões 30/40/70/100% (calculados de `orders.budget`) + input manual; sem budget, só input manual; depois de valor escolhido → form inline aparece com título já interpolado (variáveis substituídas) + assignees default=eu + prioridade default do template + data opcional.
+- TaskRow: checkbox done, título quebra linhas (`break-words`), pill de prioridade `URG/ALTA/MÉD/BAIXA` (cores `TASK_PRIORITY_COLORS`), mini avatares de assignees (h-4), badge de data com `Calendar` (rose se overdue), **€ alinhado à direita** (regra universal), trash em hover.
+- `createTaskAction({order_id, amount, ...})` — a action já aceitava `TaskInsert` completo desde sempre; só preciso passar os campos novos.
+
+**Workbench — [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):**
+- Imports: `OrderTasksBlock`, `Task`, `TaskTemplate`, `CheckSquare`.
+- Props novos no WorkbenchClient: `taskTemplates`, `orderTasks`, `currentEmail` (defaults vazios para retro-compat).
+- Card "Tarefas" inserido como **primeiro** card da coluna direita (antes de Finanças), accent indigo, ícone CheckSquare. Decisão: tasks são o item mais "accionável" do workbench — ficam no topo da coluna 3 para visibilidade. Inside o bloco, contador `"N tarefas por fazer"` no topo.
+- `partner_name` resolvido inline a partir da lista `partners` já carregada (procura por `id === local.partner_id`).
+
+**Pickers de Popover/Trigger:** este projecto usa `@base-ui/react` (não Radix). `PopoverTrigger` é `<button>` directo, sem `asChild`. Coerente com [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) (PriorityPill).
+
+**Preflight `tsc --noEmit` + `next build` limpos.** **Maria: passos manuais:**
+1. Confirmar que correste a mig 052 (sessão 88-A) — caso contrário, esta UI vai falhar (não há tabela `task_templates`).
+2. **Push para Vercel**.
+3. **Smoke browser** (em /preservacao/[qualquer id]):
+   - Topo da coluna direita: card "Tarefas" com border indigo. Se não houver tarefas, vê "Sem tarefas pendentes para esta encomenda" + botão "+ Nova tarefa".
+   - Click "+ Nova tarefa" → abre popover com 5 opções: "Tarefa em branco", "Passar fatura com NIF" (ícone Receipt verde), "Anexar comprovativo de pagamento", "Pedir feedback ao cliente", "Avisar parceiro da comissão".
+   - Click "Passar fatura com NIF" → abre diálogo com 4 botões (30/40/70/100% calculados do orçamento) + campo manual €. Em encomendas sem orçamento, só aparece o campo manual.
+   - Escolher 30% → form inline aparece com título `"Passar fatura para João Silva — NIF: …"` + bloco com `€XX,XX` à direita + 3 avatares (eu activo por default) + prioridade ALTA (default do template) + data vazia. Editar título à mão → guardado. Click "Criar" → tarefa aparece na lista; ir ao Dashboard, kanban Administrativo → tarefa lá. Voltar ao workbench → contador "1 tarefa por fazer" no topo.
+   - Click "Tarefa em branco" → form inline com título vazio (sem diálogo de valor). Criar normalmente.
+   - Checkbox numa tarefa → some da lista (filtra `done`). Hover → ícone Trash; click confirma e apaga.
+   - Templates sem `needs_amount` (feedback, comprovativo, parceiro) → vão direto ao form, título já preenchido com variáveis interpoladas (ou `"—"` se a encomenda não tem NIF/parceiro).
+   - Ana (viewer) → vê tarefas mas não vê o botão "+ Nova tarefa" nem o ícone Trash (canEdit=false).
+
+### Sessão 88-A 🧱 Tarefas a partir do workbench — fundação BD (mig 052)
+
+Maria pediu para conseguir **criar tarefas a partir do workbench** (de uma encomenda específica) e que essas tarefas:
+1. Tenham **templates** para casos frequentes (passar fatura com NIF, anexar comprovativo, pedir feedback, avisar parceiro da comissão) — editáveis em Sistema → Templates de tarefas
+2. Suportem **variáveis** ({nome_cliente}, {nif}, {nome_parceiro}, {valor_comissao}, {valor}) que se expandem com dados da encomenda
+3. Para faturas, **mini-diálogo a pedir o valor** com opções calculadas do orçamento (30%/40%/70%/100%/outro) — texto sai como `"Passar fatura para João Silva — NIF: 123456789"` com **€135 alinhado à direita** (regra universal de € à direita, guardada em memória)
+4. **Bloco "Tarefas desta encomenda (N por fazer)"** no workbench Preservação e Vale-Presente
+5. No Dashboard, badge clicável com encomenda quando aplicável
+
+**Plano em 4 sessões:** A (fundação BD) ← agora, B (workbench Preservação), C (workbench Vale + Dashboard linkage + € à direita), D (página CRUD de templates).
+
+**Migração 052 — [supabase/migrations/052_task_templates_and_voucher_link.sql](supabase/migrations/052_task_templates_and_voucher_link.sql):**
+- `tasks.voucher_id UUID REFERENCES vouchers(id) ON DELETE SET NULL` — simétrico ao `order_id` que já existia desde a mig 012 (mas nunca foi populado via UI). No máximo um dos dois preenchido por tarefa.
+- `tasks.amount NUMERIC(10,2)` — valor associado à tarefa (€), usado por templates com `needs_amount=true`. Mostra-se à direita na lista. Independente dos pagamentos da encomenda — é só o número que vai na fatura/recibo dessa tarefa.
+- Índices parciais em `order_id` e `voucher_id` (WHERE deleted_at IS NULL AND ... IS NOT NULL).
+- Tabela `task_templates` (espelha padrão de `message_templates` da mig 041): `slug` único, `name`, `title_template`, `description_template`, `default_category` (TaskCategory), `default_priority` (TaskPriority), `needs_amount` BOOLEAN, `amount_label` TEXT, `scope` (`order`/`voucher`/`both`), `position`, `is_seed`.
+- RLS: admins escrevem/editam; toda a gente autenticada (incluindo Ana viewer) lê — para que o picker funcione no workbench em modo leitura.
+- Audit log via trigger `log_task_template_changes()`.
+- Seed de 4 templates `is_seed=true`:
+  1. `passar_fatura` — "Passar fatura para {nome_cliente} — NIF: {nif}" / administrativo / alta / **needs_amount=true** / amount_label="Valor a faturar" / scope=both
+  2. `anexar_comprovativo` — "Anexar comprovativo de pagamento — {nome_cliente}" / administrativo / media / scope=both
+  3. `pedir_feedback` — "Pedir feedback a {nome_cliente}" / outros / baixa / scope=order
+  4. `avisar_parceiro_comissao` — "Avisar {nome_parceiro} da comissão de {valor_comissao}" / administrativo / media / scope=order
+
+(Maria pediu para retirar "Confirmar dados para envio" do seed original.)
+
+**Tipos — [src/types/tasks.ts](src/types/tasks.ts):**
+- `Task` ganha `voucher_id: string | null` e `amount: number | null` (`order_id` já existia).
+- Novo `TaskTemplate` interface + `TaskTemplateScope = "order" | "voucher" | "both"` + `TaskTemplateInsert` / `TaskTemplateUpdate`.
+- `TASK_TEMPLATE_VARIABLES` exportado — lista das 5 variáveis suportadas com descrição e scope; vai ser mostrada na página de gestão (sessão D) para a Maria saber o que pode escrever.
+
+**Memória nova guardada:** `feedback_valores_euro_direita` — valores em € sempre alinhados à direita em qualquer lista/tabela, nunca inline no texto. Regra universal a partir de agora.
+
+**Preflight tsc + next build limpos.** **Maria: passos manuais:**
+1. **Correr [supabase/migrations/052_task_templates_and_voucher_link.sql](supabase/migrations/052_task_templates_and_voucher_link.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('voucher_id','amount');` → 2 linhas.
+   - `SELECT count(*) FROM task_templates WHERE is_seed = true;` → 4.
+   - `SELECT slug, scope, needs_amount FROM task_templates ORDER BY position;` → 4 linhas na ordem certa.
+2. **Push para Vercel** (esta sessão só mexe em schema+tipos — nada visível na UI ainda; build a passar é suficiente).
+3. **Sem smoke browser nesta sessão** — UI vem na sessão B.
+
+**Próxima sessão (88-B) — Workbench Preservação:**
+- Bloco "Tarefas desta encomenda (N)" no workbench
+- Botão "+ nova tarefa" com dropdown de templates (filtrar por `scope IN ('order', 'both')`)
+- Função de interpolação de variáveis no cliente
+- Mini-diálogo "Qual é o valor a faturar?" para templates com `needs_amount=true`, com opções calculadas a partir do `orders.budget` (30/40/70/100/outro)
+- Server action `createTaskFromTemplate` ou expandir `createTaskAction` para aceitar `order_id`/`voucher_id`/`amount`
 
 ### Sessão 87 🧹 Dashboard: fora checklist + pill prioridade + reordenar colunas + estúdio lime + admin teal + filtro avatares
 
@@ -217,138 +358,40 @@ Ficheiros tocados:
 
 Mantém a spec do CLAUDE.md ("Diferenciação visual quando faltam ≤5 dias para data do evento") — continua a haver diferenciação para os estados em que ainda há acção a tomar; nos restantes a data do evento é metadado e fica neutra. Preflight OK.
 
-### Sessão 83 🎨 Dashboard — paridade checklist↔afazeres + indigo + cards não esticam (mig 049)
-
-Maria via screenshot do Dashboard: (1) checklist pessoal estava esquisitamente alta (estava a esticar à altura da card de afazeres globais); (2) checklist pessoal devia ter histórico igual ao global (já existia mas só visível quando há concluídas — Maria confirmou que basta isso); (3) `+1` (Users icon) nas tarefas partilhadas não diz quem é; (4) pill "Global" em cada tarefa é ruído; (5) violet das afazeres globais bate com violet das recolhas; (6) form "Nova tarefa pessoal" devia ter o mesmo visual da global (sem assign).
-
-**Migração 049 — [supabase/migrations/049_checklist_priority_due_date.sql](supabase/migrations/049_checklist_priority_due_date.sql):**
-- `ALTER TABLE personal_checklist ADD COLUMN priority TEXT NOT NULL DEFAULT 'media' CHECK (...)` + `due_date DATE`.
-- Index parcial `personal_checklist_due_date_idx` para ordenar por prazo.
-- Não há assignee — `owner_email` já manda; é checklist pessoal por construção.
-
-**Type — [src/types/tasks.ts](src/types/tasks.ts):** `ChecklistItem` ganha `priority: TaskPriority` + `due_date: string | null`. `ChecklistItemInsert` mantém só `owner_email + text` como obrigatórios; os defaults da BD tratam do resto.
-
-**Refactor [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx):**
-- Form de criação saiu do fundo (sempre visível) e passou a header com "+". Toggle com `showNew` state. Form expandido tem `<Input title>` + grid de `<Select priority>` + `<Input type=date>` — igual ao tasks-card mas **sem** avatares de assignee.
-- `createChecklistItemAction` passa a receber `priority + due_date`.
-- Items de checklist pessoal mostram pill de prioridade (cor por `TASK_PRIORITY_COLORS`) + badge de data com ícone calendar (rose se overdue, slate se futura) — paridade com tasks na lista mesclada.
-- Sort da lista mesclada compara `due_date` (item ou task) primeiro e prioridade depois — não só prioridade de tasks como antes.
-- Avatares partilhados: substituído o ícone `Users + "+N"` por uma fila de bolinhas pequenas (h-4 w-4) com foto de cada team member partilhado. Tooltip por avatar + tooltip do contentor.
-- Pill "Global" **removida** (era ruído visual). A diferença visual entre checklist e task na lista mesclada agora é a cor do checkbox: `text-[#C4A882]` (mesma da checklist) para checklist; `text-indigo-500` para task (subtil mas presente).
-- Empty state ajustado para "Carrega em + para criar um item" (já não há input no fundo).
-- Recent done mantém-se como estava — só aparece quando N > 0 (Maria confirmou na pergunta 3).
-
-**Cor afazeres globais — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- `iconColor: "text-violet-600"` → `"text-indigo-600"`.
-- Ring dos avatares no form de criação: `ring-violet-600` → `ring-indigo-600`.
-- Ring dos avatares assignee inline em cada task: `ring-violet-600` → `ring-indigo-600`.
-- Não toquei nos `TASK_PRIORITY_COLORS` (esses são pills de prioridade, não da card).
-
-**Cards não esticam — [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
-- Grid 2×2 (`grid-cols-1 lg:grid-cols-2 gap-6`) ganhou `items-start`. Antes cada cell esticava à altura da linha (default `align-items: stretch`), o que fazia a checklist pessoal vazia parecer enorme. Agora cada card sizing por conteúdo; ainda há gap visual entre rows mas é só o `gap-6`. O `SectionCard` continua `flex flex-col` + body `flex-1 min-h-0` para suportar o "Concluídas recentes" no fundo quando há.
-
-Preflight `tsc --noEmit` + `next build` limpo (warning preexistente do Google Sans fallback, sem relação). **Maria: passos manuais:**
-1. **Correr [supabase/migrations/049_checklist_priority_due_date.sql](supabase/migrations/049_checklist_priority_due_date.sql)** no Supabase SQL Editor. Verificar com:
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='personal_checklist' AND column_name IN ('priority','due_date');` → 2 linhas.
-2. **Push para Vercel**.
-3. **Smoke**:
-   - Abrir `/` → checklist pessoal já não estica à altura da card de afazeres (se uma das colunas tiver pouco conteúdo, ficam alturas diferentes, lado a lado).
-   - Carregar no "+" do header da checklist pessoal → form expande com input + prioridade + data + Cancelar/Criar (sem avatares de assign).
-   - Criar item: aparece na lista com pill de prioridade e (se preenchida) badge de data.
-   - Afazeres globais: ícone agora é indigo (azul escuro), os avatares activos no form e nas linhas têm ring indigo. As recolhas mantêm-se violet — já não há confusão.
-   - Tarefa global atribuída a 2+ pessoas: na checklist pessoal aparece com avatares pequenos das pessoas com quem é partilhada (em vez de "+1"). Pill "Global" deixou de existir.
-
----
-
-### Sessão 82 🔐 Mig 048 — trigger SQL fecha caminho do form público (anti-dupla-contagem)
-
-Maria perguntou o que era "trigger SQL" (mencionei como follow-up na sessão 80). Expliquei + ela autorizou ("faz o que achares melhor, sê ponderado, considera o que pode correr mal").
-
-**Contexto:** Na sessão 80, o helper TS `markVoucherAsScheduled` foi adicionado a `createOrderAction` e `updateOrderAction` para auto-marcar `vouchers.usage_status = 'preservacao_agendada'` quando uma encomenda usa um código de vale (anti-dupla-contagem na faturação). Mas isso cobria só o caminho do admin — encomendas vindas do form público (PostgREST anon directo) não passavam pelo action e portanto o vale continuava "preservacao_nao_agendada", duplicando.
-
-**Migração 048 — [supabase/migrations/048_auto_mark_voucher_trigger.sql](supabase/migrations/048_auto_mark_voucher_trigger.sql):**
-- Função `auto_mark_voucher_used()` `SECURITY DEFINER` (bypassa RLS de vouchers). Faz `UPDATE vouchers SET usage_status='preservacao_agendada', updated_at=now() WHERE code=NEW.gift_voucher_code AND deleted_at IS NULL AND usage_status <> 'preservacao_agendada'`.
-- **EXCEPTION WHEN OTHERS** envolto à volta do UPDATE — se algo falhar (RLS, FK, qualquer coisa), `RAISE NOTICE` para os logs do Postgres mas **NUNCA bloqueia** o INSERT/UPDATE em orders. Encomenda nunca falha por causa do trigger.
-- Trigger `orders_auto_mark_voucher_insert` AFTER INSERT, com `WHEN (NEW.gift_voucher_code IS NOT NULL AND TRIM(...) <> '')` — só dispara se a linha vier com código preenchido.
-- Trigger `orders_auto_mark_voucher_update` AFTER UPDATE OF gift_voucher_code, com `WHEN (NEW IS DISTINCT FROM OLD AND NEW IS NOT NULL AND TRIM(...) <> '')` — só dispara quando a coluna específica muda E o novo valor é válido. Evita disparar em todos os saves da Maria.
-- Idempotente: `WHERE usage_status <> 'preservacao_agendada'` evita writes inúteis (e ciclos).
-
-**Sem alterações no código TS** — o helper `markVoucherAsScheduled` da sessão 80 fica como está. "Belt and suspenders": dois caminhos (TS + trigger) cobrem todos os fluxos, ambos idempotentes, sem risco de duplicação. O helper TS ainda tem valor próprio: faz `revalidatePath("/vale-presente")` (refresh imediato no admin) que o trigger não consegue.
-
-Preflight `tsc --noEmit` limpo (nada em TS mudou). **Maria: passos manuais:**
-1. Correr [supabase/migrations/048_auto_mark_voucher_trigger.sql](supabase/migrations/048_auto_mark_voucher_trigger.sql) no Supabase SQL Editor.
-2. Correr os 5 smoke tests que estão em comentário no fim do ficheiro (substituir `XXXXXX` por um código real). O importante é confirmar (a) INSERT com código válido marca o vale; (b) INSERT com código inválido não bloqueia a encomenda; (c) UPDATE noutra coluna NÃO dispara o trigger.
-3. Sem push para Vercel (esta sessão é só BD).
-
----
-
-### Sessão 81 🎨 Preservação — célula "Cliente" + notificações per-user (mig 047 orders.seen_by)
-
-Dois pedidos da Maria via screenshot:
-1. Na linha de "Pré-reservas", o nome do cliente "Flores à Beira-Rio" wrappa em 4 linhas verticais quando combinado com os badges NOVA + Contactada na mesma flex row.
-2. Bolinha de notificação na sidebar ao lado de "Preservação de Flores" para encomendas por abrir; depois de uma 1ª iteração com heurística "criada <24h global", Maria pediu **per-user** ("tipo mensagem lida/não lida"): a bolinha some assim que **esse** utilizador abrir o workbench. Também: tirar o fundo amber da linha (já há badge na tabela) e mudar a cor do badge "Nova" — agora sky em vez de amber, para não competir com o amber dos badges "Recolha no local" (warning).
-
-**Fix da célula Cliente — [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) `OrderRow`:**
-- Antes: 1ª `<div flex items-center gap-1.5>` continha `<span>{client_name}</span>` + badges (Nova, Vale, Contactada) → o nome wrappava no espaço estreito e os badges mantinham-se inline, criando "escada vertical".
-- Agora: nome em `<span>` próprio com `truncate` + tooltip. Todos os badges (Nova, Vale, Contactada, parada-há-X-dias) descem para a 2ª row alongside `event_type`, num único `<div flex items-center gap-1.5 flex-wrap mt-0.5>`. Cada badge ganhou `shrink-0`.
-
-**Migração 047 — [supabase/migrations/047_orders_seen_by.sql](supabase/migrations/047_orders_seen_by.sql):**
-- `ALTER TABLE orders ADD COLUMN seen_by TEXT[] NOT NULL DEFAULT '{}'`.
-- Backfill: todas as encomendas existentes ficam marcadas como vistas pelos 3 utilizadores conhecidos (António/MJ/Ana). Sem isto, no 1º login depois da migração apareceriam 24 encomendas "novas" — não é o objectivo.
-- Nova RPC `mark_order_seen(p_order_id uuid)` SECURITY DEFINER (mesmo padrão que `mark_tasks_seen` da mig 044): valida que `auth.jwt() ->> 'email'` está na lista de 3 emails permitidos, faz `array_append(seen_by, user_email)` só quando ainda não lá está. GRANT a `authenticated` (Ana inclusive — viewer também precisa de marcar "lida" para si).
-
-**Hook + sidebar — [src/hooks/use-new-orders.ts](src/hooks/use-new-orders.ts):**
-- Renomeado para `useUnreadOrdersCount(currentEmail)`. Subscreve `orders` (Realtime INSERT/UPDATE), select `id, seen_by, deleted_at`, filtra `!seen_by.includes(currentEmail)`. Per-user.
-- [layout.tsx](src/app/(admin)/layout.tsx): hook chamado com `profile?.email`; bolinha esconde quando `pathname.startsWith("/preservacao")`. `titleParts` agora diz "N encomenda(s) por abrir" (já não "últimas 24h").
-
-**Marcar como visto ao abrir workbench — [preservacao/[id]/page.tsx](src/app/(admin)/preservacao/[id]/page.tsx):**
-- Nova server action `markOrderSeenAction(id)` em [preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts) — usa `requireUser` (não `requireAdmin`, para Ana funcionar) + `supabase.rpc("mark_order_seen", { p_order_id: id })`. Silencioso em falha — abrir o workbench nunca pode falhar por causa disto.
-- Chamado fire-and-forget (`void markOrderSeenAction(order.id)`) imediatamente depois do load da encomenda. Idempotente a partir da 2ª visita (a RPC verifica `NOT user_email = ANY(seen_by)`).
-
-**Cores + isNew per-user — [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):**
-- `Order` type ganha `seen_by: string[]` em [types/database.ts](src/types/database.ts).
-- `isNew = !!currentEmail && !(order.seen_by ?? []).includes(currentEmail)` em ambos OrderRow e OrderCard.
-- `<tr>` perde a classe `bg-amber-50/50 hover:bg-amber-50` (só ficamos com `hover:bg-cream-50` neutro). Card perde `border-amber-300 bg-amber-50/60 hover:border-amber-400`.
-- Badge "Nova" passa de `bg-amber-100 border-amber-300 text-amber-800` para `bg-sky-100 border-sky-300 text-sky-800` (tabela e cards). Tooltip mudado de "Criada há <24h" para "Ainda não abriste esta encomenda". Import `differenceInHours` removido (já não usado).
-- `PreservacaoClient`/`GroupSection`/`CardGroup` ganham prop `currentEmail` (vem do page.tsx via `getCurrentEmail()`); cascateia para `OrderRow` e `OrderCard`.
-
-`npm run preflight` (tsc + build) OK. **Maria: passos manuais:**
-1. **Correr [supabase/migrations/047_orders_seen_by.sql](supabase/migrations/047_orders_seen_by.sql)** no Supabase SQL Editor. Verificar:
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='orders' AND column_name='seen_by';` → 1 linha
-   - `SELECT count(*) FILTER (WHERE cardinality(seen_by) = 0) FROM orders;` → 0 (todas as encomendas existentes marcadas como vistas)
-2. **Push para Vercel**.
-3. **Smoke**:
-   - Abrir `/preservacao` → nenhuma encomenda existente deve mostrar badge "Nova" (porque o backfill marcou todas como vistas por ti). Linha sem fundo amber; nome na linha 1, badges na linha 2.
-   - Criar uma encomenda nova manualmente → na sidebar aparece bolinha sky `1` ao lado de "Preservação de Flores"; na tabela a linha tem badge "Nova" sky junto ao tipo de evento. Entrar em `/preservacao` → bolinha some (estou na lista). Abrir o workbench da encomenda nova → ao voltar, o badge "Nova" some para mim (mas o António ainda vê).
-   - Smoke com 2 navegadores/utilizadores: António cria encomenda → ambos veem badge "Nova" e bolinha; António abre workbench → para o António some; para a MJ continua até ela abrir.
-
----
-
-### Sessão 80 🧰 Fim da dupla contagem de vales + C1 (mig 046) progressivo
-
-Continuação da limpeza pós-análise global (sessão 78). Dois itens da lista de pendentes.
-
-**Dupla contagem de vales** — antes: vale `100_pago + preservacao_nao_agendada` contava para receita ao mesmo tempo que a encomenda nova que o usava, durante a janela em que a Maria não actualizava o vale manualmente. Resultado: faturação sobre-estimada. [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts):
-- Novo helper local `markVoucherAsScheduled(supabase, code)` — UPDATE silencioso e idempotente (`.neq("usage_status", "preservacao_agendada")` evita writes inúteis). Falhas (vale não existe, RLS) loggadas mas não bloqueiam a operação principal.
-- `createOrderAction`: depois do INSERT bem sucedido, se `payload.gift_voucher_code` está preenchido, chama o helper + `revalidatePath("/vale-presente")`.
-- `updateOrderAction`: `gift_voucher_code` adicionado à condição `needsPrev` e ao SELECT prev; nova variável `voucherToMark` capturada quando o código muda; helper chamado depois do UPDATE + Drive/Calendar triggers.
-- **Limitação conhecida**: encomendas criadas via form público (repo `fbr-website`) fazem INSERT directo via PostgREST anon — não passam pelo action, logo não são automaticamente cobertas. Para cobrir esse caso seria preciso um trigger SQL (fica como follow-up).
-
-**C1 — centralizar admins (mig 046, progressivo)** — abordagem A (só BD) com **fallback de segurança**. Maria delegou ("faz como achares melhor mas quero o melhor possível") e eu escolhi conservadora — B (alterar código TS para async) toca em muitos sítios subtis (sidebar, layout, middleware) e tem alto risco de regressão. [supabase/migrations/046_team_members_centralized.sql](supabase/migrations/046_team_members_centralized.sql):
-- Tabela `team_members(email PK, name, role CHECK admin|viewer, photo, deleted_at)` com seed dos 3 utilizadores actuais; trigger updated_at + audit_log.
-- RLS na própria tabela: admins escrevem (hardcoded — galinha-e-ovo); todos os authenticated lêem.
-- **Função `is_team_admin(p_email)` `STABLE SECURITY DEFINER`** — lookup à tabela primeiro; **fallback** para os 2 emails hardcoded se a lookup falhar/devolver nada. GRANT EXECUTE a authenticated + anon.
-- **Função `is_team_member(p_email)`** análoga (admin OU viewer).
-- **POC progressivo**: só as policies de `orders` foram migradas para usar as funções (`admins_all` + `viewer_select` em [supabase/migrations/038_security_hardening.sql](supabase/migrations/038_security_hardening.sql) DROP + recriadas com `is_team_admin/member`). As policies de `tasks`, `personal_checklist`, `message_templates`, `system_settings`, `chat_messages`, `audit_log` + RPCs `mark_chat_messages_read`/`mark_tasks_seen` continuam com emails hardcoded — migram em sessões futuras se esta correr bem.
-- **Código TS continua hardcoded** ([roles.ts](src/lib/auth/roles.ts), [layout.tsx](src/app/(admin)/layout.tsx), [_components/dashboard/team-members.ts](src/app/(admin)/_components/dashboard/team-members.ts)) — não toquei. Mudar utilizadores agora exige: (1) `INSERT INTO team_members` (RLS funciona logo); (2) editar 3 ficheiros TS para o UI (nomes, fotos). Progresso parcial mas seguro.
-
-Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/migrations/046_team_members_centralized.sql](supabase/migrations/046_team_members_centralized.sql) inteiro no Supabase SQL Editor. (2) Correr as queries de verificação no fim do ficheiro — confirmar 3 linhas em team_members, funções devolvem valores correctos. (3) Push para Vercel. (4) Smoke: António edita encomenda → continua a funcionar (passou a usar `is_team_admin` via RLS); Ana abre `/preservacao` → continua a ver mas não a editar; form público de reserva → continua a aceitar submissões. Se algo bloquear inesperadamente, a função tem fallback e ninguém deve ficar bloqueado.**
-
----
-
 ---
 
 ## Próximo passo CONCRETO
+
+**Sessão 88-C — passos manuais (UI; precisa mig 052 já corrida):**
+
+1. **Sem migrações** nesta sessão.
+2. **Push para Vercel**.
+3. **Smoke browser:**
+   - **Vale-Presente workbench** (`/vale-presente/[código]`) — topo coluna direita: card "Tarefas" (indigo). "+" → popover só com 2 templates (`passar_fatura` + `anexar_comprovativo` — os de scope `voucher` ou `both`). Click "Passar fatura" → diálogo com **uma** opção "Total (€X)" + manual. Criar.
+   - **Dashboard kanban** — tarefas com `order_id` mostram chip indigo `Link2 + ORDERID` no topo do tile; click → abre `/preservacao/[order_id]`. Tarefas com `voucher_id` análogo → `/vale-presente/[code]`.
+   - **€ à direita** — tile do kanban mostra `€135,00` na bottom row para tarefas com `amount`. Para todas as outras tarefas (sem amount), bottom row continua igual.
+
+**Sessão 88-B — passos manuais (UI; precisa mig 052 já corrida):**
+
+1. **Verificar que a mig 052 (sessão 88-A) já foi corrida** — se não, correr primeiro: [supabase/migrations/052_task_templates_and_voucher_link.sql](supabase/migrations/052_task_templates_and_voucher_link.sql).
+2. **Push para Vercel**.
+3. **Smoke browser** — abrir `/preservacao/[qualquer id]`:
+   - Topo da coluna direita: card "Tarefas" (border indigo, ícone CheckSquare).
+   - Click "+ Nova tarefa" → popover com 5 opções (em branco + 4 templates).
+   - "Passar fatura com NIF" → diálogo com 30/40/70/100% (calculados do orçamento) + campo manual. Encomendas sem orçamento mostram só o campo manual.
+   - Form inline com título interpolado (`{nome_cliente}`, `{nif}` substituídos), 3 avatares para assignees (eu activo), prioridade default do template, data opcional.
+   - "Criar" → tarefa aparece na lista E no kanban do Dashboard (categoria correcta) com € à direita.
+   - Templates sem amount (feedback, comprovativo, parceiro) → vão direto ao form.
+   - Checkbox done → some da lista; Trash em hover → apaga.
+
+**Sessão 88-A — passos manuais (BD apenas, UI vem na 88-B):**
+
+1. **Correr [supabase/migrations/052_task_templates_and_voucher_link.sql](supabase/migrations/052_task_templates_and_voucher_link.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('voucher_id','amount');` → 2 linhas.
+   - `SELECT count(*) FROM task_templates WHERE is_seed = true;` → 4.
+   - `SELECT slug, scope, needs_amount FROM task_templates ORDER BY position;` → `passar_fatura/both/true`, `anexar_comprovativo/both/false`, `pedir_feedback/order/false`, `avisar_parceiro_comissao/order/false`.
+2. **Push para Vercel** (build a passar; nada visível na UI ainda — schema+tipos+seeds só).
+3. **Sem smoke browser nesta sessão** — bloco "Tarefas desta encomenda" e picker de templates vêm na sessão 88-B.
 
 **Sessão 87 — passos manuais (só código, sem BD):**
 
@@ -433,9 +476,13 @@ Preflight `tsc --noEmit` + `next build` limpos. **Maria: (1) Correr [supabase/mi
 
 ---
 
-## Histórico condensado (sessões 1-66)
+## Histórico condensado (sessões 1-83)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-79)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-83)
+- **83** — Dashboard paridade checklist↔afazeres (mig 049 `personal_checklist.priority + due_date`): form "+" expansível com prioridade+data igual ao tasks-card; pill "Global" removida (cor do checkbox distingue: cocoa=checklist, indigo=task); avatares mini em vez de `+N`; cor afazeres violet→indigo (não bate com recolhas); grid 2×2 `items-start` para cards não esticarem
+- **82** — Mig 048: trigger SQL `auto_mark_voucher_used()` SECURITY DEFINER fecha caminho do form público (PostgREST anon) que não passava pelo helper TS da sessão 80; EXCEPTION WHEN OTHERS para nunca bloquear INSERT em orders; WHEN clauses filtram disparos só para `gift_voucher_code` preenchido E mudado
+- **81** — Preservação fix célula Cliente (nome wrap + badges descem para 2ª row); mig 047 `orders.seen_by TEXT[]` + RPC `mark_order_seen`; hook `useUnreadOrdersCount(currentEmail)` per-user; auto `markOrderSeenAction` fire-and-forget ao abrir workbench; badge "Nova" sky (não amber, para não competir com recolha no local)
+- **80** — Fim da dupla contagem de vales: helper TS `markVoucherAsScheduled` em `createOrderAction`+`updateOrderAction` (não cobre form público — coberto na sessão 82). Mig 046 C1 progressivo: tabela `team_members` + funções `is_team_admin/is_team_member` SECURITY DEFINER com fallback hardcoded; só policies de `orders` migradas (POC; restantes em sessões futuras)
 - **79** — Preservação destaque "Nova" (heurística 24h em `OrderRow` + `OrderCard`, amber); cupão único c/ retry e idempotente em [src/lib/coupon.ts](src/lib/coupon.ts) (`generateUniqueCouponCode` valida contra UNIQUE antes de devolver); Finanças tabs `grid-cols-2 lg:grid-cols-5`; refactor [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx) 1051→112 linhas (extracção mecânica para 8 ficheiros em `_components/dashboard/`). Sem migrações; comportamento intocado.
 - **78** — Dashboard: `Square/CheckSquare` substituem `Circle/CheckCircle2` (affordance de checkbox); toast "Anular" 5s ao marcar feita; secção "Concluídas recentes (N)" colapsável em ChecklistCard + TasksCard com botão "Reabrir" no hover; novo `RecentDoneRow`. `metrics.ts`: `previousEqualRange` + `baselineRangeForPreset` (corrige percentagens em ranges anuais e "Últimos N meses"); `monthlyRevenue` com `locale: pt`
 - **77** — Preservação fix drag-and-drop entre grupos: `pointerWithin`+`rectIntersection` híbrido como collisionDetection; novo state `optimisticMoves: Map` para mover linha imediatamente; helper `runMove` consolida optimistic→action→refresh+clear com error toast; `handleDragEnd` com `over=null` deixa de ser silencioso (info toast)

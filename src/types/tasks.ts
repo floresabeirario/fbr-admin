@@ -38,7 +38,15 @@ export interface Task {
   // Usado para a bolinha de notificação na sidebar e o toast inicial.
   seen_by: string[];
 
+  // Ligação opcional a uma encomenda OU a um vale (mig 052). No máximo um
+  // dos dois está preenchido — o workbench onde a tarefa foi criada decide.
   order_id: string | null;
+  voucher_id: string | null;
+
+  // Valor associado à tarefa (€). Usado por templates `needs_amount`
+  // (ex.: fatura) que perguntam o montante no diálogo de criação.
+  // Mostra-se alinhado à direita na lista.
+  amount: number | null;
 }
 
 export type TaskInsert = Partial<Omit<Task, "id" | "created_at" | "updated_at">> & {
@@ -130,3 +138,54 @@ export type ChecklistItemInsert = Partial<Omit<ChecklistItem, "id" | "created_at
 };
 
 export type ChecklistItemUpdate = Partial<Omit<ChecklistItem, "id" | "created_at">>;
+
+// ── Templates de tarefas (mig 052) ───────────────────────────
+
+export type TaskTemplateScope = "order" | "voucher" | "both";
+
+export interface TaskTemplate {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+
+  slug: string;
+  name: string;
+
+  // Suporta variáveis: {nome_cliente}, {nif}, {nome_parceiro},
+  // {valor_comissao}, {valor}. Interpolação acontece no cliente.
+  title_template: string;
+  description_template: string | null;
+
+  default_category: TaskCategory;
+  default_priority: TaskPriority;
+
+  // Quando true, criar a tarefa abre um diálogo a perguntar o valor
+  // (€ a faturar, por exemplo). O valor escolhido vai para Task.amount
+  // e a variável {valor} é substituída no título/descrição.
+  needs_amount: boolean;
+  amount_label: string | null;
+
+  scope: TaskTemplateScope;
+  position: number;
+  is_seed: boolean;
+}
+
+export type TaskTemplateInsert = Partial<Omit<TaskTemplate, "id" | "created_at" | "updated_at">> & {
+  slug: string;
+  name: string;
+  title_template: string;
+};
+
+export type TaskTemplateUpdate = Partial<Omit<TaskTemplate, "id" | "created_at" | "slug" | "is_seed">>;
+
+// Lista de variáveis suportadas — mostrada na UI de gestão de templates
+// (sessão D) para a Maria saber o que pode escrever.
+export const TASK_TEMPLATE_VARIABLES: Array<{ key: string; description: string; scope: TaskTemplateScope }> = [
+  { key: "{nome_cliente}",   description: "Nome do cliente (encomenda) ou remetente (vale)", scope: "both" },
+  { key: "{nif}",            description: "NIF da encomenda (vazio mostra '—')",             scope: "order" },
+  { key: "{nome_parceiro}",  description: "Nome do parceiro recomendador",                   scope: "order" },
+  { key: "{valor_comissao}", description: "Comissão do parceiro formatada (€)",              scope: "order" },
+  { key: "{valor}",          description: "Valor escolhido no diálogo (templates com `needs_amount`)", scope: "both" },
+];
+

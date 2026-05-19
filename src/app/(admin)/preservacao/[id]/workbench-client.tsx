@@ -60,6 +60,7 @@ import {
   Truck,
   Trash2,
   MapPin,
+  CheckSquare,
 } from "lucide-react";
 import {
   updateOrderAction,
@@ -75,6 +76,8 @@ import AddressAutocomplete from "@/components/address-autocomplete";
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import TemplatePicker from "@/components/template-picker";
 import WhatsAppLog from "@/components/whatsapp-log";
+import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
+import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type {
   Order,
   OrderUpdate,
@@ -83,6 +86,7 @@ import type {
   PaymentStatus,
   FormLanguage,
 } from "@/types/database";
+import type { Task, TaskTemplate } from "@/types/tasks";
 import {
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
@@ -194,10 +198,16 @@ export default function WorkbenchClient({
   order,
   canEdit,
   partners = [],
+  taskTemplates = [],
+  orderTasks = [],
+  currentEmail = "",
 }: {
   order: Order;
   canEdit: boolean;
   partners?: PartnerOption[];
+  taskTemplates?: TaskTemplate[];
+  orderTasks?: Task[];
+  currentEmail?: string;
 }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
@@ -1655,6 +1665,27 @@ export default function WorkbenchClient({
                 Em mobile: fica em último (order-3).
             ═══════════════════════════════ */}
             <aside className="order-3 lg:order-none lg:col-span-3 space-y-4 lg:space-y-5">
+
+              <Card
+                title="Tarefas"
+                icon={<CheckSquare className="h-3.5 w-3.5" />}
+                accent="indigo"
+              >
+                <WorkbenchTasksBlock
+                  link={{ type: "order", id: local.id }}
+                  context={{
+                    client_name: local.client_name,
+                    nif: local.nif,
+                    partner_name: partners.find((p) => p.id === local.partner_id)?.name ?? null,
+                    partner_commission: local.partner_commission,
+                  }}
+                  paymentOptions={computeAmountOptionsFromBudget(local.budget ?? null)}
+                  templates={taskTemplates}
+                  initialTasks={orderTasks}
+                  currentEmail={currentEmail}
+                  canEdit={canEdit}
+                />
+              </Card>
 
               <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
                 <div className="space-y-3">

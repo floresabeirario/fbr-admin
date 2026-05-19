@@ -33,6 +33,7 @@ import {
   ExternalLink,
   Handshake,
   ShieldCheck,
+  CheckSquare,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,9 @@ import { StickyNoteButton } from "@/components/sticky-note-button";
 import { PartnerCombobox, type PartnerOption } from "@/components/partner-combobox";
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import TemplatePicker from "@/components/template-picker";
+import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
+import { computeAmountOptionsForVoucher } from "@/lib/task-templates";
+import type { Task, TaskTemplate } from "@/types/tasks";
 import {
   Select,
   SelectContent,
@@ -108,6 +112,9 @@ interface Props {
   voucher: Voucher;
   canEdit: boolean;
   partners?: PartnerOption[];
+  taskTemplates?: TaskTemplate[];
+  voucherTasks?: Task[];
+  currentEmail?: string;
 }
 
 // ── Edição inline do código do vale ────────────────────────
@@ -170,7 +177,14 @@ function EditVoucherCode({ currentCode, onSave }: { currentCode: string; onSave:
 // StickyNoteButton e PartnerCombobox foram extraídos para src/components/
 // — ver imports no topo.
 
-export default function VoucherWorkbenchClient({ voucher, canEdit, partners = [] }: Props) {
+export default function VoucherWorkbenchClient({
+  voucher,
+  canEdit,
+  partners = [],
+  taskTemplates = [],
+  voucherTasks = [],
+  currentEmail = "",
+}: Props) {
   const router = useRouter();
   const [data, setData] = useState<Voucher>(voucher);
   const [isPending, startTransition] = useTransition();
@@ -656,8 +670,25 @@ export default function VoucherWorkbenchClient({ voucher, canEdit, partners = []
               </Section>
             </div>
 
-            {/* ── Coluna direita: pagamento+fatura + envio + utilização + parceria + metadata ── */}
+            {/* ── Coluna direita: tarefas + pagamento+fatura + envio + utilização + parceria + metadata ── */}
             <div className="space-y-4">
+              <Section title="Tarefas" icon={<CheckSquare className="h-3.5 w-3.5" />} accent="indigo">
+                <WorkbenchTasksBlock
+                  link={{ type: "voucher", id: data.id }}
+                  context={{
+                    client_name: data.sender_name,
+                    nif: data.nif,
+                    partner_name: partners.find((p) => p.id === data.partner_id)?.name ?? null,
+                    partner_commission: data.partner_commission,
+                  }}
+                  paymentOptions={computeAmountOptionsForVoucher(data.amount)}
+                  templates={taskTemplates}
+                  initialTasks={voucherTasks}
+                  currentEmail={currentEmail}
+                  canEdit={canEdit}
+                />
+              </Section>
+
               {/* Pagamento e Fatura — unificados (sessão 29) */}
               <Section title="Pagamento e fatura" icon={<Wallet className="h-3.5 w-3.5" />} accent="emerald">
                 <Field label="Estado de pagamento">

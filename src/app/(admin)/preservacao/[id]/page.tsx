@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentRole } from "@/lib/auth/server";
+import { getCurrentRole, getCurrentEmail } from "@/lib/auth/server";
 import { notFound } from "next/navigation";
 import type { Order } from "@/types/database";
 import type { Partner } from "@/types/partner";
+import type { Task, TaskTemplate } from "@/types/tasks";
 import { loadIntegration } from "@/lib/google/oauth";
 import { computeEventHtmlLink } from "@/lib/google/calendar";
 import { markOrderSeenAction } from "../actions";
@@ -16,26 +17,44 @@ export default async function WorkbenchPage({
   const { id } = await params;
   const supabase = await createClient();
   const role = await getCurrentRole();
+  const currentEmail = (await getCurrentEmail()) ?? "";
 
   // Aceita tanto o order_id curto (alfanumérico) como o UUID interno,
   // para que links antigos continuem a funcionar.
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const column = isUuid ? "id" : "order_id";
 
-  const [orderRes, partnersRes] = await Promise.all([
+  const [orderRes, partnersRes, templatesRes] = await Promise.all([
     supabase.from("orders").select("*").eq(column, id).single(),
     supabase
       .from("partners")
       .select("id, name, category, status")
       .is("deleted_at", null)
       .order("name", { ascending: true }),
+    supabase
+      .from("task_templates")
+      .select("*")
+      .is("deleted_at", null)
+      .in("scope", ["order", "both"])
+      .order("position", { ascending: true }),
   ]);
 
   if (orderRes.error || !orderRes.data) notFound();
 
   const partnerOptions = (partnersRes.data ?? []) as Pick<Partner, "id" | "name" | "category" | "status">[];
+  const taskTemplates = (templatesRes.data ?? []) as TaskTemplate[];
 
   let order = orderRes.data as Order;
+
+  // Tarefas activas desta encomenda (done + done_at + soft delete filtrados).
+  // Carregadas com o ID interno após o lookup acima (`order.id` é UUID).
+  const { data: tasksData } = await supabase
+    .from("tasks")
+    .select("*")
+    .is("deleted_at", null)
+    .eq("order_id", order.id)
+    .order("created_at", { ascending: false });
+  const orderTasks = (tasksData ?? []) as Task[];
 
   // Marcar como vista pelo utilizador actual (acrescenta email ao seen_by[]).
   // Fire-and-forget — não bloqueia o render se a RPC falhar. Idempotente
@@ -67,6 +86,9 @@ export default async function WorkbenchPage({
       order={order}
       canEdit={role === "admin"}
       partners={partnerOptions}
+      taskTemplates={taskTemplates}
+      orderTasks={orderTasks}
+      currentEmail={currentEmail}
     />
   );
 }

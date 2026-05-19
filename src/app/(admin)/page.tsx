@@ -27,12 +27,24 @@ export default async function DashboardPage() {
   const pickups = getUpcomingPickups(orders);
   const alerts = getDashboardAlerts(orders, vouchers);
 
+  // Lookups uuid → código curto, para que as tarefas ligadas a uma
+  // encomenda/vale possam mostrar um badge clicável no kanban que
+  // aponta para o workbench correcto (mig 052: tasks.order_id / .voucher_id).
+  const orderCodeById: Record<string, string> = Object.fromEntries(
+    orders.map((o) => [o.id, o.order_id]),
+  );
+  const voucherCodeById: Record<string, string> = Object.fromEntries(
+    vouchers.map((v) => [v.id, v.code]),
+  );
+
   return (
     <DashboardClient
       currentEmail={email}
       tasks={tasks}
       pickups={pickups}
       alerts={alerts}
+      orderCodeById={orderCodeById}
+      voucherCodeById={voucherCodeById}
     />
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { differenceInDays, parseISO } from "date-fns";
 import {
   CalendarDays as CalendarIcon,
@@ -12,6 +13,7 @@ import {
   FileText,
   Flower2,
   Globe,
+  Link2,
   ListTodo,
   Loader2,
   MoreHorizontal,
@@ -24,6 +26,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { formatEUR } from "@/lib/format";
 import {
   DndContext,
   DragOverlay,
@@ -198,10 +201,15 @@ export function TasksCard({
   tasks,
   setTasks,
   currentEmail,
+  orderCodeById = {},
+  voucherCodeById = {},
 }: {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   currentEmail: string;
+  /** Mapeamentos uuid→código curto para mostrar badge clicável da encomenda/vale. */
+  orderCodeById?: Record<string, string>;
+  voucherCodeById?: Record<string, string>;
 }) {
   // Filtro por membro — 3 avatares no topo, default todos seleccionados
   // (= sem filtro). Click num avatar alterna; quando o set é o total dos
@@ -800,6 +808,8 @@ export function TasksCard({
                 onEditSave={handleEditSave}
                 draggingTaskId={draggingTask?.id ?? null}
                 draggingColumn={draggingColumn}
+                orderCodeById={orderCodeById}
+                voucherCodeById={voucherCodeById}
               />
             ))}
           </div>
@@ -870,6 +880,8 @@ function CategoryColumn({
   onEditSave,
   draggingTaskId,
   draggingColumn,
+  orderCodeById,
+  voucherCodeById,
 }: {
   category: TaskCategory;
   tasks: Task[];
@@ -890,6 +902,8 @@ function CategoryColumn({
   ) => void;
   draggingTaskId: string | null;
   draggingColumn: TaskCategory | null;
+  orderCodeById: Record<string, string>;
+  voucherCodeById: Record<string, string>;
 }) {
   const meta = CATEGORY_META[category];
   const Icon = meta.icon;
@@ -967,6 +981,8 @@ function CategoryColumn({
                 onToggleAssignee={(email) => onToggleAssignee(task, email)}
                 onChangePriority={(p) => onChangePriority(task, p)}
                 onEdit={() => setEditingId(task.id)}
+                orderCodeById={orderCodeById}
+                voucherCodeById={voucherCodeById}
               />
             ),
           )
@@ -1014,6 +1030,8 @@ function DraggableTaskTile({
   onToggleAssignee,
   onChangePriority,
   onEdit,
+  orderCodeById,
+  voucherCodeById,
 }: {
   task: Task;
   hidden: boolean;
@@ -1023,6 +1041,8 @@ function DraggableTaskTile({
   onToggleAssignee: (email: string) => void;
   onChangePriority: (p: TaskPriority) => void;
   onEdit: () => void;
+  orderCodeById: Record<string, string>;
+  voucherCodeById: Record<string, string>;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
@@ -1049,6 +1069,28 @@ function DraggableTaskTile({
       <div className="absolute top-1.5 right-1.5 z-10">
         <PriorityPill priority={task.priority} onChange={onChangePriority} />
       </div>
+
+      {/* Badge da encomenda/vale — chip clicável; só renderiza quando ligada */}
+      {(() => {
+        const orderCode = task.order_id ? orderCodeById[task.order_id] : null;
+        const voucherCode = task.voucher_id ? voucherCodeById[task.voucher_id] : null;
+        if (!orderCode && !voucherCode) return null;
+        const href = orderCode
+          ? `/preservacao/${orderCode}`
+          : `/vale-presente/${voucherCode}`;
+        const label = orderCode ? orderCode : voucherCode!;
+        return (
+          <Link
+            href={href}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-0.5 max-w-[120px] text-[10px] font-mono text-indigo-700 hover:text-indigo-900 hover:underline truncate"
+            title={`Ir para ${orderCode ? "encomenda" : "vale"} ${label}`}
+          >
+            <Link2 className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{label}</span>
+          </Link>
+        );
+      })()}
 
       {/* Title row — pr-14 reserva espaço para o pill (até "BAIXA" cabe) */}
       <div className="flex items-start gap-1.5 pr-14">
@@ -1124,6 +1166,14 @@ function DraggableTaskTile({
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {task.amount != null && (
+            <span
+              className="text-[11px] font-medium tabular-nums text-cocoa-900"
+              title="Valor associado à tarefa"
+            >
+              {formatEUR(task.amount)}
+            </span>
+          )}
           {task.due_date && (
             <Badge
               variant="outline"
