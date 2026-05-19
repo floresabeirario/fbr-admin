@@ -56,6 +56,19 @@ export default async function WorkbenchPage({
     .order("created_at", { ascending: false });
   const orderTasks = (tasksData ?? []) as Task[];
 
+  // Se a encomenda tem código de vale-presente associado, verifica se existe um
+  // vale activo com esse código — workbench mostra link directo para o vale.
+  let linkedVoucherCode: string | null = null;
+  if (order.gift_voucher_code) {
+    const { data: voucherRow } = await supabase
+      .from("vouchers")
+      .select("code")
+      .eq("code", order.gift_voucher_code.toUpperCase())
+      .is("deleted_at", null)
+      .maybeSingle();
+    linkedVoucherCode = voucherRow?.code ?? null;
+  }
+
   // Marcar como vista pelo utilizador actual (acrescenta email ao seen_by[]).
   // Fire-and-forget — não bloqueia o render se a RPC falhar. Idempotente
   // a partir da segunda visita (a RPC verifica NOT email = ANY(seen_by)).
@@ -89,6 +102,7 @@ export default async function WorkbenchPage({
       taskTemplates={taskTemplates}
       orderTasks={orderTasks}
       currentEmail={currentEmail}
+      linkedVoucherCode={linkedVoucherCode}
     />
   );
 }

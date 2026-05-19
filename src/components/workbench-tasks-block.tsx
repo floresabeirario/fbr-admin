@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -100,6 +101,7 @@ export default function WorkbenchTasksBlock({
   const [draft, setDraft] = useState<{
     template: TaskTemplate | null;
     title: string;
+    description: string;
     amount: number | null;
     assignees: string[];
     priority: TaskPriority;
@@ -131,6 +133,7 @@ export default function WorkbenchTasksBlock({
     setDraft({
       template,
       title,
+      description: "",
       amount: null,
       assignees: [currentEmail],
       priority: template?.default_priority ?? "media",
@@ -145,6 +148,7 @@ export default function WorkbenchTasksBlock({
     setDraft({
       template: amountDraft,
       title,
+      description: "",
       amount: value,
       assignees: [currentEmail],
       priority: amountDraft.default_priority,
@@ -170,6 +174,7 @@ export default function WorkbenchTasksBlock({
         const seenBy = draft.assignees.includes(currentEmail) ? [currentEmail] : [];
         const created = await createTaskAction({
           title,
+          description: draft.description.trim() || null,
           assignee_emails: draft.assignees,
           seen_by: seenBy,
           priority: draft.priority,
@@ -279,6 +284,13 @@ export default function WorkbenchTasksBlock({
               className="h-8 text-[12px]"
             />
 
+            <Textarea
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              placeholder="Descrição (opcional)"
+              className="min-h-14 text-[12px] py-1.5"
+            />
+
             {draft.amount != null && (
               <div className="flex items-center justify-between rounded bg-cream-100 px-2 py-1 text-[11px]">
                 <span className="text-cocoa-700">Valor</span>
@@ -314,13 +326,25 @@ export default function WorkbenchTasksBlock({
                   value={draft.priority}
                   onValueChange={(v) => setDraft({ ...draft, priority: v as TaskPriority })}
                 >
-                  <SelectTrigger className="h-7 px-2 text-[11px] w-20">
+                  <SelectTrigger
+                    className={
+                      "h-7 px-2 text-[11px] w-24 font-semibold border " +
+                      TASK_PRIORITY_COLORS[draft.priority]
+                    }
+                  >
                     <SelectValue labels={TASK_PRIORITY_LABELS} />
                   </SelectTrigger>
                   <SelectContent>
                     {(Object.keys(TASK_PRIORITY_LABELS) as TaskPriority[]).map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {TASK_PRIORITY_LABELS[p]}
+                      <SelectItem key={p} value={p} className="my-0.5">
+                        <span
+                          className={
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border " +
+                            TASK_PRIORITY_COLORS[p]
+                          }
+                        >
+                          {TASK_PRIORITY_LABELS[p]}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -459,6 +483,11 @@ function TaskRow({
           <p className="text-[12px] text-cocoa-900 leading-snug break-words">
             {task.title}
           </p>
+          {task.description && (
+            <p className="text-[11px] text-cocoa-600 leading-snug whitespace-pre-wrap mt-0.5 break-words">
+              {task.description}
+            </p>
+          )}
           <div className="mt-1 flex items-center gap-1.5 flex-wrap">
             {task.assignee_emails.length > 0 && (
               <div className="flex -space-x-1">

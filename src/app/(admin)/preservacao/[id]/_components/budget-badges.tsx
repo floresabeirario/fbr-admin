@@ -75,6 +75,11 @@ export function BudgetSnapshotBadge({
 
   const matchesSnapshot = currentBudget !== null && Math.abs(currentBudget - snapshot.total) < 0.01;
 
+  // Quando o orçamento corresponde ao cálculo automático, não mostramos badge
+  // — a Maria considerou o "Auto-calculado" ruído visual. O cálculo continua
+  // acessível através do botão "Auto · editado" quando o valor diverge.
+  if (matchesSnapshot) return null;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -82,7 +87,7 @@ export function BudgetSnapshotBadge({
         title="Ver detalhe do cálculo automático"
       >
         <Sparkles className="h-2.5 w-2.5" />
-        {matchesSnapshot ? "Auto-calculado" : "Auto · editado"}
+        Auto · editado
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0 overflow-hidden" align="start">
         <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5">
@@ -114,11 +119,9 @@ export function BudgetSnapshotBadge({
               {formatEUR(snapshot.total, { compact: true })}
             </span>
           </div>
-          {!matchesSnapshot && (
-            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
-              O orçamento actual ({formatEUR(currentBudget, { compact: true })}) foi editado manualmente.
-            </div>
-          )}
+          <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
+            O orçamento actual ({formatEUR(currentBudget, { compact: true })}) foi editado manualmente.
+          </div>
         </div>
         {canEdit && (
           <div className="border-t border-cream-200 p-2 flex gap-2">

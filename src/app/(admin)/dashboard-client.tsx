@@ -34,6 +34,10 @@ export default function DashboardClient({
 }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
+  const myOpenTasksCount = tasks.filter(
+    (t) => !t.done && t.assignee_emails.includes(currentEmail),
+  ).length;
+
   // Notificações: ao abrir o Dashboard, mostra toast com tarefas
   // atribuídas a mim ainda não vistas e marca-as como vistas.
   const seenOnMount = useRef(false);
@@ -68,7 +72,16 @@ export default function DashboardClient({
         <div>
           <h1 className="text-2xl font-semibold text-cocoa-900">Dashboard</h1>
           <p className="text-sm text-cocoa-700">
-            Bem-vinda, {memberName(currentEmail)} 👋
+            Bem-vinda, {memberName(currentEmail)} 👋{" "}
+            {myOpenTasksCount === 0 ? (
+              <span>não tens tarefas por completar.</span>
+            ) : (
+              <span>
+                tens{" "}
+                <span className="font-semibold text-cocoa-900">{myOpenTasksCount}</span>{" "}
+                {myOpenTasksCount === 1 ? "tarefa" : "tarefas"} por completar.
+              </span>
+            )}
           </p>
         </div>
         <div className="ml-auto">

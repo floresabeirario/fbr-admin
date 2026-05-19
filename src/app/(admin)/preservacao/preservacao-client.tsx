@@ -433,7 +433,7 @@ function OrderRow({
                   href={`/vale-presente/${order.gift_voucher_code}`}
                   onClick={(e) => e.stopPropagation()}
                   title={`Encomenda originada do vale ${order.gift_voucher_code}`}
-                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-100 transition-colors shrink-0"
+                  className="inline-flex items-center gap-0.5 rounded-full bg-transparent border border-cocoa-300 px-1.5 py-0.5 text-[10px] font-medium text-cocoa-700 hover:bg-cream-100 transition-colors shrink-0"
                 >
                   <Gift className="h-2.5 w-2.5" />
                   Vale

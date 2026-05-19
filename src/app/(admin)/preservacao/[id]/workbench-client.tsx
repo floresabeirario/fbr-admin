@@ -198,6 +198,7 @@ export default function WorkbenchClient({
   taskTemplates = [],
   orderTasks = [],
   currentEmail = "",
+  linkedVoucherCode = null,
 }: {
   order: Order;
   canEdit: boolean;
@@ -205,6 +206,8 @@ export default function WorkbenchClient({
   taskTemplates?: TaskTemplate[];
   orderTasks?: Task[];
   currentEmail?: string;
+  /** Código de vale existente quando `gift_voucher_code` corresponde a um vale activo. */
+  linkedVoucherCode?: string | null;
 }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
@@ -257,6 +260,7 @@ export default function WorkbenchClient({
   // Os clientes às vezes dão um número errado e corrigem por mensagem.
   const [contactDraftPhone, setContactDraftPhone] = useState("");
   const [contactDraftEmail, setContactDraftEmail] = useState("");
+  const [contactDraftPreference, setContactDraftPreference] = useState<"whatsapp" | "email" | "">("");
   const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
 
   // Confirmação ao alterar campos preenchidos pelo cliente — protege contra cliques acidentais.
@@ -842,12 +846,13 @@ export default function WorkbenchClient({
                           if (v) {
                             setContactDraftPhone(local.phone ?? "");
                             setContactDraftEmail(local.email ?? "");
+                            setContactDraftPreference(local.contact_preference ?? "");
                           }
                         }}
                       >
                         <PopoverTrigger
                           className="shrink-0 mt-0.5 p-1 rounded-md text-cocoa-500 hover:bg-cream-100 hover:text-cocoa-900 transition-colors"
-                          title="Editar contactos"
+                          title="Editar contactos e preferência"
                         >
                           <Pencil className="h-3 w-3" />
                         </PopoverTrigger>
@@ -880,6 +885,33 @@ export default function WorkbenchClient({
                               placeholder="nome@exemplo.pt"
                             />
                           </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-cocoa-700">Contacto preferido</Label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setContactDraftPreference("whatsapp")}
+                                className={`h-8 rounded-lg border text-[11px] font-medium transition-colors flex items-center justify-center gap-1 ${
+                                  contactDraftPreference === "whatsapp"
+                                    ? "border-green-300 bg-green-50 text-green-700"
+                                    : "border-cream-200 bg-surface text-cocoa-700 hover:bg-cream-50"
+                                }`}
+                              >
+                                <MessageCircle className="h-3 w-3 text-green-500" /> WhatsApp
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setContactDraftPreference("email")}
+                                className={`h-8 rounded-lg border text-[11px] font-medium transition-colors flex items-center justify-center gap-1 ${
+                                  contactDraftPreference === "email"
+                                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                                    : "border-cream-200 bg-surface text-cocoa-700 hover:bg-cream-50"
+                                }`}
+                              >
+                                <Mail className="h-3 w-3 text-blue-500" /> Email
+                              </button>
+                            </div>
+                          </div>
                           <p className="text-[10px] text-cocoa-500 leading-relaxed">
                             Se o cliente deu um número errado e corrigiu por mensagem, atualiza aqui.
                           </p>
@@ -896,8 +928,10 @@ export default function WorkbenchClient({
                               onClick={() => {
                                 const newPhone = contactDraftPhone.trim() || null;
                                 const newEmail = contactDraftEmail.trim() || null;
+                                const newPref = contactDraftPreference || null;
                                 if (newPhone !== (local.phone ?? null)) update("phone", newPhone);
                                 if (newEmail !== (local.email ?? null)) update("email", newEmail);
+                                if (newPref !== (local.contact_preference ?? null)) update("contact_preference", newPref);
                                 setContactPopoverOpen(false);
                               }}
                               className="h-8 px-3 rounded-lg bg-btn-primary text-btn-primary-fg text-xs font-medium hover:bg-btn-primary-hover transition-colors"
@@ -908,33 +942,6 @@ export default function WorkbenchClient({
                         </PopoverContent>
                       </Popover>
                     )}
-                  </div>
-                  {/* Toggle minimalista para mudar a preferência */}
-                  <div className="flex items-center gap-1 pt-1">
-                    <span className="text-[10px] text-cocoa-500 uppercase tracking-wider">Prefere:</span>
-                    <button
-                      type="button"
-                      onClick={() => clientUpdate("contact_preference", "whatsapp", "Contacto preferido", (v) => v === "whatsapp" ? "WhatsApp" : v === "email" ? "Email" : "—")}
-                      className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
-                        local.contact_preference === "whatsapp"
-                          ? "text-green-700 font-medium bg-green-50"
-                          : "text-cocoa-500 hover:text-cocoa-700"
-                      }`}
-                    >
-                      WhatsApp
-                    </button>
-                    <span className="text-[10px] text-[#D0C4B8]">·</span>
-                    <button
-                      type="button"
-                      onClick={() => clientUpdate("contact_preference", "email", "Contacto preferido", (v) => v === "whatsapp" ? "WhatsApp" : v === "email" ? "Email" : "—")}
-                      className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
-                        local.contact_preference === "email"
-                          ? "text-blue-700 font-medium bg-blue-50"
-                          : "text-cocoa-500 hover:text-cocoa-700"
-                      }`}
-                    >
-                      Email
-                    </button>
                   </div>
                 </div>
 
@@ -1620,7 +1627,20 @@ export default function WorkbenchClient({
                   </Field>
                   {local.how_found_fbr === "vale_presente" && (
                     <Field label="Código vale-presente">
-                      <Input className={inp} value={local.gift_voucher_code ?? ""} onChange={(e) => update("gift_voucher_code", e.target.value || null)} placeholder="Código de 6 dígitos" />
+                      <div className="flex gap-1.5">
+                        <Input className={inp + " flex-1 min-w-0"} value={local.gift_voucher_code ?? ""} onChange={(e) => update("gift_voucher_code", e.target.value || null)} placeholder="Código de 6 dígitos" />
+                        {linkedVoucherCode && local.gift_voucher_code && (
+                          <Link
+                            href={`/vale-presente/${linkedVoucherCode}`}
+                            className="flex h-9 items-center gap-1.5 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+                            title={`Abrir vale-presente ${linkedVoucherCode}`}
+                          >
+                            <Ticket className="h-3 w-3" />
+                            Abrir vale
+                            <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                          </Link>
+                        )}
+                      </div>
                     </Field>
                   )}
                   {local.how_found_fbr === "florista" && (
@@ -1687,10 +1707,7 @@ export default function WorkbenchClient({
               <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
                 <div className="space-y-3">
                   <div className="grid grid-cols-[2fr_3fr] gap-3">
-                    <Field
-                      label="Orçamento"
-                      hint={local.pricing_snapshot ? "Calculado automaticamente — editável." : "Inserido manualmente."}
-                    >
+                    <Field label="Orçamento">
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
                         <Input
