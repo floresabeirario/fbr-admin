@@ -76,7 +76,7 @@ Maria via screenshot do Dashboard, em 2 iterações:
 - Click no pill abre popover com as 4 prioridades em lista, cada uma com bolinha colorida + label completa.
 - `onPointerDown={(e) => e.stopPropagation()}` no trigger e na content para o drag-and-drop dos tiles não capturar o click.
 - Modo edição inline **mantém** o `Select` original — há espaço lá.
-- Footer do tile reorganizado: avatares assignees à esquerda, badge de data à direita (`ml-auto`).
+- 3ª iter: Maria pediu o pill no canto superior direito (era inline à esquerda do título e estava a empurrar/cortar o título em 4 linhas). Resolvido com **`absolute top-1.5 right-1.5 z-10`** + `pr-14` na title row para reservar espaço. Edit/trash icons saíram da title row e foram para a bottom row, ao lado da data (alinhados ao fim com `ml-auto`).
 
 **Filtro por avatares no header — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
 - State antigo `filter: "todas" | "minhas" | "feitas"` substituído por **dois states** ortogonais:

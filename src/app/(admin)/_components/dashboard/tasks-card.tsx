@@ -1040,12 +1040,18 @@ function DraggableTaskTile({
       {...attributes}
       {...listeners}
       className={cn(
-        "group rounded-md border border-cream-200 border-l-[3px] bg-surface px-2 py-1.5 space-y-1 hover:border-cocoa-300 hover:shadow-sm transition-all touch-none cursor-grab active:cursor-grabbing",
+        "group relative rounded-md border border-cream-200 border-l-[3px] bg-surface px-2 py-1.5 space-y-1 hover:border-cocoa-300 hover:shadow-sm transition-all touch-none cursor-grab active:cursor-grabbing",
         leftAccent,
         (hidden || isDragging) && "opacity-30",
       )}
     >
-      <div className="flex items-start gap-1.5">
+      {/* Pill de prioridade — canto superior direito (always visible) */}
+      <div className="absolute top-1.5 right-1.5 z-10">
+        <PriorityPill priority={task.priority} onChange={onChangePriority} />
+      </div>
+
+      {/* Title row — pr-14 reserva espaço para o pill (até "BAIXA" cabe) */}
+      <div className="flex items-start gap-1.5 pr-14">
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
@@ -1067,11 +1073,6 @@ function DraggableTaskTile({
           )}
         </button>
 
-        <PriorityPill
-          priority={task.priority}
-          onChange={onChangePriority}
-        />
-
         <div className="flex-1 min-w-0">
           <div
             className={cn(
@@ -1089,72 +1090,77 @@ function DraggableTaskTile({
             </div>
           )}
         </div>
-
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onEdit}
-            className="text-[#C4A882] hover:text-cocoa-700"
-            title="Editar"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onDelete}
-            className="text-[#C4A882] hover:text-rose-600"
-            title="Apagar"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
       </div>
 
       <div className="flex items-center gap-1 flex-wrap">
-        {TEAM_MEMBERS.map((m) => {
-          const active = task.assignee_emails.includes(m.email);
-          return (
-            <button
-              key={m.email}
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => onToggleAssignee(m.email)}
-              title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
-              aria-pressed={active}
+        <div className="flex items-center gap-1">
+          {TEAM_MEMBERS.map((m) => {
+            const active = task.assignee_emails.includes(m.email);
+            return (
+              <button
+                key={m.email}
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => onToggleAssignee(m.email)}
+                title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
+                aria-pressed={active}
+                className={cn(
+                  "relative h-4 w-4 rounded-full overflow-hidden transition-all shrink-0",
+                  active
+                    ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
+                    : "opacity-30 hover:opacity-100",
+                )}
+              >
+                <Image
+                  src={m.photo}
+                  alt={m.name}
+                  fill
+                  sizes="16px"
+                  className="object-cover"
+                />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {task.due_date && (
+            <Badge
+              variant="outline"
               className={cn(
-                "relative h-4 w-4 rounded-full overflow-hidden transition-all shrink-0",
-                active
-                  ? "ring-1 ring-indigo-600 ring-offset-1 ring-offset-surface"
-                  : "opacity-30 hover:opacity-100",
+                "h-4 px-1 py-0 text-[10px] font-normal",
+                overdue
+                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                  : "bg-slate-100 text-slate-700 border-slate-300",
               )}
             >
-              <Image
-                src={m.photo}
-                alt={m.name}
-                fill
-                sizes="16px"
-                className="object-cover"
-              />
-            </button>
-          );
-        })}
+              <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
+              {formatDate(task.due_date)}
+            </Badge>
+          )}
 
-        {task.due_date && (
-          <Badge
-            variant="outline"
-            className={cn(
-              "h-4 px-1 py-0 text-[10px] font-normal ml-auto",
-              overdue
-                ? "bg-rose-100 text-rose-800 border-rose-300"
-                : "bg-slate-100 text-slate-700 border-slate-300",
-            )}
-          >
-            <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
-            {formatDate(task.due_date)}
-          </Badge>
-        )}
+          {/* Edit/trash icons — bottom-right, só no hover */}
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={onEdit}
+              className="text-[#C4A882] hover:text-cocoa-700"
+              title="Editar"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={onDelete}
+              className="text-[#C4A882] hover:text-rose-600"
+              title="Apagar"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
