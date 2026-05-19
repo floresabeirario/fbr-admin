@@ -142,10 +142,7 @@ import {
   CouponCodeField,
   ExtraPieceRow,
 } from "./_components/fields";
-import {
-  BudgetSnapshotBadge,
-  ProductionCostBadge,
-} from "./_components/budget-badges";
+import { BudgetSnapshotBadge } from "./_components/budget-badges";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -1388,7 +1385,7 @@ export default function WorkbenchClient({
                   </Field>
                   <Field
                     label="Tipo de moldura (interno)"
-                    hint="Baixa (2x2cm) ou Caixa (2x3cm) — só afecta margem, não o preço."
+                    hint="Baixa (2x2cm, default) ou Caixa (2x3cm, flores altas). Cliente paga igual; afecta custo de produção."
                   >
                     {local.pyramid_frame ? (
                       <div className={`${sel} flex items-center text-cocoa-500 italic`}>
@@ -1707,12 +1704,6 @@ export default function WorkbenchClient({
                         orderId={local.id}
                         snapshot={local.pricing_snapshot}
                         currentBudget={local.budget}
-                        canEdit={canEdit}
-                      />
-                      <ProductionCostBadge
-                        orderId={local.id}
-                        snapshot={local.production_cost_snapshot}
-                        order={local}
                         canEdit={canEdit}
                       />
                     </Field>

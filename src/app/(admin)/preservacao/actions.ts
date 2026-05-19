@@ -103,6 +103,10 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
       ? { budget: computedSnapshot.total, pricing_snapshot: computedSnapshot }
       : {}),
     ...(costSnapshot ? { production_cost_snapshot: costSnapshot } : {}),
+    // Default interno: moldura baixa (2x2cm). Maria muda para "caixa" só
+    // quando as flores são altas. Garante que os custos de produção ficam
+    // logo calculáveis sem precisar de abrir cada encomenda.
+    frame_internal_type: order.frame_internal_type ?? "baixa",
   };
 
   const { data, error } = await supabase

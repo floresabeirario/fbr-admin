@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 31) — Sessão 88-D: **CRUD de templates de tarefas em Sistema → Tarefas**. Página nova `/settings/templates-tarefas` com lista + diálogo de edição + variáveis clicáveis. Renomeada entrada "Templates" da topbar para "Mensagens" (clareza vs nova "Tarefas"). Funcionalidade "tarefas a partir do workbench" completa.
+## Fase actual: FASE 6 (parte 32) — Sessão 88-E: **Custos de produção saem do workbench e ganham default automático**. `frame_internal_type` passa a default `'baixa'` (2x2cm) tanto no `createOrderAction` como na coluna SQL (mig 053). Backfill em encomendas existentes (excepto pirâmide). Removido `ProductionCostBadge` do workbench Preservação — produção é só para Finanças. Hint do dropdown "Tipo de moldura (interno)" corrigido (era enganador: dizia "não afecta preço" mas afecta custo de produção).
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -38,11 +38,48 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 49 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 53 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 88-E 🏷️ Custos de produção saem do workbench + default `frame_internal_type='baixa'`
+
+Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encomendas novas, o que deixava os custos de produção a "Cálculo parcial — falta tipo de moldura"; e (2) os custos+margem que apareciam no workbench eram ruído porque para ela isso é informação só relevante na aba Finanças, não na gestão por encomenda. Pediu o default automático + saída do badge do workbench.
+
+**Migração 053 — [supabase/migrations/053_default_frame_internal_type_baixa.sql](supabase/migrations/053_default_frame_internal_type_baixa.sql):**
+- `UPDATE orders SET frame_internal_type='baixa' WHERE frame_internal_type IS NULL AND pyramid_frame=false AND deleted_at IS NULL` — backfill. Pirâmides ficam de fora porque o valor é irrelevante para essas (a função `effectiveFrameType` ignora `frame_internal_type` quando `pyramid_frame=true`).
+- `ALTER TABLE orders ALTER COLUMN frame_internal_type SET DEFAULT 'baixa'` — segunda linha de defesa para qualquer INSERT directo (seeds, scripts manuais).
+- `COMMENT ON COLUMN` actualizado a reflectir que default agora é `'baixa'`.
+
+**Server action — [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts):**
+- `createOrderAction` ganha `frame_internal_type: order.frame_internal_type ?? "baixa"` no payload (linha ~106). Garante que toda a encomenda nova nasce já com o valor, mesmo se o caller (admin UI) não o enviar. Como `pyramid_frame` é separado, isto não conflita com pirâmides — `effectiveFrameType` lida com a prioridade.
+
+**Workbench — [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):**
+- Import `ProductionCostBadge` removido (linhas 145-148 → uma única linha de `BudgetSnapshotBadge`).
+- JSX `<ProductionCostBadge .../>` debaixo do orçamento removido (~6 linhas) — o cálculo (`computeProductionCost`) continua a existir mas deixa de ser mostrado aqui.
+- Hint do dropdown "Tipo de moldura (interno)" passou de "só afecta margem, não o preço" (enganador — afecta o custo de produção, não a margem em sentido contabilístico) para "Baixa (2x2cm, default) ou Caixa (2x3cm, flores altas). Cliente paga igual; afecta custo de produção."
+
+**Componente `ProductionCostBadge` em [budget-badges.tsx](src/app/(admin)/preservacao/[id]/_components/budget-badges.tsx) mantido**: não é apagado porque pode ser reutilizado na aba Finanças se for preciso mostrar margem por encomenda lá. Idem para `captureOrderProductionCostAction` em actions.ts. Ficam órfãos no código mas a janela é curta — próximo passo natural é levá-los para Finanças.
+
+**Aviso ⚠️ — produção não está visível em lado nenhum agora:**
+- Workbench já não mostra custo+margem.
+- Aba Finanças → "Custos de produção" é só o **wiki dos custos unitários** (preços por tipo de moldura/vidro/consumível), não mostra COGS por encomenda nem margem.
+- Faturação só mostra receita, sem subtrair COGS.
+- Se a Maria quiser ver margem por encomenda ou COGS total do mês, precisamos de adicionar isso ao FaturacaoTab numa sessão futura. Os dados existem (`production_cost_snapshot` + `computeProductionCost`), só falta UI.
+
+**Preflight:** `tsc --noEmit && next build` limpos em 27s + 24s. Aviso pré-existente sobre Google Sans font fallback (não relacionado).
+
+**Maria: passos manuais:**
+1. Aplicar migração 053 na BD do Supabase (Dashboard → SQL → colar contents).
+2. Push para Vercel.
+3. Smoke browser:
+   - Abrir qualquer encomenda existente (não-pirâmide) → "Tipo de moldura (interno)" mostra "Baixa (2x2cm)" preenchido (antes estava "—").
+   - Criar uma nova encomenda → nasce com "Baixa" já preenchido.
+   - Abrir uma pirâmide → continua a mostrar "Pirâmide" em italic (intocado).
+   - Confirmar que orçamento (Sparkles roxo) continua a aparecer, mas o badge cinzento "Custo €X · margem Y%" já não existe.
+   - Hint debaixo do dropdown agora explica claramente que afecta custo, não preço ao cliente.
 
 ### Sessão 88-D 🗂️ Página CRUD de templates de tarefas (Sistema → Tarefas)
 
@@ -233,71 +270,20 @@ Maria pediu para conseguir **criar tarefas a partir do workbench** (de uma encom
 - Mini-diálogo "Qual é o valor a faturar?" para templates com `needs_amount=true`, com opções calculadas a partir do `orders.budget` (30/40/70/100/outro)
 - Server action `createTaskFromTemplate` ou expandir `createTaskAction` para aceitar `order_id`/`voucher_id`/`amount`
 
-### Sessão 87 🧹 Dashboard: fora checklist + pill prioridade + reordenar colunas + estúdio lime + admin teal + filtro avatares
-
-Maria via screenshot do Dashboard, em 2 iterações:
-
-**Iteração 1:** (1) checklist pessoal era redundante (filtro "Minhas" do kanban basta); (2) ícone de câmara + roxo no Estúdio confundia-se com o violet das Recolhas no local — "estúdio" para ela é atelier/materiais, não fotografia; (3) o pill "Alta/Média" da prioridade ocupava demasiado espaço no tile; (4) não dava para reordenar as colunas do kanban.
-
-**Iteração 2 (mesma sessão):** (5) o pontinho de prioridade não era explícito — pediu para arranjar outra forma; (6) Admin (zinc) e Outros (stone) eram indistinguíveis; (7) filtro "Todas/Minhas/Feitas" não chegava — quer **avatares dos 3 membros no topo** (multi-select, default todas).
-
-**Decisões pré-implementação (perguntei à Maria):**
-- Eliminar checklist por completo do UI — manter tabela `personal_checklist` na BD intacta (defensivo).
-- Estúdio → `Palette` + `lime`.
-- Prioridade → pontinho colorido + popover (1ª iter) → **pill com abreviatura URG/ALTA/MÉD/BAIXA** + popover (2ª iter, após "não são explícitas").
-- Reordenação de colunas com drag-and-drop, persistência em **localStorage** (preferência por browser, não justifica BD).
-- Admin → **teal** (era zinc); Outros → stone muito mais claro para separar dos 5 restantes.
-- Filtro por membro: **3 avatares** no header (multi-select, default todas); substitui o select "Todas/Minhas". "Feitas" passa a um botão toggle Activas/Concluídas (estado independente).
-
-**Dashboard sem checklist — [page.tsx](src/app/(admin)/page.tsx) e [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx):**
-- Query a `personal_checklist` removida do `Promise.all` da page; props `checklist`/`role` removidos do `DashboardClient`; toast de tarefas-novas-atribuídas + `markTasksSeenAction` mantidos (independentes da checklist).
-- Ficheiro [checklist-card.tsx](src/app/(admin)/_components/dashboard/checklist-card.tsx) apagado. `RecentDoneRow` continua a existir (usado por `TasksCard`).
-- Tabela e server actions de checklist deixadas intactas — sem migração de drop. Maria pode reverter abrindo o componente novamente se mudar de ideias.
-
-**Cores das colunas — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) `CATEGORY_META`:**
-- Estúdio: `Camera`/purple → **`Palette`/lime** (`border-t-lime-500`, `bg-lime-100`, `text-lime-700`, `from-lime-50/40`, `border-l-lime-400`). Distinto de cyan (presença online) e do violet das recolhas no local.
-- Admin: zinc → **teal-600/700** (`border-t-teal-600`, `bg-teal-100`, `text-teal-700`, `from-teal-50/40`, `border-l-teal-500`). Visualmente distinto de cyan (mais frio/azulado) e dos cinzentos.
-- Outros: stone-400/600 → **stone-300/500 com tint 30**: borda topo mais fina, ícone mais pálido, fundo praticamente neutro. Coluna "lixeira" fica deliberadamente discreta para o olhar não competir com as 5 categorias com identidade.
-
-**Prioridade — pill compacto com abreviatura + popover — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- 1ª tentativa (rejeitada pela Maria): bola 8px colorida (`PriorityDot`). Demasiado subtil.
-- 2ª (aceite): sub-componente `PriorityPill` — pill `h-4 px-1 text-[9px] font-bold` com abreviatura curta (`URG`/`ALTA`/`MÉD`/`BAIXA`) e cores reaproveitadas de `TASK_PRIORITY_COLORS` (coerência com Preservação/Métricas).
-- Click no pill abre popover com as 4 prioridades em lista, cada uma com bolinha colorida + label completa.
-- `onPointerDown={(e) => e.stopPropagation()}` no trigger e na content para o drag-and-drop dos tiles não capturar o click.
-- Modo edição inline **mantém** o `Select` original — há espaço lá.
-- 3ª iter: Maria pediu o pill no canto superior direito (era inline à esquerda do título e estava a empurrar/cortar o título em 4 linhas). Resolvido com **`absolute top-1.5 right-1.5 z-10`** + `pr-14` na title row para reservar espaço. Edit/trash icons saíram da title row e foram para a bottom row, ao lado da data (alinhados ao fim com `ml-auto`).
-
-**Filtro por avatares no header — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- State antigo `filter: "todas" | "minhas" | "feitas"` substituído por **dois states** ortogonais:
-  - `selectedMembers: string[]` — emails seleccionados (default = todos os 3 TEAM_MEMBERS).
-  - `viewDone: boolean` — true mostra concluídas em vez de activas (default false).
-- Helper `allMembersSelected` (todos os 3 seleccionados) — neste caso o filtro por responsável **não** se aplica (tarefas sem assignee continuam visíveis). Quando há subset, tarefa só passa se algum dos seus assignees estiver no set; tarefas sem assignee ficam escondidas.
-- Header da card: 3 avatares (h-7 w-7) com ring indigo + offset quando activos; quando desactivos ficam `opacity-30 grayscale`. Click alterna. Tooltip por avatar: "Mostrar/Esconder tarefas de Nome".
-- Botão "Activas/Concluídas" ao lado dos avatares: variant `default` (preenchido) quando a ver concluídas, `ghost` quando a ver activas. Click alterna `viewDone`.
-- Empty state diferencia 4 casos: 0 membros seleccionados, ver concluídas vazias, subset sem resultados, sem tarefas global.
-
-**Reordenação de colunas — [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- Novo state `columnOrder: TaskCategory[]` (default = `TASK_CATEGORY_ORDER`). Render usa `columnOrder.map(...)` em vez da constante hardcoded.
-- Persistência em `localStorage.fbr.dashboard.tasksColumnOrder.v1`. Leitura faz-se no primeiro `useEffect` (não no initializer) para evitar hydration mismatch — flag `orderHydrated` evita re-escrita prematura. Validação ao ler: filtra categorias inválidas, completa com defaults se faltar alguma (forward-compat com categorias futuras).
-- Cabeçalho de cada coluna é agora um `useDraggable` com `id=col:<category>` e `data: { type: "column", category }`. `setNodeRef`/`attributes`/`listeners` aplicados ao header; cursor `grab`/`grabbing`; `select-none touch-none`.
-- O `useDroppable` existente em cada coluna (id=category) passa a aceitar **dois tipos de drop**: tasks (mover entre categorias) E columns (reordenar). Branching no `handleDragEnd` por `active.data.current.type`.
-- Visual: durante drag de coluna → ring indigo na coluna sob o pointer (distingue do ring cocoa quando se arrasta task). Coluna a ser arrastada fica a 40% opacity. `DragOverlay` mostra mini-cabeçalho com ícone + label.
-- `reorderColumn(from, to)`: splice clássico — remove `from` e insere na posição de `to`.
-
-**Preflight tsc + next build limpos.** **Maria: passos manuais:**
-1. **Sem migrações** nesta sessão.
-2. **Push para Vercel**.
-3. **Smoke**:
-   - `/` → Dashboard mostra só Afazeres globais (kanban) + Recolhas + Alertas. Sem card "Checklist pessoal".
-   - Header da card tem **3 avatares** seguidos do botão "Concluídas" e do "+". Por default todos os avatares activos (ring indigo). Click num avatar → fica grey, e as tarefas onde só essa pessoa é responsável desaparecem.
-   - Coluna Estúdio: ícone paleta verde-lima. Coluna Admin: teal. Coluna Outros: cinza muito claro (deliberadamente discreta).
-   - Cada tile mostra **pill com abreviatura** (`URG`/`ALTA`/`MÉD`/`BAIXA`) colorida à esquerda do título. Click → popover lista as 4 prioridades; selecionar → muda.
-   - Botão "Concluídas" no header → muda toda a kanban para tarefas done; rótulo passa a "Activas" para voltar.
-   - Arrastar cabeçalho de uma coluna para cima de outra → trocam de ordem; recarregar página → ordem fica.
-   - Continuar a poder arrastar tiles entre colunas.
-
-
 ## Próximo passo CONCRETO
+
+**Sessão 88-E — passos manuais (mig 053 + UI):**
+
+1. **Correr [supabase/migrations/053_default_frame_internal_type_baixa.sql](supabase/migrations/053_default_frame_internal_type_baixa.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT count(*) FROM orders WHERE frame_internal_type IS NULL AND pyramid_frame=false AND deleted_at IS NULL;` → 0 (todas backfilled).
+   - `SELECT column_default FROM information_schema.columns WHERE table_name='orders' AND column_name='frame_internal_type';` → `'baixa'::text`.
+2. **Push para Vercel**.
+3. **Smoke browser:**
+   - Abrir encomenda existente não-pirâmide → dropdown "Tipo de moldura (interno)" mostra "Baixa (2x2cm)" preenchido.
+   - Mudar para "Caixa (2x3cm)" e guardar — sem badge cinzento de custo a aparecer debaixo do orçamento (foi removido).
+   - Criar encomenda nova (botão "+" em /preservacao) → nasce com "Baixa" preenchido.
+   - Abrir encomenda com `pyramid_frame=true` → continua a mostrar "Pirâmide" em italic; comportamento inalterado.
+   - Hint debaixo do dropdown agora diz "afecta custo de produção" (era "não afecta preço").
 
 **Sessão 88-D — passos manuais (UI; sem BD):**
 
@@ -341,19 +327,6 @@ Maria via screenshot do Dashboard, em 2 iterações:
    - `SELECT slug, scope, needs_amount FROM task_templates ORDER BY position;` → `passar_fatura/both/true`, `anexar_comprovativo/both/false`, `pedir_feedback/order/false`, `avisar_parceiro_comissao/order/false`.
 2. **Push para Vercel** (build a passar; nada visível na UI ainda — schema+tipos+seeds só).
 3. **Sem smoke browser nesta sessão** — bloco "Tarefas desta encomenda" e picker de templates vêm na sessão 88-B.
-
-**Sessão 87 — passos manuais (só código, sem BD):**
-
-1. **Sem migrações** nesta sessão.
-2. **Push para Vercel**.
-3. **Smoke**:
-   - `/` → Dashboard mostra só Afazeres globais (kanban) + Recolhas + Alertas. Sem card "Checklist pessoal".
-   - Header da card: 3 avatares + botão Concluídas + "+". Por default todos avatares activos (ring indigo). Click num → grey, tarefas dessa pessoa somem.
-   - Estúdio: Palette + lime. Admin: teal. Outros: stone muito light.
-   - Tile: pill com abreviatura (URG/ALTA/MÉD/BAIXA) ao lado do título. Click → popover muda prioridade.
-   - "Concluídas" no header → kanban mostra done.
-   - Arrastar cabeçalho de coluna → reordena; recarregar → ordem mantém-se.
-   - Continuar a poder arrastar tiles entre colunas.
 
 **Sessão 86 — passos manuais:**
 
@@ -425,9 +398,10 @@ Maria via screenshot do Dashboard, em 2 iterações:
 
 ---
 
-## Histórico condensado (sessões 1-86)
+## Histórico condensado (sessões 1-87)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-86)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-87)
+- **87** — Dashboard refinado pós-uso: remoção da card "Checklist pessoal" (redundante com filtro "Minhas" do kanban; tabela `personal_checklist` na BD intacta); Estúdio `Camera/purple` → `Palette/lime` (não colidia com violet das recolhas); Admin `zinc` → `teal-600`; Outros `stone-300` mais claro; `PriorityPill` (URG/ALTA/MÉD/BAIXA) absolute top-right + popover de 4 opções (`onPointerDown stopPropagation` para não capturar drag); filtro "Todas/Minhas/Feitas" → 3 avatares multi-select no header + toggle Activas/Concluídas; reordenação de colunas via `useDraggable` no header + persistência em `localStorage.fbr.dashboard.tasksColumnOrder.v1` (hydration safe com flag `orderHydrated`)
 - **86** — Kanban refinado + DnD invisível + título/detalhes editáveis (mig 051 `personal_checklist.description`): substituição de pills de categoria por barra colorida no topo + borda esquerda 3px no tile; `@dnd-kit` PointerSensor distance=6 com `stopPropagation` em cada elemento clicável; Pencil em hover → form inline; campo "Detalhes" no form de criação; checklist com paridade visual (mesmo Pencil)
 - **85** — Afazeres globais agrupados em kanban por categoria (mig 050 `tasks.category` TEXT DEFAULT 'outros' CHECK 6 valores): TasksCard sai da grelha 2×2 e ocupa linha inteira no topo do Dashboard; grelha `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` com 6 colunas sempre visíveis (placeholder "—"); cada raia com fundo cream-50/50 e scroll independente
 - **84** — Vermelho ≠ "evento próximo" (Maria via screenshot): vermelho era ansiogénico para eventos a 5d. Split `urgentEvent` em `overdueEvent` (passados, red+AlertTriangle) + `soonEvent` (≤5d, amber-200/400/900 bold + Clock). Helper `isEventAlertRelevant(status)` esconde alerta a partir de `flores_recebidas`; banner do workbench, badge da timeline e célula da tabela usam mesma lógica
