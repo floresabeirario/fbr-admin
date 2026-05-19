@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import React, { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Euro,
@@ -27,6 +27,7 @@ import {
   Frame,
   Camera,
   Package,
+  Handshake,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -64,6 +65,16 @@ import {
   PRODUCTION_GLASS_TYPE_LABELS,
 } from "@/types/production-cost";
 import { computeProductionCost } from "@/lib/production-cost";
+import {
+  commissionFromOrder,
+  cogsRecognizedFromOrder,
+  orderPnL,
+  paidRatio as paidRatioOf,
+  aggregateExpensesByAccountingType,
+  ACCOUNTING_TYPE_LABELS,
+} from "@/lib/finance";
+import { STATUS_LABELS, FRAME_SIZE_LABELS, FRAME_BACKGROUND_LABELS } from "@/types/database";
+import type { OrderStatus, FrameSize, FrameBackground } from "@/types/database";
 import type { Expense, ExpenseCategory, ExpensePaymentMethod, ExpenseRecurrencePeriod } from "@/types/expense";
 import {
   EXPENSE_CATEGORY_LABELS,
@@ -90,7 +101,7 @@ import {
   uploadExpenseInvoiceAction,
 } from "./actions";
 
-type TabKey = "despesas" | "precos" | "custos" | "faturacao" | "competicao";
+type TabKey = "painel" | "pnl" | "catalogo" | "despesas" | "faturacao" | "competicao";
 
 interface TabDef {
   key: TabKey;
@@ -103,28 +114,36 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   {
+    key: "painel",
+    label: "Painel",
+    helper: "Resumo executivo do mês",
+    icon: Sparkles,
+    accent: "text-emerald-600",
+    bgInactive: "bg-emerald-100",
+  },
+  {
+    key: "pnl",
+    label: "P&L por encomenda",
+    helper: "Margem por quadro",
+    icon: Frame,
+    accent: "text-amber-600",
+    bgInactive: "bg-amber-100",
+  },
+  {
+    key: "catalogo",
+    label: "Catálogo",
+    helper: "Preços, custos e margem teórica",
+    icon: Tags,
+    accent: "text-sky-600",
+    bgInactive: "bg-sky-100",
+  },
+  {
     key: "despesas",
     label: "Despesas",
     helper: "Subscrições e gastos únicos",
     icon: Receipt,
     accent: "text-rose-600",
     bgInactive: "bg-rose-100",
-  },
-  {
-    key: "precos",
-    label: "Tabela de preços",
-    helper: "Base de cálculo do orçamento",
-    icon: Tags,
-    accent: "text-sky-600",
-    bgInactive: "bg-sky-100",
-  },
-  {
-    key: "custos",
-    label: "Custos de produção",
-    helper: "Custo real de cada quadro",
-    icon: Frame,
-    accent: "text-amber-600",
-    bgInactive: "bg-amber-100",
   },
   {
     key: "faturacao",
@@ -150,7 +169,7 @@ interface Props {
   initialPricing: PricingItem[];
   initialProductionCosts: ProductionCostItem[];
   initialExpenses: Expense[];
-  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot">>;
+  orders: Array<Pick<import("@/types/database").Order, "id" | "order_id" | "client_name" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot" | "partner_commission" | "partner_commission_status">>;
   vouchers: Array<Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">>;
   canEdit: boolean;
 }
@@ -164,7 +183,7 @@ export default function FinancasClient({
   vouchers,
   canEdit,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("despesas");
+  const [tab, setTab] = useState<TabKey>("painel");
 
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
@@ -179,7 +198,7 @@ export default function FinancasClient({
       </div>
 
       {/* Tabs como cartões grandes — visíveis e claros */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         {TABS.map((t) => {
           const active = t.key === tab;
           const Icon = t.icon;
@@ -228,13 +247,740 @@ export default function FinancasClient({
         })}
       </div>
 
+      {tab === "painel"    && <PainelTab orders={orders} vouchers={vouchers} expenses={initialExpenses} />}
+      {tab === "pnl"       && <PnLTab orders={orders} />}
+      {tab === "catalogo"  && <CatalogoTab pricing={initialPricing} productionCosts={initialProductionCosts} canEdit={canEdit} />}
       {tab === "despesas"  && <DespesasTab expenses={initialExpenses} canEdit={canEdit} />}
-      {tab === "precos"    && <PrecosTab pricing={initialPricing} canEdit={canEdit} />}
-      {tab === "custos"    && <CustosTab items={initialProductionCosts} canEdit={canEdit} />}
       {tab === "faturacao" && <FaturacaoTab orders={orders} vouchers={vouchers} expenses={initialExpenses} />}
       {tab === "competicao" && (
         <CompeticaoTab competitors={initialCompetitors} canEdit={canEdit} />
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// PAINEL (resumo executivo)
+// ============================================================
+
+function inRangeISO(iso: string | null, start: Date, end: Date): boolean {
+  if (!iso) return false;
+  const d = parseISO(iso);
+  return d >= start && d <= end;
+}
+
+function PainelTab({
+  orders,
+  vouchers,
+  expenses,
+}: {
+  orders: FaturacaoOrder[];
+  vouchers: FaturacaoVoucher[];
+  expenses: Expense[];
+}) {
+  const now = useMemo(() => new Date(), []);
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+  const prevMonthStart = startOfMonth(subMonths(now, 1));
+  const prevMonthEnd = endOfMonth(subMonths(now, 1));
+  const yearStart = startOfYear(now);
+  const yearEnd = endOfYear(now);
+  const currentYear = getYear(now);
+
+  // ── Agregação genérica de um período ──
+  const aggregate = (start: Date, end: Date) => {
+    const ordersInRange = orders.filter((o) => inRangeISO(o.event_date, start, end));
+    let revenueGross = 0;
+    let cogs = 0;
+    let commission = 0;
+    let orderCount = 0;
+    let completedCount = 0;
+    for (const o of ordersInRange) {
+      if (o.status === "cancelado") continue;
+      const p = orderPnL(o);
+      revenueGross += p.revenue_recognized;
+      cogs += p.cogs_recognized;
+      commission += p.commission_recognized;
+      orderCount += 1;
+      if (o.status === "quadro_recebido") completedCount += 1;
+    }
+    // Vales 100% pagos não convertidos somam à receita
+    const voucherRevenue = vouchers
+      .filter((v) => inRangeISO(v.created_at, start, end))
+      .filter((v) => v.payment_status === "100_pago" && v.usage_status !== "preservacao_agendada")
+      .reduce((s, v) => s + Number(v.amount), 0);
+    revenueGross += voucherRevenue;
+    const expensesInRange = expenses.filter((e) => inRangeISO(e.expense_date, start, end));
+    const expensesTotal = expensesInRange.reduce((s, e) => s + Number(e.amount), 0);
+    const expensesByType = aggregateExpensesByAccountingType(expensesInRange);
+    const revenueNet = revenueGross - commission;
+    const profit = revenueGross - cogs - commission - expensesTotal;
+    const marginPct = revenueGross > 0 ? (profit / revenueGross) * 100 : 0;
+    return {
+      revenueGross,
+      revenueNet,
+      cogs,
+      commission,
+      expensesTotal,
+      expensesByType,
+      profit,
+      marginPct,
+      orderCount,
+      completedCount,
+    };
+  };
+
+  const month = useMemo(() => aggregate(monthStart, monthEnd), [orders, vouchers, expenses, monthStart, monthEnd]);
+  const prevMonth = useMemo(() => aggregate(prevMonthStart, prevMonthEnd), [orders, vouchers, expenses, prevMonthStart, prevMonthEnd]);
+  const year = useMemo(() => aggregate(yearStart, yearEnd), [orders, vouchers, expenses, yearStart, yearEnd]);
+
+  const revenueDelta = prevMonth.revenueGross > 0
+    ? ((month.revenueGross - prevMonth.revenueGross) / prevMonth.revenueGross) * 100
+    : null;
+  const profitDelta = prevMonth.profit !== 0
+    ? ((month.profit - prevMonth.profit) / Math.abs(prevMonth.profit)) * 100
+    : null;
+
+  // ── Quadro mais lucrativo do mês ──
+  const mostProfitableThisMonth = useMemo(() => {
+    let best: { order: FaturacaoOrder; pnl: ReturnType<typeof orderPnL> } | null = null;
+    for (const o of orders) {
+      if (!inRangeISO(o.event_date, monthStart, monthEnd)) continue;
+      if (o.status === "cancelado") continue;
+      const p = orderPnL(o);
+      if (!best || p.margin_full > best.pnl.margin_full) best = { order: o, pnl: p };
+    }
+    return best;
+  }, [orders, monthStart, monthEnd]);
+
+  // ── Ticket médio ──
+  const ticketAvg = month.orderCount > 0 ? month.revenueGross / month.orderCount : 0;
+
+  // ── Pipeline pendente (não recebido) ──
+  const pendingPipeline = useMemo(() => {
+    let total = 0;
+    for (const o of orders) {
+      if (o.status === "cancelado") continue;
+      if (o.status === "quadro_recebido") continue;
+      total += Number(o.budget) || 0;
+    }
+    return total;
+  }, [orders]);
+
+  // ── Conversão vale → preservação ──
+  const voucherConversion = useMemo(() => {
+    const totalVouchers = vouchers.filter((v) => v.payment_status === "100_pago").length;
+    if (totalVouchers === 0) return null;
+    const converted = vouchers.filter((v) => v.usage_status === "preservacao_agendada").length;
+    return (converted / totalVouchers) * 100;
+  }, [vouchers]);
+
+  // ── Ranking por tamanho de moldura ──
+  const rankingBySize = useMemo(() => {
+    const groups = new Map<string, { label: string; count: number; revenue: number; cogs: number; commission: number; margin: number }>();
+    const ensure = (key: string, label: string) => {
+      if (!groups.has(key)) groups.set(key, { label, count: 0, revenue: 0, cogs: 0, commission: 0, margin: 0 });
+      return groups.get(key)!;
+    };
+    for (const o of orders) {
+      if (!inRangeISO(o.event_date, yearStart, yearEnd)) continue;
+      if (o.status === "cancelado") continue;
+      const p = orderPnL(o);
+      const key = o.pyramid_frame ? "piramide" : (o.frame_size ?? "indef");
+      const label = o.pyramid_frame
+        ? "Pirâmide"
+        : o.frame_size && o.frame_size in FRAME_SIZE_LABELS
+          ? FRAME_SIZE_LABELS[o.frame_size as FrameSize]
+          : "Por definir";
+      const g = ensure(key, label);
+      g.count += 1;
+      g.revenue += p.revenue_full;
+      g.cogs += p.cogs_full;
+      g.commission += p.commission_full;
+      g.margin += p.margin_full;
+    }
+    return [...groups.values()].sort((a, b) => b.margin - a.margin);
+  }, [orders, yearStart, yearEnd]);
+
+  // ── Ranking por tipo de fundo ──
+  const rankingByBackground = useMemo(() => {
+    const groups = new Map<string, { label: string; count: number; revenue: number; cogs: number; commission: number; margin: number }>();
+    const ensure = (key: string, label: string) => {
+      if (!groups.has(key)) groups.set(key, { label, count: 0, revenue: 0, cogs: 0, commission: 0, margin: 0 });
+      return groups.get(key)!;
+    };
+    for (const o of orders) {
+      if (!inRangeISO(o.event_date, yearStart, yearEnd)) continue;
+      if (o.status === "cancelado") continue;
+      const p = orderPnL(o);
+      const key = o.frame_background ?? "indef";
+      const label = o.frame_background && o.frame_background in FRAME_BACKGROUND_LABELS
+        ? FRAME_BACKGROUND_LABELS[o.frame_background as FrameBackground]
+        : "Por definir";
+      const g = ensure(key, label);
+      g.count += 1;
+      g.revenue += p.revenue_full;
+      g.cogs += p.cogs_full;
+      g.commission += p.commission_full;
+      g.margin += p.margin_full;
+    }
+    return [...groups.values()].sort((a, b) => b.margin - a.margin);
+  }, [orders, yearStart, yearEnd]);
+
+  const monthLabel = format(now, "MMMM 'de' yyyy", { locale: pt });
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-900/50 p-4">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h2 className="text-base font-semibold text-emerald-900 dark:text-emerald-200 capitalize">
+            Resumo de {monthLabel}
+          </h2>
+          <span className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
+            Atualizado em {format(now, "dd/MM/yyyy HH:mm")}
+          </span>
+        </div>
+      </div>
+
+      {/* 6 KPIs principais — mês actual */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <KpiBox
+          label="Receita líquida"
+          value={formatEUR(month.revenueNet)}
+          icon={<TrendingUp className="h-4 w-4" />}
+          color="emerald"
+          delta={revenueDelta}
+          subLabel="Bruta"
+          subValue={month.commission > 0 ? formatEUR(month.revenueGross) : undefined}
+        />
+        <KpiBox label="COGS" value={formatEUR(month.cogs)} icon={<Frame className="h-4 w-4" />} color="amber" />
+        <KpiBox label="Comissões" value={formatEUR(month.commission)} icon={<Handshake className="h-4 w-4" />} color="violet" />
+        <KpiBox label="Despesas" value={formatEUR(month.expensesTotal)} icon={<Receipt className="h-4 w-4" />} color="rose" />
+        <KpiBox
+          label="Lucro líquido"
+          value={formatEUR(month.profit)}
+          icon={<CreditCard className="h-4 w-4" />}
+          color={month.profit >= 0 ? "emerald" : "rose"}
+          delta={profitDelta}
+        />
+        <KpiBox
+          label="Margem %"
+          value={`${month.marginPct.toFixed(1)}%`}
+          icon={<ArrowUpRight className="h-4 w-4" />}
+          color={month.marginPct >= 50 ? "emerald" : month.marginPct >= 30 ? "amber" : "rose"}
+        />
+      </div>
+
+      {/* 4 KPIs secundários */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiBox
+          label="Encomendas no mês"
+          value={String(month.orderCount)}
+          icon={<Package className="h-4 w-4" />}
+          color="sky"
+          subLabel="Concluídas"
+          subValue={month.completedCount > 0 ? String(month.completedCount) : undefined}
+        />
+        <KpiBox label="Ticket médio" value={formatEUR(ticketAvg)} icon={<Tags className="h-4 w-4" />} color="sky" />
+        <KpiBox
+          label="Quadro mais lucrativo (mês)"
+          value={mostProfitableThisMonth ? formatEUR(mostProfitableThisMonth.pnl.margin_full) : "—"}
+          icon={<Sparkles className="h-4 w-4" />}
+          color="emerald"
+          subLabel={mostProfitableThisMonth ? "Cliente" : undefined}
+          subValue={mostProfitableThisMonth ? `${mostProfitableThisMonth.order.client_name} · ${mostProfitableThisMonth.pnl.margin_pct.toFixed(0)}%` : undefined}
+        />
+        <KpiBox
+          label="Pipeline pendente"
+          value={formatEUR(pendingPipeline)}
+          icon={<ArrowDownRight className="h-4 w-4" />}
+          color="violet"
+          subLabel="Conversão vales"
+          subValue={voucherConversion !== null ? `${voucherConversion.toFixed(0)}%` : undefined}
+        />
+      </div>
+
+      {/* Breakdown de despesas por tipo contabilístico — mês actual */}
+      <div className="rounded-xl border border-cream-200 bg-surface p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-cocoa-900">
+          Despesas do mês por tipo
+        </h3>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {(Object.entries(month.expensesByType) as [keyof typeof month.expensesByType, number][]).map(([type, value]) => (
+            <div
+              key={type}
+              className="rounded-lg border border-cocoa-200/50 bg-cream-50/50 dark:bg-cream-950/20 p-3"
+            >
+              <div className="text-[10px] uppercase tracking-wider text-cocoa-700 font-medium">
+                {ACCOUNTING_TYPE_LABELS[type]}
+              </div>
+              <div className="text-lg font-semibold text-cocoa-900 tabular-nums">
+                {formatEUR(value)}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-cocoa-700 italic">
+          Despesas categorizadas dinamicamente a partir do tipo definido na despesa: flores/molduras/materiais → COGS variável; software/serviços/transporte/outros → Operacional; taxas → Financeira.
+        </p>
+      </div>
+
+      {/* Ranking — Onde está o lucro (ano corrente) */}
+      <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-4">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
+          <h3 className="text-sm font-semibold text-cocoa-900">
+            Onde está o lucro — {currentYear}
+          </h3>
+          <p className="text-xs text-cocoa-700 italic">
+            Agregação pelo orçamento e custo plenos (não proporcionais). Cancelado excluído.
+          </p>
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-cocoa-900 mb-2 uppercase tracking-wide">
+            Por tamanho de moldura
+          </h4>
+          <RankingTable rows={rankingBySize} />
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-cocoa-900 mb-2 uppercase tracking-wide">
+            Por tipo de fundo
+          </h4>
+          <RankingTable rows={rankingByBackground} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RankingTable({
+  rows,
+}: {
+  rows: Array<{ label: string; count: number; revenue: number; cogs: number; commission: number; margin: number }>;
+}) {
+  if (rows.length === 0) {
+    return <p className="text-xs text-cocoa-700 italic">Sem dados neste período.</p>;
+  }
+  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+  const totalMargin = rows.reduce((s, r) => s + r.margin, 0);
+  return (
+    <div className="rounded-lg overflow-hidden border border-cream-200">
+      <table className="w-full text-sm">
+        <thead className="bg-cream-50 text-xs uppercase tracking-wide text-cocoa-700">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium">Categoria</th>
+            <th className="text-right px-3 py-2 font-medium w-16">Nº</th>
+            <th className="text-right px-3 py-2 font-medium w-24">Receita</th>
+            <th className="text-right px-3 py-2 font-medium w-24">COGS</th>
+            <th className="text-right px-3 py-2 font-medium w-24">Comissão</th>
+            <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
+            <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const pct = r.revenue > 0 ? (r.margin / r.revenue) * 100 : 0;
+            return (
+              <tr key={r.label} className="border-t border-cream-100">
+                <td className="px-3 py-2 text-cocoa-900">{r.label}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">{r.count}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">{formatEUR(r.revenue)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-rose-700">{formatEUR(r.cogs)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-violet-700">{formatEUR(r.commission)}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{formatEUR(r.margin)}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{pct.toFixed(0)}%</td>
+              </tr>
+            );
+          })}
+          <tr className="border-t-2 border-cream-300 bg-cream-50/50 font-semibold">
+            <td className="px-3 py-2 text-cocoa-900">Total</td>
+            <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">
+              {rows.reduce((s, r) => s + r.count, 0)}
+            </td>
+            <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">{formatEUR(totalRevenue)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-rose-700">
+              {formatEUR(rows.reduce((s, r) => s + r.cogs, 0))}
+            </td>
+            <td className="px-3 py-2 text-right tabular-nums text-violet-700">
+              {formatEUR(rows.reduce((s, r) => s + r.commission, 0))}
+            </td>
+            <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{formatEUR(totalMargin)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-emerald-700">
+              {totalRevenue > 0 ? ((totalMargin / totalRevenue) * 100).toFixed(0) : "0"}%
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ============================================================
+// P&L POR ENCOMENDA
+// ============================================================
+
+type PnLSortBy = "event_date" | "client_name" | "budget" | "margin_eur" | "margin_pct" | "paid_ratio";
+
+function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
+  const now = useMemo(() => new Date(), []);
+  const currentYear = getYear(now);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([currentYear]);
+    for (const o of orders) {
+      if (o.event_date) {
+        try { years.add(getYear(parseISO(o.event_date))); } catch {}
+      }
+    }
+    return [...years].sort((a, b) => b - a);
+  }, [orders, currentYear]);
+
+  const [selectedYear, setSelectedYear] = useState<number | "all">(currentYear);
+  const [sortBy, setSortBy] = useState<PnLSortBy>("margin_eur");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const yearStart = selectedYear === "all" ? new Date(1970, 0, 1) : startOfYear(new Date(selectedYear as number, 0, 1));
+  const yearEnd = selectedYear === "all" ? new Date(2999, 11, 31) : endOfYear(new Date(selectedYear as number, 11, 31));
+
+  const rows = useMemo(() => {
+    const filtered = orders
+      .filter((o) => o.status !== "cancelado")
+      .filter((o) => inRangeISO(o.event_date, yearStart, yearEnd))
+      .map((o) => ({ order: o, pnl: orderPnL(o) }));
+
+    const cmp = (a: typeof filtered[0], b: typeof filtered[0]): number => {
+      switch (sortBy) {
+        case "event_date":
+          return (a.order.event_date ?? "").localeCompare(b.order.event_date ?? "");
+        case "client_name":
+          return a.order.client_name.localeCompare(b.order.client_name, "pt");
+        case "budget":
+          return a.pnl.revenue_full - b.pnl.revenue_full;
+        case "margin_eur":
+          return a.pnl.margin_full - b.pnl.margin_full;
+        case "margin_pct":
+          return a.pnl.margin_pct - b.pnl.margin_pct;
+        case "paid_ratio":
+          return a.pnl.paid_ratio - b.pnl.paid_ratio;
+      }
+    };
+    filtered.sort((a, b) => (sortDir === "asc" ? cmp(a, b) : -cmp(a, b)));
+    return filtered;
+  }, [orders, yearStart, yearEnd, sortBy, sortDir]);
+
+  const totals = useMemo(() => {
+    return rows.reduce(
+      (acc, { pnl }) => ({
+        revenue: acc.revenue + pnl.revenue_full,
+        cogs: acc.cogs + pnl.cogs_full,
+        commission: acc.commission + pnl.commission_full,
+        margin: acc.margin + pnl.margin_full,
+      }),
+      { revenue: 0, cogs: 0, commission: 0, margin: 0 },
+    );
+  }, [rows]);
+
+  const toggleSort = (col: PnLSortBy) => {
+    if (sortBy === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(col);
+      setSortDir("desc");
+    }
+  };
+
+  const sortArrow = (col: PnLSortBy) => {
+    if (sortBy !== col) return null;
+    return <span className="ml-1 opacity-60">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Selector ano + info */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4 text-cocoa-700" />
+          <span className="text-sm font-medium text-cocoa-900">Ano:</span>
+          <Select
+            value={selectedYear === "all" ? "all" : String(selectedYear)}
+            onValueChange={(v) => setSelectedYear(v === "all" ? "all" : Number(v))}
+          >
+            <SelectTrigger className="h-9 w-[170px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos (desde sempre)</SelectItem>
+              {availableYears.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y}{y === currentYear ? " (actual)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-cocoa-700 italic">
+          {rows.length} {rows.length === 1 ? "encomenda" : "encomendas"} (cancelado excluído). Valores plenos (não proporcionais ao %pago). Clica nas colunas para ordenar.
+        </p>
+      </div>
+
+      {/* Totais em destaque */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <KpiBox label="Receita" value={formatEUR(totals.revenue)} icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
+        <KpiBox label="COGS" value={formatEUR(totals.cogs)} icon={<Frame className="h-4 w-4" />} color="amber" />
+        <KpiBox label="Comissões" value={formatEUR(totals.commission)} icon={<Handshake className="h-4 w-4" />} color="violet" />
+        <KpiBox label="Margem €" value={formatEUR(totals.margin)} icon={<CreditCard className="h-4 w-4" />} color={totals.margin >= 0 ? "emerald" : "rose"} />
+        <KpiBox
+          label="Margem %"
+          value={totals.revenue > 0 ? `${((totals.margin / totals.revenue) * 100).toFixed(1)}%` : "—"}
+          icon={<ArrowUpRight className="h-4 w-4" />}
+          color="emerald"
+        />
+      </div>
+
+      {/* Tabela */}
+      <div className="rounded-xl border border-cream-200 bg-surface overflow-x-auto">
+        <table className="w-full text-sm min-w-[900px]">
+          <thead className="bg-cream-50 text-xs uppercase tracking-wide text-cocoa-700 sticky top-0">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">ID</th>
+              <th
+                className="text-left px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900"
+                onClick={() => toggleSort("client_name")}
+              >
+                Cliente {sortArrow("client_name")}
+              </th>
+              <th
+                className="text-left px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900"
+                onClick={() => toggleSort("event_date")}
+              >
+                Data evento {sortArrow("event_date")}
+              </th>
+              <th className="text-left px-3 py-2 font-medium">Estado</th>
+              <th
+                className="text-right px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900 w-24"
+                onClick={() => toggleSort("budget")}
+              >
+                Preço {sortArrow("budget")}
+              </th>
+              <th className="text-right px-3 py-2 font-medium w-24">COGS</th>
+              <th className="text-right px-3 py-2 font-medium w-24">Comissão</th>
+              <th
+                className="text-right px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900 w-24"
+                onClick={() => toggleSort("margin_eur")}
+              >
+                Margem € {sortArrow("margin_eur")}
+              </th>
+              <th
+                className="text-right px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900 w-20"
+                onClick={() => toggleSort("margin_pct")}
+              >
+                Margem % {sortArrow("margin_pct")}
+              </th>
+              <th
+                className="text-right px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900 w-16"
+                onClick={() => toggleSort("paid_ratio")}
+              >
+                %pago {sortArrow("paid_ratio")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="px-3 py-6 text-center text-cocoa-700 italic">
+                  Sem encomendas no período seleccionado.
+                </td>
+              </tr>
+            ) : (
+              rows.map(({ order: o, pnl }) => (
+                <tr key={o.id} className="border-t border-cream-100 hover:bg-cream-50/40">
+                  <td className="px-3 py-2 text-cocoa-700 font-mono text-[11px]">
+                    {o.order_id?.slice(0, 8) ?? "—"}
+                  </td>
+                  <td className="px-3 py-2 text-cocoa-900 max-w-[180px] truncate" title={o.client_name}>
+                    {o.client_name || "—"}
+                  </td>
+                  <td className="px-3 py-2 text-cocoa-900 tabular-nums">
+                    {o.event_date ? format(parseISO(o.event_date), "dd/MM/yyyy") : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-cocoa-700 text-xs">
+                    {STATUS_LABELS[o.status]}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">{formatEUR(pnl.revenue_full)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-rose-700">{pnl.cogs_full > 0 ? formatEUR(pnl.cogs_full) : "—"}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-violet-700">{pnl.commission_full > 0 ? formatEUR(pnl.commission_full) : "—"}</td>
+                  <td className={cn("px-3 py-2 text-right tabular-nums font-semibold", pnl.margin_full >= 0 ? "text-emerald-700" : "text-rose-700")}>
+                    {formatEUR(pnl.margin_full)}
+                  </td>
+                  <td className={cn("px-3 py-2 text-right tabular-nums font-semibold", pnl.margin_pct >= 50 ? "text-emerald-700" : pnl.margin_pct >= 30 ? "text-amber-700" : "text-rose-700")}>
+                    {pnl.margin_pct.toFixed(0)}%
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-cocoa-700">
+                    {(pnl.paid_ratio * 100).toFixed(0)}%
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-xs text-cocoa-700 italic px-1">
+        <strong>Margem €</strong> = Preço − COGS − Comissão (valores plenos da encomenda, independentemente do %pago). <strong>COGS</strong> a 0 = encomenda anterior à mig 034 ou sem snapshot. <strong>Comissão</strong> a 0 = sem parceiro ou estado "N/A"/"Não aceita". Para análise por período (mensal/anual), ver Painel e Faturação.
+      </p>
+    </div>
+  );
+}
+
+// ============================================================
+// CATÁLOGO (Preços + Custos + Margem teórica por SKU)
+// ============================================================
+
+function CatalogoTab({
+  pricing,
+  productionCosts,
+  canEdit,
+}: {
+  pricing: PricingItem[];
+  productionCosts: ProductionCostItem[];
+  canEdit: boolean;
+}) {
+  return (
+    <div className="space-y-6">
+      <MargemTeoricaSection pricing={pricing} productionCosts={productionCosts} />
+      <PrecosTab pricing={pricing} canEdit={canEdit} />
+      <CustosTab items={productionCosts} canEdit={canEdit} />
+    </div>
+  );
+}
+
+// Combinações apresentadas: 3 tamanhos × 3 fundos comuns, sempre moldura "baixa".
+// Pirâmide e "caixa" ficam para a tabela detalhada em baixo (custos unitários),
+// porque são variações menos frequentes e inflariam o quadro de margem teórica.
+const MARGEM_COMBINATIONS: Array<{
+  size: "30x40" | "40x50" | "50x70";
+  background: "transparente" | "preto" | "fotografia";
+  label: string;
+}> = [
+  { size: "30x40", background: "transparente", label: "Fundo transparente (vidro/vidro)" },
+  { size: "30x40", background: "preto",        label: "Fundo preto / branco / cor" },
+  { size: "30x40", background: "fotografia",   label: "Fundo fotografia" },
+  { size: "40x50", background: "transparente", label: "Fundo transparente (vidro/vidro)" },
+  { size: "40x50", background: "preto",        label: "Fundo preto / branco / cor" },
+  { size: "40x50", background: "fotografia",   label: "Fundo fotografia" },
+  { size: "50x70", background: "transparente", label: "Fundo transparente (vidro/vidro)" },
+  { size: "50x70", background: "preto",        label: "Fundo preto / branco / cor" },
+  { size: "50x70", background: "fotografia",   label: "Fundo fotografia" },
+];
+
+function MargemTeoricaSection({
+  pricing,
+  productionCosts,
+}: {
+  pricing: PricingItem[];
+  productionCosts: ProductionCostItem[];
+}) {
+  // Snapshot vivo dos custos. Reusa a função canónica para garantir que esta
+  // tabela mostra exactamente o mesmo cálculo que uma encomenda nova teria.
+  const snapshot = useMemo(
+    () => ({
+      captured_at: new Date().toISOString(),
+      items: productionCosts
+        .filter((i) => i.deleted_at === null)
+        .map((i) => ({
+          kind: i.kind,
+          size_key: i.size_key,
+          frame_type: i.frame_type,
+          glass_type: i.glass_type,
+          label: i.label,
+          cost: i.cost,
+        })),
+    }),
+    [productionCosts],
+  );
+
+  // Lookup de preço por tamanho + fundo.
+  const basePrice = (size: string) =>
+    Number(pricing.find((p) => p.category === "base_frame" && p.key === size)?.price ?? 0);
+  const photoSupplement = (size: string) =>
+    Number(pricing.find((p) => p.category === "background_supplement" && p.key === `fotografia_${size}`)?.price ?? 0);
+
+  const rows = MARGEM_COMBINATIONS.map((c) => {
+    const breakdown = computeProductionCost(
+      {
+        frame_size: c.size,
+        frame_background: c.background,
+        pyramid_frame: false,
+        frame_internal_type: "baixa",
+        extra_small_frames: "nao",
+        extra_small_frames_qty: 0,
+      },
+      snapshot,
+    );
+    const cost = breakdown?.total ?? 0;
+    const price = basePrice(c.size) + (c.background === "fotografia" ? photoSupplement(c.size) : 0);
+    const margin = price - cost;
+    const marginPct = price > 0 ? (margin / price) * 100 : 0;
+    return { ...c, price, cost, margin, marginPct };
+  });
+
+  // Agrupado por tamanho para legibilidade.
+  const grouped = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (!grouped.has(r.size)) grouped.set(r.size, []);
+    grouped.get(r.size)!.push(r);
+  }
+
+  return (
+    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-900/50 p-4 sm:p-5 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="h-9 w-9 rounded-xl bg-emerald-200/60 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+          <TrendingUp className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+            Margem teórica por quadro
+          </h2>
+          <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
+            Preço cliente − custo total de produção (moldura + vidro + impressão + consumíveis), assumindo moldura <strong>baixa</strong>. Pirâmide e caixa estão na secção "Custos unitários" em baixo.
+          </p>
+        </div>
+      </div>
+      <div className="rounded-xl bg-surface overflow-hidden border border-emerald-200/60 dark:border-emerald-900/40">
+        <table className="w-full text-sm">
+          <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
+            <tr>
+              <th className="text-left px-3 py-2 font-medium">Combinação</th>
+              <th className="text-right px-3 py-2 font-medium w-24">Preço</th>
+              <th className="text-right px-3 py-2 font-medium w-24">Custo</th>
+              <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
+              <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...grouped.entries()].map(([size, items]) => (
+              <React.Fragment key={size}>
+                <tr className="bg-emerald-50/60 dark:bg-emerald-950/20">
+                  <td colSpan={5} className="px-3 py-1.5 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                    Moldura {size}
+                  </td>
+                </tr>
+                {items.map((r) => (
+                  <tr key={`${r.size}-${r.background}`} className="border-t border-emerald-100 dark:border-emerald-900/30">
+                    <td className="px-3 py-2 text-cocoa-900">{r.label}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">{formatEUR(r.price)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-rose-700">{formatEUR(r.cost)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{formatEUR(r.margin)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{r.marginPct.toFixed(0)}%</td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1330,7 +2076,7 @@ function InvoiceCell({ expense, canEdit }: { expense: Expense; canEdit: boolean 
 // FATURAÇÃO
 // ============================================================
 
-type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot">;
+type FaturacaoOrder = Pick<import("@/types/database").Order, "id" | "order_id" | "client_name" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot" | "partner_commission" | "partner_commission_status">;
 type FaturacaoVoucher = Pick<import("@/types/voucher").Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status">;
 
 function FaturacaoTab({
@@ -1343,17 +2089,9 @@ function FaturacaoTab({
   expenses: Expense[];
 }) {
   // Receita = orders proporcional ao % pago + vales pagos não convertidos (evitar dupla contagem)
-  const paidRatio = (o: FaturacaoOrder): number => {
-    switch (o.payment_status) {
-      case "100_pago": return 1;
-      case "70_pago":  return 0.7;
-      case "30_pago":  return 0.3;
-      default: return 0;
-    }
-  };
   const revenueFromOrder = (o: FaturacaoOrder): number => {
     if (!o.budget) return 0;
-    return o.budget * paidRatio(o);
+    return o.budget * paidRatioOf(o.payment_status);
   };
   const revenueFromVoucher = (v: FaturacaoVoucher): number => {
     if (v.payment_status !== "100_pago") return 0;
@@ -1361,18 +2099,8 @@ function FaturacaoTab({
     return Number(v.amount);
   };
   // COGS proporcional ao % pago — mesma lógica que a receita para manter a
-  // margem comparável por período. Custo "total" da encomenda só faz sentido
-  // contar quando a respectiva receita também conta; caso contrário um mês
-  // com uma entrega grande mas só 30% paga apareceria como prejuízo enorme
-  // quando os outros 70% vêm depois.
-  const cogsFromOrder = (o: FaturacaoOrder): number => {
-    if (!o.production_cost_snapshot) return 0;
-    const ratio = paidRatio(o);
-    if (ratio === 0) return 0;
-    const breakdown = computeProductionCost(o, o.production_cost_snapshot);
-    if (!breakdown) return 0;
-    return breakdown.total * ratio;
-  };
+  // margem comparável por período. Implementação em lib/finance.ts.
+  const cogsFromOrder = (o: FaturacaoOrder): number => cogsRecognizedFromOrder(o);
 
   const now = new Date();
   const currentYear = getYear(now);
@@ -1420,26 +2148,53 @@ function FaturacaoTab({
     return d >= start && d <= end;
   };
 
-  // Potencial 100% pago: encomendas activas (não canceladas, não pré-reservas/sem-resposta)
-  // cuja data do evento está no ano seleccionado (ou desde sempre se "Todos"). Pré-reservas
-  // e sem-resposta partilham o estado `entrega_flores_agendar` (sem-resposta é só uma flag
-  // derivada em runtime) — ambos excluídos porque ainda não estão confirmados. Vales não somam.
-  const potentialFullPay = orders
-    .filter((o) =>
-      o.status !== "cancelado" &&
-      o.status !== "entrega_flores_agendar" &&
-      o.budget && o.budget > 0 &&
-      inRange(o.event_date, yearStart, yearEnd),
-    )
-    .reduce((s, o) => s + (Number(o.budget) || 0), 0);
-  const alreadyCollected = orders
-    .filter((o) =>
-      o.status !== "cancelado" &&
-      o.status !== "entrega_flores_agendar" &&
-      inRange(o.event_date, yearStart, yearEnd),
-    )
-    .reduce((s, o) => s + revenueFromOrder(o), 0);
-  const stillOpen = Math.max(0, potentialFullPay - alreadyCollected);
+  // Pipeline 4-bucket por estado da encomenda — substitui o card "Potencial total" de 3 cells.
+  // Cada bucket mostra count + soma de orçamentos (potencial 100% pago) das encomendas
+  // nesse bucket. Cancelado fica de fora. Sem-resposta partilha o estado `entrega_flores_agendar`.
+  type PipelineBucket = "nao_confirmado" | "confirmado_por_produzir" | "em_producao" | "recebido";
+  const statusToBucket = (s: import("@/types/database").OrderStatus): PipelineBucket | null => {
+    switch (s) {
+      case "cancelado":
+        return null;
+      case "entrega_flores_agendar":
+        return "nao_confirmado";
+      case "entrega_agendada":
+      case "flores_enviadas":
+      case "flores_recebidas":
+        return "confirmado_por_produzir";
+      case "flores_na_prensa":
+      case "reconstrucao_botanica":
+      case "a_compor_design":
+      case "a_aguardar_aprovacao":
+      case "a_finalizar_quadro":
+      case "a_ser_emoldurado":
+      case "emoldurado":
+      case "a_ser_fotografado":
+      case "quadro_pronto":
+      case "quadro_enviado":
+        return "em_producao";
+      case "quadro_recebido":
+        return "recebido";
+    }
+  };
+  const pipelineBuckets: Record<PipelineBucket, { count: number; total: number }> = {
+    nao_confirmado:          { count: 0, total: 0 },
+    confirmado_por_produzir: { count: 0, total: 0 },
+    em_producao:             { count: 0, total: 0 },
+    recebido:                { count: 0, total: 0 },
+  };
+  for (const o of orders) {
+    if (!inRange(o.event_date, yearStart, yearEnd)) continue;
+    const b = statusToBucket(o.status);
+    if (!b) continue;
+    pipelineBuckets[b].count += 1;
+    pipelineBuckets[b].total += Number(o.budget) || 0;
+  }
+  const pipelineTotal =
+    pipelineBuckets.nao_confirmado.total +
+    pipelineBuckets.confirmado_por_produzir.total +
+    pipelineBuckets.em_producao.total +
+    pipelineBuckets.recebido.total;
 
   // KPIs mensais: orders pela data do evento; vales pela data de criação.
   const revenueOrdersMonth = orders
@@ -1475,8 +2230,22 @@ function FaturacaoTab({
     .filter((o) => inRange(o.event_date, yearStart, yearEnd))
     .reduce((s, o) => s + cogsFromOrder(o), 0);
 
-  const profitMonth = revenueMonth - expensesMonth - cogsMonth;
-  const profitYear = revenueYear - expensesYear - cogsYear;
+  // Comissões a parceiros: dedução à receita (decisão Maria 2026-05-19).
+  // Conta proporcional ao %pago, excluindo estados `na` e `nao_aceita`.
+  const commissionMonth = orders
+    .filter((o) => inRange(o.event_date, monthStart, monthEnd))
+    .reduce((s, o) => s + commissionFromOrder(o), 0);
+  const commissionYear = orders
+    .filter((o) => inRange(o.event_date, yearStart, yearEnd))
+    .reduce((s, o) => s + commissionFromOrder(o), 0);
+
+  // Receita líquida = bruta − comissões (mostrado como sub-texto debaixo
+  // do KPI principal, sem inflar a grelha com mais um KPI por linha).
+  const revenueNetMonth = revenueMonth - commissionMonth;
+  const revenueNetYear = revenueYear - commissionYear;
+
+  const profitMonth = revenueMonth - expensesMonth - cogsMonth - commissionMonth;
+  const profitYear = revenueYear - expensesYear - cogsYear - commissionYear;
   const monthDelta = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : null;
 
   // Gráfico:
@@ -1555,8 +2324,9 @@ function FaturacaoTab({
         </p>
       </div>
 
-      {/* KPIs principais — Receita / Despesas (fixas) / COGS (produção) / Lucro */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* KPIs principais — Receita / Despesas / COGS / Comissões / Lucro
+          A receita mostra "líquida" (= bruta − comissões) como sub-texto. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {isCurrentYear ? (
           <>
             <KpiBox
@@ -1565,9 +2335,12 @@ function FaturacaoTab({
               icon={<TrendingUp className="h-4 w-4" />}
               color="emerald"
               delta={monthDelta}
+              subLabel="Líquida"
+              subValue={commissionMonth > 0 ? formatEUR(revenueNetMonth) : undefined}
             />
             <KpiBox label="Despesas do mês" value={formatEUR(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" />
             <KpiBox label="Custo de produção" value={formatEUR(cogsMonth)} icon={<Frame className="h-4 w-4" />} color="amber" />
+            <KpiBox label="Comissões do mês" value={formatEUR(commissionMonth)} icon={<Handshake className="h-4 w-4" />} color="violet" />
             <KpiBox
               label="Lucro do mês"
               value={formatEUR(profitMonth)}
@@ -1577,67 +2350,92 @@ function FaturacaoTab({
           </>
         ) : (
           <>
-            <KpiBox label={isAllTime ? "Receita total" : `Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+            <KpiBox
+              label={isAllTime ? "Receita total" : `Receita ${selectedYear}`}
+              value={formatEUR(revenueYear)}
+              icon={<ArrowUpRight className="h-4 w-4" />}
+              color="sky"
+              subLabel="Líquida"
+              subValue={commissionYear > 0 ? formatEUR(revenueNetYear) : undefined}
+            />
             <KpiBox label={isAllTime ? "Despesas totais" : `Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
             <KpiBox label={isAllTime ? "Custo produção total" : `Custo produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" />
+            <KpiBox label={isAllTime ? "Comissões totais" : `Comissões ${selectedYear}`} value={formatEUR(commissionYear)} icon={<Handshake className="h-4 w-4" />} color="violet" />
             <KpiBox label={isAllTime ? "Lucro total" : `Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
           </>
         )}
       </div>
 
       {isCurrentYear && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiBox label={`Receita ${selectedYear}`} value={formatEUR(revenueYear)} icon={<ArrowUpRight className="h-4 w-4" />} color="sky" />
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <KpiBox
+            label={`Receita ${selectedYear}`}
+            value={formatEUR(revenueYear)}
+            icon={<ArrowUpRight className="h-4 w-4" />}
+            color="sky"
+            subLabel="Líquida"
+            subValue={commissionYear > 0 ? formatEUR(revenueNetYear) : undefined}
+          />
           <KpiBox label={`Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" />
           <KpiBox label={`Custo produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" />
+          <KpiBox label={`Comissões ${selectedYear}`} value={formatEUR(commissionYear)} icon={<Handshake className="h-4 w-4" />} color="violet" />
           <KpiBox label={`Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} />
         </div>
       )}
 
-      {/* Potencial se todas as encomendas activas estivessem 100% pagas */}
+      {/* Pipeline financeiro por estado da encomenda — 4 buckets do menos para o mais certo */}
       <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 dark:border-violet-900/50 p-4 sm:p-5">
         <div className="flex items-start gap-3 mb-3">
           <div className="h-9 w-9 rounded-xl bg-violet-200/60 dark:bg-violet-900/40 flex items-center justify-center shrink-0">
             <Sparkles className="h-5 w-5 text-violet-700 dark:text-violet-300" />
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">
-              {isAllTime
-                ? "Potencial total (desde sempre) — se todas as encomendas confirmadas estivessem 100% pagas"
-                : `Potencial total ${selectedYear} — se todas as encomendas confirmadas estivessem 100% pagas`}
-            </h3>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">
+                {isAllTime
+                  ? "Pipeline (desde sempre) — orçamento total por fase"
+                  : `Pipeline ${selectedYear} — orçamento total por fase`}
+              </h3>
+              <span className="text-xs text-violet-800 dark:text-violet-300 tabular-nums">
+                Total: <strong>{formatEUR(pipelineTotal)}</strong>
+              </span>
+            </div>
             <p className="text-xs text-violet-800/80 dark:text-violet-300/80 mt-0.5">
               {isAllTime
-                ? "Todas as encomendas confirmadas, em qualquer ano. Exclui pré-reservas, sem-resposta e canceladas. Vales não somam aqui."
-                : `Encomendas com data de evento em ${selectedYear}. Exclui pré-reservas, sem-resposta e canceladas. Vales não somam aqui.`}
+                ? "Soma dos orçamentos por estado da encomenda, em qualquer ano. Cancelado e vales não somam aqui."
+                : `Soma dos orçamentos por estado, encomendas com data de evento em ${selectedYear}. Cancelado e vales não somam aqui.`}
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-violet-200/60 dark:border-violet-900/40 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-violet-700 dark:text-violet-300 font-medium">
-              Potencial total
-            </div>
-            <div className="text-2xl font-semibold text-violet-900 dark:text-violet-100 tabular-nums">
-              {formatEUR(potentialFullPay)}
-            </div>
-          </div>
-          <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-emerald-200/60 dark:border-emerald-900/40 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300 font-medium">
-              Já cobrado
-            </div>
-            <div className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
-              {formatEUR(alreadyCollected)}
-            </div>
-          </div>
-          <div className="rounded-xl bg-surface/80 dark:bg-[#1B1611]/40 border border-amber-200/60 dark:border-amber-900/40 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-medium">
-              Por receber
-            </div>
-            <div className="text-2xl font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
-              {formatEUR(stillOpen)}
-            </div>
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <PipelineBucket
+            label="Não confirmado"
+            helper="Pré-reservas e sem-resposta"
+            count={pipelineBuckets.nao_confirmado.count}
+            total={pipelineBuckets.nao_confirmado.total}
+            color="amber"
+          />
+          <PipelineBucket
+            label="Confirmado, por produzir"
+            helper="Entrega agendada / flores em trânsito"
+            count={pipelineBuckets.confirmado_por_produzir.count}
+            total={pipelineBuckets.confirmado_por_produzir.total}
+            color="sky"
+          />
+          <PipelineBucket
+            label="Em produção / pronto"
+            helper="Da prensa ao quadro enviado"
+            count={pipelineBuckets.em_producao.count}
+            total={pipelineBuckets.em_producao.total}
+            color="violet"
+          />
+          <PipelineBucket
+            label="Recebido pelo cliente"
+            helper="Quadros entregues"
+            count={pipelineBuckets.recebido.count}
+            total={pipelineBuckets.recebido.total}
+            color="emerald"
+          />
         </div>
       </div>
 
@@ -1686,7 +2484,7 @@ function FaturacaoTab({
       </div>
 
       <p className="text-xs text-cocoa-700 italic px-1">
-        <strong>Receita</strong> = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos ainda não convertidos em preservação (evita dupla contagem). <strong>Custo de produção</strong> = soma do COGS de cada encomenda (snapshot capturado na criação, calculado a partir do tamanho, fundo, tipo de moldura e extras) também proporcional ao % pago, para que a margem seja comparável por período. <strong>Despesas</strong> = custos fixos (subscrições + únicos) na data da despesa. <strong>Lucro</strong> = receita − despesas − custo de produção. Encomendas e custo de produção atribuídos ao período pela data do evento; vales pela data de criação. Encomendas anteriores à mig 034 não têm snapshot e não somam para o COGS. Para métricas mais detalhadas, ver a aba Métricas.
+        <strong>Receita (bruta)</strong> = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos ainda não convertidos em preservação (evita dupla contagem). <strong>Receita líquida</strong> (mostrada por baixo quando aplicável) = receita bruta − comissões a parceiros. <strong>Custo de produção</strong> = soma do COGS de cada encomenda (snapshot capturado na criação, calculado a partir do tamanho, fundo, tipo de moldura e extras) também proporcional ao % pago. <strong>Comissões</strong> = parte da receita devida a parceiros recomendadores, contada proporcional ao % pago; estados "N/A" e "Não aceita" não somam. <strong>Despesas</strong> = custos fixos (subscrições + únicos) na data da despesa. <strong>Lucro</strong> = receita bruta − despesas − custo de produção − comissões. Encomendas, comissões e custo de produção atribuídos ao período pela data do evento; vales pela data de criação. Encomendas anteriores à mig 034 não têm snapshot e não somam para o COGS. Para métricas mais detalhadas, ver a aba Métricas.
       </p>
     </div>
   );
@@ -1698,12 +2496,16 @@ function KpiBox({
   icon,
   color,
   delta,
+  subValue,
+  subLabel,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   color: "emerald" | "rose" | "sky" | "amber" | "slate" | "violet";
   delta?: number | null;
+  subValue?: string;
+  subLabel?: string;
 }) {
   const palette: Record<string, string> = {
     emerald: "from-emerald-50 to-emerald-100/60 border-emerald-200 text-emerald-800",
@@ -1720,11 +2522,47 @@ function KpiBox({
         {icon}
       </div>
       <p className="text-2xl font-semibold">{value}</p>
+      {subValue && (
+        <p className="text-[11px] opacity-75 tabular-nums">
+          {subLabel ? <span className="opacity-80">{subLabel}: </span> : null}{subValue}
+        </p>
+      )}
       {delta !== undefined && delta !== null && (
         <p className={cn("text-xs font-medium", delta >= 0 ? "text-emerald-700" : "text-rose-700")}>
           {delta >= 0 ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}% vs. mês anterior
         </p>
       )}
+    </div>
+  );
+}
+
+function PipelineBucket({
+  label,
+  helper,
+  count,
+  total,
+  color,
+}: {
+  label: string;
+  helper: string;
+  count: number;
+  total: number;
+  color: "amber" | "sky" | "violet" | "emerald";
+}) {
+  const palette: Record<string, { border: string; bg: string; text: string; subtext: string }> = {
+    amber:   { border: "border-amber-200 dark:border-amber-900/40",   bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-amber-900 dark:text-amber-200",   subtext: "text-amber-700 dark:text-amber-300" },
+    sky:     { border: "border-sky-200 dark:border-sky-900/40",       bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-sky-900 dark:text-sky-200",       subtext: "text-sky-700 dark:text-sky-300" },
+    violet:  { border: "border-violet-200 dark:border-violet-900/40", bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-violet-900 dark:text-violet-200", subtext: "text-violet-700 dark:text-violet-300" },
+    emerald: { border: "border-emerald-200 dark:border-emerald-900/40", bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-emerald-900 dark:text-emerald-200", subtext: "text-emerald-700 dark:text-emerald-300" },
+  };
+  const c = palette[color];
+  return (
+    <div className={cn("rounded-xl border p-3 space-y-1", c.bg, c.border)}>
+      <div className={cn("text-[10px] uppercase tracking-wider font-medium", c.subtext)}>{label}</div>
+      <div className={cn("text-2xl font-semibold tabular-nums", c.text)}>{formatEUR(total)}</div>
+      <div className={cn("text-[11px]", c.subtext)}>
+        {count} {count === 1 ? "encomenda" : "encomendas"} · {helper}
+      </div>
     </div>
   );
 }

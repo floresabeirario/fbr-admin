@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 32) — Sessão 88-E/F: **Custos de produção saem do workbench, ganham default automático e aparecem em Finanças → Faturação**. (E) `frame_internal_type` default `'baixa'` (mig 053) + remoção do `ProductionCostBadge` do workbench. (F) KPI "Custo de produção" do mês/ano + 3ª barra amber no gráfico + nova fórmula `Lucro = Receita − Despesas − COGS` (proporcional ao % pago, espelhando a lógica da receita).
+## Fase actual: FASE 6 (parte 33) — Sessão 89: **Redesenho da aba Finanças — Painel executivo + P&L por encomenda + Catálogo unificado + Comissões como dedução à receita + Pipeline 4-bucket**. Sub-aba "Painel" passa a default com 6 KPIs (Receita líquida / COGS / Comissões / Despesas / Lucro líquido / Margem %) + 4 secundários + breakdown de despesas por tipo contabilístico + ranking de lucro por tamanho de moldura e por tipo de fundo. Sub-aba "P&L por encomenda" com tabela ordenável (margem €, %, %pago). "Preços" + "Custos de produção" fundidas em "Catálogo" com margem teórica por SKU no topo. Comissões a parceiros agora subtraem da receita e do lucro (proporcional ao %pago). Card "Potencial total" da Faturação substituído por pipeline 4-bucket por estado. Zero migrações.
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -28,7 +28,7 @@
 - **Parcerias** completas (4 categorias, mapa Portugal, interações, acções, autocomplete Nominatim)
 - **Dashboard** com checklist pessoal, afazeres globais, recolhas/entregas, alertas
 - **Métricas** com 4 KPIs + insights + 3 donuts + top parceiros
-- **Finanças**: Despesas (únicas + subscrições, anexo factura Drive), Tabela de preços (cálculo auto), Custos de produção + consumíveis, Faturação (potencial 100% pago), Competição
+- **Finanças** (redesenhada na sessão 89): 6 sub-abas — **Painel** (default, resumo executivo com 6 KPIs principais + 4 secundários + breakdown despesas por tipo contabilístico + ranking de lucro por tamanho/fundo), **P&L por encomenda** (tabela ordenável com margem por quadro), **Catálogo** (preços + custos + margem teórica por SKU), **Despesas** (únicas + subscrições, anexo factura Drive), **Faturação** (KPIs do mês/ano com receita bruta/líquida + comissões + pipeline 4-bucket por estado + gráfico 3-barras), **Competição** (a mover para Parcerias no futuro). Comissões a parceiros subtraem da receita (decisão Maria sessão 89). Helpers financeiros centralizados em [lib/finance.ts](src/lib/finance.ts).
 - **Entregas e Recolhas** com agenda + mapa Google Maps + notas de recolha
 - **Livro de Receitas** (wiki por flor) + **Chat interno** (texto + Realtime) + **Ideias** + **Healthchecks** + **Ecossistema**
 - **Pesquisa global** Cmd+K em 5 tipos
@@ -43,6 +43,68 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 89 💼 Finanças redesenhada — Painel + P&L por encomenda + Catálogo + comissões como dedução
+
+Sessão grande de arquitectura. Maria pediu redesenho profundo da aba Finanças com lógica de gestão sólida (Arquitecto de CRM + Finanças). Trabalho organizado em 8 fases planeadas; **fases 1, 4, 5, 8, 3 e 6 entregues nesta sessão** (a 2 e a 7 ficam para sessão futura).
+
+**Decisões de design fixadas em conversa (referência crítica):**
+- **IVA**: Maria isenta. Receita = orçamento bruto, sem ajustes.
+- **Comissões a parceiros**: dedução à receita. Conta proporcional ao %pago, excluindo estados `na` (sem parceiro) e `nao_aceita` (parceiro recusou). Estados que contam: `parceiro_informado`, `a_aguardar`, `a_aguardar_resposta`, `paga`.
+- **Custos avulsos**: ficam como despesa global, sem `expenses.order_id` (Maria não quer ligar despesas a encomendas específicas).
+- **Cashflow vs accrual**: ambos, com toggle global futuro. Por agora cashflow proporcional ao %pago em todas as agregações (mantém coerência entre receita, COGS, comissões).
+- **Quadro mais lucrativo**: ambos (€ e %); priorizar **ranking por SKU** (tamanho/fundo/extras) em vez de top encomendas individuais — Maria preferiu isto porque dá inteligência estratégica sobre o portfólio.
+- **Fundos preto/branco/cor**: têm os mesmos custos (vidro/cartão). Fundo fotografia tem custos próprios por tamanho — **já capturados em mig 033/034** sem necessidade de mudanças (preços 15/25/35€; custos 6,72/11,20/19,60€).
+
+**Helpers financeiros — [src/lib/finance.ts](src/lib/finance.ts) (ficheiro novo, 195 linhas):**
+- `AccountingType`: cinco tipos contabilísticos derivados das 9 categorias de despesa existentes — `cogs_variavel` (flores/molduras/materiais), `operacional` (software/serviços/transporte/outros), `marketing`, `financeira` (taxas), `investimento` (placeholder). Mapping derivado (sem migração nova) para evitar duplicar dimensão. Função `aggregateExpensesByAccountingType` agrega para o Painel.
+- `paidRatio(status)`: 0/0.3/0.7/1 conforme `payment_status`.
+- `commissionFullFromOrder` + `commissionFromOrder` (proporcional ao %pago) — `na`/`nao_aceita` devolvem 0.
+- `cogsFullFromOrder` + `cogsRecognizedFromOrder` — total do snapshot via `computeProductionCost`, 0 se snapshot ausente.
+- `orderPnL`: P&L composto por encomenda devolvendo `revenue_full`, `revenue_recognized`, `cogs_full`, `cogs_recognized`, `commission_full`, `commission_recognized`, `margin_full`, `margin_recognized`, `margin_pct`, `paid_ratio`. **Fonte única de verdade financeira por encomenda.**
+
+**Reestruturação das sub-abas — [financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- `TabKey` passa de `"despesas" | "precos" | "custos" | "faturacao" | "competicao"` para `"painel" | "pnl" | "catalogo" | "despesas" | "faturacao" | "competicao"`.
+- Default tab: `"painel"` (era `"despesas"`).
+- Grelha de tabs: `lg:grid-cols-5` → `sm:grid-cols-3 lg:grid-cols-6` para acomodar 6 sub-abas.
+- `Preços` + `Custos de produção` (duas sub-abas separadas) → fundidas em `Catálogo` (uma só sub-aba que renderiza `MargemTeoricaSection` no topo + `PrecosTab` + `CustosTab` como secções colapsáveis).
+
+**Novos componentes:**
+- `PainelTab` (~250 linhas): resumo executivo do mês actual. Aggregator genérico de período devolve `revenueGross/Net`, `cogs`, `commission`, `expensesTotal`, `expensesByType`, `profit`, `marginPct`, counts. 6 KPIs principais com delta vs mês anterior (Receita líquida com sub-texto "Bruta", COGS, Comissões, Despesas, Lucro líquido com delta, Margem %). 4 KPIs secundários (Encomendas no mês, Ticket médio, Quadro mais lucrativo com nome do cliente + margem %, Pipeline pendente com conversão vales). Breakdown de despesas em 5 cards por tipo contabilístico. Tabela `RankingTable` por tamanho de moldura e por tipo de fundo (ano corrente, valores plenos) — ordenada por margem €, com linha de totais.
+- `PnLTab` (~150 linhas): tabela ordenável por colunas (event_date / client_name / budget / margin_eur / margin_pct / paid_ratio). Selector de ano (todos os anos disponíveis pelos `event_date` das encomendas). 5 KPIs de totais. Colunas: ID, Cliente, Data, Estado, Preço, COGS, Comissão, Margem €, Margem %, %pago. Linhas com cores condicionais (margem ≥50% emerald, ≥30% amber, senão rose). Cancelado excluído.
+- `MargemTeoricaSection`: tabela de margem teórica para 9 combinações (3 tamanhos × 3 fundos comuns), tudo moldura "baixa". Usa `computeProductionCost` com pseudo-orders para garantir paridade exacta com o cálculo real. Agrupada por tamanho.
+- `CatalogoTab`: wrapper que renderiza margem teórica + `PrecosTab` + `CustosTab`.
+- `PipelineBucket`: card 4-bucket por estado da encomenda (`nao_confirmado` = pré-reservas; `confirmado_por_produzir`; `em_producao` = da prensa ao quadro enviado; `recebido` = quadro_recebido).
+
+**Alterações no FaturacaoTab existente:**
+- 5 KPIs em vez de 4 por linha (Receita | Despesas | Custo prod | **Comissões** | Lucro), em todas as 3 grelhas (mês actual, ano actual, ano antigo).
+- Sub-texto "Líquida: X€" debaixo da Receita quando comissões > 0.
+- Fórmula de lucro: `revenue − cogs − commission − expenses` (antes era `revenue − cogs − expenses`).
+- Card "Potencial total" (3 cells) substituído por **Pipeline 4-bucket** com count + total por bucket + total geral no header.
+- Helpers `paidRatio` e `cogsFromOrder` locais removidos; reusam `lib/finance.ts`.
+- `KpiBox` ganha props opcionais `subValue` + `subLabel`.
+
+**Query expandida — [src/app/(admin)/financas/page.tsx](src/app/(admin)/financas/page.tsx):**
+- Select de `orders` ganha `client_name`, `partner_commission`, `partner_commission_status`.
+- Tipos `FaturacaoOrder` e `Props.orders` actualizados em conformidade.
+
+**O que ficou de fora (TODOs futuros):**
+- **Fase 2 — View SQL `order_pnl`**: não implementada porque `orderPnL` em JS já é a fonte única e nada na app actual precisa de query SQL ad-hoc. Pode entrar quando quisermos exports CSV ou queries no Supabase Dashboard.
+- **Fase 7 — Mover Competição para Parcerias**: pausada deliberadamente. Toca em 2 páginas (queries Supabase, layout de tabs em Parcerias) e merece sessão própria. Maria ainda não viu o destino — propus sub-aba "Concorrência" em Parcerias mas faz sentido confirmar com ela.
+- **Cor (fundo)** com possível impressão diferente: confirmado que preto/branco/cor têm os mesmos custos. Só fotografia tem custo distinto, já capturado.
+
+**Preflight:** `tsc --noEmit` limpo + `next build` limpo em 16,7s. Aviso pré-existente sobre Google Sans font fallback (não relacionado).
+
+**Maria: passos manuais:**
+1. Push para Vercel.
+2. Smoke browser → `/financas`:
+   - Abre por defeito em **Painel** (não em Despesas).
+   - 6 sub-abas visíveis: Painel | P&L por encomenda | Catálogo | Despesas | Faturação | Competição.
+   - **Painel**: 6 KPIs principais do mês actual + 4 secundários + breakdown despesas por tipo + tabela "Onde está o lucro" por tamanho e por fundo.
+   - **P&L por encomenda**: tabela ordenável; clica nas colunas Cliente / Preço / Margem € / Margem % para ordenar.
+   - **Catálogo**: nova sub-aba que mostra margem teórica por SKU no topo + Preços + Custos de produção fundidos (antes eram 2 abas separadas).
+   - **Faturação**: agora tem KPI **Comissões** em todas as grelhas; Receita mostra "Líquida" como sub-texto quando há comissões; Pipeline 4-bucket substitui o card "Potencial total".
+   - **Lucro**: valor menor que antes em períodos onde tens comissões (porque agora subtrai comissões).
 
 ### Sessão 88-F 💰 COGS visível em Finanças → Faturação (KPI + gráfico + lucro real)
 
@@ -220,97 +282,26 @@ Estende a sessão 88-B aos dois sítios em falta: workbench Vale-Presente e tile
    - Mesma coisa para encomenda: criar tarefa no workbench Preservação → tile no kanban mostra chip com `order_id` curto (16 chars) → click navega para `/preservacao/[order_id]`.
    - Tarefa sem `order_id`/`voucher_id` (criada directamente no Dashboard): tile sem chip; € à direita só aparece se foi criada via template `passar_fatura` (com amount).
 
-**Próxima sessão (88-D):** Página CRUD de templates de tarefas em Sistema → Templates de tarefas, com lista de variáveis disponíveis (`TASK_TEMPLATE_VARIABLES`).
-
-### Sessão 88-B 🧰 Tarefas no workbench Preservação — UI completa (picker, templates, diálogo de valor)
-
-UI do plano da sessão 88-A. Não toca em schema; usa a mig 052 + tipos da sessão anterior.
-
-**Helper de interpolação — [src/lib/task-templates.ts](src/lib/task-templates.ts):**
-- `interpolateTaskTemplate(template, ctx)` substitui `{nome_cliente}`, `{nif}`, `{nome_parceiro}`, `{valor_comissao}`, `{valor}` por valores reais; variáveis sem dados ficam como `"—"` (evita mostrar literalmente `{nif}` numa fatura).
-- `computeAmountOptionsFromBudget(budget)` devolve as 4 opções 30%/40%/70%/100% formatadas (`"30% (€135,00)"` + valor numérico) para o diálogo da fatura. Retorna `[]` se budget é null/0 (UI mostra só o campo manual).
-- `TaskTemplateContext` type — `client_name`, `nif`, `partner_name`, `partner_commission`, `amount`.
-
-**Page server-side — [src/app/(admin)/preservacao/[id]/page.tsx](src/app/(admin)/preservacao/[id]/page.tsx):**
-- Adicionado import de `Task`, `TaskTemplate` e `getCurrentEmail`. `Promise.all` ganha 3ª query: `task_templates` com `scope IN ('order','both')` ordenado por position. A seguir, query separada de `tasks` para a encomenda (`eq order_id` + `is deleted_at null`) — depende do `order.id` resolvido do lookup anterior, por isso fora do Promise.all.
-- Props passadas ao client: `taskTemplates`, `orderTasks`, `currentEmail`.
-
-**Componente novo — [src/app/(admin)/preservacao/[id]/_components/order-tasks-block.tsx](src/app/(admin)/preservacao/[id]/_components/order-tasks-block.tsx):**
-- Estado interno: `tasks[]` (mutável; sync inicial via prop), `showPicker`, `amountDraft` (template a precisar de valor), `draft` (template + título + amount + assignees + prioridade + dueDate).
-- Fluxo: click "+ Nova tarefa" → popover com lista de templates + "Tarefa em branco" → click template → se `needs_amount=true`, abre `<Dialog>` "Qual é o valor a faturar?" com 4 botões 30/40/70/100% (calculados de `orders.budget`) + input manual; sem budget, só input manual; depois de valor escolhido → form inline aparece com título já interpolado (variáveis substituídas) + assignees default=eu + prioridade default do template + data opcional.
-- TaskRow: checkbox done, título quebra linhas (`break-words`), pill de prioridade `URG/ALTA/MÉD/BAIXA` (cores `TASK_PRIORITY_COLORS`), mini avatares de assignees (h-4), badge de data com `Calendar` (rose se overdue), **€ alinhado à direita** (regra universal), trash em hover.
-- `createTaskAction({order_id, amount, ...})` — a action já aceitava `TaskInsert` completo desde sempre; só preciso passar os campos novos.
-
-**Workbench — [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):**
-- Imports: `OrderTasksBlock`, `Task`, `TaskTemplate`, `CheckSquare`.
-- Props novos no WorkbenchClient: `taskTemplates`, `orderTasks`, `currentEmail` (defaults vazios para retro-compat).
-- Card "Tarefas" inserido como **primeiro** card da coluna direita (antes de Finanças), accent indigo, ícone CheckSquare. Decisão: tasks são o item mais "accionável" do workbench — ficam no topo da coluna 3 para visibilidade. Inside o bloco, contador `"N tarefas por fazer"` no topo.
-- `partner_name` resolvido inline a partir da lista `partners` já carregada (procura por `id === local.partner_id`).
-
-**Pickers de Popover/Trigger:** este projecto usa `@base-ui/react` (não Radix). `PopoverTrigger` é `<button>` directo, sem `asChild`. Coerente com [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) (PriorityPill).
-
-**Preflight `tsc --noEmit` + `next build` limpos.** **Maria: passos manuais:**
-1. Confirmar que correste a mig 052 (sessão 88-A) — caso contrário, esta UI vai falhar (não há tabela `task_templates`).
-2. **Push para Vercel**.
-3. **Smoke browser** (em /preservacao/[qualquer id]):
-   - Topo da coluna direita: card "Tarefas" com border indigo. Se não houver tarefas, vê "Sem tarefas pendentes para esta encomenda" + botão "+ Nova tarefa".
-   - Click "+ Nova tarefa" → abre popover com 5 opções: "Tarefa em branco", "Passar fatura com NIF" (ícone Receipt verde), "Anexar comprovativo de pagamento", "Pedir feedback ao cliente", "Avisar parceiro da comissão".
-   - Click "Passar fatura com NIF" → abre diálogo com 4 botões (30/40/70/100% calculados do orçamento) + campo manual €. Em encomendas sem orçamento, só aparece o campo manual.
-   - Escolher 30% → form inline aparece com título `"Passar fatura para João Silva — NIF: …"` + bloco com `€XX,XX` à direita + 3 avatares (eu activo por default) + prioridade ALTA (default do template) + data vazia. Editar título à mão → guardado. Click "Criar" → tarefa aparece na lista; ir ao Dashboard, kanban Administrativo → tarefa lá. Voltar ao workbench → contador "1 tarefa por fazer" no topo.
-   - Click "Tarefa em branco" → form inline com título vazio (sem diálogo de valor). Criar normalmente.
-   - Checkbox numa tarefa → some da lista (filtra `done`). Hover → ícone Trash; click confirma e apaga.
-   - Templates sem `needs_amount` (feedback, comprovativo, parceiro) → vão direto ao form, título já preenchido com variáveis interpoladas (ou `"—"` se a encomenda não tem NIF/parceiro).
-   - Ana (viewer) → vê tarefas mas não vê o botão "+ Nova tarefa" nem o ícone Trash (canEdit=false).
-
-### Sessão 88-A 🧱 Tarefas a partir do workbench — fundação BD (mig 052)
-
-Maria pediu para conseguir **criar tarefas a partir do workbench** (de uma encomenda específica) e que essas tarefas:
-1. Tenham **templates** para casos frequentes (passar fatura com NIF, anexar comprovativo, pedir feedback, avisar parceiro da comissão) — editáveis em Sistema → Templates de tarefas
-2. Suportem **variáveis** ({nome_cliente}, {nif}, {nome_parceiro}, {valor_comissao}, {valor}) que se expandem com dados da encomenda
-3. Para faturas, **mini-diálogo a pedir o valor** com opções calculadas do orçamento (30%/40%/70%/100%/outro) — texto sai como `"Passar fatura para João Silva — NIF: 123456789"` com **€135 alinhado à direita** (regra universal de € à direita, guardada em memória)
-4. **Bloco "Tarefas desta encomenda (N por fazer)"** no workbench Preservação e Vale-Presente
-5. No Dashboard, badge clicável com encomenda quando aplicável
-
-**Plano em 4 sessões:** A (fundação BD) ← agora, B (workbench Preservação), C (workbench Vale + Dashboard linkage + € à direita), D (página CRUD de templates).
-
-**Migração 052 — [supabase/migrations/052_task_templates_and_voucher_link.sql](supabase/migrations/052_task_templates_and_voucher_link.sql):**
-- `tasks.voucher_id UUID REFERENCES vouchers(id) ON DELETE SET NULL` — simétrico ao `order_id` que já existia desde a mig 012 (mas nunca foi populado via UI). No máximo um dos dois preenchido por tarefa.
-- `tasks.amount NUMERIC(10,2)` — valor associado à tarefa (€), usado por templates com `needs_amount=true`. Mostra-se à direita na lista. Independente dos pagamentos da encomenda — é só o número que vai na fatura/recibo dessa tarefa.
-- Índices parciais em `order_id` e `voucher_id` (WHERE deleted_at IS NULL AND ... IS NOT NULL).
-- Tabela `task_templates` (espelha padrão de `message_templates` da mig 041): `slug` único, `name`, `title_template`, `description_template`, `default_category` (TaskCategory), `default_priority` (TaskPriority), `needs_amount` BOOLEAN, `amount_label` TEXT, `scope` (`order`/`voucher`/`both`), `position`, `is_seed`.
-- RLS: admins escrevem/editam; toda a gente autenticada (incluindo Ana viewer) lê — para que o picker funcione no workbench em modo leitura.
-- Audit log via trigger `log_task_template_changes()`.
-- Seed de 4 templates `is_seed=true`:
-  1. `passar_fatura` — "Passar fatura para {nome_cliente} — NIF: {nif}" / administrativo / alta / **needs_amount=true** / amount_label="Valor a faturar" / scope=both
-  2. `anexar_comprovativo` — "Anexar comprovativo de pagamento — {nome_cliente}" / administrativo / media / scope=both
-  3. `pedir_feedback` — "Pedir feedback a {nome_cliente}" / outros / baixa / scope=order
-  4. `avisar_parceiro_comissao` — "Avisar {nome_parceiro} da comissão de {valor_comissao}" / administrativo / media / scope=order
-
-(Maria pediu para retirar "Confirmar dados para envio" do seed original.)
-
-**Tipos — [src/types/tasks.ts](src/types/tasks.ts):**
-- `Task` ganha `voucher_id: string | null` e `amount: number | null` (`order_id` já existia).
-- Novo `TaskTemplate` interface + `TaskTemplateScope = "order" | "voucher" | "both"` + `TaskTemplateInsert` / `TaskTemplateUpdate`.
-- `TASK_TEMPLATE_VARIABLES` exportado — lista das 5 variáveis suportadas com descrição e scope; vai ser mostrada na página de gestão (sessão D) para a Maria saber o que pode escrever.
-
-**Memória nova guardada:** `feedback_valores_euro_direita` — valores em € sempre alinhados à direita em qualquer lista/tabela, nunca inline no texto. Regra universal a partir de agora.
-
-**Preflight tsc + next build limpos.** **Maria: passos manuais:**
-1. **Correr [supabase/migrations/052_task_templates_and_voucher_link.sql](supabase/migrations/052_task_templates_and_voucher_link.sql)** no Supabase SQL Editor. Verificar:
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name IN ('voucher_id','amount');` → 2 linhas.
-   - `SELECT count(*) FROM task_templates WHERE is_seed = true;` → 4.
-   - `SELECT slug, scope, needs_amount FROM task_templates ORDER BY position;` → 4 linhas na ordem certa.
-2. **Push para Vercel** (esta sessão só mexe em schema+tipos — nada visível na UI ainda; build a passar é suficiente).
-3. **Sem smoke browser nesta sessão** — UI vem na sessão B.
-
-**Próxima sessão (88-B) — Workbench Preservação:**
-- Bloco "Tarefas desta encomenda (N)" no workbench
-- Botão "+ nova tarefa" com dropdown de templates (filtrar por `scope IN ('order', 'both')`)
-- Função de interpolação de variáveis no cliente
-- Mini-diálogo "Qual é o valor a faturar?" para templates com `needs_amount=true`, com opções calculadas a partir do `orders.budget` (30/40/70/100/outro)
-- Server action `createTaskFromTemplate` ou expandir `createTaskAction` para aceitar `order_id`/`voucher_id`/`amount`
+<!-- Sessões 88-A e 88-B comprimidas no Histórico condensado em baixo. -->
 
 ## Próximo passo CONCRETO
+
+**Sessão 89 — passos manuais (sem migração nova):**
+
+1. **Sem migrações** — todo o trabalho é UI + helpers TS. Não há nada para correr no Supabase.
+2. **Push para Vercel**.
+3. **Smoke browser** → `/financas`:
+   - Abre por defeito em **Painel** (não em Despesas como antes).
+   - 6 sub-abas: Painel | P&L por encomenda | Catálogo | Despesas | Faturação | Competição.
+   - **Painel**: 6 KPIs no topo do mês actual (Receita líquida com sub-texto "Bruta" quando há comissões, COGS, Comissões, Despesas, Lucro líquido com delta, Margem %). 4 KPIs secundários (Encomendas, Ticket médio, Quadro mais lucrativo do mês com nome do cliente, Pipeline pendente). Breakdown de despesas em 5 cards por tipo contabilístico. Tabela "Onde está o lucro" por tamanho de moldura e por tipo de fundo (ano corrente).
+   - **P&L por encomenda**: tabela com cliente, data, estado, preço, COGS, comissão, margem €, margem %, %pago. Cliques nos cabeçalhos Cliente / Preço / Margem € / Margem % / %pago ordenam. Cores nas margens (verde ≥50%, amber ≥30%, rose senão).
+   - **Catálogo**: cabeçalho de "Margem teórica por quadro" (9 linhas: 3 tamanhos × 3 fundos comuns). Em baixo, Preços + Custos de produção (antes eram 2 abas separadas).
+   - **Faturação**: 5 KPIs por linha em vez de 4 (Receita | Despesas | Custo prod | Comissões | Lucro). Receita mostra "Líquida: X €" debaixo quando comissões > 0. Card "Pipeline" 4-bucket substitui o antigo "Potencial total" (Não confirmado / Confirmado por produzir / Em produção / Recebido pelo cliente, com count + total por bucket + total geral).
+   - **Lucro do mês**: valor menor que antes em meses com comissões (porque agora `lucro = receita − despesas − cogs − comissões`).
+
+**TODO futuro (não bloqueia nada):**
+- View SQL `order_pnl` (fase 2 do plano original) — útil para exports e queries ad-hoc.
+- Mover Competição para Parcerias (fase 7). Decidir: sub-aba "Concorrência" em Parcerias ou nova aba "Inteligência" no menu principal.
 
 **Sessão 88-F — passos manuais (UI apenas, sem mig nova):**
 
@@ -449,9 +440,11 @@ Maria pediu para conseguir **criar tarefas a partir do workbench** (de uma encom
 
 ---
 
-## Histórico condensado (sessões 1-87)
+## Histórico condensado (sessões 1-88B)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-87)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-88B)
+- **88-B** — UI Tarefas no workbench Preservação: card "Tarefas" como primeiro item da coluna 3 (accent indigo). Picker com 5 templates seed + "Tarefa em branco"; diálogo "Qual é o valor a faturar?" com 4 botões 30/40/70/100% calculados do `orders.budget` para templates com `needs_amount=true`. Helpers `interpolateTaskTemplate(template, ctx)` + `computeAmountOptionsFromBudget(budget)` em [src/lib/task-templates.ts](src/lib/task-templates.ts). PopoverTrigger usa `@base-ui/react` (não Radix), sem `asChild`. Reusa `createTaskAction` existente.
+- **88-A** — Mig 052: `tasks.voucher_id` (simétrico a `order_id`), `tasks.amount NUMERIC(10,2)`, índices parciais. Nova tabela `task_templates` (espelha `message_templates`) com 4 seeds: `passar_fatura` (needs_amount, scope=both), `anexar_comprovativo` (scope=both), `pedir_feedback` (scope=order), `avisar_parceiro_comissao` (scope=order). Tipos `TaskTemplate` + `TASK_TEMPLATE_VARIABLES`. Memória nova: valores em € sempre alinhados à direita.
 - **87** — Dashboard refinado pós-uso: remoção da card "Checklist pessoal" (redundante com filtro "Minhas" do kanban; tabela `personal_checklist` na BD intacta); Estúdio `Camera/purple` → `Palette/lime` (não colidia com violet das recolhas); Admin `zinc` → `teal-600`; Outros `stone-300` mais claro; `PriorityPill` (URG/ALTA/MÉD/BAIXA) absolute top-right + popover de 4 opções (`onPointerDown stopPropagation` para não capturar drag); filtro "Todas/Minhas/Feitas" → 3 avatares multi-select no header + toggle Activas/Concluídas; reordenação de colunas via `useDraggable` no header + persistência em `localStorage.fbr.dashboard.tasksColumnOrder.v1` (hydration safe com flag `orderHydrated`)
 - **86** — Kanban refinado + DnD invisível + título/detalhes editáveis (mig 051 `personal_checklist.description`): substituição de pills de categoria por barra colorida no topo + borda esquerda 3px no tile; `@dnd-kit` PointerSensor distance=6 com `stopPropagation` em cada elemento clicável; Pencil em hover → form inline; campo "Detalhes" no form de criação; checklist com paridade visual (mesmo Pencil)
 - **85** — Afazeres globais agrupados em kanban por categoria (mig 050 `tasks.category` TEXT DEFAULT 'outros' CHECK 6 valores): TasksCard sai da grelha 2×2 e ocupa linha inteira no topo do Dashboard; grelha `grid-cols-2 sm:grid-cols-3 lg:grid-cols-6` com 6 colunas sempre visíveis (placeholder "—"); cada raia com fundo cream-50/50 e scroll independente
