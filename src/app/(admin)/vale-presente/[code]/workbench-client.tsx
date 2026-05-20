@@ -363,12 +363,14 @@ export default function VoucherWorkbenchClient({
 
       <fieldset disabled={!canEdit} className="contents">
         <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
-            {/* ── Coluna esquerda: hero + remetente ── */}
-            <div className="space-y-4">
-              <Hero voucher={data} expired={expired} expiringSoon={expiringSoon} monthsLeft={monthsLeft} />
-
-              <div className="flex justify-end">
+          <div className="max-w-7xl mx-auto space-y-4">
+            {/* ── HERO full-width — protagonista visual do vale ── */}
+            <Hero
+              voucher={data}
+              expired={expired}
+              expiringSoon={expiringSoon}
+              monthsLeft={monthsLeft}
+              actions={
                 <TemplatePicker
                   scope="voucher"
                   voucher={{
@@ -379,8 +381,13 @@ export default function VoucherWorkbenchClient({
                   }}
                   preferredLanguage="pt"
                 />
-              </div>
+              }
+            />
 
+            {/* ── Grid 3 colunas: Quem comprou | O vale & pagamento | Envio & acompanhamento ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* ── Coluna 1 — Quem comprou (remetente, origem, parceria) ── */}
+            <div className="space-y-4">
               <Section title="Remetente" icon={<User className="h-3.5 w-3.5" />} accent="rose">
                 <Field label="Nome">
                   <Input
@@ -484,9 +491,93 @@ export default function VoucherWorkbenchClient({
                   </Field>
                 )}
               </Section>
+
+              <Section title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="orange">
+                <Field label="Parceiro recomendador">
+                  <div className="flex gap-1.5">
+                    <PartnerCombobox
+                      partners={partners}
+                      value={data.partner_id}
+                      onChange={(id) => {
+                        const updates: Partial<VoucherUpdate> = { partner_id: id };
+                        if (id && (data.partner_commission === null || data.partner_commission === 0) && data.amount) {
+                          updates.partner_commission = Math.round(data.amount * 0.1 * 100) / 100;
+                        }
+                        if (id && data.partner_commission_status === "na") {
+                          updates.partner_commission_status = "a_aguardar";
+                        }
+                        setData((d) => ({ ...d, ...updates }));
+                        startTransition(async () => {
+                          try {
+                            await updateVoucherAction(voucher.id, updates);
+                            router.refresh();
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        });
+                      }}
+                      triggerCls={triggerCls}
+                    />
+                    {data.partner_id && (
+                      <Link
+                        href={`/parcerias/${data.partner_id}`}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
+                        title="Abrir parceiro"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    )}
+                  </div>
+                  {partners.length === 0 && (
+                    <p className="text-[10px] text-cocoa-500 mt-1">
+                      Adiciona parceiros na aba Parcerias.
+                    </p>
+                  )}
+                </Field>
+
+                {data.partner_id && (
+                  <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
+                    <Field label="Comissão (€)">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
+                        <Input
+                          className={`${inputCls} pl-7`}
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={data.partner_commission ?? ""}
+                          onChange={(e) => setData((d) => ({ ...d, partner_commission: e.target.value ? Number(e.target.value) : null }))}
+                          onBlur={(e) => updateField("partner_commission", e.target.value ? Number(e.target.value) : null)}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Estado da comissão">
+                      <Select
+                        value={data.partner_commission_status}
+                        onValueChange={(v) => updateField("partner_commission_status", v as PartnerCommissionStatus)}
+                      >
+                        <SelectTrigger
+                          className={`${triggerCls} font-medium ${PARTNER_COMMISSION_STATUS_COLORS[data.partner_commission_status]}`}
+                        >
+                          <SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(PARTNER_COMMISSION_STATUS_LABELS) as PartnerCommissionStatus[]).map((k) => (
+                            <SelectItem key={k} value={k} className="my-0.5">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_COMMISSION_STATUS_COLORS[k]}`}>
+                                {PARTNER_COMMISSION_STATUS_LABELS[k]}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                )}
+              </Section>
             </div>
 
-            {/* ── Coluna do meio: vale + entrega + comentários ── */}
+            {/* ── Coluna 2 — O vale, pagamento e fatura, comentários ── */}
             <div className="space-y-4">
               <Section title="O vale" icon={<Gift className="h-3.5 w-3.5" />} accent="amber">
                 <Field label="Nome do destinatário">
@@ -556,7 +647,124 @@ export default function VoucherWorkbenchClient({
                 </Field>
               </Section>
 
-              <Section title="Entrega do vale" icon={<Send className="h-3.5 w-3.5" />} accent="emerald">
+              <Section title="Pagamento e fatura" icon={<Wallet className="h-3.5 w-3.5" />} accent="emerald">
+                <Field label="Estado de pagamento">
+                  <Select
+                    value={data.payment_status}
+                    onValueChange={(v) => requestPaymentChange(v as VoucherPaymentStatus)}
+                  >
+                    <SelectTrigger
+                      className={`${triggerCls} font-semibold ${VOUCHER_PAYMENT_STATUS_COLORS[data.payment_status]}`}
+                    >
+                      <SelectValue labels={VOUCHER_PAYMENT_STATUS_LABELS} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(VOUCHER_PAYMENT_STATUS_LABELS) as VoucherPaymentStatus[]).map((k) => (
+                        <SelectItem key={k} value={k} className="my-0.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_PAYMENT_STATUS_COLORS[k]}`}>
+                            {VOUCHER_PAYMENT_STATUS_LABELS[k]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <div className="h-px bg-cream-100 -mx-4" />
+
+                <Field label="Cliente pediu fatura com NIF?">
+                  <Select
+                    value={data.needs_invoice ? "sim" : "nao"}
+                    onValueChange={(v) => {
+                      const needs = v === "sim";
+                      updateField("needs_invoice", needs);
+                      if (!needs) updateField("nif", null);
+                    }}
+                  >
+                    <SelectTrigger className={triggerCls}>
+                      <SelectValue labels={SIM_NAO_LABELS} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sim">Sim</SelectItem>
+                      <SelectItem value="nao">Não</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                {data.needs_invoice && (
+                  <>
+                    <Field label="NIF">
+                      <Input
+                        value={data.nif ?? ""}
+                        onChange={(e) => setData((d) => ({ ...d, nif: e.target.value }))}
+                        onBlur={(e) => updateField("nif", e.target.value.trim() || null)}
+                        placeholder="123456789"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Anexo da fatura (Drive)">
+                      <Input
+                        value={data.invoice_attachment_url ?? ""}
+                        onChange={(e) => setData((d) => ({ ...d, invoice_attachment_url: e.target.value }))}
+                        onBlur={(e) => updateField("invoice_attachment_url", e.target.value.trim() || null)}
+                        placeholder="https://drive.google.com/…"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
+                )}
+              </Section>
+
+              <Section title="Comentários" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
+                <Textarea
+                  value={data.comments ?? ""}
+                  onChange={(e) => setData((d) => ({ ...d, comments: e.target.value }))}
+                  onBlur={(e) => updateField("comments", e.target.value.trim() || null)}
+                  rows={4}
+                  className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
+                  placeholder="Pedidos especiais, observações…"
+                />
+              </Section>
+            </div>
+
+            {/* ── Coluna 3 — Envio ao destinatário + utilização + tarefas + metadata ── */}
+            <div className="space-y-4">
+              <Section title="Envio ao destinatário" icon={<Send className="h-3.5 w-3.5" />} accent="sky">
+                <Field label="Estado de envio">
+                  <Select
+                    value={data.send_status}
+                    onValueChange={(v) => updateField("send_status", v as VoucherSendStatus)}
+                  >
+                    <SelectTrigger
+                      className={`${triggerCls} font-medium ${VOUCHER_SEND_STATUS_COLORS[data.send_status]}`}
+                    >
+                      <SelectValue labels={VOUCHER_SEND_STATUS_LABELS} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(VOUCHER_SEND_STATUS_LABELS) as VoucherSendStatus[]).map((k) => (
+                        <SelectItem key={k} value={k} className="my-0.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_SEND_STATUS_COLORS[k]}`}>
+                            {VOUCHER_SEND_STATUS_LABELS[k]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                {data.send_status === "agendado" && (
+                  <Field label="Data agendada">
+                    <Input
+                      type="date"
+                      value={data.scheduled_send_date ?? ""}
+                      onChange={(e) => updateField("scheduled_send_date", e.target.value || null)}
+                      className={inputCls}
+                    />
+                  </Field>
+                )}
+
+                <div className="h-px bg-cream-100 -mx-4" />
+
                 <Field label="Para quem enviar?">
                   <Select
                     value={data.delivery_recipient ?? ""}
@@ -573,7 +781,7 @@ export default function VoucherWorkbenchClient({
                   </Select>
                 </Field>
 
-                <Field label="Tipo de entrega">
+                <Field label="Formato">
                   <Select
                     value={data.delivery_format ?? ""}
                     onValueChange={(v) => updateField("delivery_format", v as VoucherDeliveryFormat)}
@@ -658,141 +866,6 @@ export default function VoucherWorkbenchClient({
                 )}
               </Section>
 
-              <Section title="Comentários" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
-                <Textarea
-                  value={data.comments ?? ""}
-                  onChange={(e) => setData((d) => ({ ...d, comments: e.target.value }))}
-                  onBlur={(e) => updateField("comments", e.target.value.trim() || null)}
-                  rows={4}
-                  className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
-                  placeholder="Pedidos especiais, observações…"
-                />
-              </Section>
-            </div>
-
-            {/* ── Coluna direita: tarefas + pagamento+fatura + envio + utilização + parceria + metadata ── */}
-            <div className="space-y-4">
-              <Section title="Tarefas" icon={<CheckSquare className="h-3.5 w-3.5" />} accent="indigo">
-                <WorkbenchTasksBlock
-                  link={{ type: "voucher", id: data.id }}
-                  context={{
-                    client_name: data.sender_name,
-                    nif: data.nif,
-                    partner_name: partners.find((p) => p.id === data.partner_id)?.name ?? null,
-                    partner_commission: data.partner_commission,
-                  }}
-                  paymentOptions={computeAmountOptionsForVoucher(data.amount)}
-                  templates={taskTemplates}
-                  initialTasks={voucherTasks}
-                  currentEmail={currentEmail}
-                  canEdit={canEdit}
-                />
-              </Section>
-
-              {/* Pagamento e Fatura — unificados (sessão 29) */}
-              <Section title="Pagamento e fatura" icon={<Wallet className="h-3.5 w-3.5" />} accent="emerald">
-                <Field label="Estado de pagamento">
-                  <Select
-                    value={data.payment_status}
-                    onValueChange={(v) => requestPaymentChange(v as VoucherPaymentStatus)}
-                  >
-                    <SelectTrigger
-                      className={`${triggerCls} font-semibold ${VOUCHER_PAYMENT_STATUS_COLORS[data.payment_status]}`}
-                    >
-                      <SelectValue labels={VOUCHER_PAYMENT_STATUS_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(VOUCHER_PAYMENT_STATUS_LABELS) as VoucherPaymentStatus[]).map((k) => (
-                        <SelectItem key={k} value={k} className="my-0.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_PAYMENT_STATUS_COLORS[k]}`}>
-                            {VOUCHER_PAYMENT_STATUS_LABELS[k]}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                <div className="h-px bg-cream-100 -mx-4" />
-
-                <Field label="Cliente pediu fatura com NIF?">
-                  <Select
-                    value={data.needs_invoice ? "sim" : "nao"}
-                    onValueChange={(v) => {
-                      const needs = v === "sim";
-                      updateField("needs_invoice", needs);
-                      if (!needs) updateField("nif", null);
-                    }}
-                  >
-                    <SelectTrigger className={triggerCls}>
-                      <SelectValue labels={SIM_NAO_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sim">Sim</SelectItem>
-                      <SelectItem value="nao">Não</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                {data.needs_invoice && (
-                  <>
-                    <Field label="NIF">
-                      <Input
-                        value={data.nif ?? ""}
-                        onChange={(e) => setData((d) => ({ ...d, nif: e.target.value }))}
-                        onBlur={(e) => updateField("nif", e.target.value.trim() || null)}
-                        placeholder="123456789"
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="Anexo da fatura (Drive)">
-                      <Input
-                        value={data.invoice_attachment_url ?? ""}
-                        onChange={(e) => setData((d) => ({ ...d, invoice_attachment_url: e.target.value }))}
-                        onBlur={(e) => updateField("invoice_attachment_url", e.target.value.trim() || null)}
-                        placeholder="https://drive.google.com/…"
-                        className={inputCls}
-                      />
-                    </Field>
-                  </>
-                )}
-              </Section>
-
-              <Section title="Envio do vale" icon={<Send className="h-3.5 w-3.5" />} accent="sky">
-                <Field label="Estado de envio">
-                  <Select
-                    value={data.send_status}
-                    onValueChange={(v) => updateField("send_status", v as VoucherSendStatus)}
-                  >
-                    <SelectTrigger
-                      className={`${triggerCls} font-medium ${VOUCHER_SEND_STATUS_COLORS[data.send_status]}`}
-                    >
-                      <SelectValue labels={VOUCHER_SEND_STATUS_LABELS} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(VOUCHER_SEND_STATUS_LABELS) as VoucherSendStatus[]).map((k) => (
-                        <SelectItem key={k} value={k} className="my-0.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${VOUCHER_SEND_STATUS_COLORS[k]}`}>
-                            {VOUCHER_SEND_STATUS_LABELS[k]}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-
-                {data.send_status === "agendado" && (
-                  <Field label="Data agendada">
-                    <Input
-                      type="date"
-                      value={data.scheduled_send_date ?? ""}
-                      onChange={(e) => updateField("scheduled_send_date", e.target.value || null)}
-                      className={inputCls}
-                    />
-                  </Field>
-                )}
-              </Section>
-
               <Section title="Utilização" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet">
                 <Field label="Estado de utilização">
                   <Select
@@ -822,93 +895,21 @@ export default function VoucherWorkbenchClient({
                 </Field>
               </Section>
 
-              {/* Parceria — sessão 29: vouchers podem ser recomendados por parceiros tal como encomendas */}
-              <Section title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="orange">
-                <Field label="Parceiro recomendador">
-                  <div className="flex gap-1.5">
-                    <PartnerCombobox
-                      partners={partners}
-                      value={data.partner_id}
-                      onChange={(id) => {
-                        // Estratégia igual à da Preservação: ao escolher um parceiro,
-                        // auto-preenche 10% do valor (se ainda vazio) e muda o estado
-                        // de "N/A" → "A aguardar".
-                        const updates: Partial<VoucherUpdate> = { partner_id: id };
-                        if (id && (data.partner_commission === null || data.partner_commission === 0) && data.amount) {
-                          updates.partner_commission = Math.round(data.amount * 0.1 * 100) / 100;
-                        }
-                        if (id && data.partner_commission_status === "na") {
-                          updates.partner_commission_status = "a_aguardar";
-                        }
-                        // Aplica todos numa transição (optimista) e envia para o servidor.
-                        setData((d) => ({ ...d, ...updates }));
-                        startTransition(async () => {
-                          try {
-                            await updateVoucherAction(voucher.id, updates);
-                            router.refresh();
-                          } catch (err) {
-                            console.error(err);
-                          }
-                        });
-                      }}
-                      triggerCls={triggerCls}
-                    />
-                    {data.partner_id && (
-                      <Link
-                        href={`/parcerias/${data.partner_id}`}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
-                        title="Abrir parceiro"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Link>
-                    )}
-                  </div>
-                  {partners.length === 0 && (
-                    <p className="text-[10px] text-cocoa-500 mt-1">
-                      Adiciona parceiros na aba Parcerias.
-                    </p>
-                  )}
-                </Field>
-
-                {data.partner_id && (
-                  <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2">
-                    <Field label="Comissão (€)">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
-                        <Input
-                          className={`${inputCls} pl-7`}
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          value={data.partner_commission ?? ""}
-                          onChange={(e) => setData((d) => ({ ...d, partner_commission: e.target.value ? Number(e.target.value) : null }))}
-                          onBlur={(e) => updateField("partner_commission", e.target.value ? Number(e.target.value) : null)}
-                        />
-                      </div>
-                    </Field>
-                    <Field label="Estado da comissão">
-                      <Select
-                        value={data.partner_commission_status}
-                        onValueChange={(v) => updateField("partner_commission_status", v as PartnerCommissionStatus)}
-                      >
-                        <SelectTrigger
-                          className={`${triggerCls} font-medium ${PARTNER_COMMISSION_STATUS_COLORS[data.partner_commission_status]}`}
-                        >
-                          <SelectValue labels={PARTNER_COMMISSION_STATUS_LABELS} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(PARTNER_COMMISSION_STATUS_LABELS) as PartnerCommissionStatus[]).map((k) => (
-                            <SelectItem key={k} value={k} className="my-0.5">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${PARTNER_COMMISSION_STATUS_COLORS[k]}`}>
-                                {PARTNER_COMMISSION_STATUS_LABELS[k]}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                )}
+              <Section title="Tarefas" icon={<CheckSquare className="h-3.5 w-3.5" />} accent="indigo">
+                <WorkbenchTasksBlock
+                  link={{ type: "voucher", id: data.id }}
+                  context={{
+                    client_name: data.sender_name,
+                    nif: data.nif,
+                    partner_name: partners.find((p) => p.id === data.partner_id)?.name ?? null,
+                    partner_commission: data.partner_commission,
+                  }}
+                  paymentOptions={computeAmountOptionsForVoucher(data.amount)}
+                  templates={taskTemplates}
+                  initialTasks={voucherTasks}
+                  currentEmail={currentEmail}
+                  canEdit={canEdit}
+                />
               </Section>
 
               <Section title="Metadata" icon={<CalendarDays className="h-3.5 w-3.5" />} accent="slate">
@@ -943,6 +944,7 @@ export default function VoucherWorkbenchClient({
                   </div>
                 )}
               </Section>
+            </div>
             </div>
           </div>
 
@@ -1027,54 +1029,71 @@ function Hero({
   expired,
   expiringSoon,
   monthsLeft,
+  actions,
 }: {
   voucher: Voucher;
   expired: boolean;
   expiringSoon: boolean;
   monthsLeft: number;
+  actions?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-cream-200 bg-gradient-to-br from-amber-50 via-rose-50 to-white p-5 overflow-hidden">
-      <div className="flex items-start gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-md shrink-0">
-          <Gift className="h-6 w-6" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-[0.15em] text-cocoa-700 font-bold">
-            Vale-Presente
-          </p>
-          <p className="font-['TanMemories'] text-3xl text-cocoa-900 leading-tight mt-0.5">
-            {formatEUR(voucher.amount)}
-          </p>
-          <p className="text-xs text-cocoa-700 mt-1 truncate">
-            de <span className="font-semibold text-cocoa-900">{voucher.sender_name || "—"}</span>
-            {" "}para{" "}
-            <span className="font-semibold text-cocoa-900">{voucher.recipient_name || "—"}</span>
-          </p>
-        </div>
-      </div>
+    <div className="relative rounded-3xl border border-cream-200 bg-gradient-to-br from-amber-50 via-rose-50 to-white p-5 sm:p-7 overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gradient-to-br from-amber-200/40 to-rose-200/30 blur-2xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-gradient-to-tr from-rose-200/30 to-amber-100/20 blur-2xl"
+      />
 
-      <div className="mt-4 flex flex-wrap items-center gap-1.5">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${VOUCHER_PAYMENT_STATUS_COLORS[voucher.payment_status]}`}>
-          {VOUCHER_PAYMENT_STATUS_LABELS[voucher.payment_status]}
-        </span>
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${VOUCHER_SEND_STATUS_COLORS[voucher.send_status]}`}>
-          {VOUCHER_SEND_STATUS_LABELS[voucher.send_status]}
-        </span>
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${VOUCHER_USAGE_STATUS_COLORS[voucher.usage_status]}`}>
-          {VOUCHER_USAGE_STATUS_LABELS[voucher.usage_status]}
-        </span>
-        {expired && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-red-100 text-red-700 border-red-300">
-            <AlertTriangle className="h-3 w-3" />
-            Expirado
-          </span>
-        )}
-        {!expired && expiringSoon && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border bg-amber-100 text-amber-800 border-amber-300">
-            <AlertTriangle className="h-3 w-3" />
-            Expira em {monthsLeft} {monthsLeft === 1 ? "mês" : "meses"}
-          </span>
+      <div className="relative flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6">
+        <div className="flex items-start gap-4 min-w-0 flex-1">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-md shrink-0">
+            <Gift className="h-7 w-7" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-cocoa-700 font-bold">
+              Vale-Presente
+            </p>
+            <p className="font-['TanMemories'] text-4xl sm:text-5xl text-cocoa-900 leading-none mt-1">
+              {formatEUR(voucher.amount)}
+            </p>
+            <p className="text-sm text-cocoa-700 mt-2">
+              de <span className="font-semibold text-cocoa-900">{voucher.sender_name || "—"}</span>
+              {" "}para{" "}
+              <span className="font-semibold text-cocoa-900">{voucher.recipient_name || "—"}</span>
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${VOUCHER_PAYMENT_STATUS_COLORS[voucher.payment_status]}`}>
+                {VOUCHER_PAYMENT_STATUS_LABELS[voucher.payment_status]}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${VOUCHER_SEND_STATUS_COLORS[voucher.send_status]}`}>
+                {VOUCHER_SEND_STATUS_LABELS[voucher.send_status]}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${VOUCHER_USAGE_STATUS_COLORS[voucher.usage_status]}`}>
+                {VOUCHER_USAGE_STATUS_LABELS[voucher.usage_status]}
+              </span>
+              {expired && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-red-100 text-red-700 border-red-300">
+                  <AlertTriangle className="h-3 w-3" />
+                  Expirado
+                </span>
+              )}
+              {!expired && expiringSoon && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border bg-amber-100 text-amber-800 border-amber-300">
+                  <AlertTriangle className="h-3 w-3" />
+                  Expira em {monthsLeft} {monthsLeft === 1 ? "mês" : "meses"}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {actions && (
+          <div className="flex items-center gap-2 lg:ml-auto shrink-0">{actions}</div>
         )}
       </div>
     </div>
