@@ -135,6 +135,29 @@ export function computePricingSnapshot(
     }
   }
 
+  // 3b. Suplemento foto por mini — quando o cliente tem mini-quadros E
+  //     o fundo é fotografia, somar o suplemento `fotografia_mini` por
+  //     cada mini. (O suplemento do quadro principal já foi somado em 2.)
+  if (
+    order.frame_background === "fotografia" &&
+    order.extra_small_frames === "sim" &&
+    order.extra_small_frames_qty &&
+    order.extra_small_frames_qty > 0
+  ) {
+    const miniSupp = findItem(pricing, "background_supplement", "fotografia_mini");
+    if (miniSupp && miniSupp.price > 0) {
+      const qty = order.extra_small_frames_qty;
+      lines.push({
+        category: miniSupp.category,
+        key: miniSupp.key,
+        label: miniSupp.label,
+        qty,
+        unit_price: miniSupp.price,
+        subtotal: miniSupp.price * qty,
+      });
+    }
+  }
+
   // 4. Moldura pirâmide — upsell visível ao cliente (cobrado).
   //    O preço é editável pela Maria em Finanças (pricing_items.extra.pyramid_frame).
   //    Quando o cliente não escolhe pirâmide, este item não entra no snapshot.

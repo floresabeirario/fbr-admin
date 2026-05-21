@@ -21,16 +21,21 @@ export interface PricingItem {
   price: number;
   position: number;
   notes: string | null;
+  // Custo interno FBR por unidade. Só usado para extras autónomos
+  // (ornamento, pendente) onde não há production_cost_item dedicado.
+  // NULL para items cujo custo vem das tabelas de produção (mini_frame)
+  // ou onde o conceito não se aplica (base_frame, background_supplement).
+  cost_fbr: number | null;
 }
 
 export type PricingItemInsert = Pick<
   PricingItem,
   "category" | "key" | "label" | "price"
 > &
-  Partial<Pick<PricingItem, "position" | "notes">>;
+  Partial<Pick<PricingItem, "position" | "notes" | "cost_fbr">>;
 
 export type PricingItemUpdate = Partial<
-  Pick<PricingItem, "label" | "price" | "position" | "notes">
+  Pick<PricingItem, "label" | "price" | "position" | "notes" | "cost_fbr">
 >;
 
 // ── Snapshot guardado em orders.pricing_snapshot ────────────

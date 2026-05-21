@@ -194,6 +194,16 @@ export interface Order {
   pickup_contact_name: string | null;
   pickup_contact_phone: string | null;
 
+  // ── Entrega "em mãos" (visível só quando flower_delivery_method = maos) ─────
+  // O cliente (ou alguém indicado) traz as flores ao atelier FBR. Sem
+  // morada (é sempre na FBR). Mesmos campos que recolha excepto endereço.
+  hand_delivery_date: string | null;
+  hand_delivery_time_from: string | null;   // HH:MM (TIME)
+  hand_delivery_time_to: string | null;     // HH:MM (TIME)
+  hand_delivery_contact_name: string | null;
+  hand_delivery_contact_phone: string | null;
+  hand_delivery_notes: string | null;
+
   // ── Inventário de flores ─────────────────────────────────────
   inventory: InventoryItem[];
 

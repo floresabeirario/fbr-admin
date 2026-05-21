@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 33) — Sessão 89: **Redesenho da aba Finanças — Painel executivo + P&L por encomenda + Catálogo unificado + Comissões como dedução à receita + Pipeline 4-bucket**. Sub-aba "Painel" passa a default com 6 KPIs (Receita líquida / COGS / Comissões / Despesas / Lucro líquido / Margem %) + 4 secundários + breakdown de despesas por tipo contabilístico + ranking de lucro por tamanho de moldura e por tipo de fundo. Sub-aba "P&L por encomenda" com tabela ordenável (margem €, %, %pago). "Preços" + "Custos de produção" fundidas em "Catálogo" com margem teórica por SKU no topo. Comissões a parceiros agora subtraem da receita e do lucro (proporcional ao %pago). Card "Potencial total" da Faturação substituído por pipeline 4-bucket por estado. Zero migrações.
+## Fase actual: FASE 6 (parte 34) — Sessão 90: **Catálogo unificado — tabela "Margem teórica" passa a ser editável e substitui as 3 subsecções da antiga PrecosTab (azul Moldura + lilás Suplemento + amber Extras)**. Bloco 1 com 12 linhas (4 tamanhos × 3 fundos, incluindo 20x25 mini); colunas editáveis "Base" (preço-base por tamanho, partilhada via rowspan) + "+€ Supl." (suplemento fotografia, só na linha foto); colunas derivadas Preço cliente, Custo, Margem €, Margem %. Bloco 2 com 2 extras autónomos (ornamento + pendente) com preço cliente + custo FBR ambos editáveis. As 6 tabelas de Custos de produção (Moldura 30x40/40x50/50x70/mini, Impressão fotografia, Outros custos recorrentes) **mantêm-se intactas** — são a fonte dos custos derivados na verde. **Mig 054**: nova coluna `pricing_items.cost_fbr` (para custos de extras autónomos) + novo item `background_supplement.fotografia_mini`. `computePricingSnapshot` agora soma suplemento foto por cada mini quando fundo=fotografia.
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -28,7 +28,7 @@
 - **Parcerias** completas (4 categorias, mapa Portugal, interações, acções, autocomplete Nominatim)
 - **Dashboard** com checklist pessoal, afazeres globais, recolhas/entregas, alertas
 - **Métricas** com 4 KPIs + insights + 3 donuts + top parceiros
-- **Finanças** (redesenhada na sessão 89): 6 sub-abas — **Painel** (default, resumo executivo com 6 KPIs principais + 4 secundários + breakdown despesas por tipo contabilístico + ranking de lucro por tamanho/fundo), **P&L por encomenda** (tabela ordenável com margem por quadro), **Catálogo** (preços + custos + margem teórica por SKU), **Despesas** (únicas + subscrições, anexo factura Drive), **Faturação** (KPIs do mês/ano com receita bruta/líquida + comissões + pipeline 4-bucket por estado + gráfico 3-barras), **Competição** (a mover para Parcerias no futuro). Comissões a parceiros subtraem da receita (decisão Maria sessão 89). Helpers financeiros centralizados em [lib/finance.ts](src/lib/finance.ts).
+- **Finanças** (redesenhada nas sessões 89-90): 6 sub-abas — **Painel** (default, resumo executivo com 6 KPIs principais + 4 secundários + breakdown despesas por tipo contabilístico + ranking de lucro por tamanho/fundo), **P&L por encomenda** (tabela ordenável com margem por quadro), **Catálogo** (sessão 90: tabela "Margem teórica" editável — 12 linhas de quadros + 2 de extras, custos derivam das 6 tabelas de produção em baixo), **Despesas** (únicas + subscrições, anexo factura Drive), **Faturação** (KPIs do mês/ano com receita bruta/líquida + comissões + pipeline 4-bucket por estado + gráfico 3-barras), **Competição** (a mover para Parcerias no futuro). Comissões a parceiros subtraem da receita (decisão Maria sessão 89). Helpers financeiros centralizados em [lib/finance.ts](src/lib/finance.ts).
 - **Entregas e Recolhas** com agenda + mapa Google Maps + notas de recolha
 - **Livro de Receitas** (wiki por flor) + **Chat interno** (texto + Realtime) + **Ideias** + **Healthchecks** + **Ecossistema**
 - **Pesquisa global** Cmd+K em 5 tipos
@@ -38,11 +38,60 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 53 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 54 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 90 🎯 Catálogo editável — "Margem teórica" substitui as 3 subsecções de PrecosTab
+
+Maria pediu para simplificar a sub-aba Catálogo. Observação dela: as 3 subsecções da antiga `PrecosTab` (azul Moldura, lilás Suplemento, amber Extras) eram redundantes com a tabela verde de "Margem teórica" que estava em cima. Decisão final após várias iterações: a verde passa a ser **a interface editável principal de preços**, e os preços-base + suplementos só se editam lá. As 6 tabelas de Custos de produção em baixo mantêm-se intocadas (são a fonte dos custos derivados na verde).
+
+**Decisões de design fixadas em conversa (referência crítica):**
+- **Verde como single source of truth de preços ao cliente**: PrecosTab eliminada inteiramente.
+- **Custos de produção mantêm-se em 6 tabelas separadas**: Maria viu o screenshot e disse "vamos manter estas 6 tabelas, acho que fazem sentido existir". Não colapsadas, não fundidas. Verde apenas mostra o subtotal por linha (read-only) derivado delas.
+- **Mini 20x25 entra no Bloco 1 com 3 fundos** (não no Bloco 2 como extra avulso): tem a mesma estrutura de margem que os 3 tamanhos principais. Preço-base vive em `pricing_items.extra.mini_frame` (não em `base_frame` — herança do schema original); helper trata da divergência.
+- **Base partilhada via rowspan**: 1 célula `Base` cobre as 3 linhas de cada tamanho (transparente/preto/foto). Resolve a ambiguidade que a Maria levantou ("se editar a do preto, e a do transparente é igual…").
+- **+€ Supl. só editável na linha fotografia**: as outras linhas mostram "—". Para transparente/preto/cor o suplemento é sempre 0.
+- **Fotografia mini também tem suplemento**: novo item `background_supplement.fotografia_mini` (placeholder 0€, Maria edita quando souber). Implica alteração ao `computePricingSnapshot` para somar este suplemento por cada mini quando fundo=fotografia.
+- **Custo FBR de ornamento + pendente é editável na verde** (Bloco 2): nova coluna `pricing_items.cost_fbr` guarda esse valor. Mini não usa cost_fbr — custo deriva das tabelas de produção. Maria começa com 0 e edita "depois".
+
+**Aprendizagem da sessão:** No início da conversa, afirmei à Maria que os pricing items dos extras (`mini_frame`, `christmas_ornament`, `necklace_pendant`) não existiam na BD. Estava errado — existiam em [mig 025](supabase/migrations/025_pricing.sql:142-144) com preços 45/25/15. Tinha feito grep só na mig 033 (que tinha um seed parcial). Maria reparou: "no workbench quando o cliente seleciona extra tu calculas o preçço" — observação correcta que devia ter feito sozinho. Memória nova: [[feedback-verificar-existencia-bd]] — antes de afirmar "X não existe na BD", procurar em todas as migrações + verificar se o código (lib/, types/) já referencia a key (se referencia, existe — ou o sistema estaria rebentado em produção).
+
+**Migração 054 — [supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql](supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql):**
+- `ALTER TABLE pricing_items ADD COLUMN cost_fbr NUMERIC(10,2)`: custo interno FBR por unidade para extras autónomos (ornamento, pendente). NULL para itens cujo custo vem das tabelas de produção (mini_frame) ou onde o conceito não se aplica (base_frame, background_supplement).
+- `UPDATE` inicializa `cost_fbr=0` em `christmas_ornament` + `necklace_pendant` (placeholder editável).
+- `INSERT` novo item `background_supplement.fotografia_mini` (price 0, position 8) para o suplemento foto do mini 20x25.
+
+**Tipos — [src/types/pricing.ts](src/types/pricing.ts):**
+- `PricingItem.cost_fbr: number | null` adicionado.
+- `PricingItemInsert` e `PricingItemUpdate` agora aceitam `cost_fbr`.
+
+**Lógica do orçamento — [src/lib/pricing.ts](src/lib/pricing.ts:99-119):**
+- Novo bloco "3b" em `computePricingSnapshot`: quando `frame_background === 'fotografia'` E `extra_small_frames === 'sim'` E `qty > 0`, lookup do item `background_supplement.fotografia_mini` e adiciona linha `qty × unit_price` ao snapshot. Skip se `price <= 0` (evita poluir snapshot com linhas a 0€).
+
+**UI — [src/app/(admin)/financas/financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- `CatalogoTab` simplificada: renderiza apenas `MargemTeoricaSection` + `CustosTab`. Removida a chamada a `PrecosTab`.
+- `MargemTeoricaSection` reescrita do zero (~280 linhas). Agora aceita `canEdit`, renderiza Bloco 1 (quadros 4×3 com rowspan em Base) + Bloco 2 (2 extras autónomos), todas as células editáveis usam o novo componente `EditableEuro` (input com onBlur save, padrão "store info from previous renders" para sincronizar draft local).
+- Novo `SIZES: SizeMeta[]` mapeia cada tamanho à sua chave de pricing (`base_frame.30x40` vs `extra.mini_frame`) e à sua chave de suplemento foto (`fotografia_30x40` vs `fotografia_mini`). Resolve a divergência de schema sem hardcode.
+- Helper `rowCost(size, bg)` calcula o custo derivado: usa `computeProductionCost` para 30x40/40x50/50x70 (paridade garantida com encomendas reais), e calcula manualmente para mini (frame line + photo print se foto), porque o mini não tem caminho próprio em `computeProductionCost`.
+- `EditableEuro({ item, field, canEdit, align })`: input numérico genérico que persiste `item[field]` via `updatePricingItemAction({ [field]: next })`. Usado para todas as células editáveis (Base, Supl., Preço extra, Custo extra). Formato europeu (vírgula decimal, sem milhares).
+- **PrecosTab e PriceRow eliminadas**: ~200 linhas de código morto removidas. Imports `PRICING_CATEGORY_LABELS / HELPER` e tipo `PricingCategory` também removidos do ficheiro.
+
+**Preflight `tsc + next build` limpos** após 1 falso positivo inicial (cache do Next.js typecheck — `npx tsc --noEmit` standalone passou). Build em ~32s.
+
+**Maria: passos manuais:**
+1. **Correr [mig 054](supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql) no Supabase SQL Editor**. Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='pricing_items' AND column_name='cost_fbr';` → 1 linha.
+   - `SELECT key, label, price, cost_fbr FROM pricing_items WHERE category='extra' OR key='fotografia_mini' ORDER BY category, position;` → vê `christmas_ornament (cost_fbr=0)`, `necklace_pendant (cost_fbr=0)`, `mini_frame (cost_fbr=NULL)`, `fotografia_mini (background_supplement, price=0)`.
+2. **Push para Vercel**.
+3. **Smoke browser** → `/financas` → sub-aba "Catálogo":
+   - **Topo verde "Margem teórica"** — Bloco 1 com 4 grupos (30x40, 40x50, 50x70, 20x25 mini), cada um com 3 linhas (transparente/preto/cor/fotografia). Coluna `Base` em rowspan; muda uma e as 3 linhas do mesmo tamanho actualizam. Coluna `+€` editável só na linha fotografia. Coluna `Custo` (rose) reflecte os valores das 6 tabelas em baixo. Margem € e Margem % com cores (verde ≥50%, amber ≥30%, rose senão).
+   - **Bloco 2 "Extras"** com 2 linhas (Ornamento de Natal, Pendente para colar). Edita `Preço cli.` para 35€ (Maria pediu) — vê margem actualizar.
+   - **6 tabelas de Custos de produção em baixo** mantêm-se inalteradas. Editar um custo lá deve reflectir-se imediatamente na coluna Custo da verde no topo (via `router.refresh()`).
+   - **Não há mais subsecção "Tabela de preços"** com a antiga azul/lilás/amber.
+4. **Smoke de orçamento (opcional)**: criar encomenda nova com fundo=fotografia + 2 minis. Depois de editar `fotografia_mini` para um valor não-zero, verificar que o snapshot da encomenda inclui linha `2 × fotografia_mini`. (Encomendas criadas antes da edição não recalculam — comportamento esperado.)
 
 ### Sessão 89 💼 Finanças redesenhada — Painel + P&L por encomenda + Catálogo + comissões como dedução
 
@@ -231,60 +280,25 @@ Fecha o ciclo da funcionalidade "tarefas a partir do workbench" iniciada em 88-A
 - 88-C: UI workbench Vale-Presente (mesmo bloco, opção "Total") + linkage do tile do kanban → workbench + € à direita
 - 88-D: CRUD de templates em Sistema → Tarefas
 
-### Sessão 88-C 🧷 Tarefas no Vale-Presente + linkage clicável no Dashboard
-
-Estende a sessão 88-B aos dois sítios em falta: workbench Vale-Presente e tile do kanban do Dashboard.
-
-**Componente promovido — [src/components/workbench-tasks-block.tsx](src/components/workbench-tasks-block.tsx):**
-- O antigo `_components/order-tasks-block.tsx` da Preservação foi generalizado e movido para `src/components/`. Nome `WorkbenchTasksBlock`.
-- API nova: `link: { type: "order" | "voucher"; id }` (discriminator) substitui o `orderId`; `paymentOptions: AmountOption[]` substitui `budget` (parent precomputa). Action call: `order_id` ou `voucher_id` set conforme o link.
-- Empty state e descrição do diálogo passam a depender de `link.type` ("vale" vs "encomenda").
-- Botões de pagamento no diálogo: layout 2 colunas para encomendas (4 opções); 1 coluna para vales (1 opção "Total").
-- Ficheiro antigo `_components/order-tasks-block.tsx` **apagado**.
-
-**Preservação — [src/app/(admin)/preservacao/[id]/workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):**
-- Import migrado para `@/components/workbench-tasks-block` + `computeAmountOptionsFromBudget` do helper.
-- Card "Tarefas" agora chama o componente partilhado com `link={{ type: "order", id }}` e `paymentOptions={computeAmountOptionsFromBudget(local.budget)}`.
-
-**Vale-Presente — [src/app/(admin)/vale-presente/[code]/page.tsx](src/app/(admin)/vale-presente/[code]/page.tsx):**
-- `Promise.all` ganha 3ª query: `task_templates` com `scope IN ('voucher','both')`. A seguir, query separada de `tasks` com `eq voucher_id` filtrada por `voucher.id`.
-- `currentEmail` carregado via `getCurrentEmail()`.
-- 3 props novos passados ao client: `taskTemplates`, `voucherTasks`, `currentEmail`.
-
-**Vale-Presente workbench — [src/app/(admin)/vale-presente/[code]/workbench-client.tsx](src/app/(admin)/vale-presente/[code]/workbench-client.tsx):**
-- Props `taskTemplates`/`voucherTasks`/`currentEmail` no `Props` interface (opcionais com default vazio para retro-compat).
-- Imports: `WorkbenchTasksBlock`, `computeAmountOptionsForVoucher`, tipos `Task`/`TaskTemplate`, ícone `CheckSquare`.
-- `<Section title="Tarefas">` inserida **no topo** da coluna direita (antes de "Pagamento e fatura"). Mesma posição que no workbench Preservação para coerência.
-- `paymentOptions={computeAmountOptionsForVoucher(data.amount)}` — uma única opção "Total (€X)" porque vales são pagos 100% num só momento.
-- `context.client_name = data.sender_name` (remetente é quem compra o vale, é com ele que se interage).
-
-**Helper de valor para vales — [src/lib/task-templates.ts](src/lib/task-templates.ts):**
-- `computeAmountOptionsForVoucher(amount)` devolve `[{ label: "Total (€X,XX)", value: amount }]`. Retorna `[]` se amount é null/0 (campo manual fica como única opção).
-
-**Dashboard linkage — [src/app/(admin)/page.tsx](src/app/(admin)/page.tsx):**
-- Constrói dois lookups uuid→código curto a partir dos `orders`/`vouchers` já carregados: `orderCodeById` (`order.id → order.order_id`) e `voucherCodeById` (`voucher.id → voucher.code`).
-- Passa ambos para `DashboardClient`.
-
-**Cascata de props até ao tile — [src/app/(admin)/dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx), [src/app/(admin)/_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- `DashboardClient` → `TasksCard` → `CategoryColumn` → `DraggableTaskTile` — todas as quatro camadas passam `orderCodeById`/`voucherCodeById` para baixo. Defaults `{}` permitem chamadas legacy sem partir.
-
-**Tile do kanban — [src/app/(admin)/_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
-- **Badge de encomenda/vale:** IIFE no topo do tile lookup o código curto a partir de `task.order_id` ou `task.voucher_id`; renderiza um `<Link>` indigo com `Link2` icon + código mono, truncado a 120px. `onPointerDown stopPropagation` evita disparar drag. URL: `/preservacao/{order_id}` ou `/vale-presente/{code}`. Não renderiza nada se nenhum dos dois.
-- **Valor € à direita:** `<span tabular-nums>` antes do badge de data na bottom row (`ml-auto` group). Só renderiza quando `task.amount != null`. Formatado via `formatEUR()` (€135,00 no formato europeu). Regra universal de € à direita aplicada — não vai inline no texto da tarefa.
-
-**Preflight `tsc --noEmit` + `next build` limpos.** **Maria: passos manuais:**
-1. Sem migrações nesta sessão (mig 052 já basta).
-2. **Push para Vercel**.
-3. **Smoke browser:**
-   - Abrir `/vale-presente/[código]` — topo da coluna direita: card "Tarefas" border indigo, igual ao da Preservação. "+" → popover só com templates `scope=voucher` ou `both` (ex.: "Passar fatura com NIF" aparece; "Pedir feedback ao cliente" NÃO aparece — esse é só de encomenda).
-   - Click "Passar fatura com NIF" → diálogo com **uma só** opção "Total (€X)" + campo manual. Escolher → form inline; criar.
-   - Voltar ao Dashboard → tarefa aparece na kanban (categoria Administrativo). No tile vês: chip indigo no topo com `Link2` + código curto do vale; valor € à direita na bottom row; click no chip → abre `/vale-presente/[code]`.
-   - Mesma coisa para encomenda: criar tarefa no workbench Preservação → tile no kanban mostra chip com `order_id` curto (16 chars) → click navega para `/preservacao/[order_id]`.
-   - Tarefa sem `order_id`/`voucher_id` (criada directamente no Dashboard): tile sem chip; € à direita só aparece se foi criada via template `passar_fatura` (com amount).
-
-<!-- Sessões 88-A e 88-B comprimidas no Histórico condensado em baixo. -->
+<!-- Sessões 88-A, 88-B e 88-C comprimidas no Histórico condensado em baixo. -->
 
 ## Próximo passo CONCRETO
+
+**Sessão 90 — passos manuais (mig 054 + UI):**
+
+1. **Correr [mig 054](supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql)** no Supabase SQL Editor (cola, Run). Verificar:
+   - `SELECT column_name FROM information_schema.columns WHERE table_name='pricing_items' AND column_name='cost_fbr';` → 1 linha.
+   - `SELECT key, price, cost_fbr FROM pricing_items WHERE category='extra' OR key='fotografia_mini' ORDER BY category, position;` → 4 linhas (christmas_ornament + necklace_pendant com cost_fbr=0; mini_frame + pyramid_frame com cost_fbr=NULL; fotografia_mini com price=0).
+2. **Push para Vercel**.
+3. **Smoke browser** → `/financas` → "Catálogo":
+   - **Topo verde "Margem teórica"** com Bloco 1 (4 grupos × 3 linhas = 12 linhas) e Bloco 2 (2 extras).
+   - Edita `Base` na 1ª linha de cada grupo → célula em rowspan, todas as 3 linhas do tamanho actualizam. Edita `+€` na linha fotografia.
+   - Coluna `Custo` é read-only, reflecte as 6 tabelas em baixo.
+   - Cores: margem ≥50% emerald, ≥30% amber, senão rose.
+   - **Bloco 2 Extras**: edita "Ornamento de Natal" preço 25 → 35€; "Pendente para colar" 15 → 35€. Custo FBR fica a 0 (Maria edita quando souber).
+   - **A antiga "Tabela de preços" (azul/lilás/amber) já não existe** — verde substitui.
+   - As 6 tabelas de Custos de produção em baixo continuam intactas e editáveis.
+4. **Smoke opcional (orçamento)**: editar `fotografia_mini` para valor não-zero, criar encomenda nova com fundo=fotografia + 2 minis, verificar que snapshot inclui linha `2 × fotografia_mini`.
 
 **Sessão 89 — passos manuais (sem migração nova):**
 
@@ -338,15 +352,6 @@ Estende a sessão 88-B aos dois sítios em falta: workbench Vale-Presente e tile
    - Criar novo template — checkbox "Este template pede valor" mostra/esconde o campo "Etiqueta".
    - Arquivar → some da lista. Toggle "Ver arquivados" → vê-o; restaurar.
    - Workbench Preservação → picker reflecte alterações (template renomeado, arquivados desaparecem).
-
-**Sessão 88-C — passos manuais (UI; precisa mig 052 já corrida):**
-
-1. **Sem migrações** nesta sessão.
-2. **Push para Vercel**.
-3. **Smoke browser:**
-   - **Vale-Presente workbench** (`/vale-presente/[código]`) — topo coluna direita: card "Tarefas" (indigo). "+" → popover só com 2 templates (`passar_fatura` + `anexar_comprovativo` — os de scope `voucher` ou `both`). Click "Passar fatura" → diálogo com **uma** opção "Total (€X)" + manual. Criar.
-   - **Dashboard kanban** — tarefas com `order_id` mostram chip indigo `Link2 + ORDERID` no topo do tile; click → abre `/preservacao/[order_id]`. Tarefas com `voucher_id` análogo → `/vale-presente/[code]`.
-   - **€ à direita** — tile do kanban mostra `€135,00` na bottom row para tarefas com `amount`. Para todas as outras tarefas (sem amount), bottom row continua igual.
 
 **Sessão 88-B — passos manuais (UI; precisa mig 052 já corrida):**
 
@@ -442,7 +447,8 @@ Estende a sessão 88-B aos dois sítios em falta: workbench Vale-Presente e tile
 
 ## Histórico condensado (sessões 1-88B)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-88B)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-88C)
+- **88-C** — Tarefas no workbench Vale-Presente + linkage clicável no Dashboard: componente `_components/order-tasks-block.tsx` promovido a `src/components/workbench-tasks-block.tsx` com API genérica `link: { type: 'order'|'voucher'; id }` e `paymentOptions: AmountOption[]`. Vale-Presente ganha card "Tarefas" no topo da coluna direita (mesma posição que Preservação); picker filtra para templates `scope=voucher|both`; diálogo só mostra 1 opção "Total (€X)" porque vales são pagos 100% num só momento. Dashboard: lookups `orderCodeById`/`voucherCodeById` em [src/app/(admin)/page.tsx](src/app/(admin)/page.tsx) cascateados até [_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx); tile mostra chip indigo `Link2 + code` clicável (stopPropagation no drag) + valor € à direita na bottom row. Helper novo `computeAmountOptionsForVoucher(amount)`.
 - **88-B** — UI Tarefas no workbench Preservação: card "Tarefas" como primeiro item da coluna 3 (accent indigo). Picker com 5 templates seed + "Tarefa em branco"; diálogo "Qual é o valor a faturar?" com 4 botões 30/40/70/100% calculados do `orders.budget` para templates com `needs_amount=true`. Helpers `interpolateTaskTemplate(template, ctx)` + `computeAmountOptionsFromBudget(budget)` em [src/lib/task-templates.ts](src/lib/task-templates.ts). PopoverTrigger usa `@base-ui/react` (não Radix), sem `asChild`. Reusa `createTaskAction` existente.
 - **88-A** — Mig 052: `tasks.voucher_id` (simétrico a `order_id`), `tasks.amount NUMERIC(10,2)`, índices parciais. Nova tabela `task_templates` (espelha `message_templates`) com 4 seeds: `passar_fatura` (needs_amount, scope=both), `anexar_comprovativo` (scope=both), `pedir_feedback` (scope=order), `avisar_parceiro_comissao` (scope=order). Tipos `TaskTemplate` + `TASK_TEMPLATE_VARIABLES`. Memória nova: valores em € sempre alinhados à direita.
 - **87** — Dashboard refinado pós-uso: remoção da card "Checklist pessoal" (redundante com filtro "Minhas" do kanban; tabela `personal_checklist` na BD intacta); Estúdio `Camera/purple` → `Palette/lime` (não colidia com violet das recolhas); Admin `zinc` → `teal-600`; Outros `stone-300` mais claro; `PriorityPill` (URG/ALTA/MÉD/BAIXA) absolute top-right + popover de 4 opções (`onPointerDown stopPropagation` para não capturar drag); filtro "Todas/Minhas/Feitas" → 3 avatares multi-select no header + toggle Activas/Concluídas; reordenação de colunas via `useDraggable` no header + persistência em `localStorage.fbr.dashboard.tasksColumnOrder.v1` (hydration safe com flag `orderHydrated`)

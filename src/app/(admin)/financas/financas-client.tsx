@@ -56,11 +56,7 @@ import { formatEUR } from "@/lib/format";
 import { toast } from "sonner";
 
 import type { Competitor, CompetitorPrice } from "@/types/competitor";
-import type { PricingItem, PricingCategory } from "@/types/pricing";
-import {
-  PRICING_CATEGORY_LABELS,
-  PRICING_CATEGORY_HELPER,
-} from "@/types/pricing";
+import type { PricingItem } from "@/types/pricing";
 import type {
   ProductionCostItem,
   ProductionCostSize,
@@ -858,41 +854,69 @@ function CatalogoTab({
 }) {
   return (
     <div className="space-y-6">
-      <MargemTeoricaSection pricing={pricing} productionCosts={productionCosts} />
-      <PrecosTab pricing={pricing} canEdit={canEdit} />
+      <MargemTeoricaSection
+        pricing={pricing}
+        productionCosts={productionCosts}
+        canEdit={canEdit}
+      />
       <CustosTab items={productionCosts} canEdit={canEdit} />
     </div>
   );
 }
 
-// Combinações apresentadas: 3 tamanhos × 3 fundos comuns, sempre moldura "baixa".
-// Pirâmide e "caixa" ficam para a tabela detalhada em baixo (custos unitários),
-// porque são variações menos frequentes e inflariam o quadro de margem teórica.
-const MARGEM_COMBINATIONS: Array<{
-  size: "30x40" | "40x50" | "50x70";
-  background: "transparente" | "preto" | "fotografia";
-  label: string;
-}> = [
-  { size: "30x40", background: "transparente", label: "Fundo transparente (vidro/vidro)" },
-  { size: "30x40", background: "preto",        label: "Fundo preto / branco / cor" },
-  { size: "30x40", background: "fotografia",   label: "Fundo fotografia" },
-  { size: "40x50", background: "transparente", label: "Fundo transparente (vidro/vidro)" },
-  { size: "40x50", background: "preto",        label: "Fundo preto / branco / cor" },
-  { size: "40x50", background: "fotografia",   label: "Fundo fotografia" },
-  { size: "50x70", background: "transparente", label: "Fundo transparente (vidro/vidro)" },
-  { size: "50x70", background: "preto",        label: "Fundo preto / branco / cor" },
-  { size: "50x70", background: "fotografia",   label: "Fundo fotografia" },
+// ============================================================
+// MARGEM TEÓRICA — tabela editável (Bloco 1 quadros + Bloco 2 extras)
+// ============================================================
+// Substitui a antiga PrecosTab (3 subsecções) com uma única vista
+// editável de preços cliente, custos derivados das 6 tabelas em baixo
+// (Custos de produção), e margem calculada.
+//
+// Bloco 1 — 4 tamanhos × 3 fundos = 12 linhas. "Base" é partilhada
+// entre as 3 linhas do mesmo tamanho (rowspan). "Supl." só aparece
+// editável na linha fotografia. Custo, margem € e margem % são derivados.
+//
+// Bloco 2 — 2 extras autónomos (ornamento, pendente). Preço e custo
+// FBR são ambos editáveis (custo guardado em pricing_items.cost_fbr).
+
+type SizeKey = "30x40" | "40x50" | "50x70" | "20x25_mini";
+type BgKey = "transparente" | "preto" | "fotografia";
+
+interface SizeMeta {
+  key: SizeKey;
+  label: string;       // "Moldura 30x40", "Moldura 20x25 (mini)"
+  costSize: "30x40" | "40x50" | "50x70" | "mini_20x25"; // chave nas tabelas de custos
+  // O preço-base do mini está em pricing_items.extra.mini_frame; dos outros em
+  // pricing_items.base_frame.<size>. Esta string identifica o sítio correcto.
+  baseCategory: "base_frame" | "extra";
+  baseKey: string;     // "30x40" / "40x50" / "50x70" / "mini_frame"
+  // Chave do suplemento de fotografia no pricing_items.background_supplement.
+  photoSuppKey: string; // "fotografia_30x40" / ... / "fotografia_mini"
+}
+
+const SIZES: SizeMeta[] = [
+  { key: "30x40",      label: "Moldura 30x40 (A3)",     costSize: "30x40",      baseCategory: "base_frame", baseKey: "30x40",      photoSuppKey: "fotografia_30x40" },
+  { key: "40x50",      label: "Moldura 40x50",          costSize: "40x50",      baseCategory: "base_frame", baseKey: "40x50",      photoSuppKey: "fotografia_40x50" },
+  { key: "50x70",      label: "Moldura 50x70",          costSize: "50x70",      baseCategory: "base_frame", baseKey: "50x70",      photoSuppKey: "fotografia_50x70" },
+  { key: "20x25_mini", label: "Moldura 20x25 (mini)",   costSize: "mini_20x25", baseCategory: "extra",      baseKey: "mini_frame", photoSuppKey: "fotografia_mini"  },
+];
+
+const BACKGROUNDS: Array<{ key: BgKey; label: string }> = [
+  { key: "transparente", label: "Fundo transparente (vidro/vidro)" },
+  { key: "preto",        label: "Fundo preto / branco / cor" },
+  { key: "fotografia",   label: "Fundo fotografia" },
 ];
 
 function MargemTeoricaSection({
   pricing,
   productionCosts,
+  canEdit,
 }: {
   pricing: PricingItem[];
   productionCosts: ProductionCostItem[];
+  canEdit: boolean;
 }) {
-  // Snapshot vivo dos custos. Reusa a função canónica para garantir que esta
-  // tabela mostra exactamente o mesmo cálculo que uma encomenda nova teria.
+  // Snapshot vivo dos custos — para reusar `computeProductionCost` nos
+  // quadros principais e garantir paridade exacta com o cálculo real.
   const snapshot = useMemo(
     () => ({
       captured_at: new Date().toISOString(),
@@ -910,311 +934,302 @@ function MargemTeoricaSection({
     [productionCosts],
   );
 
-  // Lookup de preço por tamanho + fundo.
-  const basePrice = (size: string) =>
-    Number(pricing.find((p) => p.category === "base_frame" && p.key === size)?.price ?? 0);
-  const photoSupplement = (size: string) =>
-    Number(pricing.find((p) => p.category === "background_supplement" && p.key === `fotografia_${size}`)?.price ?? 0);
+  // Lookups por (categoria, key). Devolvem o item inteiro para podermos
+  // editar via id, ou null se não existir.
+  const findPricing = (category: PricingItem["category"], key: string) =>
+    pricing.find(
+      (p) => p.category === category && p.key === key && p.deleted_at === null,
+    ) ?? null;
 
-  const rows = MARGEM_COMBINATIONS.map((c) => {
-    const breakdown = computeProductionCost(
-      {
-        frame_size: c.size,
-        frame_background: c.background,
-        pyramid_frame: false,
-        frame_internal_type: "baixa",
-        extra_small_frames: "nao",
-        extra_small_frames_qty: 0,
-      },
-      snapshot,
+  const sizeBase = (s: SizeMeta) => findPricing(s.baseCategory, s.baseKey);
+  const sizePhotoSupp = (s: SizeMeta) => findPricing("background_supplement", s.photoSuppKey);
+
+  // ── Cálculo do custo de cada linha (read-only na verde) ──
+  // Para 30x40/40x50/50x70 reusamos computeProductionCost para paridade.
+  // Para o mini não dá (mini é add-on do main no fluxo real); calculo
+  // manualmente: frame line + photo print se fotografia.
+  function rowCost(size: SizeMeta, bg: BgKey): number {
+    if (size.key !== "20x25_mini") {
+      const bd = computeProductionCost(
+        {
+          frame_size: size.key as "30x40" | "40x50" | "50x70",
+          frame_background: bg,
+          pyramid_frame: false,
+          frame_internal_type: "baixa",
+          extra_small_frames: "nao",
+          extra_small_frames_qty: 0,
+        },
+        snapshot,
+      );
+      return bd?.total ?? 0;
+    }
+    // Mini standalone — frame mini baixa + photo print mini se fotografia.
+    const glass = bg === "transparente" ? "vidro_vidro" : "vidro_cartao";
+    const frame = snapshot.items.find(
+      (l) =>
+        l.kind === "frame" &&
+        l.size_key === "mini_20x25" &&
+        l.frame_type === "baixa" &&
+        l.glass_type === glass,
     );
-    const cost = breakdown?.total ?? 0;
-    const price = basePrice(c.size) + (c.background === "fotografia" ? photoSupplement(c.size) : 0);
-    const margin = price - cost;
-    const marginPct = price > 0 ? (margin / price) * 100 : 0;
-    return { ...c, price, cost, margin, marginPct };
-  });
-
-  // Agrupado por tamanho para legibilidade.
-  const grouped = new Map<string, typeof rows>();
-  for (const r of rows) {
-    if (!grouped.has(r.size)) grouped.set(r.size, []);
-    grouped.get(r.size)!.push(r);
+    const photo = bg === "fotografia"
+      ? snapshot.items.find(
+          (l) => l.kind === "photo_print" && l.size_key === "mini_20x25",
+        )
+      : null;
+    return Number(frame?.cost ?? 0) + Number(photo?.cost ?? 0);
   }
 
+  // ── Extras autónomos (Bloco 2) — ornamento + pendente ──
+  const ornament = findPricing("extra", "christmas_ornament");
+  const pendant = findPricing("extra", "necklace_pendant");
+
   return (
-    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-900/50 p-4 sm:p-5 space-y-3">
+    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-900/50 p-4 sm:p-5 space-y-4">
+      {/* Header */}
       <div className="flex items-start gap-3">
         <div className="h-9 w-9 rounded-xl bg-emerald-200/60 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
           <TrendingUp className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
         </div>
         <div>
           <h2 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
-            Margem teórica por quadro
+            Margem teórica — preços, custos e lucro por quadro
           </h2>
           <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-            Preço cliente − custo total de produção (moldura + vidro + impressão + consumíveis), assumindo moldura <strong>baixa</strong>. Pirâmide e caixa estão na secção "Custos unitários" em baixo.
+            Edita <strong>Base</strong> (preço base por tamanho) e <strong>Supl.</strong> (suplemento fotografia). <strong>Custo</strong> deriva das 6 tabelas em baixo (moldura baixa, vidro consoante fundo, impressão e consumíveis). <strong>Margem</strong> calculada automaticamente.
+            {!canEdit && <span className="block mt-1 italic">Modo leitura — só administradores podem editar.</span>}
           </p>
         </div>
       </div>
+
+      {/* Bloco 1 — Quadros */}
       <div className="rounded-xl bg-surface overflow-hidden border border-emerald-200/60 dark:border-emerald-900/40">
         <table className="w-full text-sm">
           <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
             <tr>
               <th className="text-left px-3 py-2 font-medium">Combinação</th>
-              <th className="text-right px-3 py-2 font-medium w-24">Preço</th>
+              <th className="text-right px-3 py-2 font-medium w-28">Base (€)</th>
+              <th className="text-right px-3 py-2 font-medium w-24">+€ Supl.</th>
+              <th className="text-right px-3 py-2 font-medium w-24">Preço cli.</th>
               <th className="text-right px-3 py-2 font-medium w-24">Custo</th>
               <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
               <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
             </tr>
           </thead>
           <tbody>
-            {[...grouped.entries()].map(([size, items]) => (
-              <React.Fragment key={size}>
-                <tr className="bg-emerald-50/60 dark:bg-emerald-950/20">
-                  <td colSpan={5} className="px-3 py-1.5 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
-                    Moldura {size}
-                  </td>
-                </tr>
-                {items.map((r) => (
-                  <tr key={`${r.size}-${r.background}`} className="border-t border-emerald-100 dark:border-emerald-900/30">
-                    <td className="px-3 py-2 text-cocoa-900">{r.label}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-cocoa-900">{formatEUR(r.price)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-rose-700">{formatEUR(r.cost)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{formatEUR(r.margin)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-700">{r.marginPct.toFixed(0)}%</td>
+            {SIZES.map((size) => {
+              const baseItem = sizeBase(size);
+              const supplItem = sizePhotoSupp(size);
+              const basePrice = Number(baseItem?.price ?? 0);
+              return (
+                <React.Fragment key={size.key}>
+                  <tr className="bg-emerald-50/60 dark:bg-emerald-950/20">
+                    <td colSpan={7} className="px-3 py-1.5 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                      {size.label}
+                    </td>
                   </tr>
-                ))}
-              </React.Fragment>
-            ))}
+                  {BACKGROUNDS.map((bg, idx) => {
+                    const isPhoto = bg.key === "fotografia";
+                    const suppPrice = isPhoto ? Number(supplItem?.price ?? 0) : 0;
+                    const clientPrice = basePrice + suppPrice;
+                    const cost = rowCost(size, bg.key);
+                    const margin = clientPrice - cost;
+                    const marginPct = clientPrice > 0 ? (margin / clientPrice) * 100 : 0;
+                    return (
+                      <tr key={`${size.key}-${bg.key}`} className="border-t border-emerald-100 dark:border-emerald-900/30">
+                        <td className="px-3 py-2 text-cocoa-900">{bg.label}</td>
+                        {idx === 0 ? (
+                          <td
+                            rowSpan={3}
+                            className="px-2 py-2 text-right align-middle border-l border-emerald-100/60"
+                          >
+                            <EditableEuro
+                              item={baseItem}
+                              field="price"
+                              canEdit={canEdit}
+                              align="right"
+                            />
+                          </td>
+                        ) : null}
+                        <td className="px-2 py-2 text-right">
+                          {isPhoto ? (
+                            <EditableEuro
+                              item={supplItem}
+                              field="price"
+                              canEdit={canEdit}
+                              align="right"
+                            />
+                          ) : (
+                            <span className="text-cocoa-500">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-cocoa-900 font-medium">
+                          {formatEUR(clientPrice)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-rose-700">
+                          {formatEUR(cost)}
+                        </td>
+                        <td className={cn(
+                          "px-3 py-2 text-right tabular-nums font-semibold",
+                          margin >= 0 ? "text-emerald-700" : "text-rose-700",
+                        )}>
+                          {formatEUR(margin)}
+                        </td>
+                        <td className={cn(
+                          "px-3 py-2 text-right tabular-nums font-semibold",
+                          marginPct >= 50 ? "text-emerald-700" : marginPct >= 30 ? "text-amber-700" : "text-rose-700",
+                        )}>
+                          {clientPrice > 0 ? `${marginPct.toFixed(0)}%` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* Bloco 2 — Extras (ornamento + pendente) */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide">
+          Extras (vendidos à parte)
+        </h3>
+        <div className="rounded-xl bg-surface overflow-hidden border border-emerald-200/60 dark:border-emerald-900/40">
+          <table className="w-full text-sm">
+            <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Item</th>
+                <th className="text-right px-3 py-2 font-medium w-28">Preço cli. (€)</th>
+                <th className="text-right px-3 py-2 font-medium w-28">Custo FBR (€)</th>
+                <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
+                <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[ornament, pendant].map((item) => {
+                if (!item) return null;
+                const price = Number(item.price ?? 0);
+                const cost = Number(item.cost_fbr ?? 0);
+                const margin = price - cost;
+                const marginPct = price > 0 ? (margin / price) * 100 : 0;
+                return (
+                  <tr key={item.id} className="border-t border-emerald-100 dark:border-emerald-900/30">
+                    <td className="px-3 py-2 text-cocoa-900">{item.label}</td>
+                    <td className="px-2 py-2 text-right">
+                      <EditableEuro item={item} field="price" canEdit={canEdit} align="right" />
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <EditableEuro item={item} field="cost_fbr" canEdit={canEdit} align="right" />
+                    </td>
+                    <td className={cn(
+                      "px-3 py-2 text-right tabular-nums font-semibold",
+                      margin >= 0 ? "text-emerald-700" : "text-rose-700",
+                    )}>
+                      {formatEUR(margin)}
+                    </td>
+                    <td className={cn(
+                      "px-3 py-2 text-right tabular-nums font-semibold",
+                      marginPct >= 50 ? "text-emerald-700" : marginPct >= 30 ? "text-amber-700" : "text-rose-700",
+                    )}>
+                      {price > 0 ? `${marginPct.toFixed(0)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-emerald-800/70 italic">
+          Pirâmide é tratada como upsell em <em>Custos de produção</em> (em baixo). Para alterar consumíveis ou variações de moldura (caixa, vidro/vidro vs cartão), edita as 6 tabelas em baixo.
+        </p>
+      </div>
     </div>
   );
 }
 
-// ============================================================
-// TABELA DE PREÇOS
-// ============================================================
-
-const PRICING_CATEGORY_ORDER: PricingCategory[] = [
-  "base_frame",
-  "background_supplement",
-  "extra",
-];
-
-const PRICING_CATEGORY_COLORS: Record<PricingCategory, string> = {
-  base_frame: "from-sky-50 to-blue-100 border-sky-200",
-  background_supplement: "from-violet-50 to-purple-100 border-violet-200",
-  extra: "from-amber-50 to-orange-100 border-amber-200",
-};
-
-function PrecosTab({
-  pricing,
+// Célula editável de valor em €. Persiste em onBlur via updatePricingItemAction.
+// Inputs vazios viram 0. Usa o padrão "store info from previous renders" para
+// sincronizar o draft local quando o item muda na BD (sem useEffect+setState).
+function EditableEuro({
+  item,
+  field,
   canEdit,
+  align = "right",
 }: {
-  pricing: PricingItem[];
+  item: PricingItem | null;
+  field: "price" | "cost_fbr";
   canEdit: boolean;
+  align?: "left" | "right";
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [saving, setSaving] = useState<string | null>(null);
-
-  const grouped = useMemo(() => {
-    const map = new Map<PricingCategory, PricingItem[]>();
-    for (const cat of PRICING_CATEGORY_ORDER) map.set(cat, []);
-    for (const item of pricing) {
-      const list = map.get(item.category);
-      if (list) list.push(item);
-    }
-    return map;
-  }, [pricing]);
-
-  function savePrice(item: PricingItem, raw: string) {
-    const next = raw.trim() === "" ? 0 : Number(raw.replace(",", "."));
-    if (Number.isNaN(next) || next < 0) {
-      toast.error("Preço inválido");
-      return;
-    }
-    if (next === item.price) return;
-    setSaving(item.id);
-    startTransition(async () => {
-      try {
-        await updatePricingItemAction(item.id, { price: next });
-        toast.success(`${item.label}: ${formatEUR(next)}`);
-        router.refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Erro ao guardar");
-      } finally {
-        setSaving(null);
-      }
-    });
+  const [saving, setSaving] = useState(false);
+  const current = item ? Number(item[field] ?? 0) : 0;
+  const [draft, setDraft] = useState(formatDraft(current));
+  const [lastItemId, setLastItemId] = useState(item?.id ?? null);
+  const [lastValue, setLastValue] = useState(current);
+  if (item && (item.id !== lastItemId || current !== lastValue)) {
+    setLastItemId(item.id);
+    setLastValue(current);
+    setDraft(formatDraft(current));
   }
 
-  function saveNotes(item: PricingItem, raw: string) {
-    const next = raw.trim() === "" ? null : raw.trim();
-    if (next === item.notes) return;
-    setSaving(item.id);
+  if (!item) {
+    return <span className="text-cocoa-500 italic text-xs">item em falta</span>;
+  }
+
+  function save(raw: string) {
+    const next = raw.trim() === "" ? 0 : Number(raw.replace(",", "."));
+    if (Number.isNaN(next) || next < 0) {
+      toast.error("Valor inválido");
+      setDraft(formatDraft(current));
+      return;
+    }
+    if (next === current) {
+      setDraft(formatDraft(next)); // normaliza o display
+      return;
+    }
+    setSaving(true);
     startTransition(async () => {
       try {
-        await updatePricingItemAction(item.id, { notes: next });
+        await updatePricingItemAction(item!.id, { [field]: next });
+        toast.success(`${item!.label}: ${formatEUR(next)}`);
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro ao guardar");
+        setDraft(formatDraft(current));
       } finally {
-        setSaving(null);
+        setSaving(false);
       }
     });
   }
 
   return (
-    <div className="space-y-4">
-      {/* Aviso explicativo */}
-      <div className="rounded-2xl border border-sky-200 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-900 p-4 flex gap-3">
-        <Tags className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
-        <div className="text-sm text-sky-900 dark:text-sky-200 leading-relaxed">
-          <p className="font-semibold mb-1">Como funciona o orçamento automático</p>
-          <p>
-            Ao criar uma encomenda nova, o orçamento é calculado automaticamente
-            a partir destes preços: base do tamanho + suplemento de fundo +
-            extras × quantidade. <strong>Aumentos futuros aqui não recalculam
-            encomendas antigas</strong> — cada encomenda guarda um snapshot
-            congelado dos preços do dia da criação. Podes sempre editar o
-            orçamento manualmente em cada workbench.
-          </p>
-          <p className="mt-2 text-xs text-sky-800 dark:text-sky-300">
-            <strong>Suplemento de fundo:</strong> só a fotografia custa ao cliente.
-            O suplemento varia por tamanho (30x40 / 40x50 / 50x70) — escolhido
-            automaticamente conforme a moldura. Moldura pirâmide é um upsell
-            aplicado manualmente.
-          </p>
-          {!canEdit && (
-            <p className="mt-2 italic text-sky-700 dark:text-sky-300">
-              Modo leitura — só administradores podem editar.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {PRICING_CATEGORY_ORDER.map((cat) => {
-        const items = grouped.get(cat) ?? [];
-        if (items.length === 0) return null;
-        const color = PRICING_CATEGORY_COLORS[cat];
-        // Maria pediu: molduras (base_frame) não precisam de notas.
-        const showNotes = cat !== "base_frame";
-        return (
-          <div
-            key={cat}
-            className={cn(
-              "rounded-2xl border bg-gradient-to-br p-4 space-y-3",
-              color,
-            )}
-          >
-            <div>
-              <h2 className="text-sm font-semibold text-cocoa-900">
-                {PRICING_CATEGORY_LABELS[cat]}
-              </h2>
-              <p className="text-xs text-cocoa-700 mt-0.5">
-                {PRICING_CATEGORY_HELPER[cat]}
-              </p>
-            </div>
-            <div className="rounded-xl bg-surface overflow-hidden border border-white/40">
-              <table className="w-full text-sm">
-                <thead className="bg-cream-50 text-xs uppercase tracking-wide text-cocoa-700">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium">Item</th>
-                    <th className="text-left px-3 py-2 font-medium w-32">Preço (€)</th>
-                    {showNotes && <th className="text-left px-3 py-2 font-medium">Notas</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <PriceRow
-                      key={item.id}
-                      item={item}
-                      canEdit={canEdit}
-                      saving={saving === item.id}
-                      showNotes={showNotes}
-                      onSavePrice={(v) => savePrice(item, v)}
-                      onSaveNotes={(v) => saveNotes(item, v)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <Input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => save(draft)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      disabled={!canEdit || saving}
+      inputMode="decimal"
+      placeholder="0"
+      className={cn(
+        "h-8 w-24 text-sm font-medium tabular-nums",
+        align === "right" && "text-right",
+      )}
+    />
   );
 }
 
-function PriceRow({
-  item,
-  canEdit,
-  saving,
-  showNotes,
-  onSavePrice,
-  onSaveNotes,
-}: {
-  item: PricingItem;
-  canEdit: boolean;
-  saving: boolean;
-  showNotes: boolean;
-  onSavePrice: (raw: string) => void;
-  onSaveNotes: (raw: string) => void;
-}) {
-  const [priceDraft, setPriceDraft] = useState(item.price.toString().replace(".", ","));
-  const [notesDraft, setNotesDraft] = useState(item.notes ?? "");
-
-  // Padrão "store info from previous renders" — sincroniza o draft local
-  // com a prop quando o item muda na BD (sem useEffect+setState).
-  const [lastItemId, setLastItemId] = useState(item.id);
-  const [lastPrice, setLastPrice] = useState(item.price);
-  if (item.id !== lastItemId || item.price !== lastPrice) {
-    setLastItemId(item.id);
-    setLastPrice(item.price);
-    setPriceDraft(item.price.toString().replace(".", ","));
-    setNotesDraft(item.notes ?? "");
-  }
-
-  return (
-    <tr className="border-t border-cream-100">
-      <td className="px-3 py-2 align-middle">
-        <div className="font-medium text-cocoa-900">{item.label}</div>
-        <div className="text-[10px] uppercase tracking-wider text-cocoa-500 mt-0.5">
-          {item.key}
-        </div>
-      </td>
-      <td className="px-3 py-2 align-middle">
-        <Input
-          value={priceDraft}
-          onChange={(e) => setPriceDraft(e.target.value)}
-          onBlur={() => onSavePrice(priceDraft)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-          disabled={!canEdit || saving}
-          inputMode="decimal"
-          className="h-8 w-24 text-sm font-medium"
-          placeholder="0,00"
-        />
-      </td>
-      {showNotes && (
-        <td className="px-3 py-2 align-middle">
-          <Input
-            value={notesDraft}
-            onChange={(e) => setNotesDraft(e.target.value)}
-            onBlur={() => onSaveNotes(notesDraft)}
-            disabled={!canEdit || saving}
-            className="h-8 text-sm"
-            placeholder="(opcional)"
-          />
-        </td>
-      )}
-    </tr>
-  );
+function formatDraft(n: number): string {
+  if (!n || n === 0) return "0";
+  // Formato europeu sem unidade (vírgula decimal). Aparas zeros redundantes.
+  const fixed = n.toFixed(2);
+  return fixed.replace(/\.?0+$/, "").replace(".", ",");
 }
 
 // ============================================================

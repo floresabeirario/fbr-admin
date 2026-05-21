@@ -1578,6 +1578,74 @@ export default function WorkbenchClient({
                       </Field>
                     </div>
                   )}
+
+                  {/* Campos condicionais para "Em mãos" — quem traz as flores ao
+                      atelier, dia, janela horária e notas (alimentam Google
+                      Calendar). Sem morada (é sempre no atelier FBR). */}
+                  {local.flower_delivery_method === "maos" && (
+                    <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700 flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3" /> Detalhes da entrega em mãos
+                      </p>
+                      <Grid2>
+                        <Field label="Data da entrega">
+                          <Input
+                            className={inp}
+                            type="date"
+                            value={toDateInput(local.hand_delivery_date)}
+                            onChange={(e) => update("hand_delivery_date", e.target.value || null)}
+                          />
+                        </Field>
+                        <Field label="Janela horária">
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              className={inp}
+                              type="time"
+                              value={local.hand_delivery_time_from ?? ""}
+                              onChange={(e) => update("hand_delivery_time_from", e.target.value || null)}
+                              placeholder="—"
+                            />
+                            <span className="text-xs text-cocoa-700">→</span>
+                            <Input
+                              className={inp}
+                              type="time"
+                              value={local.hand_delivery_time_to ?? ""}
+                              onChange={(e) => update("hand_delivery_time_to", e.target.value || null)}
+                              placeholder="—"
+                            />
+                          </div>
+                        </Field>
+                      </Grid2>
+                      <Grid2>
+                        <Field label="Quem traz as flores — nome">
+                          <Input
+                            className={inp}
+                            value={local.hand_delivery_contact_name ?? ""}
+                            onChange={(e) => update("hand_delivery_contact_name", e.target.value || null)}
+                            placeholder="Ex: O próprio cliente, irmã, …"
+                          />
+                        </Field>
+                        <Field label="Quem traz as flores — telemóvel">
+                          <Input
+                            className={inp}
+                            type="tel"
+                            value={local.hand_delivery_contact_phone ?? ""}
+                            onChange={(e) => update("hand_delivery_contact_phone", e.target.value || null)}
+                            placeholder="+351 …"
+                          />
+                        </Field>
+                      </Grid2>
+                      <Field label="Notas sobre a entrega" span2>
+                        <Textarea
+                          className="text-sm border-cream-200 bg-cream-50 focus:bg-surface text-cocoa-900 rounded-lg resize-none"
+                          rows={2}
+                          value={local.hand_delivery_notes ?? ""}
+                          onChange={(e) => update("hand_delivery_notes", e.target.value || null)}
+                          placeholder="Detalhes úteis — confirma se chegou bem, observações…"
+                        />
+                      </Field>
+                    </div>
+                  )}
                 </div>
 
                 <Separator className="bg-cream-100" />

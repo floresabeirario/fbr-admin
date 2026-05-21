@@ -128,18 +128,54 @@ type OrderForEvent = Pick<
   | "pickup_notes"
   | "pickup_contact_name"
   | "pickup_contact_phone"
+  | "hand_delivery_date"
+  | "hand_delivery_time_from"
+  | "hand_delivery_time_to"
+  | "hand_delivery_contact_name"
+  | "hand_delivery_contact_phone"
+  | "hand_delivery_notes"
   | "email"
   | "phone"
   | "contact_preference"
 >;
 
-// Normaliza um número de telefone para exibição: garante o "+" prefixo
-// (indicativo internacional). Retorna `null` quando vazio.
-function formatPhone(raw: string | null | undefined): string | null {
+// Normaliza um número de telefone para exibição. Se já tem `+`, mantém-se;
+// senão assume indicativo português (+351) — a maior parte dos números
+// guardados na BD são PT sem prefixo. Devolve `{ display, tel }` onde
+// `tel` é a versão sem espaços, pronta para um `href="tel:..."`. Retorna
+// `null` quando o input está vazio.
+function formatPhone(
+  raw: string | null | undefined,
+): { display: string; tel: string } | null {
   if (!raw) return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  return trimmed.startsWith("+") ? trimmed : `+${trimmed}`;
+  // Só dígitos para detectar números PT (9 dígitos a começar por 9, 2 ou 3)
+  const digits = trimmed.replace(/\D/g, "");
+  let display: string;
+  if (trimmed.startsWith("+")) {
+    display = trimmed;
+  } else if (digits.length === 9 && /^[239]/.test(digits)) {
+    // Número PT sem indicativo → assumir +351
+    display = `+351 ${digits}`;
+  } else {
+    display = `+${trimmed}`;
+  }
+  const tel = display.replace(/\s+/g, "");
+  return { display, tel };
+}
+
+// Constrói um `<a href="tel:...">` clicável para o telemóvel formatado.
+// Usado nas linhas da descrição do evento Calendar. Devolve `null` se o
+// número estiver vazio. O texto visível leva o emoji 📱 prefixado por quem
+// chama (mantém consistência com o resto da descrição).
+function telLink(raw: string | null | undefined): { display: string; html: string } | null {
+  const f = formatPhone(raw);
+  if (!f) return null;
+  return {
+    display: f.display,
+    html: `<a href="tel:${escapeHtml(f.tel)}">${escapeHtml(f.display)}</a>`,
+  };
 }
 
 // Escape mínimo para texto que vai entrar numa descrição HTML do
@@ -152,25 +188,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-// Formata "YYYY-MM-DD" → "15 de Maio de 2026" (mês por extenso em PT).
-// Usado em sítios onde a data é a info principal da linha, como a data
-// da recolha na descrição do evento Calendar.
-const MONTHS_PT = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-];
-function formatDateLongPt(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return iso;
-  const day = parseInt(m[3], 10);
-  const monthIdx = parseInt(m[2], 10) - 1;
-  const year = m[1];
-  const month = MONTHS_PT[monthIdx] ?? m[2];
-  return `${day} de ${month} de ${year}`;
-}
-
 
 // Formata HH:MM (descarta segundos vindos do Postgres TIME).
 function trimSeconds(t: string | null | undefined): string | null {
@@ -208,6 +225,18 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   else if (isHandDelivery) prefix = "🤲 EM MÃOS";
   const summary = `${[prefix, namePart, typeLabel].filter(Boolean).join(" | ")} 💐`;
 
+  // Data efectiva do evento (dia em que o evento aparece no Calendar):
+  //   - recolha: pickup_date se houver, senão event_date
+  //   - em mãos: hand_delivery_date se houver, senão event_date
+  //   - outros casos: event_date
+  // Isto garante que o evento aparece no dia em que há trabalho a fazer
+  // (recolha ou recepção em mãos), e não no dia do casamento.
+  const effectiveDate = isPickup
+    ? (order.pickup_date ?? order.event_date)
+    : isHandDelivery
+      ? (order.hand_delivery_date ?? order.event_date)
+      : order.event_date;
+
   // Fallback hardcoded para o domínio de produção — sem isto, eventos
   // criados em ambientes onde NEXT_PUBLIC_SITE_URL não esteja definido
   // ficavam sem o URL do workbench na descrição.
@@ -232,13 +261,11 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
     if (from || to) {
       lines.push(`🕒 Horário: ${from ?? "?"}${to ? ` – ${to}` : ""}`);
     }
-    if (order.pickup_date && order.pickup_date !== order.event_date) {
-      lines.push(`📅 Data de recolha: ${formatDateLongPt(order.pickup_date)}`);
-    }
     if (order.pickup_contact_name || order.pickup_contact_phone) {
+      const phoneLink = telLink(order.pickup_contact_phone);
       const parts = [
         order.pickup_contact_name ? E(order.pickup_contact_name) : null,
-        formatPhone(order.pickup_contact_phone),
+        phoneLink ? `📱 ${phoneLink.html}` : null,
       ]
         .filter(Boolean)
         .join(" — ");
@@ -249,7 +276,25 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
     }
     lines.push("");
   } else if (isHandDelivery) {
-    lines.push("🤲 EM MÃOS pelo cliente");
+    lines.push("🤲 EM MÃOS no atelier FBR");
+    const from = trimSeconds(order.hand_delivery_time_from);
+    const to = trimSeconds(order.hand_delivery_time_to);
+    if (from || to) {
+      lines.push(`🕒 Horário: ${from ?? "?"}${to ? ` – ${to}` : ""}`);
+    }
+    if (order.hand_delivery_contact_name || order.hand_delivery_contact_phone) {
+      const phoneLink = telLink(order.hand_delivery_contact_phone);
+      const parts = [
+        order.hand_delivery_contact_name ? E(order.hand_delivery_contact_name) : null,
+        phoneLink ? `📱 ${phoneLink.html}` : null,
+      ]
+        .filter(Boolean)
+        .join(" — ");
+      lines.push(`👥 Quem traz: ${parts}`);
+    }
+    if (order.hand_delivery_notes) {
+      lines.push(`📝 Notas: ${E(order.hand_delivery_notes)}`);
+    }
     lines.push("");
   } else if (order.flower_delivery_method) {
     lines.push(`📦 Envio: ${E(FLOWER_DELIVERY_METHOD_LABELS[order.flower_delivery_method])}`);
@@ -260,8 +305,8 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   // email e preferência de contacto são geridos no workbench)
   lines.push("👤 CLIENTE");
   lines.push(`Nome: ${E(order.client_name || "—")}`);
-  const phoneFmt = formatPhone(order.phone);
-  if (phoneFmt) lines.push(`📱 ${phoneFmt}`);
+  const clientPhone = telLink(order.phone);
+  if (clientPhone) lines.push(`📱 ${clientPhone.html}`);
   lines.push("");
 
   // Evento (data + local) — só se diferente da info da recolha
@@ -281,27 +326,39 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
     `<a href="${E(workbenchUrl)}">Encomenda #${E(order.order_id)}</a>`,
   );
 
-  // Localização do evento Calendar: quando é recolha, usa a morada de
-  // recolha (mais útil — abre o Maps directo para onde ir buscar).
+  // Localização do evento Calendar:
+  //   - recolha: morada de recolha (Maps abre directo para lá)
+  //   - em mãos: nada (vêm ao atelier; descrição já indica)
+  //   - outros: local do evento
   const location = isPickup
     ? (order.pickup_address ?? order.event_location ?? undefined)
-    : (order.event_location ?? undefined);
+    : isHandDelivery
+      ? undefined
+      : (order.event_location ?? undefined);
 
-  // Datas/horas: se for recolha COM hora definida, evento timed; senão all-day.
+  // Datas/horas: se houver hora definida (recolha ou entrega em mãos),
+  // evento timed; senão all-day. A data efectiva já foi calculada acima
+  // (pickup_date / hand_delivery_date / event_date conforme aplicável).
   let timing: Pick<calendar_v3.Schema$Event, "start" | "end">;
 
   const pickupHasTime = isPickup && order.pickup_time_from;
-  if (pickupHasTime) {
-    const dateStr = order.pickup_date ?? order.event_date;
-    const startTime = trimSeconds(order.pickup_time_from)!;
-    const endTime = trimSeconds(order.pickup_time_to) ?? addOneHour(startTime);
+  const handHasTime = isHandDelivery && order.hand_delivery_time_from;
+
+  if (pickupHasTime || handHasTime) {
+    const startTime = trimSeconds(
+      pickupHasTime ? order.pickup_time_from : order.hand_delivery_time_from,
+    )!;
+    const endTime =
+      trimSeconds(
+        pickupHasTime ? order.pickup_time_to : order.hand_delivery_time_to,
+      ) ?? addOneHour(startTime);
     timing = {
-      start: { dateTime: `${dateStr}T${startTime}:00`, timeZone: TIMEZONE },
-      end: { dateTime: `${dateStr}T${endTime}:00`, timeZone: TIMEZONE },
+      start: { dateTime: `${effectiveDate}T${startTime}:00`, timeZone: TIMEZONE },
+      end: { dateTime: `${effectiveDate}T${endTime}:00`, timeZone: TIMEZONE },
     };
   } else {
-    const start = order.event_date; // "YYYY-MM-DD"
-    const next = new Date(`${order.event_date}T00:00:00Z`);
+    const start = effectiveDate!; // "YYYY-MM-DD"
+    const next = new Date(`${effectiveDate}T00:00:00Z`);
     next.setUTCDate(next.getUTCDate() + 1);
     const end = next.toISOString().slice(0, 10);
     timing = {
@@ -315,8 +372,9 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
     description: lines.join("<br>"),
     location,
     ...timing,
-    // Recolha BLOQUEIA o calendário (alguém tem que estar lá); resto fica free
-    transparency: isPickup ? "opaque" : "transparent",
+    // Recolha e entrega em mãos BLOQUEIAM o calendário (alguém tem que
+    // estar lá/cá); resto fica free.
+    transparency: isPickup || isHandDelivery ? "opaque" : "transparent",
   };
 }
 

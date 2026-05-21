@@ -43,6 +43,12 @@ type OrderFields = Pick<
   | "pickup_notes"
   | "pickup_contact_name"
   | "pickup_contact_phone"
+  | "hand_delivery_date"
+  | "hand_delivery_time_from"
+  | "hand_delivery_time_to"
+  | "hand_delivery_contact_name"
+  | "hand_delivery_contact_phone"
+  | "hand_delivery_notes"
   | "email"
   | "phone"
   | "contact_preference"
@@ -87,6 +93,12 @@ export function calendarFieldsChanged(
     "pickup_notes",
     "pickup_contact_name",
     "pickup_contact_phone",
+    "hand_delivery_date",
+    "hand_delivery_time_from",
+    "hand_delivery_time_to",
+    "hand_delivery_contact_name",
+    "hand_delivery_contact_phone",
+    "hand_delivery_notes",
     "email",
     "phone",
     "contact_preference",
@@ -125,6 +137,12 @@ export async function upsertOrderCalendarEvent(
       pickup_notes: order.pickup_notes,
       pickup_contact_name: order.pickup_contact_name,
       pickup_contact_phone: order.pickup_contact_phone,
+      hand_delivery_date: order.hand_delivery_date,
+      hand_delivery_time_from: order.hand_delivery_time_from,
+      hand_delivery_time_to: order.hand_delivery_time_to,
+      hand_delivery_contact_name: order.hand_delivery_contact_name,
+      hand_delivery_contact_phone: order.hand_delivery_contact_phone,
+      hand_delivery_notes: order.hand_delivery_notes,
       email: order.email,
       phone: order.phone,
       contact_preference: order.contact_preference,
