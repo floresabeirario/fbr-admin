@@ -114,34 +114,59 @@ export const EXPENSE_RECURRENCE_PERIOD_LABELS: Record<ExpenseRecurrencePeriod, s
 };
 
 /**
+ * Nº de meses (com fracção) entre duas datas. Usado para repartir um
+ * pagamento "custom" ao longo do intervalo. 06/04/2026 → 06/06/2027
+ * dá 14 meses exactos; dias intermédios contam como fracção (÷30).
+ */
+function monthsSpan(start: Date, end: Date): number {
+  const yearDiff = end.getFullYear() - start.getFullYear();
+  const monthDiff = end.getMonth() - start.getMonth();
+  const dayDiff = (end.getDate() - start.getDate()) / 30;
+  return yearDiff * 12 + monthDiff + dayDiff;
+}
+
+/**
  * Normaliza uma despesa recorrente para um custo mensal equivalente.
  * - Mensal → amount
  * - Anual → amount / 12
- * - Custom (start→end) → amount * ocorrências esperadas no intervalo / nº meses
- *   (interpretação: amount é por ocorrência mensal; intervalo só limita período).
+ * - Custom (start→end) → amount é o TOTAL pago pelo intervalo
+ *   completo (ex.: paguei 41,70€ por 14 meses de uma vez → 2,98€/mês).
  * Se a despesa não é recorrente, devolve 0.
  */
 export function monthlyEquivalent(e: Pick<Expense,
   | "is_recurring"
   | "recurrence_period"
   | "amount"
+  | "recurrence_start_date"
+  | "recurrence_end_date"
 >): number {
   if (!e.is_recurring) return 0;
   const amt = Number(e.amount);
   switch (e.recurrence_period) {
     case "monthly": return amt;
     case "yearly":  return amt / 12;
-    case "custom":  return amt; // tratamos como mensal dentro do intervalo
-    default:        return 0;
+    case "custom": {
+      if (!e.recurrence_start_date || !e.recurrence_end_date) return amt;
+      const months = monthsSpan(
+        new Date(e.recurrence_start_date),
+        new Date(e.recurrence_end_date),
+      );
+      if (months <= 0) return amt;
+      return amt / months;
+    }
+    default: return 0;
   }
 }
 
 /**
- * Total estimado pago numa subscrição desde o seu início até `at`
- * (ou até `recurrence_end_date` se já terminou antes). Usa o custo
- * mensal equivalente × nº de meses elapsed (inclusivo no mês de
- * início), portanto é uma aproximação razoável — não conta dias
- * parciais. Devolve 0 se não é recorrente ou ainda não começou.
+ * Total acumulado de uma subscrição desde o início até `at` (ou até
+ * `recurrence_end_date` se já terminou antes). Devolve 0 se não é
+ * recorrente ou ainda não começou.
+ *
+ * - Custom: amount é o valor TOTAL pelo intervalo; acumula
+ *   proporcionalmente ao tempo decorrido, com tecto no amount total.
+ * - Mensal/Anual: usa o custo mensal equivalente × nº de meses
+ *   decorridos (inclusivo no mês de início).
  */
 export function subscriptionTotalToDate(
   e: Pick<Expense,
@@ -156,6 +181,19 @@ export function subscriptionTotalToDate(
   if (!e.is_recurring || !e.recurrence_start_date) return 0;
   const start = new Date(e.recurrence_start_date);
   if (at < start) return 0;
+
+  if (e.recurrence_period === "custom") {
+    const amt = Number(e.amount);
+    if (!e.recurrence_end_date) return amt;
+    const end = new Date(e.recurrence_end_date);
+    const totalMs = end.getTime() - start.getTime();
+    if (totalMs <= 0) return amt;
+    const effectiveEnd = end < at ? end : at;
+    const elapsedMs = effectiveEnd.getTime() - start.getTime();
+    const ratio = Math.min(1, Math.max(0, elapsedMs / totalMs));
+    return amt * ratio;
+  }
+
   const end = e.recurrence_end_date ? new Date(e.recurrence_end_date) : at;
   const effectiveEnd = end < at ? end : at;
   if (effectiveEnd < start) return 0;

@@ -28,6 +28,7 @@ import {
   Camera,
   Package,
   Handshake,
+  Pencil,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -35,6 +36,14 @@ import { pt } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -235,7 +244,7 @@ export default function FinancasClient({
                 </div>
                 <div
                   className={cn(
-                    "text-[11px] sm:text-xs mt-0.5 leading-tight truncate",
+                    "text-[11px] sm:text-xs mt-0.5 leading-tight",
                     active ? "opacity-80" : "text-cocoa-700",
                   )}
                 >
@@ -1738,7 +1747,11 @@ function DespesasSubscricoes({
               />
             </div>
             <div>
-              <label className="text-xs text-cocoa-700">Valor / ocorrência</label>
+              <label className="text-xs text-cocoa-700">
+                {newSub.recurrence_period === "monthly" && "Valor mensal"}
+                {newSub.recurrence_period === "yearly" && "Valor anual"}
+                {newSub.recurrence_period === "custom" && "Valor total"}
+              </label>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
                 <Input
@@ -1762,9 +1775,9 @@ function DespesasSubscricoes({
             <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
           </div>
           <p className="text-xs text-violet-800/70 italic">
-            <strong>Mensal:</strong> conta {formatEUR(parseFloat(newSub.amount.replace(",", ".")) || 0)} por mês.{" "}
-            <strong>Anual:</strong> ÷12.{" "}
-            <strong>Intervalo:</strong> activa só entre as datas indicadas.
+            <strong>Mensal:</strong> valor cobrado em cada mês.{" "}
+            <strong>Anual:</strong> valor anual, dividido por 12 para o custo mensal estimado.{" "}
+            <strong>Intervalo específico:</strong> valor <em>total</em> pago pelo intervalo (ex.: 41,70 € por 14 meses = 2,98 €/mês).
           </p>
         </div>
       )}
@@ -1809,6 +1822,7 @@ function DespesasSubscricoes({
 function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
 
   function handleField<K extends keyof Expense>(key: K, value: Expense[K]) {
     if (!canEdit) return;
@@ -1887,24 +1901,273 @@ function ExpenseRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }
       <td className="px-3 py-2">
         <InvoiceCell expense={expense} canEdit={canEdit} />
       </td>
-      <td className="px-3 py-2 text-right">
+      <td className="px-3 py-2 text-right whitespace-nowrap">
         {canEdit && (
-          <button
-            onClick={handleArchive}
-            className="text-cocoa-500 hover:text-rose-600 transition-colors"
-            title="Arquivar"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="inline-flex items-center gap-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="text-cocoa-500 hover:text-cocoa-900 transition-colors"
+              title="Editar"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={handleArchive}
+              className="text-cocoa-500 hover:text-rose-600 transition-colors"
+              title="Arquivar"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {editing && (
+          <EditExpenseDialog
+            expense={expense}
+            open={editing}
+            onOpenChange={setEditing}
+          />
         )}
       </td>
     </tr>
   );
 }
 
+// ── Dialog de edição (cobre despesas únicas e subscrições) ──
+
+function EditExpenseDialog({
+  expense,
+  open,
+  onOpenChange,
+}: {
+  expense: Expense;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const isSub = expense.is_recurring;
+
+  const [draft, setDraft] = useState({
+    expense_date: expense.expense_date,
+    description: expense.description ?? "",
+    category: expense.category,
+    amount: String(expense.amount).replace(".", ","),
+    supplier: expense.supplier ?? "",
+    payment_method: expense.payment_method ?? "",
+    notes: expense.notes ?? "",
+    recurrence_period: (expense.recurrence_period ?? "monthly") as ExpenseRecurrencePeriod,
+    recurrence_start_date: expense.recurrence_start_date ?? expense.expense_date,
+    recurrence_end_date: expense.recurrence_end_date ?? "",
+  });
+
+  function handleSave() {
+    const amount = parseFloat(draft.amount.replace(",", "."));
+    if (!draft.description.trim()) {
+      toast.error("A descrição é obrigatória.");
+      return;
+    }
+    if (!amount || amount <= 0) {
+      toast.error("Valor inválido.");
+      return;
+    }
+    if (isSub && !draft.recurrence_start_date) {
+      toast.error("Indica a data de início da subscrição.");
+      return;
+    }
+    if (
+      isSub &&
+      draft.recurrence_period === "custom" &&
+      draft.recurrence_end_date &&
+      draft.recurrence_end_date < draft.recurrence_start_date
+    ) {
+      toast.error("A data de fim tem que ser depois do início.");
+      return;
+    }
+
+    const patch: Record<string, unknown> = {
+      description: draft.description.trim(),
+      category: draft.category,
+      amount,
+      supplier: draft.supplier.trim() || null,
+      notes: draft.notes.trim() || null,
+      payment_method: (draft.payment_method || null) as ExpensePaymentMethod | null,
+    };
+    if (isSub) {
+      patch.recurrence_period = draft.recurrence_period;
+      patch.recurrence_start_date = draft.recurrence_start_date;
+      patch.recurrence_end_date = draft.recurrence_end_date || null;
+      patch.expense_date = draft.recurrence_start_date;
+    } else {
+      patch.expense_date = draft.expense_date;
+    }
+
+    startTransition(async () => {
+      try {
+        await updateExpenseAction(expense.id, patch as Partial<Expense>);
+        toast.success(isSub ? "Subscrição actualizada." : "Despesa actualizada.");
+        onOpenChange(false);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao guardar.");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {isSub ? "Editar subscrição" : "Editar despesa"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Descrição</Label>
+            <Input
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Categoria</Label>
+              <Select
+                value={draft.category}
+                onValueChange={(v) => setDraft({ ...draft, category: v as ExpenseCategory })}
+              >
+                <SelectTrigger>
+                  <SelectValue labels={EXPENSE_CATEGORY_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPENSE_CATEGORY_ORDER.map((c) => (
+                    <SelectItem key={c} value={c}>{EXPENSE_CATEGORY_LABELS[c]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                {isSub
+                  ? draft.recurrence_period === "monthly"
+                    ? "Valor mensal"
+                    : draft.recurrence_period === "yearly"
+                      ? "Valor anual"
+                      : "Valor total"
+                  : "Valor"}
+              </Label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-cocoa-700">€</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="pl-6"
+                  value={draft.amount}
+                  onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {isSub ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Periodicidade</Label>
+                <Select
+                  value={draft.recurrence_period}
+                  onValueChange={(v) => setDraft({ ...draft, recurrence_period: v as ExpenseRecurrencePeriod })}
+                >
+                  <SelectTrigger>
+                    <SelectValue labels={EXPENSE_RECURRENCE_PERIOD_LABELS} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(EXPENSE_RECURRENCE_PERIOD_LABELS) as ExpenseRecurrencePeriod[]).map((p) => (
+                      <SelectItem key={p} value={p}>{EXPENSE_RECURRENCE_PERIOD_LABELS[p]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Início</Label>
+                <Input
+                  type="date"
+                  value={draft.recurrence_start_date}
+                  onChange={(e) => setDraft({ ...draft, recurrence_start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">
+                  Fim {draft.recurrence_period === "custom" ? "(obrigatório)" : "(opcional)"}
+                </Label>
+                <Input
+                  type="date"
+                  value={draft.recurrence_end_date}
+                  onChange={(e) => setDraft({ ...draft, recurrence_end_date: e.target.value })}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Data</Label>
+              <Input
+                type="date"
+                value={draft.expense_date}
+                onChange={(e) => setDraft({ ...draft, expense_date: e.target.value })}
+              />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Fornecedor (opcional, texto ou link)</Label>
+            <Input
+              value={draft.supplier}
+              onChange={(e) => setDraft({ ...draft, supplier: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Método de pagamento</Label>
+            <Select
+              value={draft.payment_method || "__none__"}
+              onValueChange={(v) => setDraft({ ...draft, payment_method: !v || v === "__none__" ? "" : v })}
+            >
+              <SelectTrigger>
+                <SelectValue labels={EXPENSE_PAYMENT_METHOD_LABELS} placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">—</SelectItem>
+                {(Object.keys(EXPENSE_PAYMENT_METHOD_LABELS) as ExpensePaymentMethod[]).map((m) => (
+                  <SelectItem key={m} value={m}>{EXPENSE_PAYMENT_METHOD_LABELS[m]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Notas (opcional)</Label>
+            <Textarea
+              value={draft.notes}
+              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+              rows={2}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={handleSave} className="bg-btn-primary hover:bg-btn-primary-hover text-btn-primary-fg">
+            Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SubscriptionRow({ expense, canEdit }: { expense: Expense; canEdit: boolean }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
 
   const active = isSubscriptionActive(expense, new Date());
   const monthly = monthlyEquivalent(expense);
@@ -1975,15 +2238,31 @@ function SubscriptionRow({ expense, canEdit }: { expense: Expense; canEdit: bool
       <td className="px-3 py-2">
         <InvoiceCell expense={expense} canEdit={canEdit} />
       </td>
-      <td className="px-3 py-2 text-right">
+      <td className="px-3 py-2 text-right whitespace-nowrap">
         {canEdit && (
-          <button
-            onClick={handleArchive}
-            className="text-cocoa-500 hover:text-rose-600 transition-colors"
-            title="Arquivar"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="inline-flex items-center gap-2">
+            <button
+              onClick={() => setEditing(true)}
+              className="text-cocoa-500 hover:text-cocoa-900 transition-colors"
+              title="Editar"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={handleArchive}
+              className="text-cocoa-500 hover:text-rose-600 transition-colors"
+              title="Arquivar"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {editing && (
+          <EditExpenseDialog
+            expense={expense}
+            open={editing}
+            onOpenChange={setEditing}
+          />
         )}
       </td>
     </tr>
