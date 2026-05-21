@@ -86,23 +86,17 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
   }
 
   // ── Snapshot dos custos de produção ───────────────────────────────
-  // Capturamos sempre na criação (independente do budget manual): o
-  // custo de produção é informação interna, não substitui o orçamento.
-  let costSnapshot: ReturnType<typeof buildProductionCostSnapshot> | null = null;
-  const { data: costRows } = await supabase
-    .from("production_cost_items")
-    .select("*")
-    .is("deleted_at", null);
-  if (costRows && costRows.length > 0) {
-    costSnapshot = buildProductionCostSnapshot(costRows as ProductionCostItem[]);
-  }
+  // Não capturamos na criação (decisão Maria 2026-05-22): para reservas
+  // com evento a longo prazo (ex.: 2027), os custos podem mudar antes da
+  // produção. O snapshot é capturado quando a encomenda passa a 100%
+  // pago em `updateOrderAction` — momento em que o negócio "fecha" e os
+  // preços são os mais recentes que sabemos.
 
   const payload: OrderInsert = {
     ...order,
     ...(computedSnapshot
       ? { budget: computedSnapshot.total, pricing_snapshot: computedSnapshot }
       : {}),
-    ...(costSnapshot ? { production_cost_snapshot: costSnapshot } : {}),
     // Default interno: moldura baixa (2x2cm). Maria muda para "caixa" só
     // quando as flores são altas. Garante que os custos de produção ficam
     // logo calculáveis sem precisar de abrir cada encomenda.
@@ -212,14 +206,17 @@ export async function captureOrderProductionCostAction(id: string): Promise<Orde
 }
 
 /**
- * Backfill em massa: preenche `production_cost_snapshot` em todas as
- * encomendas activas que ainda não tenham snapshot, usando a tabela de
- * custos actual. Captura preços de hoje (não os do tempo em que a
- * encomenda foi feita) — aproximação aceitável para encomendas pré-mig
- * 034 contribuírem para o COGS quando 100% pagas.
+ * Backfill em massa: preenche `production_cost_snapshot` em encomendas
+ * **100% pagas** que ainda não tenham snapshot, usando a tabela de
+ * custos actual. Alinhado com a regra "snapshot é capturado no momento
+ * de 100% pago" (sessão 91): encomendas em curso ficam sem snapshot
+ * (será capturado quando transitarem para 100%).
+ *
+ * Captura preços de hoje (aproximação para encomendas pré-mig 034 ou
+ * que tenham ficado 100% pagas antes desta funcionalidade existir).
+ * Cancelado e soft-deleted excluídos.
  *
  * Idempotente: encomendas que já têm snapshot são ignoradas.
- * Devolve o número de encomendas actualizadas.
  */
 export async function backfillProductionCostSnapshotsAction(): Promise<{
   updated: number;
@@ -242,7 +239,9 @@ export async function backfillProductionCostSnapshotsAction(): Promise<{
     .from("orders")
     .select("id")
     .is("production_cost_snapshot", null)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .eq("payment_status", "100_pago")
+    .neq("status", "cancelado");
   if (fetchErr) throw new Error(fetchErr.message);
 
   const ids = (targets ?? []).map((r) => r.id);
@@ -313,6 +312,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   let triggerDriveCreation = false;
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
   let voucherToMark: string | null = null;
+  let captureProductionSnapshot = false;
 
   if (needsPrev) {
     const { data: prev } = await supabase
@@ -342,6 +342,17 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         updates.gift_voucher_code !== prev.gift_voucher_code
       ) {
         voucherToMark = updates.gift_voucher_code;
+      }
+
+      // Snapshot de custos de produção: capturar na transição para 100%
+      // pago (decisão Maria 2026-05-22). Para reservas com evento a
+      // longo prazo, isto garante que o COGS usa os preços vigentes no
+      // momento em que a encomenda fecha (e não os de quando foi feita).
+      if (
+        updates.payment_status === "100_pago" &&
+        prev.payment_status !== "100_pago"
+      ) {
+        captureProductionSnapshot = true;
       }
 
       // Calendar: decide ordem de prioridade
@@ -388,6 +399,27 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       ) {
         calendarAction = "update";
       }
+    }
+  }
+
+  // Captura o snapshot de custos de produção no momento da transição
+  // para 100% pago. Lookup à tabela rosa actual; constrói o snapshot e
+  // injecta no payload do UPDATE para ser atómico com a mudança de
+  // estado. Em caso de tabela vazia (improvável em produção), loga e
+  // segue sem snapshot — não bloqueia a transição de pagamento.
+  if (captureProductionSnapshot) {
+    const { data: costRows } = await supabase
+      .from("production_cost_items")
+      .select("*")
+      .is("deleted_at", null);
+    if (costRows && costRows.length > 0) {
+      updates.production_cost_snapshot = buildProductionCostSnapshot(
+        costRows as ProductionCostItem[],
+      );
+    } else {
+      console.warn(
+        `[updateOrderAction] Transição para 100% pago em ${id} mas tabela de custos de produção está vazia — snapshot não capturado.`,
+      );
     }
   }
 

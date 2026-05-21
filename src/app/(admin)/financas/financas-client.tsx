@@ -874,7 +874,7 @@ function BackfillCogsSection() {
   const handleBackfill = () => {
     if (
       !window.confirm(
-        "Preencher snapshot de custos em todas as encomendas que ainda não têm? Usa os preços actuais (aproximação para encomendas antigas). Idempotente — pode correr-se várias vezes.",
+        "Preencher snapshot de custos em todas as encomendas 100% pagas que ainda não têm? Usa os preços actuais (aproximação para encomendas antigas). Idempotente — pode correr-se várias vezes.",
       )
     ) {
       return;
@@ -898,9 +898,9 @@ function BackfillCogsSection() {
     <div className="rounded-xl border border-cocoa-200 bg-cream-50 p-4 space-y-3">
       <div className="flex items-start gap-3">
         <div className="flex-1">
-          <h3 className="font-semibold text-cocoa-900 text-sm">Backfill de snapshots — encomendas antigas</h3>
+          <h3 className="font-semibold text-cocoa-900 text-sm">Backfill de snapshots — encomendas 100% pagas antigas</h3>
           <p className="text-xs text-cocoa-700 mt-1 leading-relaxed">
-            Encomendas criadas antes da introdução do snapshot de custos (pré-mig 034) mostram <strong>COGS = 0</strong> mesmo quando 100% pagas. Este botão preenche o snapshot com a tabela de custos actual, para que essas encomendas passem a contribuir para o COGS. Aproximação — usa preços de hoje, não os do tempo da encomenda. Não altera encomendas que já têm snapshot.
+            Encomendas 100% pagas criadas antes da introdução do snapshot (pré-mig 034) ou cuja transição para 100% aconteceu antes desta funcionalidade existir mostram <strong>COGS = 0</strong>. Este botão preenche o snapshot dessas encomendas com a tabela de custos actual. Encomendas em curso (30%/70%/por pagar) <strong>não</strong> são afectadas — o snapshot dessas é capturado automaticamente quando passam a 100%. Aproximação — usa preços de hoje. Idempotente.
           </p>
         </div>
         <Button

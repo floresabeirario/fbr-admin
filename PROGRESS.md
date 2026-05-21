@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 35) — Sessão 91: **COGS tudo-ou-nada quando 100% pago** (decisão Maria 2026-05-22). Regra anterior (proporcional ao %pago) não reflectia a realidade — os materiais são gastos de uma vez. Nova regra em [lib/finance.ts](src/lib/finance.ts): `cogsRecognizedFromOrder` devolve `cogs_full` se `payment_status='100_pago'`, senão 0. `orderPnL` actualizado em conformidade (também corrigido `margin_recognized` para usar os recognized em vez de `margin_full × ratio`). Receita e comissões continuam proporcionais ao %pago. **Sem migrações.** Novo `backfillProductionCostSnapshotsAction` em [preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts) preenche em massa as encomendas pré-mig 034 (idempotente — só toca em `production_cost_snapshot IS NULL`). Botão "Preencher snapshots" no fundo do Catálogo (admin only) com confirmação via `window.confirm`. Aproximação: usa preços actuais, não os do tempo da encomenda. Textos explicativos da Faturação actualizados.
+## Fase actual: FASE 6 (parte 35) — Sessão 91 (2 partes): **COGS tudo-ou-nada + snapshot capturado a 100% pago** (decisão Maria 2026-05-22). **Parte 1**: regra COGS proporcional → tudo-ou-nada em [lib/finance.ts](src/lib/finance.ts) (`cogsRecognizedFromOrder` devolve `cogs_full` se `payment_status='100_pago'`, senão 0). **Parte 2**: snapshot de custos deixa de ser capturado em `createOrderAction` (preços ficavam desactualizados em reservas para 2027); passa a ser capturado em `updateOrderAction` na transição para 100% pago, com a tabela rosa vigente nesse momento. Migração 058 limpa snapshots de encomendas em curso (30%/70%/por pagar) — serão recapturados naturalmente quando atingirem 100%. Botão "Preencher snapshots" no Catálogo agora filtra por 100% pagas (idempotente). Receita e comissões continuam proporcionais ao %pago. Textos explicativos da Faturação actualizados.
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -44,7 +44,9 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 91 💰 COGS tudo-ou-nada quando 100% pago + backfill de snapshots
+### Sessão 91 💰 COGS tudo-ou-nada + snapshot capturado a 100% pago (2 partes)
+
+#### Parte 1 — Regra COGS tudo-ou-nada
 
 Maria observou que não percebia como a margem estava a ser calculada. Investigação revelou que o COGS era contado **proporcional ao %pago** (paidRatio × cogs_full) — herança da sessão 88-F, com a intenção de "manter receita e custo em sintonia". Maria explicou (resumido por mim na conversa, confirmado por ela): contar 30% do custo quando o cliente só pagou 30% sub-valoriza o que realmente foi gasto, porque os materiais entram de uma vez quando a encomenda vai para produção. Regra escolhida: **COGS conta tudo ou nada, dependendo apenas do `payment_status='100_pago'`**. Receita e comissões mantêm-se proporcionais (essas continuam a fazer sentido proporcionais — são compromissos parciais).
 
@@ -67,23 +69,49 @@ Maria observou que não percebia como a margem estava a ser calculada. Investiga
 - Texto explicativo no fundo da Faturação: parágrafo do "Custo de produção" passa a dizer "**contado apenas quando a encomenda está 100% paga** (encomendas a 30%/70%/por pagar contribuem 0)".
 - Novo componente `BackfillCogsSection` no fundo do `CatalogoTab` (admin only via `canEdit`): rounded box cream com explicação curta + botão "Preencher snapshots" (`Wand2` icon). Confirmação via `window.confirm` (operação one-shot, AlertDialog seria exagero). `useTransition` para estado pendente; toast info/success/error. `router.refresh()` após sucesso para o Painel/Faturação reflectir o backfill imediatamente.
 
-**Sem migrações.** Preflight `tsc + next build` limpos.
+#### Parte 2 — Snapshot capturado no momento de 100% pago
 
-**Maria: passos manuais:**
-1. **Push para Vercel** — sem migração para correr.
-2. **Smoke browser** → `/financas`:
-   - **Faturação**: KPI "Custo de produção" do mês muda se houver encomendas a 30%/70% — antes contribuíam parcialmente, agora 0. KPI passa a subir apenas quando essas chegam a 100%.
-   - **Painel**: COGS mensal/anual segue a mesma lógica.
-   - **Catálogo** → fundo da aba: nova secção cream "Backfill de snapshots". Clicar "Preencher snapshots" → confirmação → toast com count de encomendas actualizadas. Depois do toast, a aba Faturação deve mostrar mais COGS para encomendas antigas 100% pagas (antes contribuíam 0 por falta de snapshot).
-3. **Query SQL opcional** para auditar antes/depois do backfill:
+Maria observou: "uma pessoa faz agora uma reserva para 2027 e eu sei lá quais vão ser os custos em 2027". O snapshot capturado na criação (`createOrderAction`) ficava desactualizado para reservas a longo prazo. **Nova regra**: snapshot capturado quando a encomenda passa a `payment_status='100_pago'`, com a tabela rosa vigente nesse momento (preços mais próximos da produção real).
+
+**Implicações que Maria confirmou aceitar:**
+- Encomendas em curso (30%/70%/por pagar) deixam de ter snapshot.
+- Na aba **P&L por encomenda**, coluna COGS mostra "—" para essas (em vez de cogs_full do snapshot antigo).
+- Painel e Faturação intocados (já contavam 0 para essas pela regra da Parte 1).
+- Snapshot de encomendas existentes a 30%/70% é **limpo** via migração 058 (escolheu "limpar as em curso").
+
+**Mudanças em [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts):**
+- `createOrderAction`: bloco que lia `production_cost_items` e fazia `buildProductionCostSnapshot` removido. Comentário explica a decisão. Encomendas novas nascem com `production_cost_snapshot=NULL`.
+- `updateOrderAction`: variável `captureProductionSnapshot` boolean. Detecção da transição (linha ~358): `updates.payment_status === "100_pago" && prev.payment_status !== "100_pago"`. Imediatamente antes do UPDATE, se a flag é true, lookup à `production_cost_items` e injecta no `updates.production_cost_snapshot` (atómico com a mudança de pagamento). `console.warn` se a tabela rosa estiver vazia (improvável; não bloqueia a transição).
+- `backfillProductionCostSnapshotsAction` ajustado para filtrar por `.eq("payment_status", "100_pago").neq("status", "cancelado")`. Alinhado com a nova regra (só preencher 100% pagas).
+
+**Migração — [supabase/migrations/058_clear_inprogress_production_snapshots.sql](supabase/migrations/058_clear_inprogress_production_snapshots.sql):**
+- `UPDATE orders SET production_cost_snapshot = NULL WHERE payment_status <> '100_pago' AND status <> 'cancelado' AND deleted_at IS NULL AND production_cost_snapshot IS NOT NULL`.
+- Encomendas 100% pagas mantêm o snapshot que tinham. Canceladas e soft-deleted ficam intocadas (sem impacto financeiro; melhor preservar histórico).
+
+**UI ajustada — [src/app/(admin)/financas/financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- `BackfillCogsSection`: título passa a "encomendas 100% pagas antigas"; texto explica que encomendas em curso não são afectadas (snapshot capturado automaticamente quando passam a 100%).
+- Confirmação `window.confirm` actualizada para mencionar "100% pagas".
+
+**Sem migração nova na Parte 1.** Apenas migração 058 (Parte 2). Preflight `tsc + next build` limpos em ambas as partes.
+
+**Maria: passos manuais (Parte 1 + 2 combinados):**
+1. **Correr [mig 058](supabase/migrations/058_clear_inprogress_production_snapshots.sql)** no Supabase SQL Editor. Verificar:
    ```sql
    SELECT payment_status,
      count(*) FILTER (WHERE production_cost_snapshot IS NOT NULL) AS com_snapshot,
      count(*) FILTER (WHERE production_cost_snapshot IS NULL) AS sem_snapshot
    FROM orders
-   WHERE deleted_at IS NULL AND status NOT IN ('cancelado','entrega_flores_agendar')
-   GROUP BY payment_status;
+   WHERE deleted_at IS NULL AND status <> 'cancelado'
+   GROUP BY payment_status
+   ORDER BY payment_status;
    ```
+   → linhas que não sejam `100_pago` devem ter `com_snapshot = 0`.
+2. **Push para Vercel** — código (parte 1 + 2).
+3. **Smoke browser** → `/financas`:
+   - **P&L por encomenda**: encomendas 100% pagas pré-mig 034 (Joana, Rita, Sandra, Maria Inês no screenshot da sessão) continuam a mostrar COGS="—" até clicares no botão de backfill (passo 4). Encomendas a 70%/30% mostram "—" também (correcto pela regra nova).
+   - **Catálogo** → fundo da aba: clicar "Preencher snapshots" → confirmação → toast "N encomendas actualizadas" (N = nº de 100% pagas sem snapshot).
+   - Voltar ao P&L → as 4 linhas a 100% passam a mostrar COGS com valor.
+4. **Smoke fluxo novo**: criar encomenda nova, marcar pagamento a 100% → ir ao P&L → COGS deve aparecer (snapshot capturado automaticamente na transição).
 
 ### Sessão 90 🎯 Catálogo editável — verde substitui PrecosTab + consumíveis para extras autónomos
 
