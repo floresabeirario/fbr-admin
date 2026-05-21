@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 34) — Sessão 90: **Catálogo unificado** — verde com tabela "Margem teórica" editável (12 linhas de quadros + 2 de extras) substitui a antiga PrecosTab; tabela rosa "Outros custos recorrentes" expandida para 6 colunas (4 tamanhos físicos + 2 extras autónomos: ornamento + pendente). Custo dos extras autónomos no Bloco 2 da verde deriva da soma de consumíveis com size_key correspondente (substituindo o cost_fbr criado mais cedo na mesma sessão). **3 migrações**: 054 (`pricing_items.cost_fbr` agora deprecated; novo item `background_supplement.fotografia_mini`), 056 (CHECK constraint do `production_cost_items.size_key` aceita `christmas_ornament` e `necklace_pendant`). `computePricingSnapshot` soma suplemento foto por cada mini quando fundo=fotografia. As 4 tabelas de Custos de produção (Moldura 30x40/40x50/50x70/mini + Impressão fotografia) mantêm-se com 4 tamanhos físicos (ornament/pendant não têm moldura nem impressão).
+## Fase actual: FASE 6 (parte 35) — Sessão 91: **COGS tudo-ou-nada quando 100% pago** (decisão Maria 2026-05-22). Regra anterior (proporcional ao %pago) não reflectia a realidade — os materiais são gastos de uma vez. Nova regra em [lib/finance.ts](src/lib/finance.ts): `cogsRecognizedFromOrder` devolve `cogs_full` se `payment_status='100_pago'`, senão 0. `orderPnL` actualizado em conformidade (também corrigido `margin_recognized` para usar os recognized em vez de `margin_full × ratio`). Receita e comissões continuam proporcionais ao %pago. **Sem migrações.** Novo `backfillProductionCostSnapshotsAction` em [preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts) preenche em massa as encomendas pré-mig 034 (idempotente — só toca em `production_cost_snapshot IS NULL`). Botão "Preencher snapshots" no fundo do Catálogo (admin only) com confirmação via `window.confirm`. Aproximação: usa preços actuais, não os do tempo da encomenda. Textos explicativos da Faturação actualizados.
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +43,47 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 91 💰 COGS tudo-ou-nada quando 100% pago + backfill de snapshots
+
+Maria observou que não percebia como a margem estava a ser calculada. Investigação revelou que o COGS era contado **proporcional ao %pago** (paidRatio × cogs_full) — herança da sessão 88-F, com a intenção de "manter receita e custo em sintonia". Maria explicou (resumido por mim na conversa, confirmado por ela): contar 30% do custo quando o cliente só pagou 30% sub-valoriza o que realmente foi gasto, porque os materiais entram de uma vez quando a encomenda vai para produção. Regra escolhida: **COGS conta tudo ou nada, dependendo apenas do `payment_status='100_pago'`**. Receita e comissões mantêm-se proporcionais (essas continuam a fazer sentido proporcionais — são compromissos parciais).
+
+**Decisões fixadas em conversa:**
+- COGS é tudo-ou-nada: 100% pago = `cogs_full`; tudo o resto = 0.
+- Receita continua proporcional (100%/70%/30%/0).
+- Comissões continuam proporcionais ao %pago (intocado).
+- `margin_recognized` passa a ser `revenue_recognized − cogs_recognized − commission_recognized` em vez de `margin_full × ratio` — antes coincidiam, agora divergiriam silenciosamente. Não há callers a usar `margin_recognized` fora do tipo, mas a semântica fica correcta para futuros usos.
+
+**Mudanças em [src/lib/finance.ts](src/lib/finance.ts):**
+- `cogsRecognizedFromOrder`: passa de `cogsFullFromOrder(order) * paidRatio(...)` para `order.payment_status === "100_pago" ? cogsFullFromOrder(order) : 0`.
+- `orderPnL`: variáveis intermédias (`isFullyPaid`, `cogs_recognized`, `revenue_recognized`, `commission_recognized`) calculadas explicitamente para clareza; `margin_recognized` agora `revenue_recognized − cogs_recognized − commission_recognized`.
+- JSDoc actualizado com nota da decisão Maria 2026-05-22.
+
+**Novo action — [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts):**
+- `backfillProductionCostSnapshotsAction()` — devolve `{ updated: number; skipped: 0 }`. Faz select uma vez de `production_cost_items`, constrói o snapshot, e UPDATE em massa via `.in("id", ids)` em todas as encomendas com `production_cost_snapshot IS NULL AND deleted_at IS NULL`. **Idempotente**: pode correr-se quantas vezes for preciso; só toca em encomendas sem snapshot. `revalidatePath` para `/preservacao` e `/financas`. **Aproximação aceitável**: usa preços actuais, não os do tempo da encomenda (não há forma de saber os preços históricos pré-mig 034).
+
+**UI — [src/app/(admin)/financas/financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- Comentário interno em `FaturacaoTab` actualizado: "COGS tudo-ou-nada: só conta quando a encomenda está 100% paga".
+- Texto explicativo no fundo da Faturação: parágrafo do "Custo de produção" passa a dizer "**contado apenas quando a encomenda está 100% paga** (encomendas a 30%/70%/por pagar contribuem 0)".
+- Novo componente `BackfillCogsSection` no fundo do `CatalogoTab` (admin only via `canEdit`): rounded box cream com explicação curta + botão "Preencher snapshots" (`Wand2` icon). Confirmação via `window.confirm` (operação one-shot, AlertDialog seria exagero). `useTransition` para estado pendente; toast info/success/error. `router.refresh()` após sucesso para o Painel/Faturação reflectir o backfill imediatamente.
+
+**Sem migrações.** Preflight `tsc + next build` limpos.
+
+**Maria: passos manuais:**
+1. **Push para Vercel** — sem migração para correr.
+2. **Smoke browser** → `/financas`:
+   - **Faturação**: KPI "Custo de produção" do mês muda se houver encomendas a 30%/70% — antes contribuíam parcialmente, agora 0. KPI passa a subir apenas quando essas chegam a 100%.
+   - **Painel**: COGS mensal/anual segue a mesma lógica.
+   - **Catálogo** → fundo da aba: nova secção cream "Backfill de snapshots". Clicar "Preencher snapshots" → confirmação → toast com count de encomendas actualizadas. Depois do toast, a aba Faturação deve mostrar mais COGS para encomendas antigas 100% pagas (antes contribuíam 0 por falta de snapshot).
+3. **Query SQL opcional** para auditar antes/depois do backfill:
+   ```sql
+   SELECT payment_status,
+     count(*) FILTER (WHERE production_cost_snapshot IS NOT NULL) AS com_snapshot,
+     count(*) FILTER (WHERE production_cost_snapshot IS NULL) AS sem_snapshot
+   FROM orders
+   WHERE deleted_at IS NULL AND status NOT IN ('cancelado','entrega_flores_agendar')
+   GROUP BY payment_status;
+   ```
 
 ### Sessão 90 🎯 Catálogo editável — verde substitui PrecosTab + consumíveis para extras autónomos
 
@@ -261,57 +302,26 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
    - Confirmar que orçamento (Sparkles roxo) continua a aparecer, mas o badge cinzento "Custo €X · margem Y%" já não existe.
    - Hint debaixo do dropdown agora explica claramente que afecta custo, não preço ao cliente.
 
-### Sessão 88-D 🗂️ Página CRUD de templates de tarefas (Sistema → Tarefas)
-
-Fecha o ciclo da funcionalidade "tarefas a partir do workbench" iniciada em 88-A. Maria precisava de poder editar/criar/arquivar templates sem mexer em BD.
-
-**Server actions — [src/app/(admin)/settings/templates-tarefas/actions.ts](src/app/(admin)/settings/templates-tarefas/actions.ts):**
-- `createTaskTemplateAction(input)` — insere com `is_seed=false` (templates criados via UI nunca são seeds). Aceita `TaskTemplateInsert`.
-- `updateTaskTemplateAction(id, patch)` — exclui `slug` e `is_seed` do patch (defensivo; UI não os edita).
-- `archiveTaskTemplateAction(id)` / `restoreTaskTemplateAction(id)` — soft delete via `deleted_at`. Templates seed podem ser arquivados (somem do picker) e restaurados.
-- Todos com `requireAdmin()` + `revalidatePath("/settings/templates-tarefas")`.
-
-**Page — [src/app/(admin)/settings/templates-tarefas/page.tsx](src/app/(admin)/settings/templates-tarefas/page.tsx):**
-- Server component. `getCurrentRole()` → redirect a `/` se não admin.
-- Query `task_templates` ordenado por scope, position, name. Inclui arquivados (deleted_at) — UI filtra.
-
-**Client — [src/app/(admin)/settings/templates-tarefas/templates-tarefas-client.tsx](src/app/(admin)/settings/templates-tarefas/templates-tarefas-client.tsx):**
-- Header: ícone ListTodo + título + toggle "Ver activos/arquivados" + botão "+ Novo template".
-- Bloco "Variáveis disponíveis" com cada `TASK_TEMPLATE_VARIABLES.key` como chip clicável (copy-to-clipboard) e tooltip com descrição + scope.
-- Tabela: Nome (com badge "Seed" se aplicável), Título (mono, truncated), Escopo (badge colorido sky/violet/emerald), Categoria, Prioridade, Valor (ícone Receipt se `needs_amount`), Acções (editar/arquivar/restaurar).
-- Diálogo de edição (`Dialog` modal, `sm:max-w-2xl`):
-  - Nome + Escopo (grid 2 colunas)
-  - Título da tarefa (Textarea, font-mono) — abaixo botões "+ {variável}" que fazem append ao textarea
-  - Descrição opcional (Textarea)
-  - Categoria default + Prioridade default (grid 2 colunas)
-  - Caixa colapsável "Este template pede um valor (€)" — checkbox; quando true, mostra input "Etiqueta do diálogo" (ex.: "Valor a faturar")
-- Optimistic updates ao guardar/arquivar/restaurar (server revalidatePath ainda corre para garantir consistência).
-
-**Topbar — [src/components/sistema-topbar.tsx](src/components/sistema-topbar.tsx):**
-- Adicionada entrada `Tarefas` com ícone `ListTodo` → `/settings/templates-tarefas` (adminOnly).
-- Renomeada entrada existente de `Templates` para `Mensagens` (existing page agora cobre só message templates; nome mais claro).
-
-**Sem migrações nesta sessão.** Preflight `tsc --noEmit` + `next build` limpos. Página `/settings/templates-tarefas` aparece na lista de rotas.
-
-**Maria: passos manuais:**
-1. Push para Vercel.
-2. Smoke browser:
-   - `/settings/google` ou qualquer página `/settings/*` → topbar mostra agora `Mensagens` (em vez de `Templates`) e nova entrada `Tarefas`.
-   - Click `Tarefas` → vê os 4 seeds com badge "Seed", título com variáveis em mono, escopo colorido. Botão Edit em cada um.
-   - "+" → diálogo aberto com campos vazios + variáveis clicáveis. Escrever nome "Teste", título "Cliente: {nome_cliente}", click no chip "+ {nif}" no rodapé do textarea → adicionado ao final. Guardar → toast.
-   - Editar um seed → mudar prioridade default → guardar. Tarefa criada com esse template a seguir usa a nova prioridade.
-   - Marcar "Este template pede valor" → input "Etiqueta do diálogo" aparece. Guardar. No workbench, ao escolher esse template → abre diálogo com a label escolhida.
-   - Arquivar um template → desaparece da lista activa e do picker do workbench. Toggle "Ver arquivados" → vê-o; restaurar.
-
-**Funcionalidade completa!** O ciclo "criar tarefa a partir do workbench com templates editáveis" está fechado:
-- 88-A: schema (mig 052) — `tasks.voucher_id`, `tasks.amount`, tabela `task_templates` com 4 seeds
-- 88-B: UI workbench Preservação (bloco + picker + diálogo de valor)
-- 88-C: UI workbench Vale-Presente (mesmo bloco, opção "Total") + linkage do tile do kanban → workbench + € à direita
-- 88-D: CRUD de templates em Sistema → Tarefas
-
-<!-- Sessões 88-A, 88-B e 88-C comprimidas no Histórico condensado em baixo. -->
+<!-- Sessões 88-A, 88-B, 88-C e 88-D comprimidas no Histórico condensado em baixo. -->
 
 ## Próximo passo CONCRETO
+
+**Sessão 91 — passos manuais (sem migração):**
+
+1. **Push para Vercel** — alterações apenas em TS (lib/finance.ts + financas-client.tsx + preservacao/actions.ts).
+2. **Smoke browser** → `/financas`:
+   - **Faturação**: KPI "Custo de produção" do mês muda — antes contava 30% do COGS para encomendas a 30%, 70% para as a 70%; agora só 100% para as 100% pagas. Lucro do mês recalcula em conformidade.
+   - **Painel**: COGS mensal/anual segue a mesma regra; "Quadro mais lucrativo" continua a usar `margin_full` (não muda).
+   - **Catálogo** → fundo da aba: nova secção cream "Backfill de snapshots". Clicar "Preencher snapshots" → confirmação `window.confirm` → toast com count. Imediatamente depois, COGS na Faturação sobe nas linhas de encomendas antigas 100% pagas.
+3. **Query SQL opcional** (antes ou depois do backfill, para auditar):
+   ```sql
+   SELECT payment_status,
+     count(*) FILTER (WHERE production_cost_snapshot IS NOT NULL) AS com_snapshot,
+     count(*) FILTER (WHERE production_cost_snapshot IS NULL) AS sem_snapshot
+   FROM orders
+   WHERE deleted_at IS NULL AND status NOT IN ('cancelado','entrega_flores_agendar')
+   GROUP BY payment_status;
+   ```
 
 **Sessão 90 — passos manuais (parte B; após mig 035 + 054 já corridas):**
 
@@ -365,18 +375,6 @@ Fecha o ciclo da funcionalidade "tarefas a partir do workbench" iniciada em 88-A
    - Criar encomenda nova (botão "+" em /preservacao) → nasce com "Baixa" preenchido.
    - Abrir encomenda com `pyramid_frame=true` → continua a mostrar "Pirâmide" em italic; comportamento inalterado.
    - Hint debaixo do dropdown agora diz "afecta custo de produção" (era "não afecta preço").
-
-**Sessão 88-D — passos manuais (UI; sem BD):**
-
-1. **Push para Vercel**.
-2. **Smoke browser:**
-   - Abrir qualquer `/settings/*` → topbar tem agora `Mensagens` (era `Templates`) e nova entrada `Tarefas`.
-   - Click `Tarefas` → `/settings/templates-tarefas`. Vê os 4 seeds (Passar fatura, Anexar comprovativo, Pedir feedback, Avisar parceiro) com badge "Seed".
-   - Bloco "Variáveis disponíveis" — click num chip → copia para clipboard + toast.
-   - Editar um template → diálogo abre com todos os campos. Botões "+ {variável}" no rodapé do título adicionam ao texto.
-   - Criar novo template — checkbox "Este template pede valor" mostra/esconde o campo "Etiqueta".
-   - Arquivar → some da lista. Toggle "Ver arquivados" → vê-o; restaurar.
-   - Workbench Preservação → picker reflecte alterações (template renomeado, arquivados desaparecem).
 
 **Sessão 88-B — passos manuais (UI; precisa mig 052 já corrida):**
 
@@ -470,9 +468,10 @@ Fecha o ciclo da funcionalidade "tarefas a partir do workbench" iniciada em 88-A
 
 ---
 
-## Histórico condensado (sessões 1-88B)
+## Histórico condensado (sessões 1-88D)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-88C)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-88D)
+- **88-D** — Página CRUD de templates de tarefas em `/settings/templates-tarefas`: server actions `create/update/archive/restore TaskTemplateAction` (`is_seed=false` em criados via UI); page admin-only com tabela (Nome+Seed badge, Título mono, Escopo colorido, Categoria, Prioridade, Valor) + diálogo de edição com botões "+ {variável}" que injectam no Textarea + checkbox "Este template pede um valor (€)" com input "Etiqueta do diálogo". Topbar: entrada existente renomeada `Templates → Mensagens` + nova entrada `Tarefas`. Optimistic updates + revalidatePath. Fecha o ciclo 88-A→88-D (schema + workbench Preservação + workbench Vale-Presente + CRUD).
 - **88-C** — Tarefas no workbench Vale-Presente + linkage clicável no Dashboard: componente `_components/order-tasks-block.tsx` promovido a `src/components/workbench-tasks-block.tsx` com API genérica `link: { type: 'order'|'voucher'; id }` e `paymentOptions: AmountOption[]`. Vale-Presente ganha card "Tarefas" no topo da coluna direita (mesma posição que Preservação); picker filtra para templates `scope=voucher|both`; diálogo só mostra 1 opção "Total (€X)" porque vales são pagos 100% num só momento. Dashboard: lookups `orderCodeById`/`voucherCodeById` em [src/app/(admin)/page.tsx](src/app/(admin)/page.tsx) cascateados até [_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx); tile mostra chip indigo `Link2 + code` clicável (stopPropagation no drag) + valor € à direita na bottom row. Helper novo `computeAmountOptionsForVoucher(amount)`.
 - **88-B** — UI Tarefas no workbench Preservação: card "Tarefas" como primeiro item da coluna 3 (accent indigo). Picker com 5 templates seed + "Tarefa em branco"; diálogo "Qual é o valor a faturar?" com 4 botões 30/40/70/100% calculados do `orders.budget` para templates com `needs_amount=true`. Helpers `interpolateTaskTemplate(template, ctx)` + `computeAmountOptionsFromBudget(budget)` em [src/lib/task-templates.ts](src/lib/task-templates.ts). PopoverTrigger usa `@base-ui/react` (não Radix), sem `asChild`. Reusa `createTaskAction` existente.
 - **88-A** — Mig 052: `tasks.voucher_id` (simétrico a `order_id`), `tasks.amount NUMERIC(10,2)`, índices parciais. Nova tabela `task_templates` (espelha `message_templates`) com 4 seeds: `passar_fatura` (needs_amount, scope=both), `anexar_comprovativo` (scope=both), `pedir_feedback` (scope=order), `avisar_parceiro_comissao` (scope=order). Tipos `TaskTemplate` + `TASK_TEMPLATE_VARIABLES`. Memória nova: valores em € sempre alinhados à direita.

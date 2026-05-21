@@ -29,6 +29,7 @@ import {
   Package,
   Handshake,
   Pencil,
+  Wand2,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -105,6 +106,7 @@ import {
   archiveExpenseAction,
   uploadExpenseInvoiceAction,
 } from "./actions";
+import { backfillProductionCostSnapshotsAction } from "@/app/(admin)/preservacao/actions";
 
 type TabKey = "painel" | "pnl" | "catalogo" | "despesas" | "faturacao" | "competicao";
 
@@ -860,6 +862,59 @@ function CatalogoTab({
         canEdit={canEdit}
       />
       <CustosTab items={productionCosts} canEdit={canEdit} />
+      {canEdit && <BackfillCogsSection />}
+    </div>
+  );
+}
+
+function BackfillCogsSection() {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const handleBackfill = () => {
+    if (
+      !window.confirm(
+        "Preencher snapshot de custos em todas as encomendas que ainda não têm? Usa os preços actuais (aproximação para encomendas antigas). Idempotente — pode correr-se várias vezes.",
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const { updated } = await backfillProductionCostSnapshotsAction();
+        if (updated === 0) {
+          toast.info("Nenhuma encomenda precisava de backfill.");
+        } else {
+          toast.success(`${updated} encomenda${updated === 1 ? "" : "s"} actualizada${updated === 1 ? "" : "s"} com snapshot de custos.`);
+          router.refresh();
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro no backfill.");
+      }
+    });
+  };
+
+  return (
+    <div className="rounded-xl border border-cocoa-200 bg-cream-50 p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <h3 className="font-semibold text-cocoa-900 text-sm">Backfill de snapshots — encomendas antigas</h3>
+          <p className="text-xs text-cocoa-700 mt-1 leading-relaxed">
+            Encomendas criadas antes da introdução do snapshot de custos (pré-mig 034) mostram <strong>COGS = 0</strong> mesmo quando 100% pagas. Este botão preenche o snapshot com a tabela de custos actual, para que essas encomendas passem a contribuir para o COGS. Aproximação — usa preços de hoje, não os do tempo da encomenda. Não altera encomendas que já têm snapshot.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleBackfill}
+          disabled={pending}
+          className="shrink-0"
+        >
+          <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+          {pending ? "A preencher…" : "Preencher snapshots"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -2408,8 +2463,8 @@ function FaturacaoTab({
     if (v.usage_status === "preservacao_agendada") return 0; // evita dupla contagem com a encomenda
     return Number(v.amount);
   };
-  // COGS proporcional ao % pago — mesma lógica que a receita para manter a
-  // margem comparável por período. Implementação em lib/finance.ts.
+  // COGS tudo-ou-nada: só conta quando a encomenda está 100% paga
+  // (decisão Maria 2026-05-22). Implementação em lib/finance.ts.
   const cogsFromOrder = (o: FaturacaoOrder): number => cogsRecognizedFromOrder(o);
 
   const now = new Date();
@@ -2794,7 +2849,7 @@ function FaturacaoTab({
       </div>
 
       <p className="text-xs text-cocoa-700 italic px-1">
-        <strong>Receita (bruta)</strong> = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos ainda não convertidos em preservação (evita dupla contagem). <strong>Receita líquida</strong> (mostrada por baixo quando aplicável) = receita bruta − comissões a parceiros. <strong>Custo de produção</strong> = soma do COGS de cada encomenda (snapshot capturado na criação, calculado a partir do tamanho, fundo, tipo de moldura e extras) também proporcional ao % pago. <strong>Comissões</strong> = parte da receita devida a parceiros recomendadores, contada proporcional ao % pago; estados "N/A" e "Não aceita" não somam. <strong>Despesas</strong> = custos fixos (subscrições + únicos) na data da despesa. <strong>Lucro</strong> = receita bruta − despesas − custo de produção − comissões. Encomendas, comissões e custo de produção atribuídos ao período pela data do evento; vales pela data de criação. Encomendas anteriores à mig 034 não têm snapshot e não somam para o COGS. Para métricas mais detalhadas, ver a aba Métricas.
+        <strong>Receita (bruta)</strong> = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos ainda não convertidos em preservação (evita dupla contagem). <strong>Receita líquida</strong> (mostrada por baixo quando aplicável) = receita bruta − comissões a parceiros. <strong>Custo de produção</strong> = soma do COGS de cada encomenda (snapshot capturado na criação, calculado a partir do tamanho, fundo, tipo de moldura e extras), <strong>contado apenas quando a encomenda está 100% paga</strong> (encomendas a 30%/70%/por pagar contribuem 0). <strong>Comissões</strong> = parte da receita devida a parceiros recomendadores, contada proporcional ao % pago; estados "N/A" e "Não aceita" não somam. <strong>Despesas</strong> = custos fixos (subscrições + únicos) na data da despesa. <strong>Lucro</strong> = receita bruta − despesas − custo de produção − comissões. Encomendas, comissões e custo de produção atribuídos ao período pela data do evento; vales pela data de criação. Encomendas anteriores à mig 034 não têm snapshot e não somam para o COGS. Para métricas mais detalhadas, ver a aba Métricas.
       </p>
     </div>
   );

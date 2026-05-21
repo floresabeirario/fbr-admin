@@ -173,11 +173,14 @@ export function cogsFullFromOrder(order: OrderForCogs): number {
 }
 
 /**
- * COGS reconhecido por encomenda — pleno × %pago. Coerente com a
- * forma como receita é reconhecida proporcionalmente.
+ * COGS reconhecido por encomenda — tudo-ou-nada: só conta quando a
+ * encomenda está 100% paga (decisão Maria 2026-05-22). Reflecte a
+ * realidade de que os materiais são gastos de uma vez e o custo só
+ * "fecha" quando o cliente paga o total. Encomendas a 30%/70%/por
+ * pagar não contribuem para o COGS do período.
  */
 export function cogsRecognizedFromOrder(order: OrderForCogs): number {
-  return cogsFullFromOrder(order) * paidRatio(order.payment_status);
+  return order.payment_status === "100_pago" ? cogsFullFromOrder(order) : 0;
 }
 
 // ── P&L composto por encomenda ───────────────────────────────
@@ -186,11 +189,11 @@ export interface OrderPnL {
   revenue_full: number;        // budget
   revenue_recognized: number;  // budget × %pago
   cogs_full: number;
-  cogs_recognized: number;
+  cogs_recognized: number;     // tudo-ou-nada: cogs_full se 100% pago, senão 0
   commission_full: number;
   commission_recognized: number;
   margin_full: number;         // revenue_full − cogs_full − commission_full
-  margin_recognized: number;   // mesmo cálculo mas usando os recognized
+  margin_recognized: number;   // revenue_recognized − cogs_recognized − commission_recognized
   margin_pct: number;          // margin_full / revenue_full × 100 (0 se receita = 0)
   paid_ratio: number;
 }
@@ -200,19 +203,23 @@ type OrderForPnL = OrderForCogs &
 
 export function orderPnL(order: OrderForPnL): OrderPnL {
   const ratio = paidRatio(order.payment_status);
+  const isFullyPaid = order.payment_status === "100_pago";
   const revenue_full = Number(order.budget ?? 0);
   const cogs_full = cogsFullFromOrder(order);
   const commission_full = commissionFullFromOrder(order);
   const margin_full = revenue_full - cogs_full - commission_full;
+  const revenue_recognized = revenue_full * ratio;
+  const cogs_recognized = isFullyPaid ? cogs_full : 0;
+  const commission_recognized = commission_full * ratio;
   return {
     revenue_full,
-    revenue_recognized: revenue_full * ratio,
+    revenue_recognized,
     cogs_full,
-    cogs_recognized: cogs_full * ratio,
+    cogs_recognized,
     commission_full,
-    commission_recognized: commission_full * ratio,
+    commission_recognized,
     margin_full,
-    margin_recognized: margin_full * ratio,
+    margin_recognized: revenue_recognized - cogs_recognized - commission_recognized,
     margin_pct: revenue_full > 0 ? (margin_full / revenue_full) * 100 : 0,
     paid_ratio: ratio,
   };

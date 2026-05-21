@@ -211,6 +211,56 @@ export async function captureOrderProductionCostAction(id: string): Promise<Orde
   return data as Order;
 }
 
+/**
+ * Backfill em massa: preenche `production_cost_snapshot` em todas as
+ * encomendas activas que ainda não tenham snapshot, usando a tabela de
+ * custos actual. Captura preços de hoje (não os do tempo em que a
+ * encomenda foi feita) — aproximação aceitável para encomendas pré-mig
+ * 034 contribuírem para o COGS quando 100% pagas.
+ *
+ * Idempotente: encomendas que já têm snapshot são ignoradas.
+ * Devolve o número de encomendas actualizadas.
+ */
+export async function backfillProductionCostSnapshotsAction(): Promise<{
+  updated: number;
+  skipped: number;
+}> {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { data: costRows, error: costErr } = await supabase
+    .from("production_cost_items")
+    .select("*")
+    .is("deleted_at", null);
+  if (costErr) throw new Error(costErr.message);
+  if (!costRows || costRows.length === 0) {
+    throw new Error("Tabela de custos de produção vazia.");
+  }
+  const snapshot = buildProductionCostSnapshot(costRows as ProductionCostItem[]);
+
+  const { data: targets, error: fetchErr } = await supabase
+    .from("orders")
+    .select("id")
+    .is("production_cost_snapshot", null)
+    .is("deleted_at", null);
+  if (fetchErr) throw new Error(fetchErr.message);
+
+  const ids = (targets ?? []).map((r) => r.id);
+  if (ids.length === 0) {
+    return { updated: 0, skipped: 0 };
+  }
+
+  const { error: updErr } = await supabase
+    .from("orders")
+    .update({ production_cost_snapshot: snapshot })
+    .in("id", ids);
+  if (updErr) throw new Error(updErr.message);
+
+  revalidatePath("/preservacao");
+  revalidatePath("/financas");
+  return { updated: ids.length, skipped: 0 };
+}
+
 export async function updateOrderAction(id: string, updates: OrderUpdate): Promise<Order> {
   await requireAdmin();
   const supabase = await createClient();
