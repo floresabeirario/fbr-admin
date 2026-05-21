@@ -110,14 +110,11 @@ export async function updateProductionCostItemAction(
 }
 
 /**
- * Adiciona uma nova linha de consumível (cria simultaneamente entradas
- * para os 3 tamanhos padrão: 30x40, 40x50, 50x70 — o admin pode depois
- * editar os custos por tamanho. Mini 20x25 fica de fora por defeito;
- * adiciona-se manualmente se necessário).
- *
- * Aceita um label só (e o cost = 0 para todos os tamanhos), ou cost
- * específico para o primeiro tamanho como sugestão visual. A Maria
- * geralmente vai editar os 3 valores logo a seguir.
+ * Adiciona uma nova linha de consumível. Cria 6 entradas em simultâneo
+ * (uma por produto vendável): 30x40, 40x50, 50x70, mini_20x25,
+ * christmas_ornament, necklace_pendant. Todos com cost=0; o admin edita
+ * a seguir os valores que se aplicam (deixa 0 onde o consumível não
+ * é usado).
  */
 export async function createConsumableAction(
   label: string,
@@ -130,9 +127,12 @@ export async function createConsumableAction(
   const rows: Array<
     ProductionConsumableInsert & { kind: "consumable" }
   > = [
-    { kind: "consumable", size_key: "30x40", label: trimmed, cost: 0 },
-    { kind: "consumable", size_key: "40x50", label: trimmed, cost: 0 },
-    { kind: "consumable", size_key: "50x70", label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "30x40",              label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "40x50",              label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "50x70",              label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "mini_20x25",         label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "christmas_ornament", label: trimmed, cost: 0 },
+    { kind: "consumable", size_key: "necklace_pendant",   label: trimmed, cost: 0 },
   ];
   const { data, error } = await supabase
     .from("production_cost_items")

@@ -11,7 +11,16 @@
 
 export type ProductionCostKind = "frame" | "photo_print" | "consumable";
 
-export type ProductionCostSize = "30x40" | "40x50" | "50x70" | "mini_20x25";
+// Identificador de "produto vendável": tamanhos físicos + extras autónomos.
+// Cada consumível pode ter custo distinto por produto. Os 4 primeiros são
+// tamanhos de quadro; os 2 últimos são produtos vendidos à parte (mig 056).
+export type ProductionCostSize =
+  | "30x40"
+  | "40x50"
+  | "50x70"
+  | "mini_20x25"
+  | "christmas_ornament"
+  | "necklace_pendant";
 
 export type ProductionFrameType = "baixa" | "caixa" | "piramide";
 
@@ -76,6 +85,8 @@ export const PRODUCTION_SIZE_LABELS: Record<ProductionCostSize, string> = {
   "40x50": "40x50",
   "50x70": "50x70",
   mini_20x25: "20x25 (mini)",
+  christmas_ornament: "Ornamento",
+  necklace_pendant: "Pendente",
 };
 
 export const PRODUCTION_FRAME_TYPE_LABELS: Record<ProductionFrameType, string> = {

@@ -981,8 +981,21 @@ function MargemTeoricaSection({
   }
 
   // ── Extras autónomos (Bloco 2) — ornamento + pendente ──
+  // Preço cliente vem de pricing_items. Custo deriva da soma de consumíveis
+  // com size_key correspondente (mig 056 — ornament e pendant são produtos
+  // vendáveis com a sua coluna na tabela de Custos de produção em baixo).
   const ornament = findPricing("extra", "christmas_ornament");
   const pendant = findPricing("extra", "necklace_pendant");
+  const consumablesCostByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of productionCosts) {
+      if (item.kind !== "consumable" || item.deleted_at !== null) continue;
+      map.set(item.size_key, (map.get(item.size_key) ?? 0) + Number(item.cost));
+    }
+    return map;
+  }, [productionCosts]);
+  const consumablesCost = (productKey: string) =>
+    consumablesCostByProduct.get(productKey) ?? 0;
 
   return (
     <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-900/50 p-4 sm:p-5 space-y-4">
@@ -1102,16 +1115,19 @@ function MargemTeoricaSection({
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Item</th>
                 <th className="text-right px-3 py-2 font-medium w-28">Preço cli. (€)</th>
-                <th className="text-right px-3 py-2 font-medium w-28">Custo FBR (€)</th>
+                <th className="text-right px-3 py-2 font-medium w-24">Custo</th>
                 <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
                 <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
               </tr>
             </thead>
             <tbody>
-              {[ornament, pendant].map((item) => {
+              {[
+                { item: ornament, productKey: "christmas_ornament" },
+                { item: pendant,  productKey: "necklace_pendant"   },
+              ].map(({ item, productKey }) => {
                 if (!item) return null;
                 const price = Number(item.price ?? 0);
-                const cost = Number(item.cost_fbr ?? 0);
+                const cost = consumablesCost(productKey);
                 const margin = price - cost;
                 const marginPct = price > 0 ? (margin / price) * 100 : 0;
                 return (
@@ -1120,8 +1136,8 @@ function MargemTeoricaSection({
                     <td className="px-2 py-2 text-right">
                       <EditableEuro item={item} field="price" canEdit={canEdit} align="right" />
                     </td>
-                    <td className="px-2 py-2 text-right">
-                      <EditableEuro item={item} field="cost_fbr" canEdit={canEdit} align="right" />
+                    <td className="px-3 py-2 text-right tabular-nums text-rose-700">
+                      {formatEUR(cost)}
                     </td>
                     <td className={cn(
                       "px-3 py-2 text-right tabular-nums font-semibold",
@@ -1142,7 +1158,7 @@ function MargemTeoricaSection({
           </table>
         </div>
         <p className="text-[11px] text-emerald-800/70 italic">
-          Pirâmide é tratada como upsell em <em>Custos de produção</em> (em baixo). Para alterar consumíveis ou variações de moldura (caixa, vidro/vidro vs cartão), edita as 6 tabelas em baixo.
+          <strong>Custo</strong> deriva dos consumíveis das colunas <em>Ornamento</em> e <em>Pendente</em> na tabela "Outros custos recorrentes" em baixo. Pirâmide é tratada como upsell em <em>Custos de produção</em>.
         </p>
       </div>
     </div>
@@ -1159,7 +1175,7 @@ function EditableEuro({
   align = "right",
 }: {
   item: PricingItem | null;
-  field: "price" | "cost_fbr";
+  field: "price";
   canEdit: boolean;
   align?: "left" | "right";
 }) {
@@ -3698,11 +3714,17 @@ function ConsumablesSection({
 }) {
   const [newLabel, setNewLabel] = useState("");
 
-  // Tamanhos visíveis na tabela. Mini 20x25 fica de fora por agora —
-  // quando a Maria decidir embalar mini-quadros separadamente, adiciona
-  // linhas no Supabase com size_key='mini_20x25' e este array passa a
-  // incluí-lo (ou expande para 4 colunas).
-  const sizes: ProductionCostSize[] = ["30x40", "40x50", "50x70"];
+  // Produtos vendáveis (4 tamanhos físicos + 2 extras autónomos, mig 056).
+  // Cada consumível tem 6 linhas — uma por produto. Maria edita custo onde
+  // o consumível se aplica e deixa 0 nos restantes.
+  const sizes: ProductionCostSize[] = [
+    "30x40",
+    "40x50",
+    "50x70",
+    "mini_20x25",
+    "christmas_ornament",
+    "necklace_pendant",
+  ];
 
   return (
     <div className="rounded-2xl border bg-gradient-to-br from-rose-50 to-pink-100 border-rose-200 p-3 sm:p-4 space-y-2">

@@ -5,7 +5,7 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 34) — Sessão 90: **Catálogo unificado — tabela "Margem teórica" passa a ser editável e substitui as 3 subsecções da antiga PrecosTab (azul Moldura + lilás Suplemento + amber Extras)**. Bloco 1 com 12 linhas (4 tamanhos × 3 fundos, incluindo 20x25 mini); colunas editáveis "Base" (preço-base por tamanho, partilhada via rowspan) + "+€ Supl." (suplemento fotografia, só na linha foto); colunas derivadas Preço cliente, Custo, Margem €, Margem %. Bloco 2 com 2 extras autónomos (ornamento + pendente) com preço cliente + custo FBR ambos editáveis. As 6 tabelas de Custos de produção (Moldura 30x40/40x50/50x70/mini, Impressão fotografia, Outros custos recorrentes) **mantêm-se intactas** — são a fonte dos custos derivados na verde. **Mig 054**: nova coluna `pricing_items.cost_fbr` (para custos de extras autónomos) + novo item `background_supplement.fotografia_mini`. `computePricingSnapshot` agora soma suplemento foto por cada mini quando fundo=fotografia.
+## Fase actual: FASE 6 (parte 34) — Sessão 90: **Catálogo unificado** — verde com tabela "Margem teórica" editável (12 linhas de quadros + 2 de extras) substitui a antiga PrecosTab; tabela rosa "Outros custos recorrentes" expandida para 6 colunas (4 tamanhos físicos + 2 extras autónomos: ornamento + pendente). Custo dos extras autónomos no Bloco 2 da verde deriva da soma de consumíveis com size_key correspondente (substituindo o cost_fbr criado mais cedo na mesma sessão). **3 migrações**: 054 (`pricing_items.cost_fbr` agora deprecated; novo item `background_supplement.fotografia_mini`), 056 (CHECK constraint do `production_cost_items.size_key` aceita `christmas_ornament` e `necklace_pendant`). `computePricingSnapshot` soma suplemento foto por cada mini quando fundo=fotografia. As 4 tabelas de Custos de produção (Moldura 30x40/40x50/50x70/mini + Impressão fotografia) mantêm-se com 4 tamanhos físicos (ornament/pendant não têm moldura nem impressão).
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -38,13 +38,15 @@
 - **Templates de mensagens** (sessão 64): biblioteca de 29 templates pré-populados (PT+EN) com variáveis ({nome}, {valor_sinal}, {dados_pagamento}, {saudacao}…); UI de gestão em Sistema → Templates; picker no workbench Preservação + Vale-Presente com sugestões automáticas por estado da encomenda. Zero IA, zero tokens.
 - **Registo manual WhatsApp** (sessão 65): tab "WhatsApp" no workbench Preservação com bolhas estilo WhatsApp, composer rápido, importação de ficheiros exportados do WhatsApp Web (parser PT do formato dd/MM/yy), edit/delete por entrada, screenshots como URLs Drive.
 - **Tarefas multi-assignee + notificações** (sessão 75): `tasks.assignee_emails TEXT[]` (Opção A — qualquer assignee marca como feita = some para todos); checklist pessoal do Dashboard mescla itens privados + tarefas atribuídas a mim (badge "Global"); bolinha sky na sidebar do item Dashboard + toast inicial via RPC `mark_tasks_seen` (mig 044). UI multi-assignee = 3 avatares clicáveis com ring violet quando activos.
-- 54 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
+- 56 migrações aplicadas; smoke test em Playwright (`npm run smoke`)
 
 ---
 
 ## Sessões recentes (detalhe)
 
-### Sessão 90 🎯 Catálogo editável — "Margem teórica" substitui as 3 subsecções de PrecosTab
+### Sessão 90 🎯 Catálogo editável — verde substitui PrecosTab + consumíveis para extras autónomos
+
+**Continuação intra-sessão** (parte B): depois de descobrir que mig 035 não estava aplicada na produção (vazia tabela rosa), Maria correu mig 035, depois pediu para acrescentar 3 colunas à tabela rosa "Outros custos recorrentes": 20x25 mini, Ornamento, Pendente. Foi feito via mig 056 e o cost_fbr criado mais cedo na mesma sessão (mig 054) ficou deprecated — o custo dos extras autónomos no Bloco 2 da verde passa a derivar dos consumíveis em vez de campo dedicado. Mais coerente: cada produto tem o seu custo somado dos consumíveis na rosa, sem dupla via.
 
 Maria pediu para simplificar a sub-aba Catálogo. Observação dela: as 3 subsecções da antiga `PrecosTab` (azul Moldura, lilás Suplemento, amber Extras) eram redundantes com a tabela verde de "Margem teórica" que estava em cima. Decisão final após várias iterações: a verde passa a ser **a interface editável principal de preços**, e os preços-base + suplementos só se editam lá. As 6 tabelas de Custos de produção em baixo mantêm-se intocadas (são a fonte dos custos derivados na verde).
 
@@ -81,17 +83,44 @@ Maria pediu para simplificar a sub-aba Catálogo. Observação dela: as 3 subsec
 
 **Preflight `tsc + next build` limpos** após 1 falso positivo inicial (cache do Next.js typecheck — `npx tsc --noEmit` standalone passou). Build em ~32s.
 
-**Maria: passos manuais:**
-1. **Correr [mig 054](supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql) no Supabase SQL Editor**. Verificar:
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='pricing_items' AND column_name='cost_fbr';` → 1 linha.
-   - `SELECT key, label, price, cost_fbr FROM pricing_items WHERE category='extra' OR key='fotografia_mini' ORDER BY category, position;` → vê `christmas_ornament (cost_fbr=0)`, `necklace_pendant (cost_fbr=0)`, `mini_frame (cost_fbr=NULL)`, `fotografia_mini (background_supplement, price=0)`.
-2. **Push para Vercel**.
-3. **Smoke browser** → `/financas` → sub-aba "Catálogo":
-   - **Topo verde "Margem teórica"** — Bloco 1 com 4 grupos (30x40, 40x50, 50x70, 20x25 mini), cada um com 3 linhas (transparente/preto/cor/fotografia). Coluna `Base` em rowspan; muda uma e as 3 linhas do mesmo tamanho actualizam. Coluna `+€` editável só na linha fotografia. Coluna `Custo` (rose) reflecte os valores das 6 tabelas em baixo. Margem € e Margem % com cores (verde ≥50%, amber ≥30%, rose senão).
-   - **Bloco 2 "Extras"** com 2 linhas (Ornamento de Natal, Pendente para colar). Edita `Preço cli.` para 35€ (Maria pediu) — vê margem actualizar.
-   - **6 tabelas de Custos de produção em baixo** mantêm-se inalteradas. Editar um custo lá deve reflectir-se imediatamente na coluna Custo da verde no topo (via `router.refresh()`).
-   - **Não há mais subsecção "Tabela de preços"** com a antiga azul/lilás/amber.
-4. **Smoke de orçamento (opcional)**: criar encomenda nova com fundo=fotografia + 2 minis. Depois de editar `fotografia_mini` para um valor não-zero, verificar que o snapshot da encomenda inclui linha `2 × fotografia_mini`. (Encomendas criadas antes da edição não recalculam — comportamento esperado.)
+**Migração 056 — [supabase/migrations/056_consumables_extras_keys.sql](supabase/migrations/056_consumables_extras_keys.sql):**
+- `ALTER CONSTRAINT production_cost_items_size_key_check`: expande o enum para aceitar `christmas_ornament` e `necklace_pendant` como size_keys. O nome "size_key" fica (renomear seria invasivo) mas o COMMENT da coluna esclarece que agora é "identificador de produto vendável", não apenas tamanho físico.
+- `cost_fbr` da pricing_items (criada na mig 054) fica deprecated. Não fizemos DROP COLUMN para evitar destruição — a coluna fica lá, ignorada pela UI. Migração futura pode limpar.
+
+**Tipos — [src/types/production-cost.ts](src/types/production-cost.ts):**
+- `ProductionCostSize`: adicionar `"christmas_ornament" | "necklace_pendant"`.
+- `PRODUCTION_SIZE_LABELS`: "Ornamento" + "Pendente".
+- `PRODUCTION_SIZES_ORDER` (em financas-client.tsx) mantém 4 tamanhos físicos — apenas a `ConsumablesSection.sizes` foi expandida para 6.
+
+**Tipos — [src/types/pricing.ts](src/types/pricing.ts):**
+- `PricingItem.cost_fbr` removido. Comment explica que a coluna na BD ficou deprecated após mig 056.
+
+**Server action — [src/app/(admin)/financas/actions.ts](src/app/(admin)/financas/actions.ts):**
+- `createConsumableAction(label)`: passa de 3 para 6 INSERTs (30x40, 40x50, 50x70, mini_20x25, christmas_ornament, necklace_pendant). Maria edita o custo onde se aplica e deixa 0 nos restantes.
+
+**UI — [src/app/(admin)/financas/financas-client.tsx](src/app/(admin)/financas/financas-client.tsx):**
+- `ConsumablesSection.sizes` passa de 3 para 6 elementos.
+- `MargemTeoricaSection` ganha helper `consumablesCostByProduct: Map<string, number>` (soma de cost por size_key) + `consumablesCost(productKey)` lookup.
+- Bloco 2 da verde: coluna "Custo FBR (€)" editável → coluna "Custo" derivada (read-only, rose). Mostra `consumablesCost("christmas_ornament")` e `consumablesCost("necklace_pendant")` respectivamente.
+- `EditableEuro.field` simplificado de `"price" | "cost_fbr"` para `"price"` (cost_fbr deixou de ser usado).
+- Texto explicativo no Bloco 2: "Custo deriva dos consumíveis das colunas Ornamento e Pendente na tabela 'Outros custos recorrentes' em baixo."
+
+**Preflight tsc + next build limpos.**
+
+**Aprendizagem da sessão:** No início da conversa, afirmei à Maria que os pricing items dos extras (`mini_frame`, `christmas_ornament`, `necklace_pendant`) não existiam na BD. Estava errado — existiam em [mig 025](supabase/migrations/025_pricing.sql:142-144) com preços 45/25/15. Tinha feito grep só na mig 033 (que tinha um seed parcial). Maria reparou: "no workbench quando o cliente seleciona extra tu calculas o preçço" — observação correcta que devia ter feito sozinho. Mais tarde na sessão, a tabela rosa apareceu vazia com erro ao Adicionar — diagnóstico: mig 035 nunca aplicada na produção (PROGRESS dizia que sim, mas não). Memória: [[feedback-verificar-existencia-bd]].
+
+**Maria: passos manuais (3 migrações):**
+1. **Correr [mig 054](supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql)** — feito (confirmado por query SQL: `mig_054_aplicada=true`).
+2. **Correr [mig 035](supabase/migrations/035_production_consumables.sql)** — feito durante a sessão (tabela rosa passou a ter consumíveis).
+3. **Correr [mig 056](supabase/migrations/056_consumables_extras_keys.sql)** — NOVA, ainda por correr. Verificar com:
+   - `SELECT check_clause FROM information_schema.check_constraints WHERE constraint_name='production_cost_items_size_key_check';` → contém `christmas_ornament` e `necklace_pendant`.
+4. **Push para Vercel**.
+5. **Smoke browser** → `/financas` → "Catálogo":
+   - **Tabela rosa "Outros custos recorrentes"** agora tem 6 colunas: 30x40, 40x50, 50x70, 20x25 mini, Ornamento, Pendente. Cada consumível existente passa a mostrar 6 cells (mas só as 3 originais têm valor seeded; as 3 novas começam em 0 — Maria edita conforme aplicável).
+   - Editar um custo na coluna "Ornamento" (ex.: "Caixa de cartão" para Ornamento = 1€) → vê a coluna **Custo** do Bloco 2 da verde no topo actualizar para 1€ (assumindo só esse consumível tem valor); Margem ajusta.
+   - Adicionar consumível novo via "+" → cria 6 linhas (uma por produto). Em SQL: `SELECT count(*) FROM production_cost_items WHERE label='novo nome' AND deleted_at IS NULL;` → 6.
+
+**Pendente (não bloqueia):** Auditoria completa de migrações 035-053 com query consolidado (proposta no fim da sessão). Recomendo correr para confirmar que mais nenhuma migração ficou para trás silenciosamente.
 
 ### Sessão 89 💼 Finanças redesenhada — Painel + P&L por encomenda + Catálogo + comissões como dedução
 
@@ -284,21 +313,17 @@ Fecha o ciclo da funcionalidade "tarefas a partir do workbench" iniciada em 88-A
 
 ## Próximo passo CONCRETO
 
-**Sessão 90 — passos manuais (mig 054 + UI):**
+**Sessão 90 — passos manuais (parte B; após mig 035 + 054 já corridas):**
 
-1. **Correr [mig 054](supabase/migrations/054_pricing_cost_fbr_and_mini_photo.sql)** no Supabase SQL Editor (cola, Run). Verificar:
-   - `SELECT column_name FROM information_schema.columns WHERE table_name='pricing_items' AND column_name='cost_fbr';` → 1 linha.
-   - `SELECT key, price, cost_fbr FROM pricing_items WHERE category='extra' OR key='fotografia_mini' ORDER BY category, position;` → 4 linhas (christmas_ornament + necklace_pendant com cost_fbr=0; mini_frame + pyramid_frame com cost_fbr=NULL; fotografia_mini com price=0).
+1. **Correr [mig 056](supabase/migrations/056_consumables_extras_keys.sql)** no Supabase SQL Editor. Verificar:
+   - `SELECT check_clause FROM information_schema.check_constraints WHERE constraint_name='production_cost_items_size_key_check';` → contém `christmas_ornament` e `necklace_pendant`.
 2. **Push para Vercel**.
 3. **Smoke browser** → `/financas` → "Catálogo":
-   - **Topo verde "Margem teórica"** com Bloco 1 (4 grupos × 3 linhas = 12 linhas) e Bloco 2 (2 extras).
-   - Edita `Base` na 1ª linha de cada grupo → célula em rowspan, todas as 3 linhas do tamanho actualizam. Edita `+€` na linha fotografia.
-   - Coluna `Custo` é read-only, reflecte as 6 tabelas em baixo.
-   - Cores: margem ≥50% emerald, ≥30% amber, senão rose.
-   - **Bloco 2 Extras**: edita "Ornamento de Natal" preço 25 → 35€; "Pendente para colar" 15 → 35€. Custo FBR fica a 0 (Maria edita quando souber).
-   - **A antiga "Tabela de preços" (azul/lilás/amber) já não existe** — verde substitui.
-   - As 6 tabelas de Custos de produção em baixo continuam intactas e editáveis.
-4. **Smoke opcional (orçamento)**: editar `fotografia_mini` para valor não-zero, criar encomenda nova com fundo=fotografia + 2 minis, verificar que snapshot inclui linha `2 × fotografia_mini`.
+   - **Tabela rosa** agora tem 6 colunas: 30x40, 40x50, 50x70, 20x25 (mini), Ornamento, Pendente.
+   - **Bloco 2 verde** (Extras) já não tem "Custo FBR" editável — passou a "Custo" derivado da soma dos consumíveis nas colunas Ornamento/Pendente da tabela rosa em baixo.
+   - Adiciona consumível novo "Teste" → cria 6 linhas (uma por produto, cost=0). Edita "Teste" na coluna Ornamento para 2€ → vê o Custo do Ornamento no Bloco 2 da verde subir 2€.
+   - Custos pré-existentes (caixa, lavanda, sílica, etc.) continuam intactos nas 3 primeiras colunas (30x40/40x50/50x70). As 3 colunas novas começam em 0 — Maria preenche conforme aplicável.
+4. **Recomendado**: correr query de auditoria de migrações 035-053 para confirmar que mais nenhuma ficou para trás (ver fim da sessão).
 
 **Sessão 89 — passos manuais (sem migração nova):**
 
