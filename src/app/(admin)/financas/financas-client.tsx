@@ -1009,7 +1009,7 @@ function MargemTeoricaSection({
             Margem teórica — preços, custos e lucro por quadro
           </h2>
           <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-            Edita <strong>Base</strong> (preço base por tamanho) e <strong>Supl.</strong> (suplemento fotografia). <strong>Custo</strong> deriva das 6 tabelas em baixo (moldura baixa, vidro consoante fundo, impressão e consumíveis). <strong>Margem</strong> calculada automaticamente.
+            Edita <strong>Base</strong> e <strong>Supl.</strong> (fotografia). <strong>Custo</strong> e <strong>Margem</strong> calculam-se a partir das tabelas em baixo. Combinações menos comuns (caixa, pirâmide, vidro/vidro) vivem só nessas tabelas.
             {!canEdit && <span className="block mt-1 italic">Modo leitura — só administradores podem editar.</span>}
           </p>
         </div>
@@ -1158,7 +1158,7 @@ function MargemTeoricaSection({
           </table>
         </div>
         <p className="text-[11px] text-emerald-800/70 italic">
-          <strong>Custo</strong> deriva dos consumíveis das colunas <em>Ornamento</em> e <em>Pendente</em> na tabela "Outros custos recorrentes" em baixo. Pirâmide é tratada como upsell em <em>Custos de produção</em>.
+          <strong>Custo</strong> deriva dos consumíveis das colunas <em>Ornamento</em> e <em>Pendente</em> na tabela "Outros custos recorrentes" em baixo.
         </p>
       </div>
     </div>
@@ -3553,11 +3553,11 @@ function CustosTab({
         <div className="text-sm text-amber-900 dark:text-amber-200 leading-relaxed">
           <p className="font-semibold mb-1">Como funcionam os custos de produção</p>
           <p>
-            Estes são os custos REAIS de produzir cada quadro (moldura,
-            embalagem, cartão, enchimento, autocolante, etc.) — distintos
-            das despesas únicas. Cada encomenda guarda um snapshot dos
-            custos vigentes no dia da criação; <strong>alterações aqui não
-            recalculam encomendas antigas</strong>.
+            Estes são os custos REAIS de produzir cada produto vendável
+            (moldura, embalagem, cartão, enchimento, autocolante, etc.) —
+            distintos das despesas únicas. Cada encomenda guarda um snapshot
+            dos custos vigentes no dia da criação; <strong>alterações aqui
+            não recalculam encomendas antigas</strong>.
           </p>
           <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
             <strong>Vidro sobre vidro</strong> = cliente escolheu fundo transparente.{" "}
@@ -3627,9 +3627,6 @@ function CustosTab({
                 </tbody>
               </table>
             </div>
-            <p className="text-[10px] text-amber-800 leading-relaxed px-1">
-              Vidro = fundo transparente · Cartão = preto / branco / cor / fotografia
-            </p>
           </div>
         ))}
       </div>
@@ -3734,7 +3731,7 @@ function ConsumablesSection({
           Outros custos recorrentes
         </h2>
         <span className="text-[11px] text-cocoa-700">
-          Aplicados a cada encomenda consoante o tamanho da moldura
+          Custo por produto vendável (tamanho do quadro ou extra autónomo)
         </span>
       </div>
       <div className="rounded-xl bg-surface border border-white/40 overflow-hidden">
