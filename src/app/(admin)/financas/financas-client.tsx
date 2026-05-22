@@ -30,6 +30,8 @@ import {
   Handshake,
   Pencil,
   Wand2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -647,14 +649,28 @@ function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
   const [selectedYear, setSelectedYear] = useState<number | "all">(currentYear);
   const [sortBy, setSortBy] = useState<PnLSortBy>("margin_eur");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Esconde encomendas que ainda não têm snapshot de custos. Margem
+  // dessas seria 100% por falta de COGS lançado — distorce KPIs.
+  const [hideWithoutSnapshot, setHideWithoutSnapshot] = useState(true);
 
   const yearStart = selectedYear === "all" ? new Date(1970, 0, 1) : startOfYear(new Date(selectedYear as number, 0, 1));
   const yearEnd = selectedYear === "all" ? new Date(2999, 11, 31) : endOfYear(new Date(selectedYear as number, 11, 31));
 
-  const rows = useMemo(() => {
-    const filtered = orders
+  // Encomendas no período (sem cancelados) — antes do filtro por snapshot.
+  // Usado para contar quantas estão escondidas pelo toggle.
+  const inPeriod = useMemo(() => {
+    return orders
       .filter((o) => o.status !== "cancelado")
-      .filter((o) => inRangeISO(o.event_date, yearStart, yearEnd))
+      .filter((o) => inRangeISO(o.event_date, yearStart, yearEnd));
+  }, [orders, yearStart, yearEnd]);
+
+  const hiddenCount = useMemo(() => {
+    return inPeriod.filter((o) => !o.production_cost_snapshot).length;
+  }, [inPeriod]);
+
+  const rows = useMemo(() => {
+    const filtered = inPeriod
+      .filter((o) => (hideWithoutSnapshot ? !!o.production_cost_snapshot : true))
       .map((o) => ({ order: o, pnl: orderPnL(o) }));
 
     const cmp = (a: typeof filtered[0], b: typeof filtered[0]): number => {
@@ -675,7 +691,7 @@ function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
     };
     filtered.sort((a, b) => (sortDir === "asc" ? cmp(a, b) : -cmp(a, b)));
     return filtered;
-  }, [orders, yearStart, yearEnd, sortBy, sortDir]);
+  }, [inPeriod, hideWithoutSnapshot, sortBy, sortDir]);
 
   const totals = useMemo(() => {
     return rows.reduce(
@@ -705,9 +721,9 @@ function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Selector ano + info */}
+      {/* Selector ano + toggle + info */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <CalendarIcon className="h-4 w-4 text-cocoa-700" />
           <span className="text-sm font-medium text-cocoa-900">Ano:</span>
           <Select
@@ -726,9 +742,32 @@ function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
               ))}
             </SelectContent>
           </Select>
+          {hiddenCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => setHideWithoutSnapshot((v) => !v)}
+            >
+              {hideWithoutSnapshot ? (
+                <>
+                  <Eye className="h-3.5 w-3.5 mr-1.5" />
+                  Mostrar {hiddenCount} sem custo
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3.5 w-3.5 mr-1.5" />
+                  Esconder {hiddenCount} sem custo
+                </>
+              )}
+            </Button>
+          )}
         </div>
         <p className="text-xs text-cocoa-700 italic">
-          {rows.length} {rows.length === 1 ? "encomenda" : "encomendas"} (cancelado excluído). Valores plenos (não proporcionais ao %pago). Clica nas colunas para ordenar.
+          {rows.length} {rows.length === 1 ? "encomenda" : "encomendas"}
+          {hideWithoutSnapshot && hiddenCount > 0 ? ` (${hiddenCount} escondidas sem COGS)` : " (cancelado excluído)"}
+          . Valores plenos (não proporcionais ao %pago). Clica nas colunas para ordenar.
         </p>
       </div>
 
