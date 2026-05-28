@@ -4,6 +4,9 @@
 
 export type TaskPriority = "baixa" | "media" | "alta" | "urgente";
 
+// Estado de trabalho (GTD-style). `done` é separado — marca-se com checkbox.
+export type TaskStatus = "por_comecar" | "a_fazer_hoje" | "em_curso";
+
 export type TaskCategory =
   | "packaging"
   | "flores"
@@ -28,6 +31,7 @@ export interface Task {
   assignee_emails: string[];
   priority: TaskPriority;
   category: TaskCategory;
+  status: TaskStatus;
   due_date: string | null;
 
   done: boolean;
@@ -77,6 +81,41 @@ export const TASK_PRIORITY_ORDER: Record<TaskPriority, number> = {
   alta: 1,
   media: 2,
   baixa: 3,
+};
+
+// ── Estado de trabalho ───────────────────────────────────────
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  por_comecar: "Por começar",
+  a_fazer_hoje: "A fazer hoje",
+  em_curso: "Em curso",
+};
+
+// Abreviatura usada no pill compacto do card (espaço escasso).
+export const TASK_STATUS_SHORT: Record<TaskStatus, string> = {
+  por_comecar: "Por começar",
+  a_fazer_hoje: "Hoje",
+  em_curso: "Em curso",
+};
+
+export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
+  por_comecar:  "bg-slate-100 text-slate-600 border-slate-300",
+  a_fazer_hoje: "bg-amber-100 text-amber-800 border-amber-300",
+  em_curso:     "bg-sky-100 text-sky-800 border-sky-300",
+};
+
+// Bola pequena para o popover (item da lista de mudança de estado).
+export const TASK_STATUS_DOT_COLOR: Record<TaskStatus, string> = {
+  por_comecar:  "bg-slate-300",
+  a_fazer_hoje: "bg-amber-500",
+  em_curso:     "bg-sky-500",
+};
+
+// Ordem para sort: "em curso" primeiro (foco), depois "hoje", depois "por começar".
+export const TASK_STATUS_ORDER: Record<TaskStatus, number> = {
+  em_curso: 0,
+  a_fazer_hoje: 1,
+  por_comecar: 2,
 };
 
 // ── Categorias ───────────────────────────────────────────────

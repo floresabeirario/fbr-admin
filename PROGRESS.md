@@ -5,7 +5,9 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 35) — Sessão 91 (2 partes): **COGS tudo-ou-nada + snapshot capturado a 100% pago** (decisão Maria 2026-05-22). **Parte 1**: regra COGS proporcional → tudo-ou-nada em [lib/finance.ts](src/lib/finance.ts) (`cogsRecognizedFromOrder` devolve `cogs_full` se `payment_status='100_pago'`, senão 0). **Parte 2**: snapshot de custos deixa de ser capturado em `createOrderAction` (preços ficavam desactualizados em reservas para 2027); passa a ser capturado em `updateOrderAction` na transição para 100% pago, com a tabela rosa vigente nesse momento. Migração 058 limpa snapshots de encomendas em curso (30%/70%/por pagar) — serão recapturados naturalmente quando atingirem 100%. Botão "Preencher snapshots" no Catálogo agora filtra por 100% pagas (idempotente). Receita e comissões continuam proporcionais ao %pago. Textos explicativos da Faturação actualizados.
+## Fase actual: FASE 6 (parte 36) — Sessão 92: **Kanban dos Afazeres globais redesenhado + estado GTD + mobile snap-scroll** (2026-05-28). Maria pediu inspiração no kanban do Bitrix24. **Novidades**: (1) Coluna `tasks.status` com 3 estados (`por_comecar` / `a_fazer_hoje` / `em_curso`) — não substitui `done` (checkbox continua a marcar feita). Sort: em_curso primeiro. (2) `StatusPill` no card (chip com dot+abreviatura, popover para mudar). (3) **"Há X dias"** no fundo do card quando não há prazo (substitui o slot do prazo) — formato reutiliza `formatDoneAgo`. (4) **Mobile**: layout passa de `grid grid-cols-2` espremidas para `flex overflow-x-auto snap-x snap-mandatory` com cada coluna a ocupar ~85vw (max 320px) — Bitrix-style. (5) **Drag-and-drop desactivado no mobile** (era a queixa principal: scroll arrastava cards/colunas por engano) via `useIsMobile` hook (matchMedia `(max-width: 639px)` com `useSyncExternalStore`); na prática não se anexa `setNodeRef/attributes/listeners` aos elementos draggable e remove-se `touch-none cursor-grab`. (6) Header da coluna: ícone maior (h-7), badge de contagem em pill branco redondo, padding +1 step. Card: padding +1 step (px-2.5 py-2), border-radius lg. PC layout inalterado nas dimensões da grelha. Mig 059 adiciona a coluna `status` com default `por_comecar` + index parcial. Preflight `tsc + next build` limpos.
+
+## Fase anterior: FASE 6 (parte 35) — Sessão 91 (2 partes): **COGS tudo-ou-nada + snapshot capturado a 100% pago** (decisão Maria 2026-05-22). **Parte 1**: regra COGS proporcional → tudo-ou-nada em [lib/finance.ts](src/lib/finance.ts) (`cogsRecognizedFromOrder` devolve `cogs_full` se `payment_status='100_pago'`, senão 0). **Parte 2**: snapshot de custos deixa de ser capturado em `createOrderAction` (preços ficavam desactualizados em reservas para 2027); passa a ser capturado em `updateOrderAction` na transição para 100% pago, com a tabela rosa vigente nesse momento. Migração 058 limpa snapshots de encomendas em curso (30%/70%/por pagar) — serão recapturados naturalmente quando atingirem 100%. Botão "Preencher snapshots" no Catálogo agora filtra por 100% pagas (idempotente). Receita e comissões continuam proporcionais ao %pago. Textos explicativos da Faturação actualizados.
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -43,6 +45,66 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 92 🎯 Kanban dos Afazeres globais redesenhado + estado GTD + mobile snap-scroll
+
+Maria pediu inspiração no kanban do Bitrix24 (screenshot partilhado). Triplo pedido: (a) melhorar design no PC e responsividade no mobile; (b) acrescentar um estado por tarefa tipo "não comecei / a fazer"; (c) mostrar há quantos dias a tarefa foi criada; (d) **desactivar drag no mobile** (queixa concreta: ao fazer scroll, cards e colunas iam parar a sítios errados).
+
+**Decisões fixadas em conversa (4 perguntas → respostas Maria):**
+- **3 estados estilo GTD**: `por_comecar` / `a_fazer_hoje` / `em_curso`. `done` continua separado (checkbox).
+- **Mobile = scroll horizontal estilo Bitrix** (uma coluna inteira visível, snap por coluna).
+- **"Há X dias"**: discreto cinzento no fundo do card, **substitui** o slot do prazo quando não há prazo (Maria escolheu as duas opções — implementação: o slot ou mostra prazo OU mostra "há X dias" ou fica vazio se a tarefa está concluída).
+
+**Migração 059 — [supabase/migrations/059_tasks_status.sql](supabase/migrations/059_tasks_status.sql):**
+- `ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'por_comecar' CHECK (status IN ('por_comecar','a_fazer_hoje','em_curso'))`.
+- Backfill implícito via DEFAULT (todas as tarefas existentes ficam em `por_comecar`).
+- Index parcial `tasks_status_idx` em `(status)` filtrado por `deleted_at IS NULL AND done = false` (idêntico ao padrão do `tasks_category_idx`).
+
+**Tipos — [src/types/tasks.ts](src/types/tasks.ts):**
+- `TaskStatus = "por_comecar" | "a_fazer_hoje" | "em_curso"`.
+- `Task.status: TaskStatus` (não-opcional — a BD garante sempre presença via DEFAULT).
+- `TASK_STATUS_LABELS` (full: "Por começar/A fazer hoje/Em curso"), `TASK_STATUS_SHORT` (compacto: "Por começar/Hoje/Em curso"), `TASK_STATUS_COLORS` (slate / amber / sky), `TASK_STATUS_DOT_COLOR` (bola no chip), `TASK_STATUS_ORDER` (em_curso=0 sobe ao topo).
+
+**UI — [src/app/(admin)/_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx):**
+- **`useIsMobile()` hook**: `useSyncExternalStore` em cima de `matchMedia("(max-width: 639px)")`. Pattern escolhido para evitar setState-em-useEffect (regra ESLint) e mismatch de hidratação (SSR devolve false). Boolean primitivo = sem armadilha de getSnapshot.
+- **Sort de tarefas**: novo critério primário `TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status]` antes do prazo. Em curso vai sempre ao topo dentro da coluna.
+- **Form nova tarefa**: grelha passa de 3 para 4 colunas (Categoria / Estado / Prioridade / Prazo). Estado default `por_comecar`.
+- **`handleStatusChange`**: idêntico aos outros handlers (optimistic + server action + rollback em erro).
+- **`StatusPill`** novo componente (irmão do `PriorityPill`): chip rounded-full com dot + abreviatura; popover para mudar estado; abre na linha abaixo do título.
+- **Layout do container** das colunas: `flex overflow-x-auto snap-x snap-mandatory -mx-5 px-5` no mobile; `sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:overflow-visible sm:snap-none` no PC. `-mx-5 + px-5` faz edge-bleed para o scroll horizontal usar a largura toda da tela.
+- **Cada `CategoryColumn`**: ganha `snap-start shrink-0 w-[85vw] max-w-[320px]` no mobile e `sm:w-auto sm:max-w-none sm:shrink` no PC. Header: ícone passa de h-6 para h-7; contagem passa de texto solto para badge pill branco (`bg-white/70 rounded-full`); padding global +1 step.
+- **Cada `DraggableTaskTile`**: padding passa de `px-2 py-1.5` para `px-2.5 py-2`; border-radius `lg`. Quando não tem prazo e está activa, mostra "há X dias" italic em cinzento claro no slot onde antes estaria o prazo.
+- **Drag desactivado no mobile**: em ambos `CategoryColumn` (header) e `DraggableTaskTile` (card inteiro), só se spreaded `setNodeRef + attributes + listeners` se `!isMobile`. Classes `touch-none cursor-grab active:cursor-grabbing` também só no PC. PointerSensor: `activationConstraint.distance` passa de 6 para 9999 no mobile (segunda linha de defesa — mesmo se a árvore DnD ficasse activa, drag nunca dispara). Hooks `useDraggable`/`useDroppable` continuam a ser chamados em todas as renders (não condicionalmente) para respeitar rules of hooks.
+
+**Pequeno polish:**
+- `formatDoneAgo` reutilizado (estava em `format-helpers.ts` para "Concluídas recentes" — funciona tal e qual para "criada há X").
+- Edição inline (`TaskEditForm`) não muda — a Maria pode mudar estado pelo `StatusPill` directo no card.
+
+**Preflight `tsc + next build` limpos.** Build em ~50s (TypeScript). Sem warnings novos.
+
+**Maria: passos manuais:**
+1. **Correr [mig 059](supabase/migrations/059_tasks_status.sql)** no Supabase SQL Editor. Verificar:
+   ```sql
+   SELECT column_name, column_default FROM information_schema.columns
+     WHERE table_name='tasks' AND column_name='status';
+   -- → 1 linha, default 'por_comecar'
+
+   SELECT status, count(*) FROM tasks
+     WHERE deleted_at IS NULL GROUP BY status;
+   -- → todas em 'por_comecar'
+   ```
+2. **Push para Vercel** (alterações em types/tasks.ts + tasks-card.tsx).
+3. **Smoke browser (PC)** → `/`:
+   - Cada card tem agora 3 partes verticais: título + checkbox + prioridade no topo; **estado (chip cinzento "Por começar")** no meio; avatares + prazo/"há X dias" no fundo.
+   - Click no chip de estado → popover com 3 opções. Mudar para "Em curso" → tarefa sobe ao topo da coluna.
+   - Tarefa sem prazo: aparece "há 2 dias" (ou "agora" se acabada de criar) em cinzento italic no canto inferior direito.
+   - Drag de card e drag de header de coluna continuam a funcionar como antes.
+4. **Smoke browser (mobile / DevTools < 640px)** → `/`:
+   - Os 6 grupos aparecem em scroll horizontal — vês 1 coluna inteira de cada vez, com snap a encaixar na próxima.
+   - **Scroll vertical dentro de uma coluna funciona sem mover cards** (era a queixa).
+   - **Scroll horizontal entre colunas funciona sem reordenar grupos** (era a outra queixa).
+   - Tentar arrastar um card: nada acontece (drag desactivado por design).
+   - Checkbox, pills de estado/prioridade e avatares continuam tocáveis.
 
 ### Sessão 91 💰 COGS tudo-ou-nada + snapshot capturado a 100% pago (2 partes)
 
@@ -333,6 +395,18 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
 <!-- Sessões 88-A, 88-B, 88-C e 88-D comprimidas no Histórico condensado em baixo. -->
 
 ## Próximo passo CONCRETO
+
+**Sessão 92 — passos manuais (mig 059 + UI):**
+
+1. **Correr [mig 059](supabase/migrations/059_tasks_status.sql)** no Supabase SQL Editor. Verifica com:
+   ```sql
+   SELECT column_name, column_default FROM information_schema.columns
+     WHERE table_name='tasks' AND column_name='status';
+   ```
+   → 1 linha, default `'por_comecar'`.
+2. **Push para Vercel**.
+3. **Smoke browser (PC)**: `/` → cada card tem chip cinzento "Por começar"; click no chip muda estado; "há X dias" aparece em cards sem prazo.
+4. **Smoke browser (mobile / DevTools < 640px)**: scroll horizontal entre colunas com snap; tentar arrastar cards e colunas → nada acontece (drag desactivado); checkbox/pills continuam tocáveis.
 
 **Sessão 91 — passos manuais (sem migração):**
 

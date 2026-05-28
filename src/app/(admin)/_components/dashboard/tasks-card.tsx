@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { differenceInDays, parseISO } from "date-fns";
@@ -62,13 +68,23 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-import type { Task, TaskCategory, TaskPriority } from "@/types/tasks";
+import type {
+  Task,
+  TaskCategory,
+  TaskPriority,
+  TaskStatus,
+} from "@/types/tasks";
 import {
   TASK_CATEGORY_LABELS,
   TASK_CATEGORY_ORDER,
   TASK_PRIORITY_LABELS,
   TASK_PRIORITY_COLORS,
   TASK_PRIORITY_ORDER,
+  TASK_STATUS_LABELS,
+  TASK_STATUS_SHORT,
+  TASK_STATUS_COLORS,
+  TASK_STATUS_DOT_COLOR,
+  TASK_STATUS_ORDER,
 } from "@/types/tasks";
 
 import {
@@ -79,8 +95,23 @@ import {
 
 import { SectionCard } from "./section-card";
 import { RecentDoneRow } from "./recent-done-row";
-import { formatDate } from "./format-helpers";
+import { formatDate, formatDoneAgo } from "./format-helpers";
 import { TEAM_MEMBERS } from "./team-members";
+
+// Mobile = sm- (<640px). Usado para desactivar DnD e mudar layout para
+// scroll horizontal com snap. useSyncExternalStore para subscrever ao
+// matchMedia sem hydration mismatch e sem setState-em-useEffect.
+function useIsMobile(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia("(max-width: 639px)");
+      mq.addEventListener("change", cb);
+      return () => mq.removeEventListener("change", cb);
+    },
+    () => window.matchMedia("(max-width: 639px)").matches,
+    () => false,
+  );
+}
 
 // Identidade visual por categoria — ícone distinto + barra colorida no topo
 // da coluna + tom claro de fundo. Não usamos pills coloridos porque (i) ficavam
@@ -221,6 +252,7 @@ export function TasksCard({
   const [viewDone, setViewDone] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [pending, startTransition] = useTransition();
+  const isMobile = useIsMobile();
 
   const allMembersSelected =
     selectedMembers.length === TEAM_MEMBERS.length;
@@ -262,6 +294,7 @@ export function TasksCard({
   const [newAssignees, setNewAssignees] = useState<string[]>([]);
   const [newPriority, setNewPriority] = useState<TaskPriority>("media");
   const [newCategory, setNewCategory] = useState<TaskCategory>("outros");
+  const [newStatus, setNewStatus] = useState<TaskStatus>("por_comecar");
   const [newDueDate, setNewDueDate] = useState<string>("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -271,8 +304,13 @@ export function TasksCard({
   const [draggingColumn, setDraggingColumn] = useState<TaskCategory | null>(
     null,
   );
+  // No mobile, exigir distância de 9999px torna o drag impossível (mas
+  // mantém a árvore de DnD consistente para evitar mismatch de hooks).
+  // O scroll vertical/horizontal passa a funcionar sempre.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: isMobile ? 9999 : 6 },
+    }),
     useSensor(KeyboardSensor),
   );
   const collisionDetection: CollisionDetection = (args) => {
@@ -290,6 +328,9 @@ export function TasksCard({
       );
     }
     return list.sort((a, b) => {
+      // Estado é o sinal mais forte: "em curso" e "hoje" sobem ao topo.
+      const st = TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status];
+      if (st !== 0) return st;
       if (a.due_date && b.due_date && a.due_date !== b.due_date) {
         return a.due_date.localeCompare(b.due_date);
       }
@@ -360,6 +401,7 @@ export function TasksCard({
     setNewAssignees([]);
     setNewPriority("media");
     setNewCategory("outros");
+    setNewStatus("por_comecar");
     setNewDueDate("");
     setShowNew(false);
   }
@@ -378,6 +420,7 @@ export function TasksCard({
           seen_by: seenBy,
           priority: newPriority,
           category: newCategory,
+          status: newStatus,
           due_date: newDueDate || null,
         });
         setTasks((prev) => [created, ...prev]);
@@ -476,6 +519,19 @@ export function TasksCard({
     startTransition(async () => {
       try {
         await updateTaskAction(task.id, { priority });
+      } catch (err) {
+        toast.error("Erro: " + (err as Error).message);
+      }
+    });
+  }
+
+  function handleStatusChange(task: Task, status: TaskStatus) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, status } : t)),
+    );
+    startTransition(async () => {
+      try {
+        await updateTaskAction(task.id, { status });
       } catch (err) {
         toast.error("Erro: " + (err as Error).message);
       }
@@ -706,7 +762,7 @@ export function TasksCard({
                   : `${newAssignees.length} responsáveis (partilhada)`}
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Select
               value={newCategory}
               onValueChange={(v) => v && setNewCategory(v as TaskCategory)}
@@ -716,6 +772,21 @@ export function TasksCard({
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(TASK_CATEGORY_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={newStatus}
+              onValueChange={(v) => v && setNewStatus(v as TaskStatus)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue labels={TASK_STATUS_LABELS} />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(TASK_STATUS_LABELS).map(([v, l]) => (
                   <SelectItem key={v} value={v}>
                     {l}
                   </SelectItem>
@@ -793,7 +864,16 @@ export function TasksCard({
             setDraggingColumn(null);
           }}
         >
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 px-5 py-3">
+          <div
+            className={cn(
+              // Mobile: flex horizontal com snap por coluna (~85vw cada).
+              // -mx-5 + px-5 = "edge bleed" para que o scroll vá até às
+              // margens do card sem deixar paddings vazios visíveis.
+              // PC: grid clássico de 3→6 colunas, intocado.
+              "flex gap-3 overflow-x-auto -mx-5 px-5 pb-3 snap-x snap-mandatory scroll-smooth",
+              "sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-5 sm:py-3 sm:snap-none",
+            )}
+          >
             {columnOrder.map((category) => (
               <CategoryColumn
                 key={category}
@@ -805,11 +885,13 @@ export function TasksCard({
                 onDelete={handleDelete}
                 onToggleAssignee={toggleAssignee}
                 onChangePriority={handlePriorityChange}
+                onChangeStatus={handleStatusChange}
                 onEditSave={handleEditSave}
                 draggingTaskId={draggingTask?.id ?? null}
                 draggingColumn={draggingColumn}
                 orderCodeById={orderCodeById}
                 voucherCodeById={voucherCodeById}
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -877,11 +959,13 @@ function CategoryColumn({
   onDelete,
   onToggleAssignee,
   onChangePriority,
+  onChangeStatus,
   onEditSave,
   draggingTaskId,
   draggingColumn,
   orderCodeById,
   voucherCodeById,
+  isMobile,
 }: {
   category: TaskCategory;
   tasks: Task[];
@@ -891,6 +975,7 @@ function CategoryColumn({
   onDelete: (t: Task) => void;
   onToggleAssignee: (t: Task, email: string) => void;
   onChangePriority: (t: Task, p: TaskPriority) => void;
+  onChangeStatus: (t: Task, s: TaskStatus) => void;
   onEditSave: (
     t: Task,
     next: {
@@ -904,12 +989,13 @@ function CategoryColumn({
   draggingColumn: TaskCategory | null;
   orderCodeById: Record<string, string>;
   voucherCodeById: Record<string, string>;
+  isMobile: boolean;
 }) {
   const meta = CATEGORY_META[category];
   const Icon = meta.icon;
   const { setNodeRef, isOver } = useDroppable({ id: category });
 
-  // Header é o handle para arrastar a coluna inteira.
+  // Header é o handle para arrastar a coluna inteira — desactivado no mobile.
   const columnDrag = useDraggable({
     id: `col:${category}`,
     data: { type: "column", category },
@@ -923,6 +1009,10 @@ function CategoryColumn({
       ref={setNodeRef}
       className={cn(
         "flex flex-col min-w-0 rounded-xl bg-surface border border-cream-200 border-t-[3px] overflow-hidden transition-all",
+        // Mobile: cada coluna ocupa ~85vw e fica em snap-start para encaixar.
+        "snap-start shrink-0 w-[85vw] max-w-[320px]",
+        // PC: deixa o grid distribuir.
+        "sm:w-auto sm:max-w-none sm:shrink",
         meta.topBorder,
         isOver && !draggingColumn && "ring-2 ring-cocoa-400 ring-offset-1",
         isTargetForColumnSwap && "ring-2 ring-indigo-500 ring-offset-1",
@@ -930,32 +1020,34 @@ function CategoryColumn({
       )}
     >
       <div
-        ref={columnDrag.setNodeRef}
-        {...columnDrag.attributes}
-        {...columnDrag.listeners}
+        ref={isMobile ? undefined : columnDrag.setNodeRef}
+        {...(isMobile ? {} : columnDrag.attributes)}
+        {...(isMobile ? {} : columnDrag.listeners)}
         className={cn(
-          "flex items-center gap-2 px-2.5 py-2 bg-gradient-to-b to-transparent select-none cursor-grab active:cursor-grabbing touch-none",
+          "flex items-center gap-2 px-3 py-2.5 bg-gradient-to-b to-transparent select-none",
           meta.columnTint,
+          // Drag handle só no PC. No mobile fica como header estático.
+          !isMobile && "cursor-grab active:cursor-grabbing touch-none",
         )}
-        title="Arrastar para reordenar"
+        title={isMobile ? undefined : "Arrastar para reordenar"}
       >
         <div
           className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-md shrink-0",
+            "flex h-7 w-7 items-center justify-center rounded-md shrink-0",
             meta.iconBg,
           )}
         >
-          <Icon className={cn("h-3.5 w-3.5", meta.iconColor)} />
+          <Icon className={cn("h-4 w-4", meta.iconColor)} />
         </div>
-        <span className="text-[12px] font-semibold text-cocoa-900 truncate">
+        <span className="text-[13px] font-semibold text-cocoa-900 truncate">
           {TASK_CATEGORY_LABELS[category]}
         </span>
-        <span className="ml-auto text-[10px] text-cocoa-500 font-medium tabular-nums shrink-0">
+        <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-white/70 text-[11px] text-cocoa-700 font-semibold tabular-nums shrink-0">
           {tasks.length}
         </span>
       </div>
 
-      <div className="flex-1 p-1.5 space-y-1.5 min-h-[80px] max-h-[480px] overflow-y-auto">
+      <div className="flex-1 p-2 space-y-2 min-h-[80px] max-h-[480px] overflow-y-auto">
         {tasks.length === 0 ? (
           <p className="text-[10px] text-cocoa-400 italic text-center py-4 select-none">
             {isOver && !draggingColumn ? "Largar aqui" : "—"}
@@ -980,9 +1072,11 @@ function CategoryColumn({
                 onDelete={() => onDelete(task)}
                 onToggleAssignee={(email) => onToggleAssignee(task, email)}
                 onChangePriority={(p) => onChangePriority(task, p)}
+                onChangeStatus={(s) => onChangeStatus(task, s)}
                 onEdit={() => setEditingId(task.id)}
                 orderCodeById={orderCodeById}
                 voucherCodeById={voucherCodeById}
+                isMobile={isMobile}
               />
             ),
           )
@@ -1029,9 +1123,11 @@ function DraggableTaskTile({
   onDelete,
   onToggleAssignee,
   onChangePriority,
+  onChangeStatus,
   onEdit,
   orderCodeById,
   voucherCodeById,
+  isMobile,
 }: {
   task: Task;
   hidden: boolean;
@@ -1040,9 +1136,11 @@ function DraggableTaskTile({
   onDelete: () => void;
   onToggleAssignee: (email: string) => void;
   onChangePriority: (p: TaskPriority) => void;
+  onChangeStatus: (s: TaskStatus) => void;
   onEdit: () => void;
   orderCodeById: Record<string, string>;
   voucherCodeById: Record<string, string>;
+  isMobile: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
@@ -1054,13 +1152,18 @@ function DraggableTaskTile({
       ? differenceInDays(parseISO(task.due_date), new Date()) < 0
       : false;
 
+  const showCreatedAgo = !task.due_date && !task.done;
+
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
+      ref={isMobile ? undefined : setNodeRef}
+      {...(isMobile ? {} : attributes)}
+      {...(isMobile ? {} : listeners)}
       className={cn(
-        "group relative rounded-md border border-cream-200 border-l-[3px] bg-surface px-2 py-1.5 space-y-1 hover:border-cocoa-300 hover:shadow-sm transition-all touch-none cursor-grab active:cursor-grabbing",
+        "group relative rounded-lg border border-cream-200 border-l-[3px] bg-surface px-2.5 py-2 space-y-1.5 hover:border-cocoa-300 hover:shadow-sm transition-all",
+        // Drag handle só no PC. No mobile o card é tocável normalmente
+        // (scroll funciona, click no checkbox/avatares/pills funciona).
+        !isMobile && "touch-none cursor-grab active:cursor-grabbing",
         leftAccent,
         (hidden || isDragging) && "opacity-30",
       )}
@@ -1134,6 +1237,11 @@ function DraggableTaskTile({
         </div>
       </div>
 
+      {/* Estado de trabalho — escondido em tarefas concluídas (o ✅ já manda). */}
+      {!task.done && (
+        <StatusPill status={task.status} onChange={onChangeStatus} />
+      )}
+
       <div className="flex items-center gap-1 flex-wrap">
         <div className="flex items-center gap-1">
           {TEAM_MEMBERS.map((m) => {
@@ -1174,7 +1282,7 @@ function DraggableTaskTile({
               {formatEUR(task.amount)}
             </span>
           )}
-          {task.due_date && (
+          {task.due_date ? (
             <Badge
               variant="outline"
               className={cn(
@@ -1187,7 +1295,15 @@ function DraggableTaskTile({
               <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
               {formatDate(task.due_date)}
             </Badge>
-          )}
+          ) : showCreatedAgo ? (
+            // Sem prazo? mostra quando foi criada — discreto, cinzento.
+            <span
+              className="text-[10px] text-cocoa-400 italic"
+              title={`Criada: ${formatDate(task.created_at)}`}
+            >
+              {formatDoneAgo(task.created_at)}
+            </span>
+          ) : null}
 
           {/* Edit/trash icons — bottom-right, só no hover */}
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -1268,6 +1384,71 @@ function PriorityPill({
               )}
             />
             <span className="text-cocoa-900">{TASK_PRIORITY_LABELS[p]}</span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ============================================================
+// StatusPill — chip GTD: "Por começar / Hoje / Em curso"
+// ============================================================
+
+function StatusPill({
+  status,
+  onChange,
+}: {
+  status: TaskStatus;
+  onChange: (s: TaskStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        onPointerDown={(e) => e.stopPropagation()}
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full border px-2 h-5 text-[10px] font-medium leading-none cursor-pointer hover:brightness-95 transition-all",
+          TASK_STATUS_COLORS[status],
+        )}
+        aria-label={`Estado: ${TASK_STATUS_LABELS[status]}`}
+        title={`Estado: ${TASK_STATUS_LABELS[status]} (click para mudar)`}
+      >
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full ring-1 ring-inset ring-black/10 shrink-0",
+            TASK_STATUS_DOT_COLOR[status],
+          )}
+        />
+        <span className="truncate">{TASK_STATUS_SHORT[status]}</span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        className="w-auto min-w-0 p-1 gap-0.5"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {(Object.keys(TASK_STATUS_LABELS) as TaskStatus[]).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => {
+              onChange(s);
+              setOpen(false);
+            }}
+            className={cn(
+              "flex items-center gap-2 w-full text-left px-2 py-1 rounded text-[12px] hover:bg-cream-100 transition-colors",
+              status === s && "bg-cream-50 font-semibold",
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full ring-1 ring-inset ring-black/10",
+                TASK_STATUS_DOT_COLOR[s],
+              )}
+            />
+            <span className="text-cocoa-900">{TASK_STATUS_LABELS[s]}</span>
           </button>
         ))}
       </PopoverContent>
