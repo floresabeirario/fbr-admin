@@ -52,6 +52,7 @@ import {
   type TaskTemplate,
 } from "@/types/tasks";
 import { formatEUR } from "@/lib/format";
+import { linkify } from "@/lib/linkify";
 import {
   interpolateTaskTemplate,
   type AmountOption,
@@ -485,7 +486,7 @@ function TaskRow({
           </p>
           {task.description && (
             <p className="text-[11px] text-cocoa-600 leading-snug whitespace-pre-wrap mt-0.5 break-words">
-              {task.description}
+              {linkify(task.description)}
             </p>
           )}
           <div className="mt-1 flex items-center gap-1.5 flex-wrap">

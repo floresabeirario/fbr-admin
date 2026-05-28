@@ -33,6 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatEUR } from "@/lib/format";
+import { linkify } from "@/lib/linkify";
 import {
   DndContext,
   DragOverlay,
@@ -1152,8 +1153,6 @@ function DraggableTaskTile({
       ? differenceInDays(parseISO(task.due_date), new Date()) < 0
       : false;
 
-  const showCreatedAgo = !task.due_date && !task.done;
-
   return (
     <div
       ref={isMobile ? undefined : setNodeRef}
@@ -1195,7 +1194,9 @@ function DraggableTaskTile({
         );
       })()}
 
-      {/* Title row — pr-14 reserva espaço para o pill (até "BAIXA" cabe) */}
+      {/* Title row — pr-14 reserva espaço para o pill (até "BAIXA" cabe).
+          Só o título é constrangido; a descrição vive fora deste bloco
+          para usar a largura toda do card. */}
       <div className="flex items-start gap-1.5 pr-14">
         <button
           type="button"
@@ -1229,13 +1230,16 @@ function DraggableTaskTile({
           >
             {task.title}
           </div>
-          {task.description && (
-            <div className="text-[11px] text-cocoa-600 leading-snug whitespace-pre-wrap mt-0.5">
-              {task.description}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Descrição — fora do pr-14 para respirar à largura toda do card.
+          pl-5 alinha o texto com o título (debaixo do título, não da checkbox). */}
+      {task.description && (
+        <div className="text-[11px] text-cocoa-600 leading-snug whitespace-pre-wrap break-words pl-5">
+          {linkify(task.description)}
+        </div>
+      )}
 
       {/* Estado de trabalho — escondido em tarefas concluídas (o ✅ já manda). */}
       {!task.done && (
@@ -1282,7 +1286,7 @@ function DraggableTaskTile({
               {formatEUR(task.amount)}
             </span>
           )}
-          {task.due_date ? (
+          {task.due_date && (
             <Badge
               variant="outline"
               className={cn(
@@ -1295,15 +1299,14 @@ function DraggableTaskTile({
               <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
               {formatDate(task.due_date)}
             </Badge>
-          ) : showCreatedAgo ? (
-            // Sem prazo? mostra quando foi criada — discreto, cinzento.
-            <span
-              className="text-[10px] text-cocoa-400 italic"
-              title={`Criada: ${formatDate(task.created_at)}`}
-            >
-              {formatDoneAgo(task.created_at)}
-            </span>
-          ) : null}
+          )}
+          {/* "Há X dias" — sempre visível, mostra a idade da tarefa. */}
+          <span
+            className="text-[10px] text-cocoa-400 italic"
+            title={`Criada: ${formatDate(task.created_at)}`}
+          >
+            {formatDoneAgo(task.created_at)}
+          </span>
 
           {/* Edit/trash icons — bottom-right, só no hover */}
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">

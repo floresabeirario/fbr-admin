@@ -5,9 +5,12 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 36) — Sessão 92: **Kanban dos Afazeres globais redesenhado + estado GTD + mobile snap-scroll** (2026-05-28). Maria pediu inspiração no kanban do Bitrix24. **Novidades**: (1) Coluna `tasks.status` com 3 estados (`por_comecar` / `a_fazer_hoje` / `em_curso`) — não substitui `done` (checkbox continua a marcar feita). Sort: em_curso primeiro. (2) `StatusPill` no card (chip com dot+abreviatura, popover para mudar). (3) **"Há X dias"** no fundo do card quando não há prazo (substitui o slot do prazo) — formato reutiliza `formatDoneAgo`. (4) **Mobile**: layout passa de `grid grid-cols-2` espremidas para `flex overflow-x-auto snap-x snap-mandatory` com cada coluna a ocupar ~85vw (max 320px) — Bitrix-style. (5) **Drag-and-drop desactivado no mobile** (era a queixa principal: scroll arrastava cards/colunas por engano) via `useIsMobile` hook (matchMedia `(max-width: 639px)` com `useSyncExternalStore`); na prática não se anexa `setNodeRef/attributes/listeners` aos elementos draggable e remove-se `touch-none cursor-grab`. (6) Header da coluna: ícone maior (h-7), badge de contagem em pill branco redondo, padding +1 step. Card: padding +1 step (px-2.5 py-2), border-radius lg. PC layout inalterado nas dimensões da grelha. Mig 059 adiciona a coluna `status` com default `por_comecar` + index parcial. Preflight `tsc + next build` limpos.
+## Fase actual: FASE 6 (parte 37) — Sessão 93: **3 anexos de fatura por encomenda + tarefa automática "Enviar fatura"** (2026-05-28). Maria pediu: cada pagamento gera uma fatura separada (sinal 30%, intermédio 40%, final 30% — ou variações 70/30, 100% à cabeça); quando se anexa o link da fatura na Drive, criar automaticamente tarefa a pedir para enviar à cliente. **Novidades**: (1) Mig 060 renomeia `orders.invoice_attachment_url` → `invoice_url_sinal` e adiciona `invoice_url_intermedio` + `invoice_url_final`; actualiza `anonymize_order` (mig 024) e policy `orders_public_insert` (mig 016). (2) Workbench [preservação](src/app/(admin)/preservacao/[id]/workbench-client.tsx): a antiga `Field` "Anexo da fatura" passa a um bloco com até 3 inputs etiquetados (Sinal / Intermédio / Final), visíveis consoante `payment_status` — sinal aparece com qualquer pagamento, intermédio só com 70%+, final só com 100%. Alerta "Falta anexar fatura" passa a só disparar se NENHUM dos 3 estiver preenchido. (3) [updateOrderAction](src/app/(admin)/preservacao/actions.ts) detecta transição NULL → URL em cada slot e insere uma tarefa por slot: título `Enviar fatura — {client_name} ({sinal|intermédio|final})`, categoria `administrativo`, prioridade `alta`, `status='por_comecar'`, `order_id` ligado, `assignee_emails=[email do utilizador autenticado]`, sem prazo. Substituir um link (URL → outro URL) NÃO conta (assume-se correcção). (4) Mesmo padrão aplicado em [updateVoucherAction](src/app/(admin)/vale-presente/actions.ts) (1 fatura só, `voucher_id` ligado). (5) Export CSV passa de 1 coluna "Anexo fatura" para 3 colunas no export de encomendas; vouchers mantêm 1. Preflight `tsc + next build` limpos.
 
-## Fase anterior: FASE 6 (parte 35) — Sessão 91 (2 partes): **COGS tudo-ou-nada + snapshot capturado a 100% pago** (decisão Maria 2026-05-22). **Parte 1**: regra COGS proporcional → tudo-ou-nada em [lib/finance.ts](src/lib/finance.ts) (`cogsRecognizedFromOrder` devolve `cogs_full` se `payment_status='100_pago'`, senão 0). **Parte 2**: snapshot de custos deixa de ser capturado em `createOrderAction` (preços ficavam desactualizados em reservas para 2027); passa a ser capturado em `updateOrderAction` na transição para 100% pago, com a tabela rosa vigente nesse momento. Migração 058 limpa snapshots de encomendas em curso (30%/70%/por pagar) — serão recapturados naturalmente quando atingirem 100%. Botão "Preencher snapshots" no Catálogo agora filtra por 100% pagas (idempotente). Receita e comissões continuam proporcionais ao %pago. Textos explicativos da Faturação actualizados.
+## Fase anterior: FASE 6 (parte 36) — Sessão 92: **Kanban dos Afazeres globais redesenhado + estado GTD + mobile snap-scroll** (2026-05-28). Maria pediu inspiração no kanban do Bitrix24. **Novidades**: (1) Coluna `tasks.status` com 3 estados (`por_comecar` / `a_fazer_hoje` / `em_curso`) — não substitui `done` (checkbox continua a marcar feita). Sort: em_curso primeiro. (2) `StatusPill` no card (chip com dot+abreviatura, popover para mudar). (3) **"Há X dias"** no fundo do card quando não há prazo (substitui o slot do prazo) — formato reutiliza `formatDoneAgo`. (4) **Mobile**: layout passa de `grid grid-cols-2` espremidas para `flex overflow-x-auto snap-x snap-mandatory` com cada coluna a ocupar ~85vw (max 320px) — Bitrix-style. (5) **Drag-and-drop desactivado no mobile** (era a queixa principal: scroll arrastava cards/colunas por engano) via `useIsMobile` hook (matchMedia `(max-width: 639px)` com `useSyncExternalStore`); na prática não se anexa `setNodeRef/attributes/listeners` aos elementos draggable e remove-se `touch-none cursor-grab`. (6) Header da coluna: ícone maior (h-7), badge de contagem em pill branco redondo, padding +1 step. Card: padding +1 step (px-2.5 py-2), border-radius lg. PC layout inalterado nas dimensões da grelha. Mig 059 adiciona a coluna `status` com default `por_comecar` + index parcial. Preflight `tsc + next build` limpos.
+
+<!-- Sessão 91 (FASE 6 parte 35) comprimida no Histórico condensado em baixo. -->
+
 
 ### Fases do projecto
 - [x] **Fase 1** — Fundação: Supabase ligado, autenticação, layout/navegação ✅
@@ -45,6 +48,60 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 93 🧾 3 anexos de fatura por encomenda + tarefa automática "Enviar fatura"
+
+Maria explicou que cada pagamento do cliente gera uma fatura separada (sinal 30%, intermédio 40%, final 30% — ou variações 70/30, 100% à cabeça). Até agora `orders.invoice_attachment_url` guardava apenas 1 link na BD, perdendo o histórico das outras 2 facturas. Pediu também que **assim que o link da fatura é colado** (NULL → URL), seja criada automaticamente uma tarefa a pedir para enviar a fatura à cliente.
+
+**Decisões fixadas em conversa:**
+- **3 campos fixos** em `orders` (renomeio do existente + 2 novos) — Maria rejeitou tabela `order_invoices` separada. Facturas ficam na Drive como antes; BD guarda apenas URL.
+- **Tarefa automática** com título `Enviar fatura — {client_name} ({sinal|intermédio|final})`, categoria `administrativo`, prioridade `alta`, **sem prazo**.
+- **Aplicar padrão também ao Vale-Presente** (memória [[feedback-aplicar-padroes-em-areas-analogas]]): vales têm 1 só fatura mas a mesma lógica de NULL → URL → criar tarefa.
+
+**Migração 060 — [supabase/migrations/060_split_invoice_urls.sql](supabase/migrations/060_split_invoice_urls.sql):**
+- `ALTER TABLE orders RENAME COLUMN invoice_attachment_url TO invoice_url_sinal`. Mantém os dados existentes (sinal era o caso mais comum).
+- `ADD COLUMN invoice_url_intermedio TEXT` + `invoice_url_final TEXT`.
+- `CREATE OR REPLACE FUNCTION anonymize_order` actualizada (mig 024) para limpar os 3 campos novos em vez de só `invoice_attachment_url`.
+- Policy `orders_public_insert` (mig 016) reescrita para validar que os 3 campos são NULL na submissão do form público (admin é que anexa depois). Vouchers ficam com nome `invoice_attachment_url`.
+
+**Tipos — [src/types/database.ts](src/types/database.ts):**
+- `Order.invoice_attachment_url` → substituído por `invoice_url_sinal`, `invoice_url_intermedio`, `invoice_url_final` (todos `string | null`).
+- Comentário inline explica o mapping por pagamento.
+
+**Workbench Preservação — [workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):**
+- `invoiceSlotsVisible` calcula slots a mostrar consoante `payment_status`: sinal aparece com qualquer pagamento (`30_pago`+); intermédio só com `70_pago` ou `100_pago`; final só com `100_pago`.
+- `missingInvoice` passa a só disparar se NENHUM dos 3 slots estiver preenchido (em vez de só o antigo `invoice_attachment_url`).
+- Bloco da fatura redesenhado: `Label` "Anexos das faturas (Drive)" + lista de `<div>` filtrados pelo slot.show, cada um com etiqueta lateral (`Sinal` / `Intermédio` / `Final` numa coluna de 80px) + `Input` URL + ícone Paperclip se preenchido.
+
+**Server action — [src/app/(admin)/preservacao/actions.ts](src/app/(admin)/preservacao/actions.ts):**
+- `needsPrev` ganha 3 novos triggers (qualquer dos `invoice_url_*` em updates).
+- Select de `prev` inclui agora os 3 campos.
+- `newInvoiceSlots: Array<'sinal'|'intermedio'|'final'>` acumula transições NULL → URL detectadas no `if (prev)`. **Substituir URL não conta** (assume-se correcção de erro de cópia, não fatura nova).
+- Após UPDATE bem-sucedido, faz `supabase.auth.getUser()` para saber quem é o autor e insere em massa `tasks` (1 por slot) com `assignee_emails=[user.email]`, `order_id=updatedOrder.id`, `status='por_comecar'`, sem `due_date`. Silencioso em erro (não bloqueia UPDATE).
+
+**Server action — [src/app/(admin)/vale-presente/actions.ts](src/app/(admin)/vale-presente/actions.ts):**
+- Refactor do `updateVoucherAction`: select de `prev` agora condicional a `needsPrev` (igual padrão da preservação), inclui `invoice_attachment_url`.
+- `newInvoiceLink` boolean detecta NULL → URL. Após UPDATE, insere 1 tarefa `Enviar fatura — {sender_name}` com `voucher_id`. Mesmo padrão de fallback silencioso.
+
+**Export CSV — [src/lib/export-csv.ts](src/lib/export-csv.ts):**
+- Coluna "Anexo fatura" do `COLUMNS` (encomendas) substituída por 3 colunas: `Anexo fatura (sinal)`, `Anexo fatura (intermédio)`, `Anexo fatura (final)`. Vouchers ficam com 1 coluna.
+
+**Preflight `tsc + next build` limpos** em ~120s.
+
+**Maria: passos manuais:**
+1. **Correr [mig 060](supabase/migrations/060_split_invoice_urls.sql)** no Supabase SQL Editor. Verificar:
+   ```sql
+   SELECT column_name FROM information_schema.columns
+     WHERE table_name='orders' AND column_name LIKE 'invoice_url_%';
+   -- → 3 linhas: invoice_url_sinal, invoice_url_intermedio, invoice_url_final
+   ```
+2. **Push para Vercel**.
+3. **Smoke browser** → abrir uma encomenda 100% paga existente em `/preservacao/[id]`:
+   - O URL que estava em `invoice_attachment_url` antes deve aparecer agora no slot "Sinal" (migrado automaticamente pelo RENAME).
+   - Os slots "Intermédio" e "Final" aparecem vazios (correcto).
+   - Colar um URL Drive no slot "Final" → após save (~900ms debounce + flush) recarregar `/` → aparece tarefa nova `Enviar fatura — {nome} (final)` em "Por começar" → administrativo.
+4. **Smoke vale**: abrir um vale, colar URL no "Anexo da fatura" → tarefa nova `Enviar fatura — {sender_name}` no Dashboard.
+5. **Verificar que substituir URL não cria tarefa**: trocar o link existente do "Sinal" por outro → não deve haver tarefa nova (só URL→URL, não NULL→URL).
 
 ### Sessão 92 🎯 Kanban dos Afazeres globais redesenhado + estado GTD + mobile snap-scroll
 
@@ -396,17 +453,22 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
 
 ## Próximo passo CONCRETO
 
-**Sessão 92 — passos manuais (mig 059 + UI):**
+**Sessão 93 — passos manuais (mig 060 + UI):**
 
-1. **Correr [mig 059](supabase/migrations/059_tasks_status.sql)** no Supabase SQL Editor. Verifica com:
+1. **Correr [mig 060](supabase/migrations/060_split_invoice_urls.sql)** no Supabase SQL Editor. Verifica com:
    ```sql
-   SELECT column_name, column_default FROM information_schema.columns
-     WHERE table_name='tasks' AND column_name='status';
+   SELECT column_name FROM information_schema.columns
+     WHERE table_name='orders' AND column_name LIKE 'invoice_url_%';
    ```
-   → 1 linha, default `'por_comecar'`.
+   → 3 linhas: `invoice_url_sinal`, `invoice_url_intermedio`, `invoice_url_final`.
 2. **Push para Vercel**.
-3. **Smoke browser (PC)**: `/` → cada card tem chip cinzento "Por começar"; click no chip muda estado; "há X dias" aparece em cards sem prazo.
-4. **Smoke browser (mobile / DevTools < 640px)**: scroll horizontal entre colunas com snap; tentar arrastar cards e colunas → nada acontece (drag desactivado); checkbox/pills continuam tocáveis.
+3. **Smoke browser**:
+   - `/preservacao/[id]` de encomenda 100% paga: ver 3 slots "Sinal / Intermédio / Final"; o link antigo aparece em "Sinal".
+   - Colar URL num slot vazio → após save (debounce ~900ms) recarregar `/` → tarefa nova `Enviar fatura — {nome} ({slot})` aparece em "Por começar" administrativo.
+   - Vale-presente: colar URL no "Anexo da fatura" → tarefa `Enviar fatura — {sender_name}` no Dashboard.
+   - Substituir URL existente → NÃO cria tarefa (correcção de erro).
+
+**Sessão 92 — passos manuais (mig 059 + UI):** já aplicado (ver detalhe acima).
 
 **Sessão 91 — passos manuais (sem migração):**
 

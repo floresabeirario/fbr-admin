@@ -145,7 +145,13 @@ export interface Order {
   payment_status: PaymentStatus;
   nif: string | null;
   needs_invoice: boolean;
-  invoice_attachment_url: string | null;
+  // Faturas separadas por pagamento (mig 060). Cada uma é um URL Drive.
+  // Sinal = 1º pagamento (substitui o antigo invoice_attachment_url).
+  // Intermédio = 2º pagamento (só usado em esquemas 30/40/30).
+  // Final = pagamento final (30% ou 100% à cabeça).
+  invoice_url_sinal: string | null;
+  invoice_url_intermedio: string | null;
+  invoice_url_final: string | null;
   partner_id: string | null;
   partner_commission: number | null;
   partner_commission_status: PartnerCommissionStatus;

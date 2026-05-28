@@ -578,7 +578,24 @@ export default function WorkbenchClient({
   }
 
   const hasAnyPayment = ["100_pago", "70_pago", "30_pago"].includes(local.payment_status);
-  const missingInvoice = hasAnyPayment && local.needs_invoice && !local.invoice_attachment_url;
+  // Slots de fatura visíveis consoante o pagamento. Como o esquema de
+  // pagamento real (30/40/30 vs 70/30 vs 100%) não está fixado no
+  // payment_status, mostramos todos os slots possíveis no nível actual:
+  //   30%  → sinal
+  //   70%  → sinal + intermédio (mantém-se o intermédio mesmo no caso 70/30,
+  //          a Maria simplesmente não preenche)
+  //   100% → sinal + intermédio + final
+  const invoiceSlotsVisible = {
+    sinal: hasAnyPayment,
+    intermedio: ["100_pago", "70_pago"].includes(local.payment_status),
+    final: local.payment_status === "100_pago",
+  };
+  const missingInvoice =
+    hasAnyPayment &&
+    local.needs_invoice &&
+    !local.invoice_url_sinal &&
+    !local.invoice_url_intermedio &&
+    !local.invoice_url_final;
 
   // Esconder custo e "pago" quando entrega/recolha é em mãos (sem custo) ou
   // "não sei" (ainda indefinido). Só faz sentido pedir o custo quando o método
@@ -1832,27 +1849,42 @@ export default function WorkbenchClient({
                       )}
                     </div>
                   </div>
-                  {local.needs_invoice && (
-                    <Field label="Anexo da fatura">
-                      <div className="flex gap-1.5">
-                        <Input
-                          className={inp + " flex-1 min-w-0"}
-                          value={local.invoice_attachment_url ?? ""}
-                          onChange={(e) => update("invoice_attachment_url", e.target.value || null)}
-                          placeholder="URL do PDF (Drive)"
-                        />
-                        {local.invoice_attachment_url && (
-                          <a
-                            href={local.invoice_attachment_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
-                          >
-                            <Paperclip className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
-                    </Field>
+                  {local.needs_invoice && hasAnyPayment && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-cocoa-700">Anexos das faturas (Drive)</Label>
+                      {(
+                        [
+                          { key: "invoice_url_sinal",      label: "Sinal",      show: invoiceSlotsVisible.sinal },
+                          { key: "invoice_url_intermedio", label: "Intermédio", show: invoiceSlotsVisible.intermedio },
+                          { key: "invoice_url_final",      label: "Final",      show: invoiceSlotsVisible.final },
+                        ] as const
+                      )
+                        .filter((slot) => slot.show)
+                        .map((slot) => {
+                          const value = local[slot.key];
+                          return (
+                            <div key={slot.key} className="flex gap-1.5 items-center">
+                              <span className="text-[11px] font-medium text-cocoa-600 w-20 shrink-0">{slot.label}</span>
+                              <Input
+                                className={inp + " flex-1 min-w-0"}
+                                value={value ?? ""}
+                                onChange={(e) => update(slot.key, e.target.value || null)}
+                                placeholder="URL do PDF (Drive)"
+                              />
+                              {value && (
+                                <a
+                                  href={value}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cream-200 bg-cream-50 text-cocoa-700 hover:bg-btn-primary hover:text-btn-primary-fg hover:border-btn-primary transition-colors"
+                                >
+                                  <Paperclip className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
                   )}
                 </div>
               </Card>

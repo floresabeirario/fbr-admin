@@ -307,18 +307,24 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.email !== undefined ||
     updates.phone !== undefined ||
     updates.contact_preference !== undefined ||
-    updates.gift_voucher_code !== undefined;
+    updates.gift_voucher_code !== undefined ||
+    updates.invoice_url_sinal !== undefined ||
+    updates.invoice_url_intermedio !== undefined ||
+    updates.invoice_url_final !== undefined;
 
   let triggerDriveCreation = false;
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
   let voucherToMark: string | null = null;
   let captureProductionSnapshot = false;
+  // Quais slots de fatura passaram de NULL → URL nesta operação.
+  // Cada um cria uma tarefa "Enviar fatura — {nome} (slot)" após o UPDATE.
+  const newInvoiceSlots: Array<"sinal" | "intermedio" | "final"> = [];
 
   if (needsPrev) {
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code",
+        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final",
       )
       .eq("id", id)
       .single();
@@ -353,6 +359,26 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         prev.payment_status !== "100_pago"
       ) {
         captureProductionSnapshot = true;
+      }
+
+      // Faturas: detectar NULL → URL em qualquer dos 3 slots. Cada
+      // transição gera 1 tarefa "Enviar fatura — {nome} ({slot})" após
+      // o UPDATE. Substituir um link (URL → outro URL) NÃO conta —
+      // assume-se correcção de erro, não fatura nova.
+      for (const slot of ["sinal", "intermedio", "final"] as const) {
+        const field = `invoice_url_${slot}` as
+          | "invoice_url_sinal"
+          | "invoice_url_intermedio"
+          | "invoice_url_final";
+        const next = updates[field];
+        if (
+          next !== undefined &&
+          next !== null &&
+          next.trim() !== "" &&
+          !prev[field]
+        ) {
+          newInvoiceSlots.push(slot);
+        }
       }
 
       // Calendar: decide ordem de prioridade
@@ -482,6 +508,37 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   if (voucherToMark) {
     await markVoucherAsScheduled(supabase, voucherToMark);
     revalidatePath("/vale-presente");
+  }
+
+  // Criar tarefas "Enviar fatura — {nome} ({slot})" para cada link de
+  // fatura que acabou de ser preenchido (mig 060). Sem prazo, prioridade
+  // alta, categoria administrativo, ligadas à encomenda. Silencioso em
+  // falha — não pode bloquear o UPDATE.
+  if (newInvoiceSlots.length > 0) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const slotLabel: Record<"sinal" | "intermedio" | "final", string> = {
+      sinal: "sinal",
+      intermedio: "intermédio",
+      final: "final",
+    };
+    const tasks = newInvoiceSlots.map((slot) => ({
+      title: `Enviar fatura — ${updatedOrder.client_name} (${slotLabel[slot]})`,
+      category: "administrativo" as const,
+      priority: "alta" as const,
+      status: "por_comecar" as const,
+      assignee_emails: user?.email ? [user.email] : [],
+      order_id: updatedOrder.id,
+      created_by: user?.id ?? null,
+    }));
+    const { error: taskErr } = await supabase.from("tasks").insert(tasks);
+    if (taskErr) {
+      console.error(
+        `[updateOrderAction] Falhou criar tarefa(s) de envio de fatura para encomenda ${id}:`,
+        taskErr.message,
+      );
+    } else {
+      revalidatePath("/");
+    }
   }
 
   revalidatePath("/preservacao");

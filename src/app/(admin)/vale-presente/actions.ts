@@ -30,19 +30,35 @@ export async function updateVoucherAction(
   const supabase = await createClient();
 
   // 1º pagamento → criar pasta na Drive
+  // Detectar também NULL → URL em invoice_attachment_url para criar a
+  // tarefa "Enviar fatura" automaticamente.
   let triggerDriveCreation = false;
-  if (updates.payment_status !== undefined) {
+  let newInvoiceLink = false;
+  const needsPrev =
+    updates.payment_status !== undefined ||
+    updates.invoice_attachment_url !== undefined;
+  if (needsPrev) {
     const { data: prev } = await supabase
       .from("vouchers")
-      .select("payment_status, drive_folder_id")
+      .select("payment_status, drive_folder_id, invoice_attachment_url")
       .eq("id", id)
       .single();
-    if (
-      prev &&
-      !prev.drive_folder_id &&
-      isFirstVoucherPayment(prev.payment_status as Voucher["payment_status"], updates.payment_status)
-    ) {
-      triggerDriveCreation = true;
+    if (prev) {
+      if (
+        !prev.drive_folder_id &&
+        updates.payment_status !== undefined &&
+        isFirstVoucherPayment(prev.payment_status as Voucher["payment_status"], updates.payment_status)
+      ) {
+        triggerDriveCreation = true;
+      }
+      if (
+        updates.invoice_attachment_url !== undefined &&
+        updates.invoice_attachment_url !== null &&
+        updates.invoice_attachment_url.trim() !== "" &&
+        !prev.invoice_attachment_url
+      ) {
+        newInvoiceLink = true;
+      }
     }
   }
 
@@ -54,14 +70,39 @@ export async function updateVoucherAction(
     .single();
   if (error) throw new Error(error.message);
 
+  const updatedVoucher = data as Voucher;
+
   if (triggerDriveCreation) {
-    const updatedVoucher = data as Voucher;
     await createVoucherDriveFolderIfNeeded({
       id: updatedVoucher.id,
       sender_name: updatedVoucher.sender_name,
       created_at: updatedVoucher.created_at,
       drive_folder_id: updatedVoucher.drive_folder_id,
     });
+  }
+
+  // Tarefa "Enviar fatura — {sender_name}" ligada ao vale (mig 060).
+  // Sem prazo, prioridade alta, categoria administrativo. Silencioso em
+  // falha — não pode bloquear o UPDATE.
+  if (newInvoiceLink) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error: taskErr } = await supabase.from("tasks").insert({
+      title: `Enviar fatura — ${updatedVoucher.sender_name}`,
+      category: "administrativo",
+      priority: "alta",
+      status: "por_comecar",
+      assignee_emails: user?.email ? [user.email] : [],
+      voucher_id: updatedVoucher.id,
+      created_by: user?.id ?? null,
+    });
+    if (taskErr) {
+      console.error(
+        `[updateVoucherAction] Falhou criar tarefa de envio de fatura para vale ${id}:`,
+        taskErr.message,
+      );
+    } else {
+      revalidatePath("/");
+    }
   }
 
   revalidatePath("/vale-presente");
