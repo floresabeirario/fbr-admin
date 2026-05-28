@@ -12,7 +12,7 @@
  * Bump CACHE_VERSION sempre que quiseres invalidar todos os caches.
  */
 
-const CACHE_VERSION = "fbr-admin-v3";
+const CACHE_VERSION = "fbr-admin-v4";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 self.addEventListener("install", (event) => {

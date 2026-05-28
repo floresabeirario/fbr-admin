@@ -22,8 +22,10 @@ const BG = "#3D2B1F"; // cocoa-900 — dá contraste com as flores cream em qual
 
 async function makeMaskable(size, outName) {
   const src = await sharp(path.join(dir, "android-chrome-512x512.png")).toBuffer();
-  // safe zone: ícone ocupa 60% do canvas (Android pode cortar até 20% nos bordos)
-  const inner = Math.round(size * 0.6);
+  // Safe zone do maskable spec = inner 80% (Android só garante visibilidade
+  // dentro de um círculo com diâmetro = 80% do canvas). 60% deixava as flores
+  // minúsculas e a Maria queixou-se que parecia "sem favicon".
+  const inner = Math.round(size * 0.8);
   const resized = await sharp(src).resize(inner, inner, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
   await sharp({
     create: {

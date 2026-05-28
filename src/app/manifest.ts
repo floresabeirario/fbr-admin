@@ -14,12 +14,11 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "pt-PT",
     dir: "ltr",
     categories: ["business", "productivity"],
-    // O mesmo PNG maskable aparece como purpose "any" e "maskable" — a spec
-    // permitiria "any maskable" combinado mas o tipo do Next só aceita um
-    // valor de cada vez. Resultado prático é igual: o launcher pega qualquer
-    // entry "any" ou "maskable" e ambos apontam para o mesmo ficheiro com
-    // fundo opaco + safe zone. Isto evita o fallback "F cinzento" que alguns
-    // launchers fazem quando só vêem entries "maskable" sem complemento "any".
+    // Padrão recomendado: "any" → android-chrome (full-bleed, fundo transparente,
+    // launcher do Android aplica fundo próprio); "maskable" → variante com safe
+    // zone 80% + fundo cocoa opaco (para launchers que aplicam máscara). Sem o
+    // par "any", alguns launchers caem no fallback "F cinzento"; só com a
+    // maskable como "any" o ícone fica minúsculo dentro do quadrado cocoa.
     // Ver scripts/generate-maskable-icons.mjs.
     icons: [
       {
@@ -28,8 +27,14 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/png",
       },
       {
-        src: "/favicon/maskable-192x192.png",
+        src: "/favicon/android-chrome-192x192.png",
         sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/favicon/android-chrome-512x512.png",
+        sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
@@ -38,12 +43,6 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "192x192",
         type: "image/png",
         purpose: "maskable",
-      },
-      {
-        src: "/favicon/maskable-512x512.png",
-        sizes: "512x512",
-        type: "image/png",
-        purpose: "any",
       },
       {
         src: "/favicon/maskable-512x512.png",

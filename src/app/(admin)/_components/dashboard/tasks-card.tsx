@@ -870,9 +870,11 @@ export function TasksCard({
               // Mobile: flex horizontal com snap por coluna (~85vw cada).
               // -mx-5 + px-5 = "edge bleed" para que o scroll vá até às
               // margens do card sem deixar paddings vazios visíveis.
-              // PC: grid clássico de 3→6 colunas, intocado.
+              // PC: grid clássico de 3→6 colunas. `items-start` impede
+              // que colunas vazias estiquem até à altura da maior coluna
+              // (queixa Maria: "podem encolher-se um pouco?").
               "flex gap-3 overflow-x-auto -mx-5 px-5 pb-3 snap-x snap-mandatory scroll-smooth",
-              "sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-5 sm:py-3 sm:snap-none",
+              "sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-5 sm:py-3 sm:snap-none sm:items-start",
             )}
           >
             {columnOrder.map((category) => (
@@ -995,6 +997,7 @@ function CategoryColumn({
   const meta = CATEGORY_META[category];
   const Icon = meta.icon;
   const { setNodeRef, isOver } = useDroppable({ id: category });
+  const isEmpty = tasks.length === 0;
 
   // Header é o handle para arrastar a coluna inteira — desactivado no mobile.
   const columnDrag = useDraggable({
@@ -1010,9 +1013,12 @@ function CategoryColumn({
       ref={setNodeRef}
       className={cn(
         "flex flex-col min-w-0 rounded-xl bg-surface border border-cream-200 border-t-[3px] overflow-hidden transition-all",
-        // Mobile: cada coluna ocupa ~85vw e fica em snap-start para encaixar.
-        "snap-start shrink-0 w-[85vw] max-w-[320px]",
-        // PC: deixa o grid distribuir.
+        // Mobile: cada coluna ocupa ~85vw normalmente; coluna vazia
+        // encolhe para ~42vw (cabem 2 por snap-screen).
+        "snap-start shrink-0",
+        isEmpty ? "w-[42vw] max-w-[160px]" : "w-[85vw] max-w-[320px]",
+        // PC: deixa o grid distribuir. `items-start` no parent já
+        // impede o stretch vertical.
         "sm:w-auto sm:max-w-none sm:shrink",
         meta.topBorder,
         isOver && !draggingColumn && "ring-2 ring-cocoa-400 ring-offset-1",
@@ -1048,9 +1054,16 @@ function CategoryColumn({
         </span>
       </div>
 
-      <div className="flex-1 p-2 space-y-2 min-h-[80px] max-h-[480px] overflow-y-auto">
+      <div
+        className={cn(
+          "flex-1 max-h-[480px] overflow-y-auto",
+          // Vazia: body bem compacto, só o "—" de placeholder. Com tarefas:
+          // padding maior para respirar.
+          isEmpty ? "px-1.5 py-1" : "p-2 space-y-2 min-h-[80px]",
+        )}
+      >
         {tasks.length === 0 ? (
-          <p className="text-[10px] text-cocoa-400 italic text-center py-4 select-none">
+          <p className="text-[10px] text-cocoa-400 italic text-center py-1 select-none">
             {isOver && !draggingColumn ? "Largar aqui" : "—"}
           </p>
         ) : (
