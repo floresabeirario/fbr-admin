@@ -29,7 +29,6 @@ import {
   Plus,
   Square,
   Trash2,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { formatEUR } from "@/lib/format";
@@ -53,7 +52,15 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -96,7 +103,7 @@ import {
 
 import { SectionCard } from "./section-card";
 import { RecentDoneRow } from "./recent-done-row";
-import { formatDate, formatDoneAgo } from "./format-helpers";
+import { formatDate, formatCreatedAgo } from "./format-helpers";
 import { TEAM_MEMBERS } from "./team-members";
 
 // Mobile = sm- (<640px). Usado para desactivar DnD e mudar layout para
@@ -557,8 +564,11 @@ export function TasksCard({
     next: {
       title: string;
       description: string;
+      category: TaskCategory;
+      status: TaskStatus;
       priority: TaskPriority;
       due_date: string | null;
+      assignee_emails: string[];
     },
   ) {
     const trimmed = next.title.trim();
@@ -566,6 +576,8 @@ export function TasksCard({
       toast.error("O título não pode ficar vazio.");
       return;
     }
+    // Manter seen_by alinhado com assignees (perde quem já não é assignee).
+    const seen_by = task.seen_by.filter((e) => next.assignee_emails.includes(e));
     setTasks((prev) =>
       prev.map((t) =>
         t.id === task.id
@@ -573,8 +585,12 @@ export function TasksCard({
               ...t,
               title: trimmed,
               description: next.description.trim() || null,
+              category: next.category,
+              status: next.status,
               priority: next.priority,
               due_date: next.due_date,
+              assignee_emails: next.assignee_emails,
+              seen_by,
             }
           : t,
       ),
@@ -585,8 +601,12 @@ export function TasksCard({
         await updateTaskAction(task.id, {
           title: trimmed,
           description: next.description.trim() || null,
+          category: next.category,
+          status: next.status,
           priority: next.priority,
           due_date: next.due_date,
+          assignee_emails: next.assignee_emails,
+          seen_by,
         });
       } catch (err) {
         toast.error("Erro ao guardar: " + (err as Error).message);
@@ -842,6 +862,16 @@ export function TasksCard({
         </form>
       )}
 
+      <TaskEditDialog
+        task={tasks.find((t) => t.id === editingId) ?? null}
+        onClose={() => setEditingId(null)}
+        onSave={(t, next) => handleEditSave(t, next)}
+        onDelete={(t) => {
+          setEditingId(null);
+          handleDelete(t);
+        }}
+      />
+
       {visibleTasks.length === 0 ? (
         <div className="px-5 py-3">
           <p className="text-sm text-cocoa-700 py-6 text-center">
@@ -882,14 +912,12 @@ export function TasksCard({
                 key={category}
                 category={category}
                 tasks={tasksByCategory[category]}
-                editingId={editingId}
                 setEditingId={setEditingId}
                 onToggle={handleToggle}
                 onDelete={handleDelete}
                 onToggleAssignee={toggleAssignee}
                 onChangePriority={handlePriorityChange}
                 onChangeStatus={handleStatusChange}
-                onEditSave={handleEditSave}
                 draggingTaskId={draggingTask?.id ?? null}
                 draggingColumn={draggingColumn}
                 orderCodeById={orderCodeById}
@@ -956,14 +984,12 @@ export function TasksCard({
 function CategoryColumn({
   category,
   tasks,
-  editingId,
   setEditingId,
   onToggle,
   onDelete,
   onToggleAssignee,
   onChangePriority,
   onChangeStatus,
-  onEditSave,
   draggingTaskId,
   draggingColumn,
   orderCodeById,
@@ -972,22 +998,12 @@ function CategoryColumn({
 }: {
   category: TaskCategory;
   tasks: Task[];
-  editingId: string | null;
   setEditingId: (id: string | null) => void;
   onToggle: (t: Task) => void;
   onDelete: (t: Task) => void;
   onToggleAssignee: (t: Task, email: string) => void;
   onChangePriority: (t: Task, p: TaskPriority) => void;
   onChangeStatus: (t: Task, s: TaskStatus) => void;
-  onEditSave: (
-    t: Task,
-    next: {
-      title: string;
-      description: string;
-      priority: TaskPriority;
-      due_date: string | null;
-    },
-  ) => void;
   draggingTaskId: string | null;
   draggingColumn: TaskCategory | null;
   orderCodeById: Record<string, string>;
@@ -1067,33 +1083,23 @@ function CategoryColumn({
             {isOver && !draggingColumn ? "Largar aqui" : "—"}
           </p>
         ) : (
-          tasks.map((task) =>
-            editingId === task.id ? (
-              <TaskEditForm
-                key={task.id}
-                task={task}
-                onCancel={() => setEditingId(null)}
-                onSave={(next) => onEditSave(task, next)}
-                leftAccent={meta.leftAccent}
-              />
-            ) : (
-              <DraggableTaskTile
-                key={task.id}
-                task={task}
-                hidden={draggingTaskId === task.id}
-                leftAccent={meta.leftAccent}
-                onToggle={() => onToggle(task)}
-                onDelete={() => onDelete(task)}
-                onToggleAssignee={(email) => onToggleAssignee(task, email)}
-                onChangePriority={(p) => onChangePriority(task, p)}
-                onChangeStatus={(s) => onChangeStatus(task, s)}
-                onEdit={() => setEditingId(task.id)}
-                orderCodeById={orderCodeById}
-                voucherCodeById={voucherCodeById}
-                isMobile={isMobile}
-              />
-            ),
-          )
+          tasks.map((task) => (
+            <DraggableTaskTile
+              key={task.id}
+              task={task}
+              hidden={draggingTaskId === task.id}
+              leftAccent={meta.leftAccent}
+              onToggle={() => onToggle(task)}
+              onDelete={() => onDelete(task)}
+              onToggleAssignee={(email) => onToggleAssignee(task, email)}
+              onChangePriority={(p) => onChangePriority(task, p)}
+              onChangeStatus={(s) => onChangeStatus(task, s)}
+              onEdit={() => setEditingId(task.id)}
+              orderCodeById={orderCodeById}
+              voucherCodeById={voucherCodeById}
+              isMobile={isMobile}
+            />
+          ))
         )}
       </div>
     </div>
@@ -1313,12 +1319,14 @@ function DraggableTaskTile({
               {formatDate(task.due_date)}
             </Badge>
           )}
-          {/* "Há X dias" — sempre visível, mostra a idade da tarefa. */}
+          {/* "Há X dias" — sempre visível, mostra a idade da tarefa.
+              formatCreatedAgo mantém-se relativo até em datas antigas
+              (formatDoneAgo cairia para dd/MM passados 7 dias). */}
           <span
             className="text-[10px] text-cocoa-400 italic"
             title={`Criada: ${formatDate(task.created_at)}`}
           >
-            {formatDoneAgo(task.created_at)}
+            {formatCreatedAgo(task.created_at)}
           </span>
 
           {/* Edit/trash icons — bottom-right, só no hover */}
@@ -1473,103 +1481,236 @@ function StatusPill({
 }
 
 // ============================================================
-// TaskEditForm — modo edição inline
+// TaskEditDialog — popup espaçoso para editar a tarefa
 // ============================================================
+// Substitui o antigo TaskEditForm inline (que ficava apertado na
+// largura da coluna). Render no topo de TasksCard, controlado por
+// editingId. Edita todos os campos: título, descrição, categoria,
+// estado, prioridade, prazo, atribuídos.
 
-function TaskEditForm({
+function TaskEditDialog({
   task,
-  onCancel,
+  onClose,
   onSave,
-  leftAccent,
+  onDelete,
 }: {
-  task: Task;
-  onCancel: () => void;
-  onSave: (next: {
-    title: string;
-    description: string;
-    priority: TaskPriority;
-    due_date: string | null;
-  }) => void;
-  leftAccent: string;
+  task: Task | null;
+  onClose: () => void;
+  onSave: (
+    t: Task,
+    next: {
+      title: string;
+      description: string;
+      category: TaskCategory;
+      status: TaskStatus;
+      priority: TaskPriority;
+      due_date: string | null;
+      assignee_emails: string[];
+    },
+  ) => void;
+  onDelete: (t: Task) => void;
 }) {
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [priority, setPriority] = useState<TaskPriority>(task.priority);
-  const [dueDate, setDueDate] = useState<string>(task.due_date ?? "");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<TaskCategory>("outros");
+  const [status, setStatus] = useState<TaskStatus>("por_comecar");
+  const [priority, setPriority] = useState<TaskPriority>("media");
+  const [dueDate, setDueDate] = useState<string>("");
+  const [assignees, setAssignees] = useState<string[]>([]);
+
+  // Cada vez que abrimos com uma tarefa nova, repõe o draft a partir dela.
+  // Padrão "store info from previous renders" (regra ESLint: nada de useEffect
+  // só para sincronizar estado derivado).
+  const [lastTaskId, setLastTaskId] = useState<string | null>(null);
+  if (task && task.id !== lastTaskId) {
+    setLastTaskId(task.id);
+    setTitle(task.title);
+    setDescription(task.description ?? "");
+    setCategory(task.category);
+    setStatus(task.status);
+    setPriority(task.priority);
+    setDueDate(task.due_date ?? "");
+    setAssignees(task.assignee_emails);
+  }
+  if (!task && lastTaskId !== null) {
+    setLastTaskId(null);
+  }
+
+  const open = task !== null;
+
+  function handleSave() {
+    if (!task) return;
+    onSave(task, {
+      title,
+      description,
+      category,
+      status,
+      priority,
+      due_date: dueDate || null,
+      assignee_emails: assignees,
+    });
+  }
 
   return (
-    <div
-      className={cn(
-        "rounded-md border border-cocoa-300 border-l-[3px] bg-cream-50 px-2 py-1.5 space-y-1.5",
-        leftAccent,
-      )}
-    >
-      <Input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Título"
-        className="h-7 text-[12px]"
-        autoFocus
-      />
-      <Textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Detalhes (opcional)"
-        className="min-h-12 text-[11px] py-1 leading-snug"
-      />
-      <div className="flex items-center gap-1 flex-wrap">
-        <Select
-          value={priority}
-          onValueChange={(v) => v && setPriority(v as TaskPriority)}
-        >
-          <SelectTrigger
-            className={cn(
-              "h-5 px-1.5 py-0 text-[10px] w-auto min-w-0 gap-1 border",
-              TASK_PRIORITY_COLORS[priority],
-            )}
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-cocoa-900">
+            <Pencil className="h-4 w-4 text-cocoa-600" />
+            Editar tarefa
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          <div>
+            <Label htmlFor="task-edit-title" className="text-xs text-cocoa-700">
+              Título
+            </Label>
+            <Input
+              id="task-edit-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Título da tarefa"
+              className="mt-1"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="task-edit-desc" className="text-xs text-cocoa-700">
+              Detalhes
+            </Label>
+            <Textarea
+              id="task-edit-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Notas, links, contexto…"
+              className="mt-1 min-h-32 leading-relaxed"
+            />
+          </div>
+
+          <div>
+            <span className="text-xs text-cocoa-700">Atribuir a:</span>
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              {TEAM_MEMBERS.map((m) => {
+                const active = assignees.includes(m.email);
+                return (
+                  <button
+                    key={m.email}
+                    type="button"
+                    onClick={() =>
+                      setAssignees((prev) =>
+                        prev.includes(m.email)
+                          ? prev.filter((e) => e !== m.email)
+                          : [...prev, m.email],
+                      )
+                    }
+                    title={`${active ? "Tirar" : "Atribuir a"} ${m.name}`}
+                    aria-pressed={active}
+                    className={cn(
+                      "relative h-8 w-8 rounded-full overflow-hidden transition-all",
+                      active
+                        ? "ring-2 ring-indigo-600 ring-offset-1 ring-offset-surface"
+                        : "opacity-40 hover:opacity-100",
+                    )}
+                  >
+                    <Image
+                      src={m.photo}
+                      alt={m.name}
+                      fill
+                      sizes="32px"
+                      className="object-cover"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div>
+              <Label className="text-xs text-cocoa-700">Categoria</Label>
+              <Select
+                value={category}
+                onValueChange={(v) => v && setCategory(v as TaskCategory)}
+              >
+                <SelectTrigger className="mt-1 h-9 text-sm">
+                  <SelectValue labels={TASK_CATEGORY_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TASK_CATEGORY_LABELS).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-cocoa-700">Estado</Label>
+              <Select
+                value={status}
+                onValueChange={(v) => v && setStatus(v as TaskStatus)}
+              >
+                <SelectTrigger className="mt-1 h-9 text-sm">
+                  <SelectValue labels={TASK_STATUS_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TASK_STATUS_LABELS).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-cocoa-700">Prioridade</Label>
+              <Select
+                value={priority}
+                onValueChange={(v) => v && setPriority(v as TaskPriority)}
+              >
+                <SelectTrigger className="mt-1 h-9 text-sm">
+                  <SelectValue labels={TASK_PRIORITY_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-cocoa-700">Prazo</Label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="mt-1 h-9 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => task && onDelete(task)}
+            className="mr-auto text-rose-600 hover:text-rose-700 hover:bg-rose-50"
           >
-            <SelectValue labels={TASK_PRIORITY_LABELS} />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
-              <SelectItem key={v} value={v}>
-                {l}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          className="h-5 text-[10px] px-1 w-auto"
-        />
-      </div>
-      <div className="flex justify-end gap-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-cocoa-500 hover:text-cocoa-700 p-1"
-          title="Cancelar"
-        >
-          <X className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            onSave({
-              title,
-              description,
-              priority,
-              due_date: dueDate || null,
-            })
-          }
-          className="text-emerald-600 hover:text-emerald-700 p-1"
-          title="Guardar"
-        >
-          <Check className="h-3 w-3" />
-        </button>
-      </div>
-    </div>
+            <Trash2 className="h-4 w-4 mr-1" /> Apagar
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={!title.trim()}>
+            <Check className="h-4 w-4 mr-1" /> Guardar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

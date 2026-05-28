@@ -49,5 +49,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|otf|ttf|woff|woff2)$).*)"],
+  // `manifest.webmanifest` e `sw.js` ficam fora do gate de auth: o Chrome
+  // do Android busca-os em contexto cross-origin (sem cookies da sessão)
+  // para avaliar a PWA. Se forem redireccionados para /login, o site
+  // perde a oferta "Instalar app" e a Maria só consegue "Adicionar atalho"
+  // (ícone "F" cinzento).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|otf|ttf|woff|woff2)$).*)"],
 };
