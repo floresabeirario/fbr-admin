@@ -10,6 +10,19 @@ export const dynamic = "force-dynamic";
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>;
 
+// Serializa erro do Supabase (que e plain object com code/message/details/hint)
+// para JSON lisivel em logs do Vercel.
+function serializeError(err: unknown): Record<string, unknown> {
+  if (err instanceof Error) {
+    return { message: err.message, name: err.name, stack: err.stack };
+  }
+  if (typeof err === "object" && err !== null) {
+    // Supabase devolve { code, message, details, hint } — copiar tudo.
+    return { ...(err as Record<string, unknown>) };
+  }
+  return { value: String(err) };
+}
+
 type WaMessage = {
   id: string;
   from?: string;
@@ -212,14 +225,23 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
         profile?: { name?: string };
       }>;
       const contactName = contacts[0]?.profile?.name ?? null;
+      // contacts[0].wa_id = a "outra parte" da conversa (cliente),
+      // independente da direccao. Mais fiavel que msg.from/msg.to,
+      // que em echoes nem sempre vem.
+      const clientPhoneFromContacts = contacts[0]?.wa_id ?? null;
 
       for (const msg of messages) {
         try {
-          await insertMessage(supabase, msg, direction, contactName);
+          await insertMessage(supabase, msg, direction, contactName, clientPhoneFromContacts);
         } catch (err) {
           console.error("[wa-webhook] erro a inserir mensagem", {
             wamid: msg?.id,
-            err: err instanceof Error ? err.message : String(err),
+            direction,
+            msgFrom: msg?.from,
+            msgTo: msg?.to,
+            msgType: msg?.type,
+            clientPhoneFromContacts,
+            errInfo: serializeError(err),
           });
         }
       }
@@ -232,13 +254,15 @@ async function insertMessage(
   msg: WaMessage,
   direction: "received" | "sent_echo",
   contactName: string | null,
+  clientPhoneFromContacts: string | null,
 ): Promise<void> {
   if (!msg?.id) return;
 
-  // O telefone da pessoa do outro lado (cliente):
-  //   recebida  → msg.from = cliente
-  //   eco envio → msg.to   = cliente
-  const clientPhoneRaw = direction === "received" ? msg.from : msg.to;
+  // Telefone da "outra parte" da conversa (cliente).
+  // Preferimos contacts[0].wa_id (sempre presente em ambas direccoes);
+  // caimos para msg.from/msg.to como fallback.
+  const clientPhoneRaw =
+    clientPhoneFromContacts ?? (direction === "received" ? msg.from : msg.to);
   if (!clientPhoneRaw) return;
 
   const phoneDigits = clientPhoneRaw.replace(/\D/g, "");
@@ -262,7 +286,7 @@ async function insertMessage(
     ? new Date(tsNum * 1000).toISOString()
     : new Date().toISOString();
 
-  const { error } = await supabase.from("whatsapp_messages").insert({
+  const insertPayload = {
     conversation_id: conversationId,
     wamid: msg.id,
     direction,
@@ -274,10 +298,17 @@ async function insertMessage(
     reply_to_wamid: msg.context?.id ?? null,
     received_at: receivedAt,
     meta_payload: msg as unknown as Record<string, unknown>,
-  });
+  };
+
+  const { error } = await supabase.from("whatsapp_messages").insert(insertPayload);
 
   if (error) {
     if (error.code === "23505") return; // duplicate — already processed
+    // Loggar o payload tentado para vermos exactamente o que falhou.
+    console.error("[wa-webhook] insertMessage SQL error", {
+      errInfo: serializeError(error),
+      insertPayload: { ...insertPayload, meta_payload: "<<omitted>>" },
+    });
     throw error;
   }
 }
