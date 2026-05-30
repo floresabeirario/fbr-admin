@@ -15,6 +15,7 @@ import {
   Lightbulb,
   BookOpen,
   MessageCircle,
+  MessageSquareText,
   LineChart,
   LogOut,
   ChevronLeft,
@@ -33,6 +34,7 @@ import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
 import { useUnreadChatCount } from "@/hooks/use-unread-chat";
 import { useMyActiveTasksCount } from "@/hooks/use-my-active-tasks";
 import { useUnreadOrdersCount } from "@/hooks/use-new-orders";
+import { useUnreadWhatsappCount } from "@/hooks/use-unread-whatsapp";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -60,6 +62,7 @@ const navItems: NavItem[] = [
   { href: "/financas", label: "Finanças", icon: Euro },
   { href: "/livro-receitas", label: "Livro de Receitas", icon: BookOpen },
   { href: "/chat", label: "Chat interno", icon: MessageCircle },
+  { href: "/whatsapp", label: "WhatsApp", icon: MessageSquareText },
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
   {
     href: "/settings/google",
@@ -126,6 +129,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // (já estou na lista; abrir workbenches deles marca como vistas).
   const rawNewOrders = useUnreadOrdersCount(profile?.email ?? null);
   const newOrders = pathname.startsWith("/preservacao") ? 0 : rawNewOrders;
+
+  // Bolinha verde no item "WhatsApp" — soma das nao-lidas em todas as
+  // conversas activas. Esconde quando estou em /whatsapp (entrar la
+  // marca-as como lidas).
+  const rawUnreadWa = useUnreadWhatsappCount(!!profile?.email);
+  const unreadWa = pathname.startsWith("/whatsapp") ? 0 : rawUnreadWa;
 
   useEffect(() => {
     if (profile?.role !== "admin") return;
@@ -260,6 +269,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           const isCollapsedOnDesktop = isDesktop && collapsed;
           const isSistema = label === "Sistema";
           const isChat = href === "/chat";
+          const isWhatsapp = href === "/whatsapp";
           const isDashboard = href === "/";
           const isPreservacao = href === "/preservacao";
           const showDot = isSistema && healthStatus !== null;
@@ -272,22 +282,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           // minhas — NÃO esconde no Dashboard. Cor indigo (≠ sky das mensagens).
           const showTasksBadge = isDashboard && myActiveTasks > 0;
           const showOrdersBadge = isPreservacao && newOrders > 0;
-          const showBadge = showChatBadge || showTasksBadge || showOrdersBadge;
+          const showWaBadge = isWhatsapp && unreadWa > 0;
+          const showBadge = showChatBadge || showTasksBadge || showOrdersBadge || showWaBadge;
           const badgeValue = showChatBadge
             ? unreadChat
             : showTasksBadge
               ? myActiveTasks
               : showOrdersBadge
                 ? newOrders
-                : 0;
+                : showWaBadge
+                  ? unreadWa
+                  : 0;
           const badgeLabel = badgeValue > 99 ? "99+" : String(badgeValue);
-          const badgeColorClass = showTasksBadge ? "bg-indigo-600" : "bg-sky-500";
+          const badgeColorClass = showTasksBadge
+            ? "bg-indigo-600"
+            : showWaBadge
+              ? "bg-emerald-500"
+              : "bg-sky-500";
           const titleParts: string[] = [];
           if (isCollapsedOnDesktop) titleParts.push(label);
           if (showDot) titleParts.push(healthTooltip);
           if (showChatBadge) titleParts.push(`${unreadChat} mensage${unreadChat === 1 ? "m" : "ns"} por ler`);
           if (showTasksBadge) titleParts.push(`${myActiveTasks} tarefa${myActiveTasks === 1 ? "" : "s"} por fazer`);
           if (showOrdersBadge) titleParts.push(`${newOrders} encomenda${newOrders === 1 ? "" : "s"} por abrir`);
+          if (showWaBadge) titleParts.push(`${unreadWa} WhatsApp por ler`);
           return (
             <Link
               key={href}
@@ -318,7 +336,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
                 {showBadge && isCollapsedOnDesktop && (
                   <span
-                    aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${myActiveTasks} por fazer` : `${newOrders} novas`}
+                    aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${myActiveTasks} por fazer` : showWaBadge ? `${unreadWa} WhatsApp por ler` : `${newOrders} novas`}
                     className={cn(
                       "absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-bold leading-none ring-2 ring-surface inline-flex items-center justify-center",
                       badgeColorClass,
@@ -337,7 +355,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
               {showBadge && !isCollapsedOnDesktop && (
                 <span
-                  aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${myActiveTasks} por fazer` : `${newOrders} novas`}
+                  aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${myActiveTasks} por fazer` : showWaBadge ? `${unreadWa} WhatsApp por ler` : `${newOrders} novas`}
                   className={cn(
                     "ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full text-white text-[10px] font-bold leading-none inline-flex items-center justify-center shrink-0",
                     badgeColorClass,
