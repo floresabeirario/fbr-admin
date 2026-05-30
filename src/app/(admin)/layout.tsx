@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
 import { useUnreadChatCount } from "@/hooks/use-unread-chat";
-import { useUnreadTasks } from "@/hooks/use-unread-tasks";
+import { useMyActiveTasksCount } from "@/hooks/use-my-active-tasks";
 import { useUnreadOrdersCount } from "@/hooks/use-new-orders";
 
 const PROFILES = [
@@ -112,11 +112,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const rawUnreadChat = useUnreadChatCount(profile?.email ?? null);
   const unreadChat = pathname.startsWith("/chat") ? 0 : rawUnreadChat;
 
-  // Bolinha de notificação no item "Dashboard" — conta tarefas atribuídas
-  // a mim que ainda não vi (seen_by). Esconde quando estou em "/" porque o
-  // próprio Dashboard marca como vistas ao abrir (mig 044).
-  const rawUnreadTasks = useUnreadTasks(profile?.email ?? null).count;
-  const unreadTasks = pathname === "/" ? 0 : rawUnreadTasks;
+  // Bolinha indigo no item "Dashboard" — conta TODAS as tarefas activas
+  // (não-feitas) atribuídas a mim. Persistente: só vai a 0 quando estão
+  // todas fechadas. Diferente da antiga bolinha "tarefas novas" (seen_by),
+  // que escondia ao abrir o Dashboard. Cor indigo distingue do sky das
+  // mensagens e do azul de "encomendas por abrir".
+  const myActiveTasks = useMyActiveTasksCount(profile?.email ?? null);
 
   // Bolinha de notificação no item "Preservação de Flores" — conta
   // encomendas que o utilizador actual ainda não abriu nenhuma vez
@@ -267,22 +268,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             : healthStatus === "warning" ? "bg-amber-500"
             : "bg-emerald-500";
           const showChatBadge = isChat && unreadChat > 0;
-          const showTasksBadge = isDashboard && unreadTasks > 0;
+          // Bolinha das tarefas sempre visível enquanto houver tarefas activas
+          // minhas — NÃO esconde no Dashboard. Cor indigo (≠ sky das mensagens).
+          const showTasksBadge = isDashboard && myActiveTasks > 0;
           const showOrdersBadge = isPreservacao && newOrders > 0;
           const showBadge = showChatBadge || showTasksBadge || showOrdersBadge;
           const badgeValue = showChatBadge
             ? unreadChat
             : showTasksBadge
-              ? unreadTasks
+              ? myActiveTasks
               : showOrdersBadge
                 ? newOrders
                 : 0;
           const badgeLabel = badgeValue > 99 ? "99+" : String(badgeValue);
+          const badgeColorClass = showTasksBadge ? "bg-indigo-600" : "bg-sky-500";
           const titleParts: string[] = [];
           if (isCollapsedOnDesktop) titleParts.push(label);
           if (showDot) titleParts.push(healthTooltip);
           if (showChatBadge) titleParts.push(`${unreadChat} mensage${unreadChat === 1 ? "m" : "ns"} por ler`);
-          if (showTasksBadge) titleParts.push(`${unreadTasks} tarefa${unreadTasks === 1 ? "" : "s"} nova${unreadTasks === 1 ? "" : "s"}`);
+          if (showTasksBadge) titleParts.push(`${myActiveTasks} tarefa${myActiveTasks === 1 ? "" : "s"} por fazer`);
           if (showOrdersBadge) titleParts.push(`${newOrders} encomenda${newOrders === 1 ? "" : "s"} por abrir`);
           return (
             <Link
@@ -314,8 +318,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
                 {showBadge && isCollapsedOnDesktop && (
                   <span
-                    aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${unreadTasks} novas` : `${newOrders} novas`}
-                    className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-white text-[9px] font-bold leading-none ring-2 ring-surface inline-flex items-center justify-center"
+                    aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${myActiveTasks} por fazer` : `${newOrders} novas`}
+                    className={cn(
+                      "absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-bold leading-none ring-2 ring-surface inline-flex items-center justify-center",
+                      badgeColorClass,
+                    )}
                   >
                     {badgeLabel}
                   </span>
@@ -330,8 +337,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
               {showBadge && !isCollapsedOnDesktop && (
                 <span
-                  aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${unreadTasks} novas` : `${newOrders} novas`}
-                  className="ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full bg-sky-500 text-white text-[10px] font-bold leading-none inline-flex items-center justify-center shrink-0"
+                  aria-label={showChatBadge ? `${unreadChat} por ler` : showTasksBadge ? `${myActiveTasks} por fazer` : `${newOrders} novas`}
+                  className={cn(
+                    "ml-auto min-w-[18px] h-[18px] px-1.5 rounded-full text-white text-[10px] font-bold leading-none inline-flex items-center justify-center shrink-0",
+                    badgeColorClass,
+                  )}
                 >
                   {badgeLabel}
                 </span>

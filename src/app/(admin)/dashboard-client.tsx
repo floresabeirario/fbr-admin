@@ -21,7 +21,9 @@ interface Props {
   pickups: PickupItem[];
   alerts: DashboardAlert[];
   orderCodeById: Record<string, string>;
+  orderClientById: Record<string, string>;
   voucherCodeById: Record<string, string>;
+  voucherSenderById: Record<string, string>;
 }
 
 export default function DashboardClient({
@@ -30,7 +32,9 @@ export default function DashboardClient({
   pickups,
   alerts,
   orderCodeById,
+  orderClientById,
   voucherCodeById,
+  voucherSenderById,
 }: Props) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
@@ -100,7 +104,9 @@ export default function DashboardClient({
         setTasks={setTasks}
         currentEmail={currentEmail}
         orderCodeById={orderCodeById}
+        orderClientById={orderClientById}
         voucherCodeById={voucherCodeById}
+        voucherSenderById={voucherSenderById}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">

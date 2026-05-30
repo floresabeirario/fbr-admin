@@ -9,7 +9,7 @@ export default async function PreservacaoPage() {
   const role = await getCurrentRole();
   const currentEmail = await getCurrentEmail();
 
-  const [activeRes, archivedRes, vouchersRes] = await Promise.all([
+  const [activeRes, archivedRes, vouchersRes, partnersRes] = await Promise.all([
     supabase
       .from("orders")
       .select("*")
@@ -26,12 +26,23 @@ export default async function PreservacaoPage() {
       .from("vouchers")
       .select("id, code")
       .is("deleted_at", null),
+    // Parceiros (id + nome) para alimentar o filtro "Parceiro específico"
+    // e mostrar o nome do parceiro na coluna opcional "Parceiro".
+    supabase
+      .from("partners")
+      .select("id, name")
+      .is("deleted_at", null)
+      .order("name"),
   ]);
 
   const orders: Order[] = (activeRes.data ?? []) as Order[];
   const archivedOrders: Order[] = (archivedRes.data ?? []) as Order[];
   const voucherCodeToId = new Map<string, string>(
     ((vouchersRes.data ?? []) as { id: string; code: string }[]).map((v) => [v.code, v.id]),
+  );
+  const partners = (partnersRes.data ?? []) as { id: string; name: string }[];
+  const partnerNameById: Record<string, string> = Object.fromEntries(
+    partners.map((p) => [p.id, p.name]),
   );
   const grouped = groupOrders(orders);
 
@@ -43,6 +54,8 @@ export default async function PreservacaoPage() {
       canEdit={role === "admin"}
       voucherCodeToId={Object.fromEntries(voucherCodeToId)}
       currentEmail={currentEmail}
+      partners={partners}
+      partnerNameById={partnerNameById}
     />
   );
 }

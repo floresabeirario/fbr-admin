@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO, differenceInDays, differenceInCalendarDays } from "date-fns";
@@ -75,7 +75,23 @@ import {
   EVENT_TYPE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
   FRAME_DELIVERY_METHOD_LABELS,
+  HOW_FOUND_FBR_LABELS,
+  COUPON_STATUS_LABELS,
+  COUPON_STATUS_COLORS,
 } from "@/types/database";
+import {
+  applyFilters,
+  countActiveFilters,
+  COLUMN_MIN_PX,
+  COLUMN_LABELS,
+  EMPTY_FILTERS,
+  readStorage,
+  writeStorage,
+  type ColumnKey,
+  type FilterConfig,
+  type SavedView,
+} from "@/lib/preservacao-views";
+import { ViewsBar } from "./_components/views-bar";
 
 // Ícones por método de envio — para tornar a coluna "Envio" da tabela
 // visualmente legível de relance (CTT vs recolha vs em mãos vs não sei).
@@ -238,6 +254,125 @@ export function PaymentSelect({
   );
 }
 
+// ── Célula extra (uma por coluna opcional activa) ─────────────
+
+function ExtraCell({
+  column,
+  order,
+  partnerNameById,
+}: {
+  column: ColumnKey;
+  order: Order;
+  partnerNameById: Record<string, string>;
+}) {
+  const empty = <span className="text-sm text-cocoa-500">—</span>;
+  switch (column) {
+    case "partner": {
+      const name = order.partner_id ? partnerNameById[order.partner_id] : null;
+      return (
+        <td className="px-4 py-1.5">
+          {name ? (
+            <span className="text-sm text-cocoa-900 truncate block max-w-[180px]" title={name}>
+              {name}
+            </span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    }
+    case "origem": {
+      const o = order.how_found_fbr;
+      return (
+        <td className="px-4 py-1.5">
+          {o ? (
+            <span className="text-sm text-cocoa-900 truncate block">
+              {HOW_FOUND_FBR_LABELS[o]}
+            </span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    }
+    case "tipo_evento": {
+      return (
+        <td className="px-4 py-1.5">
+          {order.event_type ? (
+            <span className="text-sm text-cocoa-900">{EVENT_TYPE_LABELS[order.event_type]}</span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    }
+    case "nif":
+      return (
+        <td className="px-4 py-1.5">
+          {order.nif ? (
+            <span className="text-sm font-mono text-cocoa-900">{order.nif}</span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    case "telefone":
+      return (
+        <td className="px-4 py-1.5">
+          {order.phone ? (
+            <span className="text-sm text-cocoa-900 whitespace-nowrap">{order.phone}</span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    case "email":
+      return (
+        <td className="px-4 py-1.5">
+          {order.email ? (
+            <span
+              className="text-sm text-cocoa-900 truncate block max-w-[200px]"
+              title={order.email}
+            >
+              {order.email}
+            </span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    case "comissao":
+      return (
+        <td className="px-4 py-1.5 text-right">
+          {order.partner_commission != null ? (
+            <span className="text-sm text-cocoa-900">{formatEUR(order.partner_commission)}</span>
+          ) : (
+            empty
+          )}
+        </td>
+      );
+    case "cupao":
+      return (
+        <td className="px-4 py-1.5">
+          {order.coupon_status === "na" ? (
+            empty
+          ) : (
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                COUPON_STATUS_COLORS[order.coupon_status],
+              )}
+            >
+              {COUPON_STATUS_LABELS[order.coupon_status]}
+            </span>
+          )}
+        </td>
+      );
+    default:
+      return <td className="px-4 py-1.5" />;
+  }
+}
+
 // ── Linha da tabela ───────────────────────────────────────────
 
 function OrderRow({
@@ -250,6 +385,8 @@ function OrderRow({
   voucherCodeToId,
   currentEmail,
   isDragging = false,
+  extraColumns,
+  partnerNameById,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
@@ -260,6 +397,8 @@ function OrderRow({
   voucherCodeToId: Record<string, string>;
   currentEmail: string | null;
   isDragging?: boolean;
+  extraColumns: ColumnKey[];
+  partnerNameById: Record<string, string>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -306,13 +445,6 @@ function OrderRow({
   // O badge desaparece para o utilizador actual depois de ele abrir o
   // workbench desta encomenda pela 1ª vez. Mensagem lida/não lida.
   const isNew = !!currentEmail && !(order.seen_by ?? []).includes(currentEmail);
-
-  // Última actividade: só mostrar quando a encomenda está parada há >=7 dias
-  // e não está em estado terminal (concluído / cancelado). 14+ dias = âmbar.
-  const isTerminalState = currentStatus === "quadro_recebido" || currentStatus === "cancelado";
-  const daysSinceUpdate = differenceInDays(new Date(), new Date(order.updated_at));
-  const showStaleBadge = !isTerminalState && daysSinceUpdate >= 7;
-  const isStaleAlert = daysSinceUpdate >= 14;
 
   const shippingMethod: string | null =
     shippingColumn === "flores" ? order.flower_delivery_method : order.frame_delivery_method;
@@ -445,17 +577,6 @@ function OrderRow({
                   Contactada
                 </span>
               )}
-              {showStaleBadge && (
-                <span
-                  className={cn(
-                    "text-[10px] font-medium shrink-0",
-                    isStaleAlert ? "text-amber-700" : "text-cocoa-500",
-                  )}
-                  title={`Última edição: ${format(parseISO(order.updated_at), "dd/MM/yyyy HH:mm")}`}
-                >
-                  {isStaleAlert ? "⏰ " : ""}parada há {daysSinceUpdate} dias
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -505,6 +626,14 @@ function OrderRow({
           disabled={!canEdit}
         />
       </td>
+      {extraColumns.map((c) => (
+        <ExtraCell
+          key={c}
+          column={c}
+          order={order}
+          partnerNameById={partnerNameById}
+        />
+      ))}
       <td className="px-4 py-1.5 text-right">
         <span className="text-sm text-cocoa-900">{formatEUR(order.budget)}</span>
       </td>
@@ -573,10 +702,14 @@ interface GroupSectionProps {
   droppableId?: OrderGroupKey;
   /** ID da encomenda actualmente a ser arrastada (para opacificar a fonte). */
   draggingOrderId?: string | null;
+  /** Colunas opcionais activas (na ordem em que foram toggladas). */
+  extraColumns: ColumnKey[];
+  /** Lookup uuid do parceiro → nome, para a coluna opcional "Parceiro". */
+  partnerNameById: Record<string, string>;
 }
 
 function GroupSection({
-  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId, currentEmail, droppableId, draggingOrderId,
+  title, orders, colorClass, isCollapsed, onToggle, onOpenOrder, shippingColumn, loadingOrderId, canEdit, isSemResposta = false, alert = false, voucherCodeToId, currentEmail, droppableId, draggingOrderId, extraColumns, partnerNameById,
 }: GroupSectionProps) {
   const shippingHeader = shippingColumn === "flores" ? "Envio das flores" : "Receção do quadro";
   const isEmpty = orders.length === 0;
@@ -624,32 +757,33 @@ function GroupSection({
       )}
       {!isCollapsed && orders.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] xl:min-w-[920px] text-left table-fixed">
-            <colgroup>
-              <col className="w-[3%]" />
-              <col className="w-[16%]" />
-              <col className="w-[10%]" />
-              <col className="hidden xl:table-column xl:w-[13%]" />
-              <col className="w-[12%]" />
-              <col className="w-[16%]" />
-              <col className="w-[10%]" />
-              <col className="w-[14%]" />
-              <col className="w-[6%]" />
-            </colgroup>
+          <table
+            className="w-full text-left"
+            style={{
+              minWidth:
+                760 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
+            }}
+          >
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
-                {["", "Cliente", "Data evento", "Localização", shippingHeader, "Estado", "Orçamento", "Pagamento", ""].map((h, i) => (
+                <th className="w-[40px] px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" />
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[180px]">Cliente</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[110px]">Data evento</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide hidden xl:table-cell min-w-[140px]">Localização</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[120px]">{shippingHeader}</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[180px]">Estado</th>
+                {extraColumns.map((c) => (
                   <th
-                    key={i}
-                    className={cn(
-                      "px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide",
-                      i === 6 && "text-right",
-                      i === 3 && "hidden xl:table-cell",
-                    )}
+                    key={c}
+                    className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide"
+                    style={{ minWidth: COLUMN_MIN_PX[c] }}
                   >
-                    {h}
+                    {COLUMN_LABELS[c]}
                   </th>
                 ))}
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right min-w-[100px]">Orçamento</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[150px]">Pagamento</th>
+                <th className="w-[80px] px-4 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -665,6 +799,8 @@ function GroupSection({
                   voucherCodeToId={voucherCodeToId}
                   currentEmail={currentEmail}
                   isDragging={draggingOrderId === order.id}
+                  extraColumns={extraColumns}
+                  partnerNameById={partnerNameById}
                 />
               ))}
             </tbody>
@@ -687,11 +823,22 @@ interface Props {
   canEdit: boolean;
   voucherCodeToId: Record<string, string>;
   currentEmail: string | null;
+  partners: { id: string; name: string }[];
+  partnerNameById: Record<string, string>;
 }
 
 // ── Componente principal ──────────────────────────────────────
 
-export default function PreservacaoClient({ initialOrders, initialGrouped, archivedOrders, canEdit, voucherCodeToId, currentEmail }: Props) {
+export default function PreservacaoClient({
+  initialOrders,
+  initialGrouped,
+  archivedOrders,
+  canEdit,
+  voucherCodeToId,
+  currentEmail,
+  partners,
+  partnerNameById,
+}: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<ViewType>("tabela");
@@ -725,6 +872,31 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
   const [optimisticMoves, setOptimisticMoves] = useState<
     Map<string, { status: OrderStatus; manually_no_response: boolean }>
   >(() => new Map());
+
+  // ── Vistas/filtros/colunas — persistidas em localStorage ──────────
+  // SSR começa em vazio (sem hydration mismatch); hidrata pós-mount.
+  const [extraColumns, setExtraColumns] = useState<ColumnKey[]>([]);
+  const [filters, setFilters] = useState<FilterConfig>({ ...EMPTY_FILTERS });
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [viewsHydrated, setViewsHydrated] = useState(false);
+  useEffect(() => {
+    const s = readStorage();
+    setExtraColumns(s.activeColumns);
+    setFilters(s.filters);
+    setSavedViews(s.views);
+    setActiveViewId(s.activeViewId);
+    setViewsHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!viewsHydrated) return;
+    writeStorage({
+      activeColumns: extraColumns,
+      filters,
+      views: savedViews,
+      activeViewId,
+    });
+  }, [extraColumns, filters, savedViews, activeViewId, viewsHydrated]);
 
   // Sensores: activação por distância (8px) deixa o click do row continuar a
   // funcionar normalmente; KeyboardSensor dá acessibilidade básica (Space para
@@ -857,7 +1029,9 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
         return move ? { ...o, status: move.status, manually_no_response: move.manually_no_response } : o;
       });
 
-  const filteredOrders = search.trim()
+  const activeFiltersCount = countActiveFilters(filters);
+
+  const searchedOrders = search.trim()
     ? ordersWithOptimistic.filter(
         (o) =>
           o.client_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -866,12 +1040,16 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
           o.event_location?.toLowerCase().includes(search.toLowerCase())
       )
     : ordersWithOptimistic;
+  const filteredOrders = activeFiltersCount > 0
+    ? applyFilters(searchedOrders, filters)
+    : searchedOrders;
 
-  // Quando há overrides ópticos OU pesquisa activa, reagrupamos local;
-  // caso contrário usamos o grouped já feito no servidor.
-  const grouped = search.trim() || optimisticMoves.size > 0
-    ? groupOrders(filteredOrders)
-    : initialGrouped;
+  // Quando há overrides ópticos, pesquisa OU filtros activos, reagrupamos
+  // local; caso contrário usamos o grouped já feito no servidor.
+  const grouped =
+    search.trim() || optimisticMoves.size > 0 || activeFiltersCount > 0
+      ? groupOrders(filteredOrders)
+      : initialGrouped;
 
   // Calendário e timeline só mostram encomendas com data agendada (excluem
   // pré-reservas "por agendar" e canceladas — não fazem sentido na grelha temporal).
@@ -1011,6 +1189,25 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
         </div>
       </div>
 
+      {/* Barra de vistas (colunas opcionais + filtros + vistas guardáveis).
+          Aparece sempre exceto na vista arquivados — filtros não fazem
+          sentido lá. */}
+      {!showArchived && activeView === "tabela" && (
+        <div className="px-3 sm:px-6 py-2 border-b border-cream-200 bg-cream-50/50 shrink-0">
+          <ViewsBar
+            columns={extraColumns}
+            setColumns={setExtraColumns}
+            filters={filters}
+            setFilters={setFilters}
+            views={savedViews}
+            setViews={setSavedViews}
+            activeViewId={activeViewId}
+            setActiveViewId={setActiveViewId}
+            partners={partners}
+          />
+        </div>
+      )}
+
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto p-3 sm:p-6">
         {/* Rede de segurança: aviso global se houver encomendas com estado
@@ -1050,15 +1247,15 @@ export default function PreservacaoClient({ initialOrders, initialGrouped, archi
           >
             <div className="space-y-3">
               {grouped.orfas.length > 0 && (
-                <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} draggingOrderId={draggingOrder?.id ?? null} />
+                <GroupSection title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" isCollapsed={false} onToggle={() => {}} onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} alert voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
               )}
-              <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="sem_resposta"        draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="pre_reservas"        draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="reservas"            draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="preservacao_design"  draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="finalizacao"         draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="concluidos"          draggingOrderId={draggingOrder?.id ?? null} />
-              <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="cancelamentos"       draggingOrderId={draggingOrder?.id ?? null} />
+              <GroupSection title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    isCollapsed={collapsedGroups.has("sem_resposta")}        onToggle={() => toggleGroup("sem_resposta")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} isSemResposta alert voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="sem_resposta"        draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
+              <GroupSection title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  isCollapsed={collapsedGroups.has("pre_reservas")}        onToggle={() => toggleGroup("pre_reservas")}        onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="pre_reservas"        draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
+              <GroupSection title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   isCollapsed={collapsedGroups.has("reservas")}            onToggle={() => toggleGroup("reservas")}            onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="reservas"            draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
+              <GroupSection title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" isCollapsed={collapsedGroups.has("preservacao_design")}  onToggle={() => toggleGroup("preservacao_design")}  onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="preservacao_design"  draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
+              <GroupSection title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" isCollapsed={collapsedGroups.has("finalizacao")}         onToggle={() => toggleGroup("finalizacao")}         onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="finalizacao"         draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
+              <GroupSection title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  isCollapsed={collapsedGroups.has("concluidos")}          onToggle={() => toggleGroup("concluidos")}          onOpenOrder={openOrder} shippingColumn="quadro" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="concluidos"          draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
+              <GroupSection title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   isCollapsed={collapsedGroups.has("cancelamentos")}       onToggle={() => toggleGroup("cancelamentos")}       onOpenOrder={openOrder} shippingColumn="flores" loadingOrderId={navigatingId} canEdit={canEdit} voucherCodeToId={voucherCodeToId} currentEmail={currentEmail} droppableId="cancelamentos"       draggingOrderId={draggingOrder?.id ?? null} extraColumns={extraColumns} partnerNameById={partnerNameById} />
 
               {filteredOrders.length === 0 && initialOrders.length > 0 && (
                 <div className="rounded-xl border border-cream-200 bg-surface p-8 text-center">

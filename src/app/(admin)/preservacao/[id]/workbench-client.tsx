@@ -691,20 +691,6 @@ export default function WorkbenchClient({
                   </div>
                 </PopoverContent>
               </Popover>
-              {(() => {
-                const days = differenceInCalendarDays(new Date(), parseISO(local.updated_at));
-                const isTerminal = local.status === "quadro_recebido" || local.status === "cancelado";
-                if (isTerminal || days < 7) return null;
-                const isAlert = days >= 14;
-                return (
-                  <span
-                    className={`text-[10px] font-medium ${isAlert ? "text-amber-700" : "text-cocoa-500"}`}
-                    title={`Última actividade: ${format(parseISO(local.updated_at), "dd/MM/yyyy HH:mm")}`}
-                  >
-                    {isAlert ? "⏰ " : ""}parada há {days} dias
-                  </span>
-                );
-              })()}
             </div>
           </div>
 

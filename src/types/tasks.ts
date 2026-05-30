@@ -98,17 +98,20 @@ export const TASK_STATUS_SHORT: Record<TaskStatus, string> = {
   em_curso: "Em curso",
 };
 
+// Paleta deliberadamente DIFERENTE da prioridade (slate/sky/amber/rose) para
+// que nunca apareçam dois chips iguais a significar coisas diferentes no mesmo
+// card. Estado = stone/violet/emerald; prioridade = slate/sky/amber/rose.
 export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
-  por_comecar:  "bg-slate-100 text-slate-600 border-slate-300",
-  a_fazer_hoje: "bg-amber-100 text-amber-800 border-amber-300",
-  em_curso:     "bg-sky-100 text-sky-800 border-sky-300",
+  por_comecar:  "bg-stone-100 text-stone-700 border-stone-300",
+  a_fazer_hoje: "bg-violet-100 text-violet-800 border-violet-300",
+  em_curso:     "bg-emerald-100 text-emerald-800 border-emerald-300",
 };
 
 // Bola pequena para o popover (item da lista de mudança de estado).
 export const TASK_STATUS_DOT_COLOR: Record<TaskStatus, string> = {
-  por_comecar:  "bg-slate-300",
-  a_fazer_hoje: "bg-amber-500",
-  em_curso:     "bg-sky-500",
+  por_comecar:  "bg-stone-400",
+  a_fazer_hoje: "bg-violet-500",
+  em_curso:     "bg-emerald-500",
 };
 
 // Ordem para sort: "em curso" primeiro (foco), depois "hoje", depois "por começar".

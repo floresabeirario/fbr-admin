@@ -5,10 +5,11 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 38) — Sessão 94: **PWA — ícone do ecrã principal Android com flores grandes em vez de "F cinzento"** (2026-05-28). Maria queixou-se: ao adicionar a app ao ecrã principal do Android, ficava "sem favicon" (na prática: flores minúsculas perdidas num quadrado cocoa, irreconhecíveis) e o menu só oferecia "Adicionar ao ecrã principal" (atalho legacy), nunca "Instalar app" (PWA). **Causa raiz**: o matcher do [proxy.ts](src/proxy.ts) (auth middleware — Next.js 16 renomeou `middleware` → `proxy`) excluía `.png/.svg/.woff2` mas **não** `.webmanifest` nem `sw.js` → Chrome do Android, ao buscar `/manifest.webmanifest` num contexto cross-origin sem cookies para avaliar instalabilidade, recebia 302 → `/login` → manifesto inválido → site desclassificado como PWA. **Novidades**: (1) Matcher do proxy expandido para excluir `manifest.webmanifest` e `sw.js` (passam directos, sem auth). (2) Safe zone do maskable passa de 60% → **80%** (recomendação da spec); [scripts/generate-maskable-icons.mjs](scripts/generate-maskable-icons.mjs) actualizado e PNGs regenerados (`maskable-192x192.png`, `maskable-512x512.png`, `apple-touch-icon.png`). (3) [manifest.ts](src/app/manifest.ts) volta a ter `android-chrome-192/512.png` como `purpose: "any"` (full-bleed, fundo transparente) e `maskable-*.png` só como `purpose: "maskable"` — padrão recomendado. (4) [layout.tsx](src/app/layout.tsx) `icons.icon` ganha entradas 192x192 + 512x512 para os `<link rel="icon">` HTML (ajuda quando Android cria atalho sem PWA install completo). (5) `CACHE_VERSION` em [public/sw.js](public/sw.js) bump v3 → v4 para invalidar SWs antigos. Preflight `tsc` limpo.
+## Fase actual: FASE 6 (parte 39) — Sessão 95: **Dashboard polish (6 queixas) + Vistas/Filtros/Colunas em Preservação** (2026-05-30). Lote grande de afinações pós-uso no Dashboard + nova feature ambiciosa em Preservação. **Dashboard**: (1) **G** — removido badge "parada há X dias" da tabela e do header do workbench (Maria: "não percebi para que serve"). (2) **B** — cores de estado das tarefas (`TASK_STATUS_COLORS` / `TASK_STATUS_DOT_COLOR`) refeitas com paleta nova `stone/violet/emerald` para deixarem de colidir com a paleta da prioridade (`slate/sky/amber/rose`) — antes "alta"+"a fazer hoje" eram ambos amber e baixa+"por começar" eram ambos slate. (3) **A** — nova bolinha **indigo** na sidebar do Dashboard com contagem de tarefas activas atribuídas a mim. Persistente (só vai a 0 quando fecho todas — diferente da antiga sky "tarefas novas" que sumia ao abrir o Dashboard). Hook novo [src/hooks/use-my-active-tasks.ts](src/hooks/use-my-active-tasks.ts) com Realtime; layout passa a usar `useMyActiveTasksCount` em vez de `useUnreadTasks` para o badge; cor dinâmica via `badgeColorClass`. (4) **D** — chip de encomenda/vale dentro do card do kanban passa a mostrar **nome do cliente / remetente** em vez do código curto (href continua a apontar para o code via `orderClientById` + `voucherSenderById` propagados do [page.tsx](src/app/(admin)/page.tsx)). (5) **C** — kanban dos Afazeres deixa de ser `lg:grid-cols-6` rígido no PC: colunas vazias colapsam para 110px fixos (só cabeçalho); com tarefas ficam `flex-1 basis-0 min-w-[160px]`. (6) **E** — `PriorityPill` sai do `absolute top-1.5 right-1.5` que reservava `pr-14` no título; passa a viver na mesma linha que o `StatusPill`. Títulos respiram à largura toda do card. **Preservação — nova feature (F)**: barra de Vistas/Filtros/Colunas no topo da tabela. (i) Botão **Filtros** abre popover com 6 dimensões (parceiro com lista de partners, origem, pagamento, tipo de evento, cupão, NIF — cada um com "Qualquer" + opções específicas + "Não preenchido" / "Com" / "Sem" quando aplicável). (ii) Botão **Colunas** abre popover com 8 colunas opcionais toggleáveis (Parceiro, Origem, Tipo de evento, NIF, Telefone, Email, Comissão, Cupão); colunas extra renderizam entre Estado e Orçamento via novo componente `ExtraCell`. (iii) Selector **Vista** permite mudar entre "Todas" (default) e vistas guardadas pelo utilizador. (iv) Botão **Guardar vista** aparece quando há ajustes não-guardados; pede nome no popover. (v) Chips de filtros activos abaixo da barra com X para remover individualmente. Persistência em `localStorage` ([src/lib/preservacao-views.ts](src/lib/preservacao-views.ts) + [src/app/(admin)/preservacao/_components/views-bar.tsx](src/app/(admin)/preservacao/_components/views-bar.tsx)). [page.tsx](src/app/(admin)/preservacao/page.tsx) passa a fazer query nova a `partners` (id+name) para alimentar o filtro. **Sem migrações** (tudo localStorage). Preflight `tsc + next build` limpos.
 
-## Fase anterior: FASE 6 (parte 37) — Sessão 93: **3 anexos de fatura por encomenda + tarefa automática "Enviar fatura"** (2026-05-28). Maria pediu: cada pagamento gera uma fatura separada (sinal 30%, intermédio 40%, final 30% — ou variações 70/30, 100% à cabeça); quando se anexa o link da fatura na Drive, criar automaticamente tarefa a pedir para enviar à cliente. **Novidades**: (1) Mig 060 renomeia `orders.invoice_attachment_url` → `invoice_url_sinal` e adiciona `invoice_url_intermedio` + `invoice_url_final`; actualiza `anonymize_order` (mig 024) e policy `orders_public_insert` (mig 016). (2) Workbench [preservação](src/app/(admin)/preservacao/[id]/workbench-client.tsx): a antiga `Field` "Anexo da fatura" passa a um bloco com até 3 inputs etiquetados (Sinal / Intermédio / Final), visíveis consoante `payment_status` — sinal aparece com qualquer pagamento, intermédio só com 70%+, final só com 100%. Alerta "Falta anexar fatura" passa a só disparar se NENHUM dos 3 estiver preenchido. (3) [updateOrderAction](src/app/(admin)/preservacao/actions.ts) detecta transição NULL → URL em cada slot e insere uma tarefa por slot: título `Enviar fatura — {client_name} ({sinal|intermédio|final})`, categoria `administrativo`, prioridade `alta`, `status='por_comecar'`, `order_id` ligado, `assignee_emails=[email do utilizador autenticado]`, sem prazo. Substituir um link (URL → outro URL) NÃO conta (assume-se correcção). (4) Mesmo padrão aplicado em [updateVoucherAction](src/app/(admin)/vale-presente/actions.ts) (1 fatura só, `voucher_id` ligado). (5) Export CSV passa de 1 coluna "Anexo fatura" para 3 colunas no export de encomendas; vouchers mantêm 1. Preflight `tsc + next build` limpos.
+## Fase anterior: FASE 6 (parte 38) — Sessão 94: **PWA — ícone do ecrã principal Android com flores grandes em vez de "F cinzento"** (2026-05-28). Matcher do proxy expandido para excluir `manifest.webmanifest` + `sw.js`; safe zone do maskable 60% → 80%; bump `CACHE_VERSION` v3→v4. Detalhe completo no histórico condensado.
 
+<!-- Sessão 93 (FASE 6 parte 37 — 3 anexos de fatura) comprimida no Histórico condensado em baixo. -->
 <!-- Sessão 92 (FASE 6 parte 36 — Kanban dos Afazeres globais redesenhado) comprimida no Histórico condensado em baixo. -->
 <!-- Sessão 91 (FASE 6 parte 35) comprimida no Histórico condensado em baixo. -->
 
@@ -49,6 +50,72 @@
 ---
 
 ## Sessões recentes (detalhe)
+
+### Sessão 95 ✨ Dashboard polish (6 queixas) + Vistas/Filtros/Colunas em Preservação
+
+Lote grande de afinações pós-uso pedidas pela Maria numa única mensagem. Apresentei plano com 1 pergunta de cor (escolheu **indigo**) e 1 pergunta de scope para a feature de Preservação (escolheu a opção mais ambiciosa — "mas fica fixe, nunca usei Linear/Notion").
+
+**Dashboard — 6 queixas resolvidas:**
+
+- **G (remover "parada há X dias")** — Maria: "não percebi para que serve". Removido em 2 sítios: na tabela [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx) (badge na coluna Cliente quando `daysSinceUpdate >= 7`) e no header do workbench [workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) (junto ao ID da encomenda). Variáveis órfãs (`isTerminalState`, `daysSinceUpdate`, `showStaleBadge`, `isStaleAlert`) limpas. Comportamento adicionado na sessão 63 a pedido de inércia; Maria descobriu que era ruído.
+
+- **B (cores estado vs prioridade)** — antes `TASK_STATUS_COLORS` e `TASK_PRIORITY_COLORS` partilhavam slate/sky/amber → o mesmo pill amber significava "alta prioridade" OU "a fazer hoje" consoante o sítio. Reescritas em [src/types/tasks.ts](src/types/tasks.ts): estado passa a usar paleta exclusiva `stone/violet/emerald` (`por_comecar/a_fazer_hoje/em_curso`), prioridade mantém-se semântica `slate/sky/amber/rose`. `TASK_STATUS_DOT_COLOR` actualizado em conformidade. Sem colisão com `TASK_CATEGORY_COLORS` (dead code desde sessão 87, mantido).
+
+- **A (bolinha tarefas activas indigo)** — Maria: "uma bolinha que nunca desaparece, só se a pessoa tiver 0 tarefas por fazer". Hook novo [src/hooks/use-my-active-tasks.ts](src/hooks/use-my-active-tasks.ts) com mesma estrutura de `useUnreadChatCount`: select de `tasks` filtrado por `done=false AND deleted_at IS NULL`, Realtime para INSERT/UPDATE/DELETE; reduce final filtra por `assignee_emails.includes(currentEmail)`. Em [layout.tsx](src/app/(admin)/layout.tsx): `useUnreadTasks` → `useMyActiveTasksCount`; tirada a condicional que zerava quando `pathname === "/"` (a bolinha persiste); cor dinâmica `badgeColorClass = showTasksBadge ? "bg-indigo-600" : "bg-sky-500"` aplicada às 2 instâncias (sidebar collapsada e expandida). `useUnreadTasks` continua no repo porque `markTasksSeenAction` no `dashboard-client.tsx` ainda usa o conceito de "tarefas novas" para o toast inicial — toast e bolinha passaram a ser conceitos distintos.
+
+- **D (nome do cliente em vez do código)** — chip indigo de encomenda/vale dentro do card kanban passa a mostrar `client_name` ou `sender_name` (legível) em vez do código alfanumérico curto. Href continua a apontar para `/preservacao/<code>` ou `/vale-presente/<code>`. [page.tsx](src/app/(admin)/page.tsx) ganha 2 mapas novos: `orderClientById` e `voucherSenderById`; [dashboard-client.tsx](src/app/(admin)/dashboard-client.tsx) propaga-os; [tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx) passa-os até ao `DraggableTaskTile` que faz fallback ao código se o lookup falhar.
+
+- **C (colunas vazias estreitas no PC)** — kanban deixa de usar `sm:grid sm:grid-cols-3 lg:grid-cols-6`; passa a **flex** no PC. Cada `CategoryColumn` decide o seu próprio width: vazia = `sm:w-[110px] sm:max-w-[110px] sm:flex-none` (só cabeçalho com ícone + contagem `0`); com tarefas = `sm:w-auto sm:max-w-none sm:flex-1 sm:basis-0 sm:min-w-[160px]`. Resultado: 5 colunas vazias + 1 com 6 tarefas → essa coluna ganha ~80% da largura do card em vez de 1/6. Mobile (`<sm`) intocado — mantém snap horizontal 85vw/42vw da sessão 92.
+
+- **E (título vertical demais)** — `PriorityPill` saiu do `absolute top-1.5 right-1.5 z-10` que reservava `pr-14` no `flex` do título → sobravam ~90px e o título partia em 4-5 linhas. Agora vive na mesma linha que `StatusPill` (novo `flex gap-1.5 flex-wrap` abaixo da descrição). Título passa a usar a largura toda do card. Em combinação com (C), os títulos respiram de vez nas colunas com tarefas.
+
+**Preservação — F (Vistas + Filtros + Colunas opcionais):**
+
+A Maria pediu colunas opcionais ("ver só as que têm parceiro", "ver só Instagram") e escolheu a opção ambiciosa do menu (vistas guardáveis ao estilo Linear/Notion, "mas nunca usei isso"). Arquitectura escolhida: tudo localStorage, sem migração nova.
+
+- **Helpers + tipos — [src/lib/preservacao-views.ts](src/lib/preservacao-views.ts) (novo, ~170 linhas):**
+  - `OPTIONAL_COLUMNS` const tuple: `partner | origem | tipo_evento | nif | telefone | email | comissao | cupao` (8 colunas; `localizacao` ficou de fora — já existe como xl-only).
+  - `FilterConfig` com 6 dimensões: `partner` (`'any' | 'with' | 'without' | { id: string }`), `origin`, `payment`, `eventType`, `couponStatus`, `nif`. Valor neutro `'any'`; outros valores reflectem os enums do schema. `EMPTY_FILTERS` para reset.
+  - `applyFilters(orders, f)` faz curto-circuito quando `countActiveFilters === 0` (custo zero quando ninguém filtrou). Lógica por dimensão isolada num único `filter`.
+  - `SavedView = { id, name, columns: ColumnKey[], filters: FilterConfig }`; `readStorage()` / `writeStorage()` com `try/catch` para tolerar quota / privacy mode; `makeId()` short random sem dependência externa.
+  - `COLUMN_MIN_PX` em vez de `%` — `min-width` em pixels é mais robusto quando há muitas colunas (a tabela ganha scroll horizontal nativo via `style.minWidth` calculado em runtime).
+
+- **UI — [src/app/(admin)/preservacao/_components/views-bar.tsx](src/app/(admin)/preservacao/_components/views-bar.tsx) (novo, ~600 linhas):**
+  - 4 componentes internos: `ViewsMenu` (selector de vista), `FiltersPopover`, `ColumnsPopover`, `SaveViewPopover`. Um quinto, `ActiveFilterChips`, mostra cada filtro activo abaixo da barra com X para remover.
+  - **Importante**: `PopoverTrigger` deste projecto vem de `@base-ui/react`, **não** aceita `asChild`. Em vez de wrappar `<Button>`, usa-se uma const `TRIGGER_BASE` + `TRIGGER_NEUTRAL`/`TRIGGER_ACTIVE` com classes equivalentes ao `Button variant="outline" size="sm"`. Estado "activo" (filtros ou colunas aplicados) destaca-se a indigo.
+  - Mudar qualquer filtro ou coluna **chama `setActiveViewId(null)`** — assim que se desvia da vista guardada, deixa de estar marcada como activa (até gravar de novo).
+  - Narrowing manual na branch do filtro Parceiro: `const partner = filters.partner; if (partner !== 'any') {...}` — TS não infere o estreitamento dentro de JSX se a comparação for em `filters.partner` directamente.
+
+- **Integração — [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx):**
+  - `useState` + hidratação `useEffect` para `extraColumns`, `filters`, `savedViews`, `activeViewId` (flag `viewsHydrated` evita escrever vazio antes da hidratação). Cada mudança escreve `localStorage`.
+  - Pipeline de filtragem: `optimistic → search → applyFilters(filters)`. Grouping local sempre que há `search || optimisticMoves || activeFiltersCount > 0`.
+  - `<ViewsBar>` renderizada num bloco novo entre o header e o conteúdo (`bg-cream-50/50` com border), **só na vista tabela** e não em arquivados.
+  - `GroupSection` + `OrderRow` ganham props `extraColumns` + `partnerNameById`. `<colgroup>` antigo (que usava `%` rígidos) substituído por `<thead>` com `min-width` por coluna + `style={{ minWidth: 760 + sum(COLUMN_MIN_PX) }}` para a tabela crescer em scroll.
+  - Novo componente local `ExtraCell` switch-case por coluna: render apropriado para cada uma (chip Cupão, mono NIF, etc.). Empty state consistente "—" cocoa-500.
+  - [page.tsx](src/app/(admin)/preservacao/page.tsx) ganha query nova a `partners` (id+name, ordenado por nome) — alimenta o dropdown do filtro Parceiro e o display da coluna "Parceiro".
+
+**Preflight `tsc + next build` limpos** após 2 ciclos de correcção (asChild → className inline; type narrowing manual; `string | null` no `onValueChange`). Build em ~62s.
+
+**Memórias actualizadas:** nada novo — todas as decisões caíram em padrões já memorizados (`feedback-aplicar-padroes-em-areas-analogas`, `feedback-valores-euro-direita`, `feedback-desktop-prioridade`, `feedback-simplificar-antes-de-redesenhar`).
+
+**Maria: passos manuais (sem migração nova):**
+
+1. **Push para Vercel**.
+2. **Sem nada para correr no Supabase** — toda a feature de Preservação usa `localStorage`.
+3. **Smoke browser** — abrir `https://admin.floresabeirario.pt/`:
+   - **Sidebar (qualquer página)**: ao item Dashboard, bolinha **indigo** com nº das tuas tarefas activas. Esconde só quando vais a 0.
+   - **Dashboard → kanban**:
+     - Cards têm chip de estado (stone/violet/emerald) **distinto** do chip de prioridade (slate/sky/amber/rose). Antes "ALTA" e "Hoje" eram ambos amber idênticos.
+     - Coluna sem tarefas no PC ficou bem mais estreita (~110px); colunas com tarefas ocupam o resto. No mobile, o snap horizontal mantém-se igual.
+     - Card com tarefa ligada a encomenda → chip indigo no topo mostra **nome do cliente**, não o código alfanumérico.
+     - Título do card respira (já não parte em 4-5 linhas estreitas).
+     - Prioridade desceu para a mesma linha que o estado, no fundo do card.
+   - **Preservação → tabela**: nova barra cream em cima do conteúdo com 3 botões `Vista: Todas ▾`, `Filtros`, `Colunas`.
+     - **Filtros** → popover com Parceiro / Origem / Pagamento / Tipo de evento / Cupão / NIF. Escolhe "Origem: Instagram" → tabela filtra-se; aparece chip indigo "Origem: Instagram" abaixo. Clica no X para remover.
+     - **Colunas** → checkbox de 8 colunas opcionais. Liga "Parceiro" → coluna nova aparece entre Estado e Orçamento com o nome do parceiro (ou — se sem).
+     - **Guardar vista** → após aplicar filtros/colunas, aparece botão "Guardar vista" → dá-lhe um nome → fica na lista do selector de Vista. Mudar de vista carrega tudo de uma só vez. Cada vista tem X para apagar (hover).
+   - **Workbench → header** já não tem o badge "parada há X dias" junto ao ID.
+4. **Esperado em produção**: as preferências de coluna/filtros/vistas ficam guardadas **por browser/dispositivo** (não sincroniza com o telemóvel — `localStorage` é local). Se Maria quiser sincronizar entre dispositivos no futuro, requer mig nova para tabela `user_preferences`.
 
 ### Sessão 93 🧾 3 anexos de fatura por encomenda + tarefa automática "Enviar fatura"
 
@@ -373,6 +440,9 @@ Sessão grande de arquitectura. Maria pediu redesenho profundo da aba Finanças 
    - **Faturação**: agora tem KPI **Comissões** em todas as grelhas; Receita mostra "Líquida" como sub-texto quando há comissões; Pipeline 4-bucket substitui o card "Potencial total".
    - **Lucro**: valor menor que antes em períodos onde tens comissões (porque agora subtrai comissões).
 
+<!-- Sessões 88-F e 88-E comprimidas no Histórico condensado em baixo. -->
+
+<!--
 ### Sessão 88-F 💰 COGS visível em Finanças → Faturação (KPI + gráfico + lucro real)
 
 Continuação directa da 88-E. Ao retirar o `ProductionCostBadge` do workbench, os custos de produção ficavam invisíveis em todo o sistema (a aba "Custos de produção" é só o wiki dos preços unitários, não agrega por encomenda). Esta sessão põe o COGS por encomenda na aba **Faturação**, onde a Maria já olha para a receita.
@@ -449,10 +519,22 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
    - Abrir uma pirâmide → continua a mostrar "Pirâmide" em italic (intocado).
    - Confirmar que orçamento (Sparkles roxo) continua a aparecer, mas o badge cinzento "Custo €X · margem Y%" já não existe.
    - Hint debaixo do dropdown agora explica claramente que afecta custo, não preço ao cliente.
+-->
 
 <!-- Sessões 88-A, 88-B, 88-C e 88-D comprimidas no Histórico condensado em baixo. -->
 
 ## Próximo passo CONCRETO
+
+**Sessão 95 — passos manuais (SEM migração):**
+
+1. **Push para Vercel** (~6 ficheiros alterados, ~3 ficheiros novos).
+2. **Sem nada para correr no Supabase** — toda a feature de Vistas/Filtros/Colunas usa `localStorage` por dispositivo.
+3. **Smoke browser**:
+   - **Sidebar**: bolinha **indigo** no item Dashboard (nº das minhas tarefas activas). Esconde só quando vou a 0. Mensagens continuam azul `sky-500`; encomendas por abrir também `sky-500`.
+   - **Dashboard / kanban**: cores de estado (stone/violet/emerald) já não colidem com prioridade (slate/sky/amber/rose). Coluna vazia no PC ~110px (em vez de 1/6); colunas com tarefas ocupam o resto. Cards: nome do cliente no chip indigo do topo (era código). Título do card respira (prioridade desceu para a linha do estado).
+   - **Workbench Preservação** → header: já não tem badge "parada há X dias" junto ao ID. Tabela: também não tem.
+   - **Preservação → tabela**: nova barra cream no topo com `Vista: Todas ▾` / `Filtros` / `Colunas`. Aplica "Origem: Instagram" → tabela filtra-se; aparece chip indigo abaixo com X para remover. Liga "Parceiro" em Colunas → coluna nova aparece entre Estado e Orçamento. Botão **Guardar vista** aparece quando há ajustes — dá nome → fica no selector de Vista; mudar entre vistas carrega tudo de uma só vez; X em hover apaga.
+4. **Sem `npm run smoke` automatizado nesta sessão** — Playwright não está instalado neste ambiente; é manual.
 
 **Sessão 93 — passos manuais (mig 060 + UI):**
 
@@ -635,7 +717,15 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
 
 ## Histórico condensado (sessões 1-88D)
 
-### Fase 6 — Integrações + PWA + RGPD (sessões 35-88D)
+### Fase 6 — Integrações + PWA + RGPD (sessões 35-94)
+- **94** — PWA Android: matcher do [proxy.ts](src/proxy.ts) expandido para excluir `manifest.webmanifest`+`sw.js` (302 cross-origin sem cookies estava a invalidar PWA install); safe zone maskable 60%→80%; `purpose:any` para android-chrome + `purpose:maskable` separado; SW `CACHE_VERSION` v3→v4. Resultado: Chrome Android passa a oferecer "Instalar app" e o ícone do ecrã principal mostra flores grandes.
+- **93** — Mig 060 + tarefas auto: `orders.invoice_attachment_url` → 3 colunas `invoice_url_sinal/intermedio/final`; workbench Preservação mostra 1-3 slots etiquetados consoante `payment_status`; `updateOrderAction` cria tarefa `Enviar fatura — {nome} ({slot})` ao detectar NULL→URL (admin, alta, sem prazo); padrão replicado em `updateVoucherAction`. Export CSV com 3 colunas.
+- **92** — Mig 059: `tasks.status` GTD (`por_comecar/a_fazer_hoje/em_curso`). Kanban: estado-pill no card, mobile snap-scroll horizontal por coluna (queixa de drag indesejado), drag desactivado no mobile (PointerSensor distance=9999). "Há X dias" italic substitui slot do prazo quando tarefa sem prazo. Hook novo `useIsMobile()` via `useSyncExternalStore` boolean primitivo.
+- **91** — COGS tudo-ou-nada (mig 058 limpa snapshots de em-curso) + snapshot capturado a 100% pago. `cogsRecognizedFromOrder`: passa de `× paidRatio` para `payment_status==='100_pago' ? full : 0`. `updateOrderAction` captura snapshot na transição NULL→100%. Botão backfill em Catálogo para snapshots antigos. `margin_recognized = revenue_recognized − cogs_recognized − commission_recognized` (deixa de coincidir com `margin_full × ratio`).
+- **90** — Catálogo verde substitui PrecosTab; 6 tabelas de produção mantêm-se. Mini 20x25 entra no Bloco 1 com 3 fundos. Base partilhada via rowspan. Mig 054 (`pricing_items.cost_fbr`, deprecated em 056) + mig 056 (consumíveis 30x40/40x50/50x70/mini/ornament/pendente — `production_cost_items_size_key_check` expandido). Custo extras autónomos no Bloco 2 deriva da rosa "Outros custos recorrentes". Memória nova: [[feedback-verificar-existencia-bd]].
+- **89** — Finanças redesenhada: 6 sub-abas (Painel default + P&L por encomenda + Catálogo + Despesas + Faturação + Competição). [lib/finance.ts](src/lib/finance.ts) novo com `orderPnL` fonte única (revenue/cogs/commission recognized + full). Comissões a parceiros subtraem da receita (proporcional ao %pago, excluindo `na`/`nao_aceita`). 4 KPIs primários + 4 secundários no Painel + ranking por SKU. P&L tabela ordenável. Decisões: IVA isenta; cashflow proporcional; quadro+fundo como dimensões principais (Maria preferiu sobre top encomendas individuais).
+- **88-F** — COGS visível em Finanças→Faturação: select de orders expandido com campos de `computeProductionCost`; `cogsFromOrder` proporcional ao %pago (decisão depois revertida na 91 para tudo-ou-nada); grelha de KPIs 4×3 inclui "Custo de produção" amber; gráfico ganha 3ª barra amber.
+- **88-E** — Mig 053 default `frame_internal_type='baixa'` + backfill non-pyramid. `createOrderAction` força `?? 'baixa'`. `ProductionCostBadge` retirado do workbench (Maria: ruído na gestão por encomenda); componente mantido órfão para reuso futuro em Finanças. Hint do dropdown reescrita.
 - **88-D** — Página CRUD de templates de tarefas em `/settings/templates-tarefas`: server actions `create/update/archive/restore TaskTemplateAction` (`is_seed=false` em criados via UI); page admin-only com tabela (Nome+Seed badge, Título mono, Escopo colorido, Categoria, Prioridade, Valor) + diálogo de edição com botões "+ {variável}" que injectam no Textarea + checkbox "Este template pede um valor (€)" com input "Etiqueta do diálogo". Topbar: entrada existente renomeada `Templates → Mensagens` + nova entrada `Tarefas`. Optimistic updates + revalidatePath. Fecha o ciclo 88-A→88-D (schema + workbench Preservação + workbench Vale-Presente + CRUD).
 - **88-C** — Tarefas no workbench Vale-Presente + linkage clicável no Dashboard: componente `_components/order-tasks-block.tsx` promovido a `src/components/workbench-tasks-block.tsx` com API genérica `link: { type: 'order'|'voucher'; id }` e `paymentOptions: AmountOption[]`. Vale-Presente ganha card "Tarefas" no topo da coluna direita (mesma posição que Preservação); picker filtra para templates `scope=voucher|both`; diálogo só mostra 1 opção "Total (€X)" porque vales são pagos 100% num só momento. Dashboard: lookups `orderCodeById`/`voucherCodeById` em [src/app/(admin)/page.tsx](src/app/(admin)/page.tsx) cascateados até [_components/dashboard/tasks-card.tsx](src/app/(admin)/_components/dashboard/tasks-card.tsx); tile mostra chip indigo `Link2 + code` clicável (stopPropagation no drag) + valor € à direita na bottom row. Helper novo `computeAmountOptionsForVoucher(amount)`.
 - **88-B** — UI Tarefas no workbench Preservação: card "Tarefas" como primeiro item da coluna 3 (accent indigo). Picker com 5 templates seed + "Tarefa em branco"; diálogo "Qual é o valor a faturar?" com 4 botões 30/40/70/100% calculados do `orders.budget` para templates com `needs_amount=true`. Helpers `interpolateTaskTemplate(template, ctx)` + `computeAmountOptionsFromBudget(budget)` em [src/lib/task-templates.ts](src/lib/task-templates.ts). PopoverTrigger usa `@base-ui/react` (não Radix), sem `asChild`. Reusa `createTaskAction` existente.

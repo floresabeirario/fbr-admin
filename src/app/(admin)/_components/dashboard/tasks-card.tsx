@@ -241,14 +241,21 @@ export function TasksCard({
   setTasks,
   currentEmail,
   orderCodeById = {},
+  orderClientById = {},
   voucherCodeById = {},
+  voucherSenderById = {},
 }: {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   currentEmail: string;
-  /** Mapeamentos uuid→código curto para mostrar badge clicável da encomenda/vale. */
+  /** uuid → código curto da encomenda (usado no href). */
   orderCodeById?: Record<string, string>;
+  /** uuid → nome do cliente (usado no display do chip). */
+  orderClientById?: Record<string, string>;
+  /** uuid → código do vale (href). */
   voucherCodeById?: Record<string, string>;
+  /** uuid → nome do remetente do vale (display). */
+  voucherSenderById?: Record<string, string>;
 }) {
   // Filtro por membro — 3 avatares no topo, default todos seleccionados
   // (= sem filtro). Click num avatar alterna; quando o set é o total dos
@@ -900,11 +907,12 @@ export function TasksCard({
               // Mobile: flex horizontal com snap por coluna (~85vw cada).
               // -mx-5 + px-5 = "edge bleed" para que o scroll vá até às
               // margens do card sem deixar paddings vazios visíveis.
-              // PC: grid clássico de 3→6 colunas. `items-start` impede
-              // que colunas vazias estiquem até à altura da maior coluna
-              // (queixa Maria: "podem encolher-se um pouco?").
+              // PC: flex (NÃO grid) para que cada coluna ganhe largura
+              // proporcional ao seu conteúdo — vazias colapsam para ~110px
+              // (só cabeçalho com ícone e contagem) e as com tarefas
+              // partilham o espaço restante em partes iguais (flex-1).
               "flex gap-3 overflow-x-auto -mx-5 px-5 pb-3 snap-x snap-mandatory scroll-smooth",
-              "sm:grid sm:grid-cols-3 lg:grid-cols-6 sm:overflow-visible sm:mx-0 sm:px-5 sm:py-3 sm:snap-none sm:items-start",
+              "sm:overflow-visible sm:mx-0 sm:px-5 sm:py-3 sm:snap-none sm:items-start",
             )}
           >
             {columnOrder.map((category) => (
@@ -921,7 +929,9 @@ export function TasksCard({
                 draggingTaskId={draggingTask?.id ?? null}
                 draggingColumn={draggingColumn}
                 orderCodeById={orderCodeById}
+                orderClientById={orderClientById}
                 voucherCodeById={voucherCodeById}
+                voucherSenderById={voucherSenderById}
                 isMobile={isMobile}
               />
             ))}
@@ -993,7 +1003,9 @@ function CategoryColumn({
   draggingTaskId,
   draggingColumn,
   orderCodeById,
+  orderClientById,
   voucherCodeById,
+  voucherSenderById,
   isMobile,
 }: {
   category: TaskCategory;
@@ -1007,7 +1019,9 @@ function CategoryColumn({
   draggingTaskId: string | null;
   draggingColumn: TaskCategory | null;
   orderCodeById: Record<string, string>;
+  orderClientById: Record<string, string>;
   voucherCodeById: Record<string, string>;
+  voucherSenderById: Record<string, string>;
   isMobile: boolean;
 }) {
   const meta = CATEGORY_META[category];
@@ -1033,9 +1047,12 @@ function CategoryColumn({
         // encolhe para ~42vw (cabem 2 por snap-screen).
         "snap-start shrink-0",
         isEmpty ? "w-[42vw] max-w-[160px]" : "w-[85vw] max-w-[320px]",
-        // PC: deixa o grid distribuir. `items-start` no parent já
-        // impede o stretch vertical.
-        "sm:w-auto sm:max-w-none sm:shrink",
+        // PC: vazias colapsam para 110px fixos (só cabeçalho); com tarefas
+        // partilham flex-1 do espaço restante. Resultado: as colunas com
+        // conteúdo ganham bastante mais largura quando há vazias ao lado.
+        isEmpty
+          ? "sm:w-[110px] sm:max-w-[110px] sm:flex-none"
+          : "sm:w-auto sm:max-w-none sm:flex-1 sm:basis-0 sm:min-w-[160px]",
         meta.topBorder,
         isOver && !draggingColumn && "ring-2 ring-cocoa-400 ring-offset-1",
         isTargetForColumnSwap && "ring-2 ring-indigo-500 ring-offset-1",
@@ -1096,7 +1113,9 @@ function CategoryColumn({
               onChangeStatus={(s) => onChangeStatus(task, s)}
               onEdit={() => setEditingId(task.id)}
               orderCodeById={orderCodeById}
+              orderClientById={orderClientById}
               voucherCodeById={voucherCodeById}
+              voucherSenderById={voucherSenderById}
               isMobile={isMobile}
             />
           ))
@@ -1146,7 +1165,9 @@ function DraggableTaskTile({
   onChangeStatus,
   onEdit,
   orderCodeById,
+  orderClientById,
   voucherCodeById,
+  voucherSenderById,
   isMobile,
 }: {
   task: Task;
@@ -1159,7 +1180,9 @@ function DraggableTaskTile({
   onChangeStatus: (s: TaskStatus) => void;
   onEdit: () => void;
   orderCodeById: Record<string, string>;
+  orderClientById: Record<string, string>;
   voucherCodeById: Record<string, string>;
+  voucherSenderById: Record<string, string>;
   isMobile: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -1186,12 +1209,8 @@ function DraggableTaskTile({
         (hidden || isDragging) && "opacity-30",
       )}
     >
-      {/* Pill de prioridade — canto superior direito (always visible) */}
-      <div className="absolute top-1.5 right-1.5 z-10">
-        <PriorityPill priority={task.priority} onChange={onChangePriority} />
-      </div>
-
-      {/* Badge da encomenda/vale — chip clicável; só renderiza quando ligada */}
+      {/* Badge da encomenda/vale — mostra NOME do cliente/remetente (legível)
+          mas o href continua a apontar para o code curto. */}
       {(() => {
         const orderCode = task.order_id ? orderCodeById[task.order_id] : null;
         const voucherCode = task.voucher_id ? voucherCodeById[task.voucher_id] : null;
@@ -1199,24 +1218,27 @@ function DraggableTaskTile({
         const href = orderCode
           ? `/preservacao/${orderCode}`
           : `/vale-presente/${voucherCode}`;
-        const label = orderCode ? orderCode : voucherCode!;
+        const display = orderCode
+          ? (task.order_id ? orderClientById[task.order_id] : null) ?? orderCode
+          : (task.voucher_id ? voucherSenderById[task.voucher_id!] : null) ?? voucherCode!;
+        const tooltipCode = orderCode ?? voucherCode!;
         return (
           <Link
             href={href}
             onPointerDown={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-0.5 max-w-[120px] text-[10px] font-mono text-indigo-700 hover:text-indigo-900 hover:underline truncate"
-            title={`Ir para ${orderCode ? "encomenda" : "vale"} ${label}`}
+            className="inline-flex items-center gap-0.5 max-w-full text-[10px] text-indigo-700 hover:text-indigo-900 hover:underline truncate"
+            title={`${display} — ${orderCode ? "encomenda" : "vale"} ${tooltipCode}`}
           >
             <Link2 className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">{label}</span>
+            <span className="truncate">{display}</span>
           </Link>
         );
       })()}
 
-      {/* Title row — pr-14 reserva espaço para o pill (até "BAIXA" cabe).
-          Só o título é constrangido; a descrição vive fora deste bloco
-          para usar a largura toda do card. */}
-      <div className="flex items-start gap-1.5 pr-14">
+      {/* Title row — sem pr-X reservado: o título usa a largura toda do card.
+          Prioridade desceu para a linha de baixo, libertando espaço (queixa
+          Maria: títulos quebravam em 4-5 linhas verticais). */}
+      <div className="flex items-start gap-1.5">
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
@@ -1252,17 +1274,21 @@ function DraggableTaskTile({
         </div>
       </div>
 
-      {/* Descrição — fora do pr-14 para respirar à largura toda do card.
-          pl-5 alinha o texto com o título (debaixo do título, não da checkbox). */}
+      {/* Descrição — pl-5 alinha o texto com o título (debaixo do título,
+          não da checkbox). */}
       {task.description && (
         <div className="text-[11px] text-cocoa-600 leading-snug whitespace-pre-wrap break-words pl-5">
           {linkify(task.description)}
         </div>
       )}
 
-      {/* Estado de trabalho — escondido em tarefas concluídas (o ✅ já manda). */}
+      {/* Linha de chips: estado + prioridade. Em tarefas concluídas o ✅
+          já indica o que importa, escondemos os 2 chips. */}
       {!task.done && (
-        <StatusPill status={task.status} onChange={onChangeStatus} />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <StatusPill status={task.status} onChange={onChangeStatus} />
+          <PriorityPill priority={task.priority} onChange={onChangePriority} />
+        </div>
       )}
 
       <div className="flex items-center gap-1 flex-wrap">
