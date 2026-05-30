@@ -1268,7 +1268,7 @@ export default function WorkbenchClient({
 
                     {/* DADOS DO EVENTO */}
                     <div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1.5">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-1.5">
                         <HeroField label="Tipo">
                           <Select value={local.event_type ?? ""} onValueChange={(v) => clientUpdate("event_type", v as Order["event_type"], "Tipo de evento", (val) => val ? EVENT_TYPE_LABELS[val] : "—")}>
                             <SelectTrigger className={selSubtle}><SelectValue placeholder="—" labels={EVENT_TYPE_LABELS} /></SelectTrigger>

@@ -55,7 +55,11 @@ export function Card({
 }) {
   const a = accent ? ACCENTS[accent] : null;
   return (
-    <div className={`rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""} ${className ?? ""}`}>
+    // `w-full min-w-0` força largura cheia e permite encolher quando o Card
+    // é grid item (caso do mobile com `display: contents` nas colunas).
+    // Sem isto, o min-width: auto default expandia o Card para min-content
+    // e os Fields dentro acabavam em colunas desiguais → labels sobrepostas.
+    <div className={`w-full min-w-0 rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""} ${className ?? ""}`}>
       <div className={`flex items-center justify-between gap-2 px-3 py-2 lg:px-5 lg:py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
         <div className="flex items-center gap-2">
           {icon && <span className={a?.icon ?? "text-cocoa-500"}>{icon}</span>}
@@ -70,10 +74,11 @@ export function Card({
 }
 
 export function Grid2({ children }: { children: React.ReactNode }) {
-  // Mobile + tablet pequeno: 1 coluna; só a partir de md (768px) é que vão para 2 colunas.
-  // (Antes era `sm:` mas em phones grandes Samsung a viewport CSS aproxima-se
-  // de 640px e as labels longas tipo "Tamanho da moldura" sobrepunham.)
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{children}</div>;
+  // Só vai para 2 colunas a partir de `lg:` (1024px+ = desktop, alinhado com
+  // o layout 3-col do workbench). Em mobile e tablet stack-se sempre — phones
+  // grandes Samsung têm viewport CSS perto de 640px e antes (com sm:/md:) as
+  // labels longas tipo "Tamanho da moldura" ficavam sobrepostas.
+  return <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{children}</div>;
 }
 
 export function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
