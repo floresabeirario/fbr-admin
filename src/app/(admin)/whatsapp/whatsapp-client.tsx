@@ -4,8 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Search, Archive, ArchiveRestore } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   WhatsappConversation,
   WhatsappMessage,
@@ -406,12 +409,127 @@ function ConversationViewer({
         )}
       </div>
 
-      {/* Composer placeholder + "Sugerir resposta" (Claude vem em sessao proxima) */}
-      <footer className="p-3 border-t border-cream-200 bg-surface text-center text-xs text-cocoa-500">
-        💡 As mensagens são enviadas pelo telemóvel. <br />
-        <span className="text-cocoa-400">Botão &quot;Sugerir resposta&quot; com Claude — em desenvolvimento.</span>
-      </footer>
+      {/* Composer: caixa de instrucao opcional + sugerir resposta com Claude */}
+      <SuggestComposer conversationId={conversation.id} />
     </>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// COMPOSER — "Sugerir resposta" com Claude
+// ──────────────────────────────────────────────────────────────
+function SuggestComposer({ conversationId }: { conversationId: string }) {
+  const [instruction, setInstruction] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+
+  // Reset quando muda de conversa
+  useEffect(() => {
+    setInstruction("");
+    setSuggestion(null);
+    setLoading(false);
+  }, [conversationId]);
+
+  async function handleSuggest() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/whatsapp/suggest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId, instruction }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setSuggestion(data.suggestion || "");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro a gerar sugestão");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!suggestion) return;
+    try {
+      await navigator.clipboard.writeText(suggestion);
+      toast.success("Copiado. Cola no telemóvel.");
+    } catch {
+      toast.error("Não consegui copiar — selecciona manualmente.");
+    }
+  }
+
+  function handleClose() {
+    setSuggestion(null);
+    setInstruction("");
+  }
+
+  if (suggestion !== null) {
+    return (
+      <footer className="p-3 border-t border-cream-200 bg-surface space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium text-cocoa-700 flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-indigo-500" /> Sugestão (edita antes de copiar)
+          </span>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-1 text-cocoa-400 hover:text-cocoa-700"
+            aria-label="Fechar"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <Textarea
+          value={suggestion}
+          onChange={(e) => setSuggestion(e.target.value)}
+          rows={6}
+          className="text-sm"
+        />
+        <div className="flex gap-2">
+          <Button type="button" size="sm" onClick={handleCopy} className="flex-1">
+            <Copy className="h-3.5 w-3.5 mr-1.5" /> Copiar
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleSuggest}
+            disabled={loading}
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Refazer
+          </Button>
+        </div>
+      </footer>
+    );
+  }
+
+  return (
+    <footer className="p-3 border-t border-cream-200 bg-surface space-y-2">
+      <div className="text-[10px] text-cocoa-500">
+        💡 Mensagens enviam-se pelo telemóvel. Aqui só sugerimos.
+      </div>
+      <Textarea
+        value={instruction}
+        onChange={(e) => setInstruction(e.target.value)}
+        placeholder='Diz à Claude o que queres comunicar (opcional). Ex: "responde que sim, conseguimos fazer mas o prazo é mais longo"'
+        rows={2}
+        className="text-sm"
+      />
+      <Button
+        type="button"
+        size="sm"
+        onClick={handleSuggest}
+        disabled={loading}
+        className="w-full"
+      >
+        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+        {loading ? "A pensar…" : "Sugerir resposta"}
+      </Button>
+    </footer>
   );
 }
 
@@ -556,7 +674,7 @@ function NotesArea({
         <textarea
           value={value}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder="Notas sobre esta pessoa (sincronizam entre dispositivos)…"
+          placeholder="Notas só na plataforma — não aparecem no WhatsApp do telemóvel."
           rows={3}
           className="w-full px-3 py-2 text-xs bg-cream-50 border-t border-cream-100 resize-none focus:outline-none focus:bg-surface"
         />
