@@ -3,21 +3,19 @@ import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPhone } from "@/lib/format-phone";
 
-// node:crypto não está disponível no Edge runtime — Meta exige HMAC.
+// node:crypto nao esta no Edge runtime.
 export const runtime = "nodejs";
-// Webhook nunca pode ser cacheado.
 export const dynamic = "force-dynamic";
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>;
+type RouteContext = { params: Promise<{ token: string }> };
 
-// Serializa erro do Supabase (que e plain object com code/message/details/hint)
-// para JSON lisivel em logs do Vercel.
+// Serializa erro do Supabase (plain object com code/message/details/hint).
 function serializeError(err: unknown): Record<string, unknown> {
   if (err instanceof Error) {
     return { message: err.message, name: err.name, stack: err.stack };
   }
   if (typeof err === "object" && err !== null) {
-    // Supabase devolve { code, message, details, hint } — copiar tudo.
     return { ...(err as Record<string, unknown>) };
   }
   return { value: String(err) };
@@ -41,23 +39,41 @@ type WaMessage = {
 };
 
 // ──────────────────────────────────────────────────────────────
+// Validacao do path token
+// ──────────────────────────────────────────────────────────────
+// Reusa WHATSAPP_VERIFY_TOKEN — ja e secret, ja esta gerado, evita
+// uma env var extra. Comparacao em tempo constante para evitar timing
+// attacks.
+function isValidPathToken(tokenFromPath: string): boolean {
+  const expected = process.env.WHATSAPP_VERIFY_TOKEN;
+  if (!expected) return false;
+  if (tokenFromPath.length !== expected.length) return false;
+  try {
+    return timingSafeEqual(
+      Buffer.from(tokenFromPath, "utf8"),
+      Buffer.from(expected, "utf8"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 // GET — handshake da Meta
 // ──────────────────────────────────────────────────────────────
-// A Meta envia: ?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...
-// Temos de ecoar o challenge em texto puro se o token bater.
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest, ctx: RouteContext) {
+  const { token } = await ctx.params;
+  if (!isValidPathToken(token)) {
+    return new Response("not found", { status: 404 });
+  }
+
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get("hub.mode");
-  const token = searchParams.get("hub.verify_token");
+  const verifyToken = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
   const expected = process.env.WHATSAPP_VERIFY_TOKEN;
-  if (!expected) {
-    console.error("[wa-webhook] WHATSAPP_VERIFY_TOKEN env var em falta");
-    return new Response("server misconfigured", { status: 500 });
-  }
-
-  if (mode === "subscribe" && token === expected && challenge) {
+  if (mode === "subscribe" && verifyToken === expected && challenge) {
     return new Response(challenge, {
       status: 200,
       headers: { "content-type": "text/plain" },
@@ -70,65 +86,24 @@ export async function GET(request: NextRequest) {
 // ──────────────────────────────────────────────────────────────
 // POST — eventos
 // ──────────────────────────────────────────────────────────────
-// Princípio: responder 200 o mais rapidamente possível para evitar
-// retransmissões da Meta (limite de 10s). Toda a multimédia é puxada
-// num job assíncrono separado — aqui só guardamos a mensagem.
-export async function POST(request: NextRequest) {
+// Devolver 200 rapidamente (limite de 10s da Meta). Multimedia e
+// puxada em job separado.
+export async function POST(request: NextRequest, ctx: RouteContext) {
+  const { token } = await ctx.params;
+  if (!isValidPathToken(token)) {
+    // Path token errado: 404 (nao 401) para nao revelar que o endpoint existe.
+    return new Response("not found", { status: 404 });
+  }
+
   const rawBody = await request.text();
 
-  // Loggar todos os headers + signature info — temporariamente, enquanto
-  // descobrimos como o Dualhook + Meta assinam (App Secret nao e exposto
-  // na UI do Dualhook). Remover quando soubermos.
-  const allHeaders = Object.fromEntries(request.headers.entries());
+  // Validacao HMAC opcional (so se META_APP_SECRET estiver definido).
+  // Atualmente nao temos esse secret (Dualhook nao expoe; Meta App e
+  // multi-tenant deles). Path token suficiente.
   const sigMeta = request.headers.get("x-hub-signature-256");
-  const sigDualhook = request.headers.get("x-dualhook-signature");
-  console.log("[wa-webhook] POST received", {
-    bodyLength: rawBody.length,
-    bodyPreview: rawBody.slice(0, 300),
-    sigMeta,
-    sigDualhook,
-    headerKeys: Object.keys(allHeaders),
-    allHeaders,
-  });
-
   const appSecret = process.env.META_APP_SECRET;
-  const debugAccept = process.env.WHATSAPP_DEBUG_ACCEPT_UNSIGNED === "1";
-
-  // Politica de autorizacao:
-  //   1. Se vier X-Hub-Signature-256 e tivermos META_APP_SECRET -> valida HMAC
-  //   2. Senao, se vier X-Dualhook-Signature e tivermos DUALHOOK_SIGNING_SECRET -> valida HMAC
-  //   3. Senao, se WHATSAPP_DEBUG_ACCEPT_UNSIGNED=1 -> aceita (so durante descoberta)
-  //   4. Senao -> rejeita 401
-  let authorized = false;
-  let authReason = "rejected";
-
-  if (sigMeta && appSecret) {
-    if (verifyHmac(rawBody, sigMeta, appSecret)) {
-      authorized = true;
-      authReason = "meta_hmac";
-    } else {
-      authReason = "meta_hmac_invalid";
-    }
-  }
-
-  if (!authorized && sigDualhook) {
-    const dualhookSecret = process.env.DUALHOOK_SIGNING_SECRET;
-    if (dualhookSecret && verifyHmac(rawBody, sigDualhook, dualhookSecret)) {
-      authorized = true;
-      authReason = "dualhook_hmac";
-    } else if (dualhookSecret) {
-      authReason = "dualhook_hmac_invalid";
-    }
-  }
-
-  if (!authorized && debugAccept) {
-    authorized = true;
-    authReason = "debug_unsigned_accept";
-  }
-
-  console.log("[wa-webhook] auth decision", { authorized, authReason });
-
-  if (!authorized) {
+  if (sigMeta && appSecret && !verifyHmac(rawBody, sigMeta, appSecret)) {
+    console.error("[wa-webhook] HMAC invalido apesar de token correto");
     return new Response("unauthorized", { status: 401 });
   }
 
@@ -136,15 +111,15 @@ export async function POST(request: NextRequest) {
   try {
     payload = JSON.parse(rawBody);
   } catch {
-    console.error("[wa-webhook] JSON inválido");
+    console.error("[wa-webhook] JSON invalido");
     return new Response("ok", { status: 200 });
   }
 
   try {
     await processWebhookPayload(payload);
   } catch (err) {
-    // Loggar mas devolver 200 — meta_payload guarda o raw para recuperar.
-    console.error("[wa-webhook] erro no processamento", err);
+    // 200 mesmo em erro — meta_payload guarda o raw para recuperar manualmente.
+    console.error("[wa-webhook] erro no processamento", serializeError(err));
   }
 
   return new Response("ok", { status: 200 });
@@ -157,7 +132,6 @@ function verifyHmac(body: string, signatureHeader: string, secret: string): bool
   if (!signatureHeader.startsWith("sha256=")) return false;
   const provided = signatureHeader.slice("sha256=".length);
   const computed = createHmac("sha256", secret).update(body).digest("hex");
-
   let a: Buffer;
   let b: Buffer;
   try {
@@ -171,7 +145,7 @@ function verifyHmac(body: string, signatureHeader: string, secret: string): bool
 }
 
 // ──────────────────────────────────────────────────────────────
-// Parsing + inserção
+// Parsing + insercao
 // ──────────────────────────────────────────────────────────────
 async function processWebhookPayload(payload: unknown): Promise<void> {
   if (
@@ -207,8 +181,6 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
         messages = (Array.isArray(value.messages) ? value.messages : []) as WaMessage[];
       } else if (field === "smb_message_echoes") {
         direction = "sent_echo";
-        // A doc da Meta usa `message_echoes`; alguns ambientes devolvem
-        // `messages`. Tolerar ambos.
         const echoArr = (Array.isArray(value.message_echoes)
           ? value.message_echoes
           : Array.isArray(value.messages)
@@ -225,9 +197,7 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
         profile?: { name?: string };
       }>;
       const contactName = contacts[0]?.profile?.name ?? null;
-      // contacts[0].wa_id = a "outra parte" da conversa (cliente),
-      // independente da direccao. Mais fiavel que msg.from/msg.to,
-      // que em echoes nem sempre vem.
+      // contacts[0].wa_id = "outra parte" da conversa, sempre presente.
       const clientPhoneFromContacts = contacts[0]?.wa_id ?? null;
 
       for (const msg of messages) {
@@ -237,10 +207,7 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
           console.error("[wa-webhook] erro a inserir mensagem", {
             wamid: msg?.id,
             direction,
-            msgFrom: msg?.from,
-            msgTo: msg?.to,
             msgType: msg?.type,
-            clientPhoneFromContacts,
             errInfo: serializeError(err),
           });
         }
@@ -258,9 +225,6 @@ async function insertMessage(
 ): Promise<void> {
   if (!msg?.id) return;
 
-  // Telefone da "outra parte" da conversa (cliente).
-  // Preferimos contacts[0].wa_id (sempre presente em ambas direccoes);
-  // caimos para msg.from/msg.to como fallback.
   const clientPhoneRaw =
     clientPhoneFromContacts ?? (direction === "received" ? msg.from : msg.to);
   if (!clientPhoneRaw) return;
@@ -279,14 +243,12 @@ async function insertMessage(
 
   const content = parseContent(msg);
 
-  // wamid UNIQUE garante idempotência: se a Meta retransmitir, o INSERT
-  // falha com 23505 e ignoramos silenciosamente.
   const tsNum = Number(msg.timestamp);
   const receivedAt = Number.isFinite(tsNum) && tsNum > 0
     ? new Date(tsNum * 1000).toISOString()
     : new Date().toISOString();
 
-  const insertPayload = {
+  const { error } = await supabase.from("whatsapp_messages").insert({
     conversation_id: conversationId,
     wamid: msg.id,
     direction,
@@ -298,17 +260,10 @@ async function insertMessage(
     reply_to_wamid: msg.context?.id ?? null,
     received_at: receivedAt,
     meta_payload: msg as unknown as Record<string, unknown>,
-  };
-
-  const { error } = await supabase.from("whatsapp_messages").insert(insertPayload);
+  });
 
   if (error) {
-    if (error.code === "23505") return; // duplicate — already processed
-    // Loggar o payload tentado para vermos exactamente o que falhou.
-    console.error("[wa-webhook] insertMessage SQL error", {
-      errInfo: serializeError(error),
-      insertPayload: { ...insertPayload, meta_payload: "<<omitted>>" },
-    });
+    if (error.code === "23505") return; // duplicate — wamid ja existe (idempotencia)
     throw error;
   }
 }
@@ -346,7 +301,6 @@ async function ensureConversation(
     .single();
 
   if (error) {
-    // Race com outro evento simultâneo do mesmo número — relê.
     if (error.code === "23505") {
       const { data: again } = await supabase
         .from("whatsapp_conversations")
