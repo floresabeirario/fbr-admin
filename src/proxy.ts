@@ -32,8 +32,11 @@ export async function proxy(request: NextRequest) {
   // Endpoints de cron são protegidos por CRON_SECRET (header
   // Authorization), não por cookie de sessão — saltam o redirect.
   const isCronEndpoint = request.nextUrl.pathname.startsWith("/api/cron/");
+  // Webhook do WhatsApp é chamado pela Meta sem sessão; validação é por
+  // HMAC (X-Hub-Signature-256) e verify token (handshake GET).
+  const isWhatsappWebhook = request.nextUrl.pathname.startsWith("/api/whatsapp/");
 
-  if (!user && !isLoginPage && !isAuthCallback && !isCronEndpoint) {
+  if (!user && !isLoginPage && !isAuthCallback && !isCronEndpoint && !isWhatsappWebhook) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
