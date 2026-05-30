@@ -126,4 +126,5 @@ export async function updateSystemSettingAction(
     .upsert({ key, value }, { onConflict: "key" });
   if (error) throw new Error(`Não foi possível guardar a configuração: ${error.message}`);
   revalidatePath("/settings/templates");
+  revalidatePath("/settings/ai");
 }

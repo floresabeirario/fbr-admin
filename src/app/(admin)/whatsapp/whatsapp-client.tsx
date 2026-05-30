@@ -151,6 +151,13 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
         <div className="p-3 border-b border-cream-200 space-y-2">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold text-cocoa-900 flex-1">WhatsApp</h1>
+            <Link
+              href="/settings/ai"
+              title="Editar persona, factos e templates do Claudio"
+              className="text-xs text-cocoa-600 hover:text-cocoa-900 px-2 py-1 rounded border border-cream-200 hover:bg-cream-100 inline-flex items-center gap-1"
+            >
+              <span className="text-indigo-500">✨</span> Claudio
+            </Link>
             <button
               type="button"
               onClick={() => setShowArchived((v) => !v)}

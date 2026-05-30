@@ -11,6 +11,10 @@ export const dynamic = "force-dynamic";
 const RECENT_MESSAGES_LIMIT = 20;
 const MAX_TOKENS = 1024;
 
+// Fallback se system_settings.claude_persona estiver vazio (nao deveria
+// acontecer apos mig 063, mas defensivo).
+const PERSONA_FALLBACK = `És a Maria João da Flores à Beira-Rio (FBR), estúdio de preservação de flores em Coimbra. Português europeu, tom caloroso mas profissional, eficiente, emojis com moderação. Tratamento "a senhora"/"vocês" em PT. Resposta directa para copiar — sem prefácios.`;
+
 type ReqBody = {
   conversationId: string;
   instruction?: string; // ex: "diz que sim, conseguimos fazer"
@@ -55,18 +59,29 @@ export async function POST(request: NextRequest) {
 
   // 2. Templates (todos PT e EN — Claude decide qual estilo aplicar
   //    consoante a lingua da conversa)
-  const { data: tplData } = await supabase
-    .from("message_templates")
-    .select("name, language, category, body")
-    .is("deleted_at", null)
-    .order("category", { ascending: true })
-    .order("position", { ascending: true });
-  const templates = (tplData ?? []) as Array<{
+  const [tplDataRes, settingsRes] = await Promise.all([
+    supabase
+      .from("message_templates")
+      .select("name, language, category, body")
+      .is("deleted_at", null)
+      .order("category", { ascending: true })
+      .order("position", { ascending: true }),
+    supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["claude_persona", "claude_facts"]),
+  ]);
+  const templates = (tplDataRes.data ?? []) as Array<{
     name: string;
     language: "pt" | "en";
     category: string;
     body: string;
   }>;
+  const settingsMap = Object.fromEntries(
+    (settingsRes.data ?? []).map((r) => [r.key as string, r.value as string]),
+  );
+  const personaFromDb = (settingsMap.claude_persona ?? "").trim();
+  const factsFromDb = (settingsMap.claude_facts ?? "").trim();
 
   // 3. Encomendas associadas a esta pessoa (por telefone)
   // O matching e por digitos last 9 — espelhada do client side.
@@ -117,26 +132,12 @@ export async function POST(request: NextRequest) {
   const notesBlock = conv.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
 
   // ─── System prompt (cacheable) ───
-  // Inclui persona FBR + todos os templates como referencia de estilo.
-  const systemPersona = `És a Maria João da Flores à Beira-Rio (FBR), estúdio de preservação de flores em Coimbra.
-
-A tua voz:
-- Português europeu (não brasileiro)
-- Calorosa mas profissional, sem ser informal demais
-- Atenciosa: tratar as clientes como noivas/pessoas que confiam algo precioso (as flores do dia especial)
-- Eficiente: não enrolar
-- Usa emojis com moderação (🌸 🌷 🌻 🤍 💐) — nunca exagerar
-- Em PT trata sempre por "a senhora"/"vocês"; nunca "você" directo
-- Saudação contextual ("Bom dia"/"Boa tarde"/"Boa noite" conforme hora)
-
-Quando responder em INGLÊS:
-- Tom equivalente: warm but professional, atencioso
-- A Maria fala inglês mas não é fluente — mantém frases simples e claras
-- Não incluir convite para chamada telefónica (memória de equipa: Ana não fala EN; convites só em PT)
-
-Regra: a tua resposta vai ser COPIADA pela Maria para a app WhatsApp Business. Escreve a resposta directa, sem "Aqui está a sugestão:" nem aspas a envolver. Apenas o texto a enviar.
-
-Se a conversa precisa de informação que não tens (ex: data do evento que a cliente perguntou), assinala com [CONFIRMAR: ...] em vez de inventar.`;
+  // Persona vem de system_settings.claude_persona; se vazio, fallback hardcoded.
+  // Factos vem de system_settings.claude_facts; se vazio, omite a seccao.
+  const systemPersona = personaFromDb || PERSONA_FALLBACK;
+  const systemFacts = factsFromDb
+    ? `\n\n## Factos e contexto adicional da FBR (sabe sempre)\n\n${factsFromDb}`
+    : "";
 
   const templatesAsReference = templates
     .map((t) => `### ${t.name} (${t.language}, ${t.category})\n${t.body}`)
@@ -172,7 +173,7 @@ Gera a próxima mensagem da FBR (pronta a copiar):`;
       system: [
         {
           type: "text",
-          text: systemPersona,
+          text: systemPersona + systemFacts,
           cache_control: { type: "ephemeral" },
         },
         {

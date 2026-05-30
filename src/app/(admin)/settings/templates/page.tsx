@@ -18,6 +18,8 @@ const SETTING_DEFAULTS: SystemSettingsMap = {
   payment_mbway: "",
   studio_address_url: "",
   studio_address_text: "",
+  claude_persona: "",
+  claude_facts: "",
 };
 
 export default async function TemplatesPage() {
