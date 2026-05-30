@@ -61,18 +61,62 @@ export async function GET(request: NextRequest) {
 // retransmissões da Meta (limite de 10s). Toda a multimédia é puxada
 // num job assíncrono separado — aqui só guardamos a mensagem.
 export async function POST(request: NextRequest) {
+  const rawBody = await request.text();
+
+  // Loggar todos os headers + signature info — temporariamente, enquanto
+  // descobrimos como o Dualhook + Meta assinam (App Secret nao e exposto
+  // na UI do Dualhook). Remover quando soubermos.
+  const allHeaders = Object.fromEntries(request.headers.entries());
+  const sigMeta = request.headers.get("x-hub-signature-256");
+  const sigDualhook = request.headers.get("x-dualhook-signature");
+  console.log("[wa-webhook] POST received", {
+    bodyLength: rawBody.length,
+    bodyPreview: rawBody.slice(0, 300),
+    sigMeta,
+    sigDualhook,
+    headerKeys: Object.keys(allHeaders),
+    allHeaders,
+  });
+
   const appSecret = process.env.META_APP_SECRET;
-  if (!appSecret) {
-    console.error("[wa-webhook] META_APP_SECRET env var em falta");
-    return new Response("server misconfigured", { status: 503 });
+  const debugAccept = process.env.WHATSAPP_DEBUG_ACCEPT_UNSIGNED === "1";
+
+  // Politica de autorizacao:
+  //   1. Se vier X-Hub-Signature-256 e tivermos META_APP_SECRET -> valida HMAC
+  //   2. Senao, se vier X-Dualhook-Signature e tivermos DUALHOOK_SIGNING_SECRET -> valida HMAC
+  //   3. Senao, se WHATSAPP_DEBUG_ACCEPT_UNSIGNED=1 -> aceita (so durante descoberta)
+  //   4. Senao -> rejeita 401
+  let authorized = false;
+  let authReason = "rejected";
+
+  if (sigMeta && appSecret) {
+    if (verifyHmac(rawBody, sigMeta, appSecret)) {
+      authorized = true;
+      authReason = "meta_hmac";
+    } else {
+      authReason = "meta_hmac_invalid";
+    }
   }
 
-  const rawBody = await request.text();
-  const signature = request.headers.get("x-hub-signature-256") ?? "";
+  if (!authorized && sigDualhook) {
+    const dualhookSecret = process.env.DUALHOOK_SIGNING_SECRET;
+    if (dualhookSecret && verifyHmac(rawBody, sigDualhook, dualhookSecret)) {
+      authorized = true;
+      authReason = "dualhook_hmac";
+    } else if (dualhookSecret) {
+      authReason = "dualhook_hmac_invalid";
+    }
+  }
 
-  if (!verifyHmac(rawBody, signature, appSecret)) {
-    console.error("[wa-webhook] HMAC inválido");
-    return new Response("invalid signature", { status: 401 });
+  if (!authorized && debugAccept) {
+    authorized = true;
+    authReason = "debug_unsigned_accept";
+  }
+
+  console.log("[wa-webhook] auth decision", { authorized, authReason });
+
+  if (!authorized) {
+    return new Response("unauthorized", { status: 401 });
   }
 
   let payload: unknown;
