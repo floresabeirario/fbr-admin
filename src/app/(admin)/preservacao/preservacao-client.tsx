@@ -760,30 +760,37 @@ function GroupSection({
           <table
             className="w-full text-left"
             style={{
+              // `table-layout: fixed` + larguras explícitas em cada th garante
+              // que TODAS as tabelas (uma por grupo) ficam com as colunas
+              // alinhadas — caso contrário cada grupo calcula o seu próprio
+              // layout consoante o conteúdo e os cabeçalhos saltam.
+              tableLayout: "fixed",
               minWidth:
-                760 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
+                830 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
             }}
           >
             <thead>
               <tr className="border-t border-cream-100 bg-cream-50">
-                <th className="w-[40px] px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" />
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[180px]">Cliente</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[110px]">Data evento</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide hidden xl:table-cell min-w-[140px]">Localização</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[120px]">{shippingHeader}</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[180px]">Estado</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 40 }} />
+                {/* Cliente fica sem largura fixa: absorve o espaço extra quando
+                    a tabela é mais larga que o sum das outras colunas. */}
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide">Cliente</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 110 }}>Data evento</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide hidden xl:table-cell" style={{ width: 140 }}>Localização</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 140 }}>{shippingHeader}</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 200 }}>Estado</th>
                 {extraColumns.map((c) => (
                   <th
                     key={c}
                     className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide"
-                    style={{ minWidth: COLUMN_MIN_PX[c] }}
+                    style={{ width: COLUMN_MIN_PX[c] }}
                   >
                     {COLUMN_LABELS[c]}
                   </th>
                 ))}
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right min-w-[100px]">Orçamento</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide min-w-[150px]">Pagamento</th>
-                <th className="w-[80px] px-4 py-2" />
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right" style={{ width: 110 }}>Orçamento</th>
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 150 }}>Pagamento</th>
+                <th className="px-4 py-2" style={{ width: 80 }} />
               </tr>
             </thead>
             <tbody>

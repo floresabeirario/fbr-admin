@@ -43,6 +43,7 @@ export function Card({
   action,
   children,
   badge,
+  className,
 }: {
   title: string;
   icon?: React.ReactNode;
@@ -50,10 +51,11 @@ export function Card({
   action?: React.ReactNode;
   children: React.ReactNode;
   badge?: React.ReactNode;
+  className?: string;
 }) {
   const a = accent ? ACCENTS[accent] : null;
   return (
-    <div className={`rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""}`}>
+    <div className={`rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""} ${className ?? ""}`}>
       <div className={`flex items-center justify-between gap-2 px-3 py-2 lg:px-5 lg:py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
         <div className="flex items-center gap-2">
           {icon && <span className={a?.icon ?? "text-cocoa-500"}>{icon}</span>}

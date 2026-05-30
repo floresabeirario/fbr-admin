@@ -275,6 +275,11 @@ export default function WorkbenchClient({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
+  // Em mobile o overlay com o URL da foto fica escondido por defeito —
+  // só aparece quando se toca na foto. Em desktop o hover do `group`
+  // continua a controlar a visibilidade como antes.
+  const [imageUrlMobileOpen, setImageUrlMobileOpen] = useState(false);
+
   async function handleArchive() {
     setArchiving(true);
     try {
@@ -605,6 +610,32 @@ export default function WorkbenchClient({
   const showFlowerShippingPaid = hasFlowerShippingCost;
   const showFrameShippingPaid  = hasFrameShippingCost;
 
+  // ── Lembretes no cabeçalho (Contactada / 40% / 30%) ────────
+  // "Contactada" só faz sentido enquanto não há pagamento — assim que o
+  // cliente paga qualquer tranche, o cliente já foi obviamente contactado.
+  const showContactadaPrompt = local.payment_status === "100_por_pagar";
+  // "40% pedidos?" aparece quando a encomenda chegou a flores_recebidas e
+  // ainda não recebemos 70%+ pago; desaparece assim que payment_status
+  // passa a 70_pago / 100_pago. Estado cancelado nunca mostra.
+  const reachedFloresRecebidas = (
+    [
+      "flores_recebidas", "flores_na_prensa", "reconstrucao_botanica",
+      "a_compor_design", "a_aguardar_aprovacao", "a_finalizar_quadro",
+      "a_ser_emoldurado", "emoldurado", "a_ser_fotografado",
+      "quadro_pronto", "quadro_enviado", "quadro_recebido",
+    ] as Order["status"][]
+  ).includes(local.status);
+  const reachedQuadroPronto = (
+    ["quadro_pronto", "quadro_enviado", "quadro_recebido"] as Order["status"][]
+  ).includes(local.status);
+  const show40Prompt =
+    reachedFloresRecebidas &&
+    local.payment_status !== "70_pago" &&
+    local.payment_status !== "100_pago";
+  // "30% pedidos?" aparece em quadro_pronto+ até payment_status=100_pago.
+  const show30Prompt =
+    reachedQuadroPronto && local.payment_status !== "100_pago";
+
   return (
     <div className="flex flex-col h-full bg-cream-50">
 
@@ -621,7 +652,7 @@ export default function WorkbenchClient({
 
       {/* ── Header fixo ──────────────────────────────────────── */}
       <header className="shrink-0 sticky top-0 z-20 bg-surface border-b border-cream-200 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 sm:px-6 py-2 sm:py-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-2.5 py-1.5 sm:gap-x-3 sm:gap-y-2 sm:px-6 sm:py-3">
           <Link
             href="/preservacao"
             className="flex items-center gap-1.5 text-sm text-cocoa-700 hover:text-cocoa-900 transition-colors shrink-0"
@@ -638,9 +669,10 @@ export default function WorkbenchClient({
 
           <Separator orientation="vertical" className="h-5 bg-cream-200 hidden sm:block" />
 
-          {/* Nome + ID — ocupa a linha toda em mobile para não partilhar com Contactada/Nota/Arquivar */}
-          <div className="flex-1 min-w-0 basis-full sm:basis-auto">
-            <h1 className="text-base font-semibold text-cocoa-900 truncate leading-tight">
+          {/* Nome + ID — flex-1 em vez de basis-full para partilhar a linha
+              com os outros itens em mobile (deixa de tomar a linha toda). */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm sm:text-base font-semibold text-cocoa-900 truncate leading-tight">
               {local.client_name}
             </h1>
             <div className="flex items-center gap-2 leading-tight">
@@ -707,15 +739,31 @@ export default function WorkbenchClient({
             </div>
           )}
 
-          <div className="w-full sm:w-56 order-last sm:order-none">
+          <div className="flex-1 basis-full sm:basis-auto sm:flex-none sm:w-56 order-last sm:order-none">
             <StatusSelect value={local.status} onChange={onStatusChange} />
           </div>
 
-          <CheckRow
-            label="Contactada"
-            checked={local.contacted}
-            onChange={(v) => update("contacted", v)}
-          />
+          {showContactadaPrompt && (
+            <CheckRow
+              label="Contactada"
+              checked={local.contacted}
+              onChange={(v) => update("contacted", v)}
+            />
+          )}
+          {show40Prompt && (
+            <CheckRow
+              label="40% pedidos?"
+              checked={local.payment_40_requested}
+              onChange={(v) => update("payment_40_requested", v)}
+            />
+          )}
+          {show30Prompt && (
+            <CheckRow
+              label="30% pedidos?"
+              checked={local.payment_30_requested}
+              onChange={(v) => update("payment_30_requested", v)}
+            />
+          )}
 
           <div className="hidden sm:block w-24 shrink-0 text-right text-xs">
             {saveState === "saving" && (
@@ -755,22 +803,29 @@ export default function WorkbenchClient({
         </div>
       </header>
 
-      {/* ── Corpo: 3 colunas ──────────────────────────────────── */}
+      {/* ── Corpo: 3 colunas em desktop, lista plana em mobile ──
+          As 3 colunas usam `display: contents` em mobile (<lg) para deixar
+          os cards individuais ficarem como filhos directos da grid. Cada
+          card recebe um `order-N` em mobile (e `lg:order-none` em desktop)
+          para a Maria conseguir reordenar Finanças → Comunicações → Envio
+          → Flores independentemente da coluna em que vivem em desktop. */}
       <div className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto p-2 sm:p-4 lg:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
 
             {/* ═══════════════════════════════
-                COLUNA ESQUERDA — COMUNICAÇÕES + GALERIA (sticky)
-                Em mobile: aparece depois da coluna central (order-2).
+                COLUNA ESQUERDA — COMUNICAÇÕES + GALERIA (sticky em desktop)
+                Em mobile usa `display: contents` para os cards subirem
+                à grid e aceitarem os `order-N` individuais.
             ═══════════════════════════════ */}
-            <aside className="order-2 lg:order-none lg:col-span-3">
-              <div className="space-y-4 lg:space-y-5 lg:sticky lg:top-2">
+            <aside className="contents lg:block lg:col-span-3">
+              <div className="contents lg:block lg:space-y-4 lg:space-y-5 lg:sticky lg:top-2">
 
               <Card
                 title="Comunicações"
                 icon={<MessageCircle className="h-3.5 w-3.5" />}
                 accent="blue"
+                className="order-4 lg:order-none"
                 action={
                   <button
                     type="button"
@@ -991,6 +1046,7 @@ export default function WorkbenchClient({
                 title="Inventário das flores"
                 icon={<Flower2 className="h-3.5 w-3.5" />}
                 accent="green"
+                className="order-9 lg:order-none"
                 badge={
                   (local.inventory?.length ?? 0) > 0 ? (
                     <span className="text-[10px] text-green-700 font-semibold bg-green-100 px-1.5 py-0.5 rounded-full">
@@ -1005,7 +1061,7 @@ export default function WorkbenchClient({
                 />
               </Card>
 
-              <Card title="Assistente de resposta" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet">
+              <Card title="Assistente de resposta" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet" className="order-11 lg:order-none">
                 <div className="space-y-3">
                   <Textarea
                     disabled
@@ -1028,6 +1084,7 @@ export default function WorkbenchClient({
                 title="Galeria de inspiração"
                 icon={<Heart className="h-3.5 w-3.5" />}
                 accent="pink"
+                className="order-10 lg:order-none"
                 badge={gallery.length > 0 ? <span className="text-[10px] text-pink-700 font-semibold bg-pink-100 px-1.5 py-0.5 rounded-full">{gallery.length}</span> : undefined}
               >
                 <div className="space-y-3">
@@ -1094,12 +1151,12 @@ export default function WorkbenchClient({
 
             {/* ═══════════════════════════════
                 COLUNA DO MEIO — DETALHES PRINCIPAIS
-                Em mobile: aparece em primeiro lugar (order-1).
+                Em mobile usa `display: contents` (ver nota em cima).
             ═══════════════════════════════ */}
-            <main className="order-1 lg:order-none lg:col-span-6 space-y-4 lg:space-y-5">
+            <main className="contents lg:block lg:col-span-6 lg:space-y-4 lg:space-y-5">
 
               {/* Hero unificado: foto + dados do cliente + dados do evento */}
-              <div className="rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
+              <div className="order-1 lg:order-none rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)]">
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-0">
                   {/* Foto 3:4 vertical (16:9 horizontal em mobile para não ocupar o ecrã todo) */}
                   <div className="sm:col-span-5 relative group bg-gradient-to-br from-cream-50 to-cream-100">
@@ -1124,8 +1181,21 @@ export default function WorkbenchClient({
                         </div>
                       )}
                     </div>
-                    {/* Em mobile o overlay hover não funciona — mostrar sempre */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-2.5">
+                    {/* Tap area em mobile — toca na foto para revelar/esconder o editor de URL. */}
+                    {photoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setImageUrlMobileOpen((v) => !v)}
+                        className="absolute inset-0 sm:hidden z-10"
+                        aria-label={imageUrlMobileOpen ? "Esconder editor da foto" : "Editar URL da foto"}
+                      />
+                    )}
+                    {/* Overlay com o URL: hover em desktop, toggle em mobile. */}
+                    <div
+                      className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent transition-opacity p-2.5 z-20 ${
+                        imageUrlMobileOpen || !photoUrl ? "opacity-100" : "opacity-0 pointer-events-none"
+                      } sm:opacity-0 sm:pointer-events-auto sm:group-hover:opacity-100`}
+                    >
                       <Input
                         className="h-8 text-xs bg-surface/95 border-white/40 placeholder:text-cocoa-700"
                         placeholder="URL da foto"
@@ -1285,7 +1355,7 @@ export default function WorkbenchClient({
 
               {/* Alerta visual de fatura em falta */}
               {missingInvoice && (
-                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="order-2 lg:order-none flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                   <div className="text-xs text-amber-900 leading-relaxed">
                     <p className="font-semibold">Falta anexar fatura</p>
@@ -1301,7 +1371,7 @@ export default function WorkbenchClient({
                 const daysWaiting = differenceInCalendarDays(new Date(), parseISO(local.updated_at));
                 const urgent = daysWaiting >= 4;
                 return (
-                  <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                  <div className={`order-2 lg:order-none flex items-start gap-3 rounded-xl border px-4 py-3 ${
                     urgent
                       ? "bg-red-50 border-red-200"
                       : "bg-sky-50 border-sky-200"
@@ -1333,7 +1403,7 @@ export default function WorkbenchClient({
 
               {/* Card único: Flores, quadro, extras e peças extra */}
               {/* Inventário das flores vive na coluna esquerda — secção própria */}
-              <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald">
+              <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald" className="order-6 lg:order-none">
                 <Grid2>
                   <Field label="Tipo de flores" span2>
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />
@@ -1484,7 +1554,7 @@ export default function WorkbenchClient({
               </Card>
 
               {/* Card separado: Envio das flores + Receção do quadro */}
-              <Card title="Envio das flores e receção do quadro" icon={<Truck className="h-3.5 w-3.5" />} accent="orange">
+              <Card title="Envio das flores e receção do quadro" icon={<Truck className="h-3.5 w-3.5" />} accent="orange" className="order-5 lg:order-none">
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-orange-700">Envio das flores (cliente → FBR)</p>
                   <ShippingRow
@@ -1676,7 +1746,7 @@ export default function WorkbenchClient({
               </Card>
 
               {/* Origem e notas */}
-              <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate">
+              <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate" className="order-12 lg:order-none">
                 <div className="space-y-3">
                   <Field label="Como conheceu a FBR">
                     <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => clientUpdate("how_found_fbr", v as Order["how_found_fbr"], "Como conheceu a FBR", (val) => val ? HOW_FOUND_FBR_LABELS[val] : "—")}>
@@ -1750,14 +1820,15 @@ export default function WorkbenchClient({
 
             {/* ═══════════════════════════════
                 COLUNA DIREITA — FINANÇAS / PARCERIA / ENTREGA / CUPÃO
-                Em mobile: fica em último (order-3).
+                Em mobile usa `display: contents` (ver nota em cima).
             ═══════════════════════════════ */}
-            <aside className="order-3 lg:order-none lg:col-span-3 space-y-4 lg:space-y-5">
+            <aside className="contents lg:block lg:col-span-3 lg:space-y-4 lg:space-y-5">
 
               <Card
                 title="Tarefas"
                 icon={<CheckSquare className="h-3.5 w-3.5" />}
                 accent="indigo"
+                className="order-7 lg:order-none"
               >
                 <WorkbenchTasksBlock
                   link={{ type: "order", id: local.id }}
@@ -1775,7 +1846,7 @@ export default function WorkbenchClient({
                 />
               </Card>
 
-              <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green">
+              <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green" className="order-3 lg:order-none">
                 <div className="space-y-3">
                   <div className="grid grid-cols-[2fr_3fr] gap-3">
                     <Field label="Orçamento">
@@ -1875,7 +1946,7 @@ export default function WorkbenchClient({
                 </div>
               </Card>
 
-              <Card title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="sky">
+              <Card title="Parceria" icon={<Handshake className="h-3.5 w-3.5" />} accent="sky" className="order-8 lg:order-none">
                 <div className="space-y-3">
                   <Field
                     label="Parceiro recomendador"
@@ -1953,7 +2024,7 @@ export default function WorkbenchClient({
               {/* "Entrega e feedback" só aparece a partir do estado "Quadro pronto" — antes disso ainda
                   não faz sentido editar data de entrega ou feedback do cliente. */}
               {["quadro_pronto", "quadro_enviado", "quadro_recebido"].includes(local.status) && (
-                <Card title="Entrega e feedback" icon={<Package className="h-3.5 w-3.5" />} accent="purple">
+                <Card title="Entrega e feedback" icon={<Package className="h-3.5 w-3.5" />} accent="purple" className="order-[13] lg:order-none">
                   <div className="space-y-3">
                     <Field label="Data entrega do quadro">
                       <Input className={inp} type="date" value={toDateInput(local.frame_delivery_date)} onChange={(e) => update("frame_delivery_date", e.target.value || null)} />
@@ -1978,7 +2049,7 @@ export default function WorkbenchClient({
                 </Card>
               )}
 
-              <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow">
+              <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow" className="order-[14] lg:order-none">
                 <div className="space-y-3">
                   <CouponCodeField
                     code={local.coupon_code}

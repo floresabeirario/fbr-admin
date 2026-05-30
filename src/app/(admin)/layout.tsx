@@ -351,15 +351,60 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         })}
       </nav>
 
-      {/* Bottom */}
-      <div className="p-2 border-t border-cream-200 flex flex-col gap-0.5">
-        {profile && (
-          <div className={cn("flex items-center gap-2.5 px-2 py-1.5 rounded-lg", isDesktop && collapsed && "justify-center")}>
-            <div className="w-7 h-7 rounded-full overflow-hidden relative shrink-0">
-              <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
+      {/* Bottom — desktop: 3 linhas (perfil / sair / tema + collapse).
+          Mobile: 1 linha compacta (perfil ocupa flex-1; Sair e tema viram
+          botões-ícone à direita) — Maria queixou-se que ocupava muito
+          espaço vertical no drawer. */}
+      {isDesktop ? (
+        <div className="p-2 border-t border-cream-200 flex flex-col gap-0.5">
+          {profile && (
+            <div className={cn("flex items-center gap-2.5 px-2 py-1.5 rounded-lg", collapsed && "justify-center")}>
+              <div className="w-7 h-7 rounded-full overflow-hidden relative shrink-0">
+                <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
+              </div>
+              {!collapsed && (
+                <div className="flex flex-col min-w-0 leading-tight">
+                  <span className="text-sm font-medium text-cocoa-900 truncate">{profile.name}</span>
+                  {profile.role === "viewer" && (
+                    <span className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold">
+                      {ROLE_LABELS.viewer}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-            {(!isDesktop || !collapsed) && (
-              <div className="flex flex-col min-w-0 leading-tight">
+          )}
+          <button
+            onClick={handleLogout}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900 transition-colors w-full",
+              collapsed && "justify-center",
+            )}
+            title={collapsed ? "Sair" : undefined}
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Sair</span>}
+          </button>
+          <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between px-0.5")}>
+            {!collapsed && <ThemeToggle />}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="flex items-center justify-center rounded-lg p-2 text-cocoa-500 hover:bg-cream-50 hover:text-cocoa-900 transition-colors"
+              title={collapsed ? "Expandir" : "Recolher"}
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          </div>
+          {collapsed && <ThemeToggle className="mx-auto" />}
+        </div>
+      ) : (
+        <div className="p-2 border-t border-cream-200 flex items-center gap-1.5">
+          {profile && (
+            <>
+              <div className="w-7 h-7 rounded-full overflow-hidden relative shrink-0">
+                <Image src={profile.photo} alt={profile.name} fill className="object-cover" />
+              </div>
+              <div className="flex flex-col min-w-0 leading-tight flex-1">
                 <span className="text-sm font-medium text-cocoa-900 truncate">{profile.name}</span>
                 {profile.role === "viewer" && (
                   <span className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold">
@@ -367,42 +412,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </span>
                 )}
               </div>
-            )}
-          </div>
-        )}
-        <button
-          onClick={handleLogout}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-2 text-sm font-medium text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900 transition-colors w-full",
-            isDesktop ? "py-2" : "py-2.5",
-            isDesktop && collapsed && "justify-center",
+            </>
           )}
-          title={isDesktop && collapsed ? "Sair" : undefined}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {(!isDesktop || !collapsed) && <span>Sair</span>}
-        </button>
-
-        {isDesktop ? (
-          <>
-            <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between px-0.5")}>
-              {!collapsed && <ThemeToggle />}
-              <button
-                onClick={() => setCollapsed(!collapsed)}
-                className="flex items-center justify-center rounded-lg p-2 text-cocoa-500 hover:bg-cream-50 hover:text-cocoa-900 transition-colors"
-                title={collapsed ? "Expandir" : "Recolher"}
-              >
-                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </button>
-            </div>
-            {collapsed && <ThemeToggle className="mx-auto" />}
-          </>
-        ) : (
-          <div className="px-0.5 pt-1">
-            <ThemeToggle />
-          </div>
-        )}
-      </div>
+          <button
+            onClick={handleLogout}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-cocoa-700 hover:bg-cream-50 hover:text-cocoa-900 transition-colors"
+            title="Sair"
+            aria-label="Sair"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+          <ThemeToggle />
+        </div>
+      )}
     </aside>
   );
 

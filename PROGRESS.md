@@ -5,7 +5,9 @@
 
 ---
 
-## Fase actual: FASE 6 (parte 39) — Sessão 95: **Dashboard polish (6 queixas) + Vistas/Filtros/Colunas em Preservação** (2026-05-30). Lote grande de afinações pós-uso no Dashboard + nova feature ambiciosa em Preservação. **Dashboard**: (1) **G** — removido badge "parada há X dias" da tabela e do header do workbench (Maria: "não percebi para que serve"). (2) **B** — cores de estado das tarefas (`TASK_STATUS_COLORS` / `TASK_STATUS_DOT_COLOR`) refeitas com paleta nova `stone/violet/emerald` para deixarem de colidir com a paleta da prioridade (`slate/sky/amber/rose`) — antes "alta"+"a fazer hoje" eram ambos amber e baixa+"por começar" eram ambos slate. (3) **A** — nova bolinha **indigo** na sidebar do Dashboard com contagem de tarefas activas atribuídas a mim. Persistente (só vai a 0 quando fecho todas — diferente da antiga sky "tarefas novas" que sumia ao abrir o Dashboard). Hook novo [src/hooks/use-my-active-tasks.ts](src/hooks/use-my-active-tasks.ts) com Realtime; layout passa a usar `useMyActiveTasksCount` em vez de `useUnreadTasks` para o badge; cor dinâmica via `badgeColorClass`. (4) **D** — chip de encomenda/vale dentro do card do kanban passa a mostrar **nome do cliente / remetente** em vez do código curto (href continua a apontar para o code via `orderClientById` + `voucherSenderById` propagados do [page.tsx](src/app/(admin)/page.tsx)). (5) **C** — kanban dos Afazeres deixa de ser `lg:grid-cols-6` rígido no PC: colunas vazias colapsam para 110px fixos (só cabeçalho); com tarefas ficam `flex-1 basis-0 min-w-[160px]`. (6) **E** — `PriorityPill` sai do `absolute top-1.5 right-1.5` que reservava `pr-14` no título; passa a viver na mesma linha que o `StatusPill`. Títulos respiram à largura toda do card. **Preservação — nova feature (F)**: barra de Vistas/Filtros/Colunas no topo da tabela. (i) Botão **Filtros** abre popover com 6 dimensões (parceiro com lista de partners, origem, pagamento, tipo de evento, cupão, NIF — cada um com "Qualquer" + opções específicas + "Não preenchido" / "Com" / "Sem" quando aplicável). (ii) Botão **Colunas** abre popover com 8 colunas opcionais toggleáveis (Parceiro, Origem, Tipo de evento, NIF, Telefone, Email, Comissão, Cupão); colunas extra renderizam entre Estado e Orçamento via novo componente `ExtraCell`. (iii) Selector **Vista** permite mudar entre "Todas" (default) e vistas guardadas pelo utilizador. (iv) Botão **Guardar vista** aparece quando há ajustes não-guardados; pede nome no popover. (v) Chips de filtros activos abaixo da barra com X para remover individualmente. Persistência em `localStorage` ([src/lib/preservacao-views.ts](src/lib/preservacao-views.ts) + [src/app/(admin)/preservacao/_components/views-bar.tsx](src/app/(admin)/preservacao/_components/views-bar.tsx)). [page.tsx](src/app/(admin)/preservacao/page.tsx) passa a fazer query nova a `partners` (id+name) para alimentar o filtro. **Sem migrações** (tudo localStorage). Preflight `tsc + next build` limpos.
+## Fase actual: FASE 6 (parte 40) — Sessão 96: **Mobile polish — workbench, sidebar, tabela** + **email do form com mês por extenso** (2026-05-30). Lote pós-uso pedido pela Maria: (a) **Tabelas alinhadas entre grupos** — cada `GroupSection` renderizava o seu próprio `<table>` com `table-layout: auto`, calculando larguras independentemente. Trocado para `tableLayout: 'fixed'` + `width:` explícito em cada `<th>` ([preservacao-client.tsx:760](src/app/(admin)/preservacao/preservacao-client.tsx#L760)). Coluna "Cliente" sem `width` (elástica) absorve o espaço extra. (b) **"Contactada" esconde após qualquer pagamento** — `showContactadaPrompt = payment_status === '100_por_pagar'`. Era ruído depois de o cliente já ter pago. (c) **Novos prompts "40% pedidos?" e "30% pedidos?" no cabeçalho** — mesmo padrão UI da Contactada (CheckRow), ligados aos campos `payment_40_requested` / `payment_30_requested` que já existiam (mig 018, **sem migração nova**). Aparecem condicionalmente: 40% quando status reached `flores_recebidas` e payment < 70_pago; 30% quando status reached `quadro_pronto` e payment < 100_pago. O diálogo existente que pergunta ao mudar status continua activo — agora há AINDA o lembrete visual persistente. (d) **Workbench mobile redesenhado** — (i) cabeçalho compactado: padding `py-1.5 px-2.5` em vez de `py-2 px-3`, removido `basis-full` do nome (deixa de tomar a linha toda), StatusSelect passa de `w-full` a `flex-1` (partilha linha com check prompts); (ii) overlay de URL da foto esconde-se por defeito em mobile, toca na foto para revelar (`imageUrlMobileOpen` state + tap area `absolute inset-0 sm:hidden`); (iii) **reordenação de cards por baixo do hero**: `display: contents` em desktop (`<aside>`/`<main>`/`<aside>`) + `order-N` por card só em mobile (lg:order-none). Mobile order: Hero(1) → Alertas(2) → **Finanças(3) → Comunicações(4) → Envio(5) → Flores(6)** → Tarefas → Parceria → Inventário → Galeria → Assistente → Origem → Entrega+feedback → Cupão. (e) **Sidebar mobile compactada** — separado o bloco de fundo em renderings dedicados a desktop vs mobile: em mobile cabe tudo numa linha (avatar+nome 7-col, Sair como ícone-botão 9x9, ThemeToggle 9x9). Antes ocupava 3 linhas (~100px); agora ~50px. (f) **Email do form com mês por extenso** — `formatDatePT(isoDate)` novo em [fbr-website/app/_lib/api-helpers.js](../fbr-website/app/_lib/api-helpers.js) (`"2026-06-08" → "8 de Junho de 2026"`). Aplicado em [reservar-preservacao/route.js](../fbr-website/app/api/reservar-preservacao/route.js) (campo `dataEvento`) e [vale-presente/route.js](../fbr-website/app/api/vale-presente/route.js) (campo `dataEnvio`). Push para fbr-admin: 1 commit + push do fbr-website em separado. Sem migrações. Preflight `tsc + next build` limpos.
+
+## Fase anterior: FASE 6 (parte 39) — Sessão 95: **Dashboard polish (6 queixas) + Vistas/Filtros/Colunas em Preservação** (2026-05-30). Lote grande de afinações pós-uso no Dashboard + nova feature ambiciosa em Preservação. **Dashboard**: (1) **G** — removido badge "parada há X dias" da tabela e do header do workbench (Maria: "não percebi para que serve"). (2) **B** — cores de estado das tarefas (`TASK_STATUS_COLORS` / `TASK_STATUS_DOT_COLOR`) refeitas com paleta nova `stone/violet/emerald` para deixarem de colidir com a paleta da prioridade (`slate/sky/amber/rose`) — antes "alta"+"a fazer hoje" eram ambos amber e baixa+"por começar" eram ambos slate. (3) **A** — nova bolinha **indigo** na sidebar do Dashboard com contagem de tarefas activas atribuídas a mim. Persistente (só vai a 0 quando fecho todas — diferente da antiga sky "tarefas novas" que sumia ao abrir o Dashboard). Hook novo [src/hooks/use-my-active-tasks.ts](src/hooks/use-my-active-tasks.ts) com Realtime; layout passa a usar `useMyActiveTasksCount` em vez de `useUnreadTasks` para o badge; cor dinâmica via `badgeColorClass`. (4) **D** — chip de encomenda/vale dentro do card do kanban passa a mostrar **nome do cliente / remetente** em vez do código curto (href continua a apontar para o code via `orderClientById` + `voucherSenderById` propagados do [page.tsx](src/app/(admin)/page.tsx)). (5) **C** — kanban dos Afazeres deixa de ser `lg:grid-cols-6` rígido no PC: colunas vazias colapsam para 110px fixos (só cabeçalho); com tarefas ficam `flex-1 basis-0 min-w-[160px]`. (6) **E** — `PriorityPill` sai do `absolute top-1.5 right-1.5` que reservava `pr-14` no título; passa a viver na mesma linha que o `StatusPill`. Títulos respiram à largura toda do card. **Preservação — nova feature (F)**: barra de Vistas/Filtros/Colunas no topo da tabela. (i) Botão **Filtros** abre popover com 6 dimensões (parceiro com lista de partners, origem, pagamento, tipo de evento, cupão, NIF — cada um com "Qualquer" + opções específicas + "Não preenchido" / "Com" / "Sem" quando aplicável). (ii) Botão **Colunas** abre popover com 8 colunas opcionais toggleáveis (Parceiro, Origem, Tipo de evento, NIF, Telefone, Email, Comissão, Cupão); colunas extra renderizam entre Estado e Orçamento via novo componente `ExtraCell`. (iii) Selector **Vista** permite mudar entre "Todas" (default) e vistas guardadas pelo utilizador. (iv) Botão **Guardar vista** aparece quando há ajustes não-guardados; pede nome no popover. (v) Chips de filtros activos abaixo da barra com X para remover individualmente. Persistência em `localStorage` ([src/lib/preservacao-views.ts](src/lib/preservacao-views.ts) + [src/app/(admin)/preservacao/_components/views-bar.tsx](src/app/(admin)/preservacao/_components/views-bar.tsx)). [page.tsx](src/app/(admin)/preservacao/page.tsx) passa a fazer query nova a `partners` (id+name) para alimentar o filtro. **Sem migrações** (tudo localStorage). Preflight `tsc + next build` limpos.
 
 ## Fase anterior: FASE 6 (parte 38) — Sessão 94: **PWA — ícone do ecrã principal Android com flores grandes em vez de "F cinzento"** (2026-05-28). Matcher do proxy expandido para excluir `manifest.webmanifest` + `sw.js`; safe zone do maskable 60% → 80%; bump `CACHE_VERSION` v3→v4. Detalhe completo no histórico condensado.
 
@@ -51,7 +53,79 @@
 
 ## Sessões recentes (detalhe)
 
-### Sessão 95 ✨ Dashboard polish (6 queixas) + Vistas/Filtros/Colunas em Preservação
+### Sessão 96 📱 Mobile polish — workbench, sidebar, tabelas alinhadas + email do form com mês por extenso
+
+Lote de afinações pós-uso pedido pela Maria. Foi um pedido único com 6 sub-tarefas mais 1 que apareceu a meio (desalinhamento de tabelas) — total 7 alterações. A Maria escolheu "tudo menos push notifications" (essas ficam para sessão dedicada por serem trabalho pesado: VAPID + service worker + endpoint + subscriptions).
+
+**Decisões fixadas em conversa:**
+- Push notifications no telemóvel → **sessão futura dedicada** (só Android, Web Push).
+- "40% pedidos?" e "30% pedidos?" ficam **ao lado da "Contactada"** no cabeçalho (não dentro da caixa Finanças).
+- Mobile workbench reordering → **`display: contents` nas colunas em mobile** + `order-N` por card (forma mais limpa de reordenar entre colunas sem duplicar JSX).
+- Email do form → editar **directamente no `fbr-website`** (Maria abriu o repo) em vez de só deixar nota.
+- Sem migração nova — campos `payment_40_requested` / `payment_30_requested` já existiam (mig 018) e estavam ligados ao diálogo de status. Agora aparecem também como CheckRow persistente no cabeçalho.
+
+**A. Tabelas alinhadas entre grupos** — [preservacao-client.tsx:760](src/app/(admin)/preservacao/preservacao-client.tsx#L760):
+- Diagnóstico: cada `GroupSection` renderiza o seu próprio `<table>` com `table-layout: auto`. Cada tabela calcula larguras independentemente conforme o conteúdo (`"30/09/2025"` vs `"08/06/2026"`, `"Em mãos"` vs `"Recolha no local"`, header `"ENVIO DAS FLORES"` vs `"RECEÇÃO DO QUADRO"`). Daí o desalinhamento entre Pré-reservas / Reservas / Preservação e design.
+- Fix: `tableLayout: 'fixed'` + `width:` explícito em cada `<th>` (em vez de `min-width:`). Cliente sem width — coluna elástica que absorve o espaço extra. Larguras fixas: Handle=40, Data=110, Localização=140 (xl-only), Envio=140, Estado=200, Orçamento=110, Pagamento=150, Acção=80. `minWidth = 830 + sum(COLUMN_MIN_PX)` para colunas extra.
+- Cells já têm `truncate` onde precisam (Cliente, Localização). Sem rebentar nada.
+
+**B. "Contactada" esconde após qualquer pagamento** — [workbench-client.tsx:608](src/app/(admin)/preservacao/[id]/workbench-client.tsx#L608):
+- `showContactadaPrompt = local.payment_status === "100_por_pagar"`. Quando há qualquer pagamento (30/70/100), o cliente foi obviamente contactado — a checkbox era ruído visual.
+
+**C. Novos prompts "40% pedidos?" e "30% pedidos?"** — mesmo padrão que Contactada:
+- `reachedFloresRecebidas`: set de estados de `flores_recebidas` até `quadro_recebido`. `reachedQuadroPronto`: set de `quadro_pronto` em diante.
+- `show40Prompt = reachedFloresRecebidas && payment_status NOT IN ['70_pago','100_pago']` — aparece a partir de flores_recebidas até receber 40%.
+- `show30Prompt = reachedQuadroPronto && payment_status !== '100_pago'` — aparece a partir de quadro_pronto até receber final.
+- Liga aos campos `payment_40_requested` / `payment_30_requested` existentes (mig 018). **Sem migração nova**.
+- Mantém o diálogo existente que pergunta ao mudar status — agora há a CheckRow visível como reforço.
+
+**D. Workbench mobile redesenhado** — 3 alterações no [workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx):
+- **D1. Cabeçalho compacto**: `gap-x-3 gap-y-2 py-2 px-3` → `gap-x-2 gap-y-1.5 py-1.5 px-2.5` em mobile (mantém `sm:gap-x-3 sm:gap-y-2 sm:py-3 sm:px-6`). Removido `basis-full sm:basis-auto` do bloco nome+ID — agora flui na linha em vez de ocupar a linha inteira. StatusSelect passa de `w-full sm:w-56 order-last` para `flex-1 basis-full sm:basis-auto sm:flex-none sm:w-56 order-last sm:order-none` — agora partilha a linha com CheckRows.
+- **D2. URL da foto só em clique**: `imageUrlMobileOpen` state novo. Tap area `<button className="absolute inset-0 sm:hidden z-10">` em cima da imagem alterna o estado. Overlay usa `imageUrlMobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"` em mobile e mantém `sm:opacity-0 sm:group-hover:opacity-100` em desktop. Quando não há `photoUrl`, mostra sempre (precisa de poder colar URL).
+- **D3. Cards reordenados em mobile**: chave foi `display: contents` nas 3 colunas. `<aside className="contents lg:block lg:col-span-3">` + inner `<div className="contents lg:block lg:space-y-4 lg:space-y-5 lg:sticky lg:top-2">` — em mobile os wrappers desaparecem do layout (display:contents), expondo os cards directamente à grid exterior (grid-cols-1). Cada card recebe `className="order-N lg:order-none"` (Card ganhou prop `className` opcional). Ordem mobile: Hero(1) → Alertas(2) → **Finanças(3) → Comunicações(4) → Envio(5) → Flores(6)** → Tarefas(7) → Parceria(8) → Inventário(9) → Galeria(10) → Assistente(11) → Origem(12) → Entrega+feedback(13) → Cupão(14). Em desktop tudo intocado (memory: [[feedback-desktop-prioridade]]).
+
+**E. Sidebar mobile compactada** — [layout.tsx:354](src/app/(admin)/layout.tsx#L354):
+- Separado o bloco de fundo em renderings dedicados a desktop vs mobile (em vez de um único bloco com `isDesktop` ternários inline).
+- Mobile: 1 linha — `<div className="p-2 border-t flex items-center gap-1.5">` com avatar 7x7 + nome (flex-1 truncate) + Sair como botão-ícone `h-9 w-9` + ThemeToggle. Antes ocupava ~100px (3 linhas verticais); agora ~50px.
+- Desktop: mantém-se igual (3 linhas: perfil / Sair / tema+collapse).
+
+**F. Email do form com mês por extenso** — repositório [fbr-website](../fbr-website):
+- Helper novo `formatDatePT(isoDate)` em [app/_lib/api-helpers.js](../fbr-website/app/_lib/api-helpers.js): recebe `"YYYY-MM-DD"` do input HTML, devolve `"8 de Junho de 2026"`. Validação por regex (rejeita formato inválido devolvendo o input original).
+- Aplicado em [reservar-preservacao/route.js](../fbr-website/app/api/reservar-preservacao/route.js) para `data.dataEvento` e em [vale-presente/route.js](../fbr-website/app/api/vale-presente/route.js) para `data.dataEnvio`. Smoke test inline (`node -e ...`) confirmou: `"2026-06-08" → "8 de Junho de 2026"`. Maria queixou-se que `06/08/2026` a confundia.
+
+**Memórias actualizadas:**
+- Nova: [project_supabase_public_grants_2026.md](../../C:/Users/maria/.claude/projects/c--Users-maria-Documents-fbr-admin2/memory/project_supabase_public_grants_2026.md) — email do Supabase a 30/05/2026 anunciou que a partir de **30/10/2026** tabelas novas no schema `public` em projectos existentes precisam de GRANT explícito. Não afecta tabelas existentes nem o projecto até essa data. Lembrete para acrescentar `GRANT ... TO authenticated, anon;` no fim de migrações novas a partir de Outubro 2026.
+
+**Preflight `tsc + next build` limpos** no fbr-admin2. Build sem warnings novos.
+
+**Maria: passos manuais (2 repos):**
+
+1. **fbr-admin2 (este repo)**:
+   - **Push para Vercel** (sem migrações).
+   - **Smoke browser PC** → `/preservacao`:
+     - Tabela: colunas alinhadas verticalmente entre grupos (antes "DATA EVENTO" do Pré-reservas estava à esquerda da "DATA EVENTO" do Reservas).
+   - **Smoke browser PC** → abrir uma encomenda em workbench:
+     - Cabeçalho intocado (mantém-se igual ao anterior em desktop).
+     - Encomenda com `payment_status='30_pago'` → caixa "Contactada" **desaparecida**.
+     - Encomenda no estado `flores_recebidas` com `payment_status='30_pago'` → aparece **"40% pedidos?"** ao lado do estado. Tica → fica verde.
+     - Mudar payment para `70_pago` → "40% pedidos?" desaparece.
+     - Estado `quadro_pronto` com `payment_status='70_pago'` → aparece **"30% pedidos?"**.
+     - Mudar payment para `100_pago` → "30% pedidos?" desaparece.
+   - **Smoke browser mobile (DevTools 375px)** → abrir uma encomenda:
+     - Cabeçalho mais compacto, nome alinha na linha do back/nav (não toma linha sozinho).
+     - Foto: por defeito sem URL visível. Toca na foto → overlay com input do URL aparece. Toca de novo → esconde.
+     - Por baixo do hero: ordem **Finanças → Comunicações → Envio → Flores → ...** (em vez de Flores → Envio → ... → Comunicações → ... → Finanças).
+     - Sidebar drawer aberto: rodapé com 1 linha (avatar+nome+Sair icon+Tema), em vez de 3 linhas.
+   - **Smoke browser mobile** → vista tabela `/preservacao` continua a ter scroll horizontal (table-layout: fixed pode aumentar largura ligeiramente; min-width recalculado para 830+extras).
+
+2. **fbr-website (repo separado)**:
+   - **Push para Vercel** (apenas 3 ficheiros mudados: api-helpers.js + 2 routes).
+   - **Smoke**: submete um form de teste no site público → confirma que o email recebido tem **"8 de Junho de 2026"** em vez de `2026-06-08` ou `08/06/2026`. Idem para o vale-presente.
+
+3. **Supabase** (informativo, **sem acção agora**):
+   - A partir de **30/10/2026**, tabelas novas no schema `public` precisam de GRANT explícito. Tabelas existentes não mexem. Lembrar-me dentro de uns meses ou no Dashboard Supabase → Advisors → Security.
+
+
 
 Lote grande de afinações pós-uso pedidas pela Maria numa única mensagem. Apresentei plano com 1 pergunta de cor (escolheu **indigo**) e 1 pergunta de scope para a feature de Preservação (escolheu a opção mais ambiciosa — "mas fica fixe, nunca usei Linear/Notion").
 
