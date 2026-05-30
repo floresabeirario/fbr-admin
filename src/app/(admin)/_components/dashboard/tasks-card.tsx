@@ -1047,11 +1047,12 @@ function CategoryColumn({
         // encolhe para ~42vw (cabem 2 por snap-screen).
         "snap-start shrink-0",
         isEmpty ? "w-[42vw] max-w-[160px]" : "w-[85vw] max-w-[320px]",
-        // PC: vazias colapsam para 110px fixos (só cabeçalho); com tarefas
-        // partilham flex-1 do espaço restante. Resultado: as colunas com
-        // conteúdo ganham bastante mais largura quando há vazias ao lado.
+        // PC: vazias usam exactamente a largura do cabeçalho (ícone + nome
+        // completo + contagem), sem fixar 110px — assim "Presença online" e
+        // "Administrativo" cabem sem truncar. Com tarefas: partilham flex-1
+        // do espaço restante.
         isEmpty
-          ? "sm:w-[110px] sm:max-w-[110px] sm:flex-none"
+          ? "sm:w-auto sm:max-w-none sm:flex-none"
           : "sm:w-auto sm:max-w-none sm:flex-1 sm:basis-0 sm:min-w-[160px]",
         meta.topBorder,
         isOver && !draggingColumn && "ring-2 ring-cocoa-400 ring-offset-1",
@@ -1079,7 +1080,7 @@ function CategoryColumn({
         >
           <Icon className={cn("h-4 w-4", meta.iconColor)} />
         </div>
-        <span className="text-[13px] font-semibold text-cocoa-900 truncate">
+        <span className="text-[13px] font-semibold text-cocoa-900 whitespace-nowrap">
           {TASK_CATEGORY_LABELS[category]}
         </span>
         <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-white/70 text-[11px] text-cocoa-700 font-semibold tabular-nums shrink-0">
