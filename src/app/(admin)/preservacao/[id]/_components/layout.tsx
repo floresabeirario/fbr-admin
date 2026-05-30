@@ -70,8 +70,10 @@ export function Card({
 }
 
 export function Grid2({ children }: { children: React.ReactNode }) {
-  // Mobile: 1 coluna (inputs full-width); desktop sm:+: 2 colunas (igual ao original).
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>;
+  // Mobile + tablet pequeno: 1 coluna; só a partir de md (768px) é que vão para 2 colunas.
+  // (Antes era `sm:` mas em phones grandes Samsung a viewport CSS aproxima-se
+  // de 640px e as labels longas tipo "Tamanho da moldura" sobrepunham.)
+  return <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{children}</div>;
 }
 
 export function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
