@@ -669,9 +669,10 @@ export default function WorkbenchClient({
 
           <Separator orientation="vertical" className="h-5 bg-cream-200 hidden sm:block" />
 
-          {/* Nome + ID — flex-1 em vez de basis-full para partilhar a linha
-              com os outros itens em mobile (deixa de tomar a linha toda). */}
-          <div className="flex-1 min-w-0">
+          {/* Nome + ID — em mobile toma a linha toda (basis-full) para o nome
+              não ser truncado para "Soni..." quando "Contactada"/"Nota" o
+              espremem; em sm+ partilha a linha (flex-1) como antes. */}
+          <div className="basis-full sm:basis-auto sm:flex-1 min-w-0">
             <h1 className="text-sm sm:text-base font-semibold text-cocoa-900 truncate leading-tight">
               {local.client_name}
             </h1>

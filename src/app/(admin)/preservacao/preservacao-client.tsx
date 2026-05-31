@@ -765,8 +765,12 @@ function GroupSection({
               // alinhadas — caso contrário cada grupo calcula o seu próprio
               // layout consoante o conteúdo e os cabeçalhos saltam.
               tableLayout: "fixed",
+              // 830 = soma das colunas fixas (handle+data+envio+estado+orçamento+pagamento+acção).
+              // +200 dá à coluna "Cliente" (elástica, sem width explícito) um mínimo
+              // garantido — sem isto, em mobile a Cliente colapsava a 0px e o
+              // header "Cliente" + valores nome/evento sobrepunham-se à Data.
               minWidth:
-                830 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
+                830 + 200 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
             }}
           >
             <thead>

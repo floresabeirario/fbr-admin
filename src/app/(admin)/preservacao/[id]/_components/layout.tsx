@@ -74,11 +74,11 @@ export function Card({
 }
 
 export function Grid2({ children }: { children: React.ReactNode }) {
-  // Só vai para 2 colunas a partir de `lg:` (1024px+ = desktop, alinhado com
-  // o layout 3-col do workbench). Em mobile e tablet stack-se sempre — phones
-  // grandes Samsung têm viewport CSS perto de 640px e antes (com sm:/md:) as
-  // labels longas tipo "Tamanho da moldura" ficavam sobrepostas.
-  return <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{children}</div>;
+  // Só vai para 2 colunas a partir de `xl:` (1280px+). Em mobile/tablet
+  // stack-se sempre — labels longas tipo "Tamanho da moldura"/"Fundo do
+  // quadro" precisam de largura confortável para não sobreporem. Em desktop
+  // a coluna do meio do workbench (lg:col-span-6) tem espaço suficiente a xl.
+  return <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">{children}</div>;
 }
 
 export function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
