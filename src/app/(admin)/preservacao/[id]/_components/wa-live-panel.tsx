@@ -105,6 +105,19 @@ export default function WhatsappLivePanel({ phone }: Props) {
           setMessages((prev) => (prev.some((x) => x.wamid === m.wamid) ? prev : [...prev, m]));
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "whatsapp_messages",
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
+        (payload) => {
+          const m = payload.new as WhatsappMessage;
+          setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
+        },
+      )
       .subscribe();
 
     return () => {
@@ -232,12 +245,27 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
         {message.content_type === "text" ? (
           <p className="whitespace-pre-wrap break-words">{message.text}</p>
         ) : (
-          <p className="text-cocoa-600 italic">
-            {previewLabel(message.content_type, message.text)}
-            {message.media_pending && (
-              <span className="text-cocoa-400 ml-1">(a carregar…)</span>
+          <div>
+            <p className="text-cocoa-600 italic">
+              {previewLabel(message.content_type, message.text)}
+              {message.media_pending && (
+                <span className="text-cocoa-400 ml-1">(a carregar…)</span>
+              )}
+            </p>
+            {message.text && (
+              <p className="mt-1 whitespace-pre-wrap break-words">{message.text}</p>
             )}
-          </p>
+            {message.media_url_drive && (
+              <a
+                href={message.media_url_drive}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-indigo-600 hover:underline"
+              >
+                Abrir na Drive ↗
+              </a>
+            )}
+          </div>
         )}
         <div
           className={cn(

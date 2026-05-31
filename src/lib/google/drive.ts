@@ -283,6 +283,51 @@ export async function uploadExpenseInvoice(params: {
 /**
  * Cria a pasta de um vale-presente + 2 subpastas. Reutiliza se já existir.
  */
+/**
+ * Faz upload de um ficheiro de WhatsApp para a Drive.
+ * Estrutura: <FBR Root>/WhatsApp media/<phone_e164>/<filename>
+ * Devolve o URL do ficheiro.
+ */
+export async function uploadWhatsappMedia(params: {
+  phoneE164: string;
+  filename: string;
+  mimeType: string;
+  buffer: Buffer;
+}): Promise<{ id: string; url: string }> {
+  const { rootId } = await ensureRootFolders();
+  const drive = await getDrive();
+
+  const waFolderId = await ensureFolder(drive, "WhatsApp media", rootId);
+  // Sanitizar phone para nome de pasta — manter apenas digitos e +.
+  const phoneFolderName = params.phoneE164.replace(/[^+0-9]/g, "");
+  const phoneFolderId = await ensureFolder(drive, phoneFolderName, waFolderId);
+
+  const { Readable } = await import("node:stream");
+  const stream = Readable.from(params.buffer);
+
+  const res = await drive.files.create({
+    requestBody: {
+      name: sanitize(params.filename),
+      parents: [phoneFolderId],
+    },
+    media: {
+      mimeType: params.mimeType,
+      body: stream,
+    },
+    fields: "id, webViewLink",
+    supportsAllDrives: true,
+  });
+
+  if (!res.data.id) {
+    throw new Error("Falhou ao criar o ficheiro WhatsApp na Drive.");
+  }
+
+  return {
+    id: res.data.id,
+    url: res.data.webViewLink ?? `https://drive.google.com/file/d/${res.data.id}/view`,
+  };
+}
+
 export async function ensureVoucherFolder(params: {
   senderName: string;
   createdAt: string | null;

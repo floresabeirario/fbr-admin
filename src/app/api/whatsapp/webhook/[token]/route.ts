@@ -1,7 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { after } from "next/server";
 import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPhone } from "@/lib/format-phone";
+import { fetchPendingMediaBatch } from "@/lib/whatsapp/media-fetch";
 
 // node:crypto nao esta no Edge runtime.
 export const runtime = "nodejs";
@@ -115,11 +117,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return new Response("ok", { status: 200 });
   }
 
+  let hadMedia = false;
   try {
-    await processWebhookPayload(payload);
+    hadMedia = await processWebhookPayload(payload);
   } catch (err) {
     // 200 mesmo em erro — meta_payload guarda o raw para recuperar manualmente.
     console.error("[wa-webhook] erro no processamento", serializeError(err));
+  }
+
+  // Background: se chegou multimedia, vai buscar logo a seguir a responder
+  // 200 a Meta (URLs da Meta expiram em ~5min — nao da para esperar cron).
+  if (hadMedia) {
+    after(async () => {
+      try {
+        await fetchPendingMediaBatch();
+      } catch (err) {
+        console.error("[wa-webhook] erro media fetch", serializeError(err));
+      }
+    });
   }
 
   return new Response("ok", { status: 200 });
@@ -147,14 +162,15 @@ function verifyHmac(body: string, signatureHeader: string, secret: string): bool
 // ──────────────────────────────────────────────────────────────
 // Parsing + insercao
 // ──────────────────────────────────────────────────────────────
-async function processWebhookPayload(payload: unknown): Promise<void> {
+async function processWebhookPayload(payload: unknown): Promise<boolean> {
   if (
     !payload ||
     typeof payload !== "object" ||
     (payload as { object?: string }).object !== "whatsapp_business_account"
   ) {
-    return;
+    return false;
   }
+  let hadMedia = false;
 
   const entries = Array.isArray((payload as { entry?: unknown[] }).entry)
     ? ((payload as { entry: unknown[] }).entry)
@@ -202,7 +218,10 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
 
       for (const msg of messages) {
         try {
-          await insertMessage(supabase, msg, direction, contactName, clientPhoneFromContacts);
+          const inserted = await insertMessage(
+            supabase, msg, direction, contactName, clientPhoneFromContacts,
+          );
+          if (inserted?.hasMedia) hadMedia = true;
         } catch (err) {
           console.error("[wa-webhook] erro a inserir mensagem", {
             wamid: msg?.id,
@@ -214,6 +233,7 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
       }
     }
   }
+  return hadMedia;
 }
 
 async function insertMessage(
@@ -222,15 +242,15 @@ async function insertMessage(
   direction: "received" | "sent_echo",
   contactName: string | null,
   clientPhoneFromContacts: string | null,
-): Promise<void> {
-  if (!msg?.id) return;
+): Promise<{ hasMedia: boolean } | null> {
+  if (!msg?.id) return null;
 
   const clientPhoneRaw =
     clientPhoneFromContacts ?? (direction === "received" ? msg.from : msg.to);
-  if (!clientPhoneRaw) return;
+  if (!clientPhoneRaw) return null;
 
   const phoneDigits = clientPhoneRaw.replace(/\D/g, "");
-  if (!phoneDigits) return;
+  if (!phoneDigits) return null;
   const phoneE164 = `+${phoneDigits}`;
   const displayPhone = formatPhone(phoneDigits);
 
@@ -263,9 +283,11 @@ async function insertMessage(
   });
 
   if (error) {
-    if (error.code === "23505") return; // duplicate — wamid ja existe (idempotencia)
+    if (error.code === "23505") return null; // duplicate — wamid ja existe (idempotencia)
     throw error;
   }
+
+  return { hasMedia: !!content.media_id };
 }
 
 async function ensureConversation(
