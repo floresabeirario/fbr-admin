@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X } from "lucide-react";
+import { linkify } from "@/lib/linkify";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -630,11 +631,13 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
 
 function MessageContent({ message }: { message: WhatsappMessage }) {
   if (message.content_type === "text") {
-    return <p className="whitespace-pre-wrap break-words">{message.text}</p>;
+    return <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>;
   }
 
-  // Media: media_url_drive ainda nao disponivel (job assincrono em sessao
-  // futura). Por agora mostra label + media_pending state.
+  // Media bubble: 3 estados possiveis
+  //   1. pending true  -> '(a carregar…)'
+  //   2. pending false + media_url_drive -> link Drive
+  //   3. pending false + nenhum url + media_id presente -> falhou
   if (
     message.content_type === "image" ||
     message.content_type === "video" ||
@@ -642,6 +645,8 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
     message.content_type === "document" ||
     message.content_type === "sticker"
   ) {
+    const failed =
+      !message.media_pending && !message.media_url_drive && !!message.media_id;
     return (
       <div>
         <div className="text-cocoa-600 italic">
@@ -649,9 +654,14 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
           {message.media_pending && (
             <span className="text-cocoa-400 ml-1">(a carregar…)</span>
           )}
+          {failed && (
+            <span className="text-rose-500 ml-1" title="A URL temporária da Meta expirou ou houve erro. Vê no telemóvel.">
+              ⚠ não consegui guardar
+            </span>
+          )}
         </div>
         {message.text && (
-          <p className="mt-1 whitespace-pre-wrap break-words">{message.text}</p>
+          <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
         )}
         {message.media_url_drive && (
           <a
@@ -667,10 +677,14 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
     );
   }
 
+  // Tipos sem media (location, contacts, reaction, system, unsupported).
   return (
-    <p className="text-cocoa-600 italic">
-      {previewLabel(message.content_type, message.text)}
-    </p>
+    <div>
+      <p className="text-cocoa-600 italic">{mediaIconLabel(message.content_type)}</p>
+      {message.text && (
+        <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
+      )}
+    </div>
   );
 }
 

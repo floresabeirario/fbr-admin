@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText } from "lucide-react";
+import { linkify } from "@/lib/linkify";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WhatsappConversation, WhatsappMessage } from "@/types/whatsapp-live";
@@ -242,29 +243,40 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
         )}
       >
         {message.content_type === "text" ? (
-          <p className="whitespace-pre-wrap break-words">{message.text}</p>
+          <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>
         ) : (
-          <div>
-            <p className="text-cocoa-600 italic">
-              {mediaIconLabel(message.content_type)}
-              {message.media_pending && (
-                <span className="text-cocoa-400 ml-1">(a carregar…)</span>
-              )}
-            </p>
-            {message.text && (
-              <p className="mt-1 whitespace-pre-wrap break-words">{message.text}</p>
-            )}
-            {message.media_url_drive && (
-              <a
-                href={message.media_url_drive}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] text-indigo-600 hover:underline"
-              >
-                Abrir na Drive ↗
-              </a>
-            )}
-          </div>
+          (() => {
+            const failed =
+              !message.media_pending && !message.media_url_drive && !!message.media_id;
+            return (
+              <div>
+                <p className="text-cocoa-600 italic">
+                  {mediaIconLabel(message.content_type)}
+                  {message.media_pending && (
+                    <span className="text-cocoa-400 ml-1">(a carregar…)</span>
+                  )}
+                  {failed && (
+                    <span className="text-rose-500 ml-1" title="A URL temporária da Meta expirou ou houve erro. Vê no telemóvel.">
+                      ⚠ não consegui guardar
+                    </span>
+                  )}
+                </p>
+                {message.text && (
+                  <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
+                )}
+                {message.media_url_drive && (
+                  <a
+                    href={message.media_url_drive}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-indigo-600 hover:underline"
+                  >
+                    Abrir na Drive ↗
+                  </a>
+                )}
+              </div>
+            );
+          })()
         )}
         <div
           className={cn(
