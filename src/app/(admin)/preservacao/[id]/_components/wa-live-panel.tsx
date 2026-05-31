@@ -278,23 +278,31 @@ function MessageBubble({
           (() => {
             const failed =
               !message.media_pending && !message.media_url_drive && !!message.media_id;
-            const isImage = message.content_type === "image";
-            const showInlineImage = isImage && !!message.media_drive_file_id;
+            const fileId = message.media_drive_file_id;
+            const proxyUrl = fileId ? `/api/whatsapp/media/${fileId}` : null;
+            const isVisualMedia =
+              message.content_type === "image" || message.content_type === "sticker";
+            const isAudio = message.content_type === "audio";
+            const isVideo = message.content_type === "video";
+            const isDocument = message.content_type === "document";
             return (
               <div>
-                {showInlineImage ? (
-                  <a
-                    href={message.media_url_drive ?? "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block mb-1"
-                  >
+                {proxyUrl && isVisualMedia ? (
+                  <a href={message.media_url_drive ?? "#"} target="_blank" rel="noopener noreferrer" className="block mb-1">
                     <img
-                      src={`/api/whatsapp/media/${message.media_drive_file_id}`}
+                      src={proxyUrl}
                       alt={message.text ?? "foto"}
                       loading="lazy"
                       className="rounded max-h-48 w-auto max-w-full object-contain bg-cocoa-50"
                     />
+                  </a>
+                ) : proxyUrl && isAudio ? (
+                  <audio controls preload="metadata" className="w-full max-w-[220px]" src={proxyUrl} />
+                ) : proxyUrl && isVideo ? (
+                  <video controls preload="metadata" className="rounded max-h-48 w-auto max-w-full bg-cocoa-50" src={proxyUrl} />
+                ) : proxyUrl && isDocument ? (
+                  <a href={proxyUrl} download className="inline-flex items-center gap-1 text-cocoa-700 hover:text-cocoa-900 bg-cream-50 border border-cream-200 rounded px-2 py-1 text-[10px]">
+                    📄 <span className="underline">{message.text || "Documento"}</span>
                   </a>
                 ) : (
                   <p className="text-cocoa-600 italic">
@@ -310,10 +318,10 @@ function MessageBubble({
                     {failed && <RetryMediaButton messageId={message.id} />}
                   </p>
                 )}
-                {message.text && (
+                {message.text && !isDocument && (
                   <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
                 )}
-                {message.media_url_drive && !showInlineImage && (
+                {message.media_url_drive && !proxyUrl && (
                   <a
                     href={message.media_url_drive}
                     target="_blank"

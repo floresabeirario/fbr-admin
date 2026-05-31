@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -92,11 +93,20 @@ type InboxFilter = "todas" | "nao_lidas" | "com_encomenda" | "sem_encomenda";
 
 export default function WhatsappClient({ initialConversations, orders }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
+  const convParam = searchParams.get("conv");
   const [conversations, setConversations] = useState<WhatsappConversation[]>(initialConversations);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(convParam);
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("todas");
+
+  // Sincroniza com ?conv= quando muda externamente (ex: cmd+k → conversa)
+  useEffect(() => {
+    if (convParam && convParam !== selectedId) {
+      setSelectedId(convParam);
+    }
+  }, [convParam, selectedId]);
 
   // Pre-calcular para cada conversa se tem encomenda associada (matching por last 9 digits).
   const convHasOrder = useMemo(() => {
@@ -783,23 +793,43 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
   ) {
     const failed =
       !message.media_pending && !message.media_url_drive && !!message.media_id;
-    const isImage = message.content_type === "image";
-    const showInlineImage = isImage && !!message.media_drive_file_id;
+    const fileId = message.media_drive_file_id;
+    const proxyUrl = fileId ? `/api/whatsapp/media/${fileId}` : null;
+    const isVisualMedia =
+      message.content_type === "image" || message.content_type === "sticker";
+    const isAudio = message.content_type === "audio";
+    const isVideo = message.content_type === "video";
+    const isDocument = message.content_type === "document";
     return (
       <div>
-        {showInlineImage ? (
-          <a
-            href={message.media_url_drive ?? "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block mb-1"
-          >
+        {/* Bloco principal de media */}
+        {proxyUrl && isVisualMedia ? (
+          <a href={message.media_url_drive ?? "#"} target="_blank" rel="noopener noreferrer" className="block mb-1">
             <img
-              src={`/api/whatsapp/media/${message.media_drive_file_id}`}
+              src={proxyUrl}
               alt={message.text ?? "foto"}
               loading="lazy"
               className="rounded-lg max-h-80 w-auto max-w-full object-contain bg-cocoa-50"
             />
+          </a>
+        ) : proxyUrl && isAudio ? (
+          <audio controls preload="metadata" className="w-full max-w-[260px]" src={proxyUrl}>
+            <a href={message.media_url_drive ?? "#"} target="_blank" rel="noopener noreferrer">Abrir áudio</a>
+          </audio>
+        ) : proxyUrl && isVideo ? (
+          <video
+            controls
+            preload="metadata"
+            className="rounded-lg max-h-80 w-auto max-w-full bg-cocoa-50"
+            src={proxyUrl}
+          />
+        ) : proxyUrl && isDocument ? (
+          <a
+            href={proxyUrl}
+            download
+            className="inline-flex items-center gap-1.5 text-cocoa-700 hover:text-cocoa-900 bg-cream-50 border border-cream-200 rounded-md px-2.5 py-1.5 text-xs"
+          >
+            📄 <span className="underline">{message.text || "Documento"}</span>
           </a>
         ) : (
           <div className="text-cocoa-600 italic">
@@ -815,10 +845,12 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
             {failed && <RetryMediaButton messageId={message.id} />}
           </div>
         )}
-        {message.text && (
+        {/* Caption / texto associado (nao mostrar para documentos onde a label ja contém o nome) */}
+        {message.text && !isDocument && (
           <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
         )}
-        {message.media_url_drive && !showInlineImage && (
+        {/* Fallback link Drive se nao foi possivel renderizar inline mas temos URL */}
+        {message.media_url_drive && !proxyUrl && (
           <a
             href={message.media_url_drive}
             target="_blank"

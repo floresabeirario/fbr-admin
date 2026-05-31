@@ -16,7 +16,8 @@ export type SearchResultKind =
   | "voucher"
   | "partner"
   | "idea"
-  | "recipe";
+  | "recipe"
+  | "whatsapp";
 
 export interface SearchResult {
   kind: SearchResultKind;
@@ -91,7 +92,15 @@ export async function globalSearchAction(query: string): Promise<SearchResponse>
     `observations.ilike.${ilike}`,
   ].join(",");
 
-  const [ordersRes, vouchersRes, partnersRes, ideasRes, recipesRes] =
+  const whatsappOr = [
+    `contact_name.ilike.${ilike}`,
+    `phone_e164.ilike.${ilike}`,
+    `display_phone.ilike.${ilike}`,
+    `notes.ilike.${ilike}`,
+    `last_message_preview.ilike.${ilike}`,
+  ].join(",");
+
+  const [ordersRes, vouchersRes, partnersRes, ideasRes, recipesRes, whatsappRes] =
     await Promise.all([
       supabase
         .from("orders")
@@ -127,6 +136,13 @@ export async function globalSearchAction(query: string): Promise<SearchResponse>
         .is("deleted_at", null)
         .or(recipesOr)
         .order("flower_name", { ascending: true })
+        .limit(LIMIT_PER_KIND),
+      supabase
+        .from("whatsapp_conversations")
+        .select("id, phone_e164, display_phone, contact_name, last_message_preview")
+        .eq("archived", false)
+        .or(whatsappOr)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
         .limit(LIMIT_PER_KIND),
     ]);
 
@@ -230,6 +246,24 @@ export async function globalSearchAction(query: string): Promise<SearchResponse>
       subtitle: row.scientific_name ?? null,
       meta: row.difficulty,
       href: `/livro-receitas/${row.id}`,
+    });
+  }
+
+  type WhatsappHit = {
+    id: string;
+    phone_e164: string;
+    display_phone: string | null;
+    contact_name: string | null;
+    last_message_preview: string | null;
+  };
+  for (const row of (whatsappRes.data ?? []) as WhatsappHit[]) {
+    results.push({
+      kind: "whatsapp",
+      id: row.id,
+      title: row.contact_name || row.display_phone || row.phone_e164,
+      subtitle: row.last_message_preview ?? null,
+      meta: row.display_phone ?? row.phone_e164,
+      href: `/whatsapp?conv=${row.id}`,
     });
   }
 

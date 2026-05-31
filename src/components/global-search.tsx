@@ -17,6 +17,7 @@ import {
   Handshake,
   Lightbulb,
   BookOpen,
+  MessageSquareText,
   Loader2,
 } from "lucide-react";
 import {
@@ -40,6 +41,7 @@ const KIND_LABEL: Record<SearchResultKind, string> = {
   partner: "Parceiros",
   idea: "Ideias",
   recipe: "Receitas",
+  whatsapp: "Conversas WhatsApp",
 };
 
 const KIND_ICON: Record<SearchResultKind, React.ComponentType<{ className?: string }>> = {
@@ -48,12 +50,14 @@ const KIND_ICON: Record<SearchResultKind, React.ComponentType<{ className?: stri
   partner: Handshake,
   idea: Lightbulb,
   recipe: BookOpen,
+  whatsapp: MessageSquareText,
 };
 
 const KIND_ORDER: SearchResultKind[] = [
   "order",
   "voucher",
   "partner",
+  "whatsapp",
   "recipe",
   "idea",
 ];
