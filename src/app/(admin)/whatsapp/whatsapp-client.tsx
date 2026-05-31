@@ -63,8 +63,16 @@ function formatMessageTime(iso: string): string {
   return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
 }
 
+// Usado na lista de conversas (preview da ultima mensagem). Se ha caption,
+// mostra o caption; se nao, o icone+label do tipo.
 function previewLabel(content_type: string, text: string | null): string {
   if (text) return text;
+  return mediaIconLabel(content_type);
+}
+
+// Usado dentro das bolhas para a etiqueta do tipo de media. Nunca devolve
+// o caption — esse aparece numa linha separada por baixo.
+function mediaIconLabel(content_type: string): string {
   switch (content_type) {
     case "image": return "📷 Foto";
     case "video": return "🎥 Vídeo";
@@ -637,7 +645,7 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
     return (
       <div>
         <div className="text-cocoa-600 italic">
-          {previewLabel(message.content_type, message.text)}
+          {mediaIconLabel(message.content_type)}
           {message.media_pending && (
             <span className="text-cocoa-400 ml-1">(a carregar…)</span>
           )}

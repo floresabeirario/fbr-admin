@@ -24,8 +24,7 @@ function formatMessageTime(iso: string): string {
   return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
 }
 
-function previewLabel(content_type: string, text: string | null): string {
-  if (text) return text;
+function mediaIconLabel(content_type: string): string {
   switch (content_type) {
     case "image": return "📷 Foto";
     case "video": return "🎥 Vídeo";
@@ -247,7 +246,7 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
         ) : (
           <div>
             <p className="text-cocoa-600 italic">
-              {previewLabel(message.content_type, message.text)}
+              {mediaIconLabel(message.content_type)}
               {message.media_pending && (
                 <span className="text-cocoa-400 ml-1">(a carregar…)</span>
               )}
