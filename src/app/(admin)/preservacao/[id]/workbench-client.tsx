@@ -75,7 +75,7 @@ import { PartnerCombobox, type PartnerOption } from "@/components/partner-combob
 import AddressAutocomplete from "@/components/address-autocomplete";
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import TemplatePicker from "@/components/template-picker";
-import WhatsAppLog from "@/components/whatsapp-log";
+import WhatsappLivePanel from "./_components/wa-live-panel";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type {
@@ -1031,11 +1031,7 @@ export default function WorkbenchClient({
                     />
                   </TabsContent>
                   <TabsContent value="whatsapp" className="mt-3">
-                    <WhatsAppLog
-                      orderId={local.id}
-                      initialEntries={local.whatsapp_log ?? []}
-                      canEdit={canEdit}
-                    />
+                    <WhatsappLivePanel phone={local.phone} />
                   </TabsContent>
                 </Tabs>
               </Card>
