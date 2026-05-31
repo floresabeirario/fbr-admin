@@ -329,6 +329,18 @@ async function insertMessage(
     throw error;
   }
 
+  // Quando recebemos um eco da Maria (mensagem que ela enviou pelo
+  // telemovel), assumimos que ela leu tudo o que estava por ler.
+  // Zera unread_count da conversa. Resolve o caso "respondi no telemovel
+  // mas a plataforma continuava a mostrar bolinha verde".
+  if (direction === "sent_echo") {
+    await supabase
+      .from("whatsapp_conversations")
+      .update({ unread_count: 0 })
+      .eq("id", conversationId)
+      .gt("unread_count", 0); // no-op se ja esta 0
+  }
+
   return { hasMedia: !!content.media_id };
 }
 
