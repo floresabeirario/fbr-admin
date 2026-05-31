@@ -32,4 +32,7 @@ export type WhatsappMessage = {
   reply_to_wamid: string | null;
   received_at: string;
   created_at: string;
+  delivery_status: "delivered" | "read" | "failed" | null;
+  delivered_at: string | null;
+  read_at: string | null;
 };

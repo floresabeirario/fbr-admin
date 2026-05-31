@@ -586,11 +586,38 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
           )}
         >
           {formatMessageTime(message.received_at)}
-          {isSent && <span title="Enviada pelo telemóvel">📱</span>}
+          {isSent && <DeliveryTicks message={message} />}
         </div>
       </div>
     </div>
   );
+}
+
+function DeliveryTicks({ message }: { message: WhatsappMessage }) {
+  if (message.delivery_status === "failed") {
+    return <span title="Falhou" className="text-rose-500">⚠</span>;
+  }
+  if (message.delivery_status === "read") {
+    return (
+      <span
+        title={`Lida ${message.read_at ? new Date(message.read_at).toLocaleString("pt-PT") : ""}`}
+        className="text-sky-500"
+      >
+        ✓✓
+      </span>
+    );
+  }
+  if (message.delivery_status === "delivered") {
+    return (
+      <span
+        title={`Entregue ${message.delivered_at ? new Date(message.delivered_at).toLocaleString("pt-PT") : ""}`}
+        className="text-cocoa-400"
+      >
+        ✓✓
+      </span>
+    );
+  }
+  return <span title="Enviada pelo telemóvel">📱</span>;
 }
 
 function MessageContent({ message }: { message: WhatsappMessage }) {

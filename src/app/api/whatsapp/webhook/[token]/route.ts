@@ -162,6 +162,43 @@ function verifyHmac(body: string, signatureHeader: string, secret: string): bool
 // ──────────────────────────────────────────────────────────────
 // Parsing + insercao
 // ──────────────────────────────────────────────────────────────
+type StatusEvent = {
+  id?: string;
+  status?: "delivered" | "read" | "failed" | "sent";
+  timestamp?: string;
+  recipient_id?: string;
+};
+
+async function processStatuses(
+  supabase: SupabaseAdmin,
+  rawStatuses: unknown[],
+): Promise<void> {
+  for (const raw of rawStatuses) {
+    const s = raw as StatusEvent;
+    if (!s?.id || !s.status) continue;
+    // Apenas mapeamos os 3 estados visiveis na UI; 'sent' = estado inicial,
+    // sem necessidade de gravar (default NULL ja serve).
+    if (s.status !== "delivered" && s.status !== "read" && s.status !== "failed") continue;
+
+    const tsNum = Number(s.timestamp);
+    const at = Number.isFinite(tsNum) && tsNum > 0
+      ? new Date(tsNum * 1000).toISOString()
+      : new Date().toISOString();
+
+    const update: Record<string, unknown> = { delivery_status: s.status };
+    if (s.status === "delivered") update.delivered_at = at;
+    if (s.status === "read") update.read_at = at;
+
+    const { error } = await supabase
+      .from("whatsapp_messages")
+      .update(update)
+      .eq("wamid", s.id);
+    if (error) {
+      console.warn("[wa-webhook] update status falhou", { wamid: s.id, err: error.message });
+    }
+  }
+}
+
 async function processWebhookPayload(payload: unknown): Promise<boolean> {
   if (
     !payload ||
@@ -195,6 +232,11 @@ async function processWebhookPayload(payload: unknown): Promise<boolean> {
       if (field === "messages") {
         direction = "received";
         messages = (Array.isArray(value.messages) ? value.messages : []) as WaMessage[];
+        // Mesma payload pode tambem trazer statuses (entrega/leitura)
+        // de mensagens que enviamos ou ecoamos. Processar aqui.
+        if (Array.isArray(value.statuses)) {
+          await processStatuses(supabase, value.statuses);
+        }
       } else if (field === "smb_message_echoes") {
         direction = "sent_echo";
         const echoArr = (Array.isArray(value.message_echoes)
@@ -204,7 +246,7 @@ async function processWebhookPayload(payload: unknown): Promise<boolean> {
             : []) as WaMessage[];
         messages = echoArr;
       } else {
-        // 'statuses' (delivery/read) e outros — ignorar para v1.
+        // Outros campos — ignorar.
         continue;
       }
 
