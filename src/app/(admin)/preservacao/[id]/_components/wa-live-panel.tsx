@@ -210,7 +210,14 @@ export default function WhatsappLivePanel({ phone }: Props) {
         {messages.length === 0 ? (
           <p className="text-xs text-cocoa-400 text-center py-4">Sem mensagens nesta conversa.</p>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          (() => {
+            const wamidMap = new Map<string, WhatsappMessage>();
+            for (const m of messages) wamidMap.set(m.wamid, m);
+            return messages.map((m) => {
+              const repliedTo = m.reply_to_wamid ? wamidMap.get(m.reply_to_wamid) ?? null : null;
+              return <MessageBubble key={m.id} message={m} repliedTo={repliedTo} />;
+            });
+          })()
         )}
       </div>
 
@@ -230,7 +237,13 @@ function EmptyBox({ title, description }: { title: string; description: string }
   );
 }
 
-function MessageBubble({ message }: { message: WhatsappMessage }) {
+function MessageBubble({
+  message,
+  repliedTo,
+}: {
+  message: WhatsappMessage;
+  repliedTo?: WhatsappMessage | null;
+}) {
   const isSent = message.direction === "sent_echo";
   return (
     <div className={cn("flex", isSent ? "justify-end" : "justify-start")}>
@@ -242,6 +255,23 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
             : "bg-surface border border-cream-200 text-cocoa-900 rounded-bl-sm",
         )}
       >
+        {repliedTo && (
+          <div
+            className={cn(
+              "border-l-2 pl-1.5 py-0.5 mb-1 text-[10px] rounded-r-sm",
+              repliedTo.direction === "sent_echo"
+                ? "bg-emerald-50 border-emerald-400"
+                : "bg-cream-50 border-cocoa-400",
+            )}
+          >
+            <div className={cn("font-medium", repliedTo.direction === "sent_echo" ? "text-emerald-700" : "text-cocoa-600")}>
+              {repliedTo.direction === "sent_echo" ? "FBR" : "Cliente"}
+            </div>
+            <div className="text-cocoa-700 truncate max-w-[260px]">
+              {repliedTo.text || mediaIconLabel(repliedTo.content_type)}
+            </div>
+          </div>
+        )}
         {message.content_type === "text" ? (
           <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>
         ) : (

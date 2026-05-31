@@ -471,22 +471,28 @@ function ConversationViewer({
         ) : messages.length === 0 ? (
           <div className="text-center text-xs text-cocoa-400 py-6">Sem mensagens.</div>
         ) : (
-          messages.map((m, i) => {
-            const prev = i > 0 ? messages[i - 1] : null;
-            const showDay = !prev || dayBoundary(prev.received_at, m.received_at);
-            return (
-              <div key={m.id}>
-                {showDay && (
-                  <div className="text-center my-2">
-                    <span className="text-[10px] text-cocoa-500 bg-cream-100 px-2 py-0.5 rounded-full">
-                      {formatDayLabel(m.received_at)}
-                    </span>
-                  </div>
-                )}
-                <MessageBubble message={m} />
-              </div>
-            );
-          })
+          (() => {
+            // Map wamid -> message para resolver replies em O(1).
+            const wamidMap = new Map<string, WhatsappMessage>();
+            for (const m of messages) wamidMap.set(m.wamid, m);
+            return messages.map((m, i) => {
+              const prev = i > 0 ? messages[i - 1] : null;
+              const showDay = !prev || dayBoundary(prev.received_at, m.received_at);
+              const repliedTo = m.reply_to_wamid ? wamidMap.get(m.reply_to_wamid) ?? null : null;
+              return (
+                <div key={m.id}>
+                  {showDay && (
+                    <div className="text-center my-2">
+                      <span className="text-[10px] text-cocoa-500 bg-cream-100 px-2 py-0.5 rounded-full">
+                        {formatDayLabel(m.received_at)}
+                      </span>
+                    </div>
+                  )}
+                  <MessageBubble message={m} repliedTo={repliedTo} />
+                </div>
+              );
+            });
+          })()
         )}
       </div>
 
@@ -640,7 +646,13 @@ function formatDayLabel(iso: string): string {
   });
 }
 
-function MessageBubble({ message }: { message: WhatsappMessage }) {
+function MessageBubble({
+  message,
+  repliedTo,
+}: {
+  message: WhatsappMessage;
+  repliedTo?: WhatsappMessage | null;
+}) {
   const isSent = message.direction === "sent_echo";
   return (
     <div className={cn("flex", isSent ? "justify-end" : "justify-start")}>
@@ -652,6 +664,7 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
             : "bg-surface border border-cream-200 text-cocoa-900 rounded-bl-sm",
         )}
       >
+        {repliedTo && <RepliedQuote message={repliedTo} />}
         <MessageContent message={message} />
         <div
           className={cn(
@@ -663,6 +676,29 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
           {isSent && <DeliveryTicks message={message} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Citacao quando esta mensagem responde a outra. Cor da barra lateral
+// distingue se a citada e nossa (cinza) ou do cliente (verde).
+function RepliedQuote({ message }: { message: WhatsappMessage }) {
+  const repliedIsSent = message.direction === "sent_echo";
+  const previewText =
+    message.text || mediaIconLabel(message.content_type);
+  return (
+    <div
+      className={cn(
+        "border-l-2 pl-2 py-0.5 mb-1.5 text-[11px] rounded-r-sm",
+        repliedIsSent
+          ? "bg-emerald-50 border-emerald-400"
+          : "bg-cream-50 border-cocoa-400",
+      )}
+    >
+      <div className={cn("font-medium", repliedIsSent ? "text-emerald-700" : "text-cocoa-600")}>
+        {repliedIsSent ? "FBR" : "Cliente"}
+      </div>
+      <div className="text-cocoa-700 truncate max-w-[280px]">{previewText}</div>
     </div>
   );
 }
