@@ -26,7 +26,7 @@ export async function createTemplateAction(input: MessageTemplateInsert): Promis
     is_seed: false,
   });
   if (error) throw new Error(`Não foi possível criar o template: ${error.message}`);
-  revalidatePath("/settings/templates");
+  revalidatePath("/comunicacoes/templates");
 }
 
 export async function updateTemplateAction(
@@ -43,7 +43,7 @@ export async function updateTemplateAction(
     .update(safe)
     .eq("id", id);
   if (error) throw new Error(`Não foi possível guardar o template: ${error.message}`);
-  revalidatePath("/settings/templates");
+  revalidatePath("/comunicacoes/templates");
 }
 
 export async function archiveTemplateAction(id: string): Promise<void> {
@@ -54,7 +54,7 @@ export async function archiveTemplateAction(id: string): Promise<void> {
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(`Não foi possível arquivar o template: ${error.message}`);
-  revalidatePath("/settings/templates");
+  revalidatePath("/comunicacoes/templates");
 }
 
 export async function restoreTemplateAction(id: string): Promise<void> {
@@ -65,7 +65,7 @@ export async function restoreTemplateAction(id: string): Promise<void> {
     .update({ deleted_at: null })
     .eq("id", id);
   if (error) throw new Error(`Não foi possível restaurar o template: ${error.message}`);
-  revalidatePath("/settings/templates");
+  revalidatePath("/comunicacoes/templates");
 }
 
 export async function duplicateTemplateAction(id: string): Promise<void> {
@@ -109,7 +109,7 @@ export async function duplicateTemplateAction(id: string): Promise<void> {
     is_seed: false,
   });
   if (insertErr) throw new Error(`Não foi possível duplicar: ${insertErr.message}`);
-  revalidatePath("/settings/templates");
+  revalidatePath("/comunicacoes/templates");
 }
 
 // ─── System settings (dados de pagamento, morada do estúdio) ──
@@ -125,6 +125,6 @@ export async function updateSystemSettingAction(
     .from("system_settings")
     .upsert({ key, value }, { onConflict: "key" });
   if (error) throw new Error(`Não foi possível guardar a configuração: ${error.message}`);
-  revalidatePath("/settings/templates");
-  revalidatePath("/settings/ai");
+  revalidatePath("/comunicacoes/templates");
+  revalidatePath("/comunicacoes/claudio");
 }

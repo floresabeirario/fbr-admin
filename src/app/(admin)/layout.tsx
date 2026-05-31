@@ -16,6 +16,9 @@ import {
   BookOpen,
   MessageCircle,
   MessageSquareText,
+  MessagesSquare,
+  Sparkles,
+  BookText,
   LineChart,
   LogOut,
   ChevronLeft,
@@ -61,8 +64,16 @@ const navItems: NavItem[] = [
   { href: "/parcerias", label: "Parcerias", icon: Handshake },
   { href: "/financas", label: "Finanças", icon: Euro },
   { href: "/livro-receitas", label: "Livro de Receitas", icon: BookOpen },
-  { href: "/chat", label: "Chat interno", icon: MessageCircle },
-  { href: "/whatsapp", label: "WhatsApp", icon: MessageSquareText },
+  {
+    href: "/comunicacoes",
+    label: "Comunicações",
+    icon: MessagesSquare,
+    matchPaths: ["/comunicacoes", "/whatsapp", "/chat"],
+  },
+  { href: "/whatsapp", label: "WhatsApp", icon: MessageSquareText, parent: "/comunicacoes" },
+  { href: "/chat", label: "Chat interno", icon: MessageCircle, parent: "/comunicacoes" },
+  { href: "/comunicacoes/templates", label: "Templates", icon: BookText, parent: "/comunicacoes" },
+  { href: "/comunicacoes/claudio", label: "Cérebro do Claudio", icon: Sparkles, parent: "/comunicacoes" },
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
   {
     href: "/settings/google",
@@ -256,9 +267,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Nav */}
       <nav className="flex-1 py-3 flex flex-col gap-0.5 overflow-y-auto px-2">
         {navItems
-          .filter((item) =>
-            item.href.startsWith("/settings") ? profile?.role === "admin" : true,
-          )
+          .filter((item) => {
+            // Admin-only paths: /settings/*, /comunicacoes/templates, /comunicacoes/claudio
+            const adminOnly =
+              item.href.startsWith("/settings") ||
+              item.href === "/comunicacoes/templates" ||
+              item.href === "/comunicacoes/claudio";
+            return adminOnly ? profile?.role === "admin" : true;
+          })
           .map(({ href, label, icon: Icon, parent, matchPaths }) => {
           const active = href === "/"
             ? pathname === "/"

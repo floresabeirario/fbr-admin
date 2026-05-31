@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Shield, History, HeartPulse, Globe, MessageSquareText, ListTodo } from "lucide-react";
+import { Settings, Shield, History, HeartPulse, Globe, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/settings/google", label: "Definições", icon: Settings, adminOnly: true },
-  { href: "/settings/templates", label: "Mensagens", icon: MessageSquareText, adminOnly: true },
   { href: "/settings/templates-tarefas", label: "Tarefas", icon: ListTodo, adminOnly: true },
   { href: "/settings/rgpd", label: "RGPD", icon: Shield, adminOnly: true },
   { href: "/settings/audit", label: "Histórico", icon: History, adminOnly: true },

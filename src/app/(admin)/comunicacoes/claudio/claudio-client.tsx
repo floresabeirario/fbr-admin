@@ -15,7 +15,7 @@ type Props = {
   conversationsWithNotes: number;
 };
 
-export default function AiClient({
+export default function ClaudioClient({
   initialPersona,
   initialFacts,
   templatesCount,
@@ -71,7 +71,7 @@ export default function AiClient({
         </div>
         <div className="flex items-center gap-3 pt-1">
           <Link
-            href="/settings/templates"
+            href="/comunicacoes/templates"
             className="text-sm text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1"
           >
             Gerir os {templatesCount} templates <ExternalLink className="h-3 w-3" />
