@@ -114,7 +114,7 @@ async function fetchOne(
   const tsPart = msg.received_at.replace(/[:.]/g, "-").slice(0, 19);
   const filename = `${tsPart}-${msg.wamid.slice(-10)}.${ext}`;
 
-  const { url: driveUrl } = await uploadWhatsappMedia({
+  const { id: driveFileId, url: driveUrl } = await uploadWhatsappMedia({
     phoneE164,
     filename,
     mimeType,
@@ -124,7 +124,11 @@ async function fetchOne(
   // 4. Update mensagem
   const { error } = await supabase
     .from("whatsapp_messages")
-    .update({ media_url_drive: driveUrl, media_pending: false })
+    .update({
+      media_url_drive: driveUrl,
+      media_drive_file_id: driveFileId,
+      media_pending: false,
+    })
     .eq("id", msg.id);
   if (error) throw new Error(`update DB: ${error.message}`);
 }

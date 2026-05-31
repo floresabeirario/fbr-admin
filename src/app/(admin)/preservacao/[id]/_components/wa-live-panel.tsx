@@ -278,24 +278,42 @@ function MessageBubble({
           (() => {
             const failed =
               !message.media_pending && !message.media_url_drive && !!message.media_id;
+            const isImage = message.content_type === "image";
+            const showInlineImage = isImage && !!message.media_drive_file_id;
             return (
               <div>
-                <p className="text-cocoa-600 italic">
-                  {mediaIconLabel(message.content_type)}
-                  {message.media_pending && (
-                    <span className="text-cocoa-400 ml-1">(a carregar…)</span>
-                  )}
-                  {failed && (
-                    <span className="text-rose-500 ml-1" title="A URL temporária da Meta expirou ou houve erro. Vê no telemóvel.">
-                      ⚠ não consegui guardar
-                    </span>
-                  )}
-                  {failed && <RetryMediaButton messageId={message.id} />}
-                </p>
+                {showInlineImage ? (
+                  <a
+                    href={message.media_url_drive ?? "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block mb-1"
+                  >
+                    <img
+                      src={`/api/whatsapp/media/${message.media_drive_file_id}`}
+                      alt={message.text ?? "foto"}
+                      loading="lazy"
+                      className="rounded max-h-48 w-auto max-w-full object-contain bg-cocoa-50"
+                    />
+                  </a>
+                ) : (
+                  <p className="text-cocoa-600 italic">
+                    {mediaIconLabel(message.content_type)}
+                    {message.media_pending && (
+                      <span className="text-cocoa-400 ml-1">(a carregar…)</span>
+                    )}
+                    {failed && (
+                      <span className="text-rose-500 ml-1" title="A URL temporária da Meta expirou ou houve erro. Vê no telemóvel.">
+                        ⚠ não consegui guardar
+                      </span>
+                    )}
+                    {failed && <RetryMediaButton messageId={message.id} />}
+                  </p>
+                )}
                 {message.text && (
                   <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
                 )}
-                {message.media_url_drive && (
+                {message.media_url_drive && !showInlineImage && (
                   <a
                     href={message.media_url_drive}
                     target="_blank"

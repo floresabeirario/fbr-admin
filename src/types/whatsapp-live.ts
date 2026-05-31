@@ -28,6 +28,7 @@ export type WhatsappMessage = {
   media_id: string | null;
   media_mime: string | null;
   media_url_drive: string | null;
+  media_drive_file_id: string | null;
   media_pending: boolean;
   reply_to_wamid: string | null;
   received_at: string;
