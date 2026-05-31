@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw } from "lucide-react";
 import { linkify } from "@/lib/linkify";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import type {
 } from "@/types/whatsapp-live";
 import {
   markConversationReadAction,
+  markConversationUnreadAction,
   archiveConversationAction,
   updateConversationNotesAction,
 } from "./actions";
@@ -87,12 +88,27 @@ function mediaIconLabel(content_type: string): string {
   }
 }
 
+type InboxFilter = "todas" | "nao_lidas" | "com_encomenda" | "sem_encomenda";
+
 export default function WhatsappClient({ initialConversations, orders }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const [conversations, setConversations] = useState<WhatsappConversation[]>(initialConversations);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<InboxFilter>("todas");
+
+  // Pre-calcular para cada conversa se tem encomenda associada (matching por last 9 digits).
+  const convHasOrder = useMemo(() => {
+    const phoneTails = new Set(
+      orders.map((o) => digitsOnly(o.phone).slice(-9)).filter((t) => t.length === 9),
+    );
+    const map = new Map<string, boolean>();
+    for (const c of conversations) {
+      map.set(c.id, phoneTails.has(digitsOnly(c.phone_e164).slice(-9)));
+    }
+    return map;
+  }, [conversations, orders]);
 
   // Realtime: conversas (UPDATE de sumario/unread/archive + INSERT de nova conversa)
   useEffect(() => {
@@ -128,6 +144,14 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
     return conversations
       .filter((c) => c.archived === showArchived)
       .filter((c) => {
+        switch (filter) {
+          case "nao_lidas": return c.unread_count > 0;
+          case "com_encomenda": return convHasOrder.get(c.id) === true;
+          case "sem_encomenda": return convHasOrder.get(c.id) === false;
+          default: return true;
+        }
+      })
+      .filter((c) => {
         if (!term) return true;
         return (
           (c.contact_name?.toLowerCase().includes(term) ?? false) ||
@@ -137,7 +161,7 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
         );
       })
       .sort(sortByLastMessage);
-  }, [conversations, search, showArchived]);
+  }, [conversations, search, showArchived, filter, convHasOrder]);
 
   const selectedConv = selectedId ? conversations.find((c) => c.id === selectedId) ?? null : null;
 
@@ -184,6 +208,33 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
               placeholder="Procurar nome, número, mensagem..."
               className="pl-8 h-8 text-sm"
             />
+          </div>
+          {/* Filtros: chips toggle */}
+          <div className="flex items-center gap-1 overflow-x-auto -mx-1 px-1">
+            {(["todas", "nao_lidas", "com_encomenda", "sem_encomenda"] as const).map((k) => {
+              const labels: Record<typeof k, string> = {
+                todas: "Todas",
+                nao_lidas: "Não lidas",
+                com_encomenda: "Com encomenda",
+                sem_encomenda: "Sem encomenda",
+              };
+              const active = filter === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setFilter(k)}
+                  className={cn(
+                    "shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors",
+                    active
+                      ? "bg-cocoa-900 text-surface border-cocoa-900"
+                      : "bg-surface text-cocoa-600 border-cream-200 hover:border-cocoa-300",
+                  )}
+                >
+                  {labels[k]}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -240,6 +291,10 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
             conversation={selectedConv}
             orders={orders}
             onBack={() => setSelectedId(null)}
+            onMarkUnread={() => {
+              markConversationUnreadAction(selectedConv.id);
+              setSelectedId(null);
+            }}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-cocoa-400 text-sm">
@@ -264,10 +319,12 @@ function ConversationViewer({
   conversation,
   orders,
   onBack,
+  onMarkUnread,
 }: {
   conversation: WhatsappConversation;
   orders: OrderLite[];
   onBack: () => void;
+  onMarkUnread: () => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<WhatsappMessage[]>([]);
@@ -379,6 +436,14 @@ function ConversationViewer({
             </div>
           )}
         </div>
+        <button
+          type="button"
+          onClick={onMarkUnread}
+          className="p-1.5 rounded hover:bg-cream-100 text-cocoa-600"
+          title="Marcar como não lida (para retomar depois)"
+        >
+          <MailQuestion className="h-4 w-4" />
+        </button>
         <button
           type="button"
           onClick={() => archiveConversationAction(conversation.id, !conversation.archived)}
@@ -602,6 +667,41 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
   );
 }
 
+function RetryMediaButton({ messageId }: { messageId: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleRetry() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/whatsapp/retry-media", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+      const data = await res.json();
+      if (data.ok) toast.success("Puxada com sucesso.");
+      else toast.error(data.error || "URL da Meta expirou ou houve erro.");
+    } catch {
+      toast.error("Falhou — tenta de novo.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleRetry}
+      disabled={loading}
+      className="ml-1 text-indigo-600 hover:text-indigo-800 underline text-[10px] disabled:opacity-50"
+      title="Tentar puxar de novo"
+    >
+      <RefreshCw className={cn("h-3 w-3 inline", loading && "animate-spin")} />
+    </button>
+  );
+}
+
 function DeliveryTicks({ message }: { message: WhatsappMessage }) {
   if (message.delivery_status === "failed") {
     return <span title="Falhou" className="text-rose-500">⚠</span>;
@@ -659,6 +759,7 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
               ⚠ não consegui guardar
             </span>
           )}
+          {failed && <RetryMediaButton messageId={message.id} />}
         </div>
         {message.text && (
           <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>

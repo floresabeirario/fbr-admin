@@ -9,6 +9,16 @@ export async function markConversationReadAction(conversationId: string): Promis
   revalidatePath("/whatsapp");
 }
 
+export async function markConversationUnreadAction(conversationId: string): Promise<void> {
+  const supabase = await createClient();
+  // Marca como "1 nao lida" para a bolinha verde voltar a aparecer (follow-up).
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ unread_count: 1 })
+    .eq("id", conversationId);
+  revalidatePath("/whatsapp");
+}
+
 export async function archiveConversationAction(
   conversationId: string,
   archived: boolean,

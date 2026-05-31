@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText } from "lucide-react";
+import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText, RefreshCw } from "lucide-react";
 import { linkify } from "@/lib/linkify";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -260,6 +260,7 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
                       ⚠ não consegui guardar
                     </span>
                   )}
+                  {failed && <RetryMediaButton messageId={message.id} />}
                 </p>
                 {message.text && (
                   <p className="mt-1 whitespace-pre-wrap break-words">{linkify(message.text)}</p>
@@ -289,6 +290,39 @@ function MessageBubble({ message }: { message: WhatsappMessage }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function RetryMediaButton({ messageId }: { messageId: string }) {
+  const [loading, setLoading] = useState(false);
+  async function handleRetry() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/whatsapp/retry-media", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+      const data = await res.json();
+      if (data.ok) toast.success("Puxada com sucesso.");
+      else toast.error(data.error || "URL da Meta expirou ou houve erro.");
+    } catch {
+      toast.error("Falhou — tenta de novo.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleRetry}
+      disabled={loading}
+      className="ml-1 text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+      title="Tentar puxar de novo"
+    >
+      <RefreshCw className={cn("h-2.5 w-2.5 inline", loading && "animate-spin")} />
+    </button>
   );
 }
 
