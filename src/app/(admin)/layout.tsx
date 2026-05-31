@@ -147,6 +147,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const rawUnreadWa = useUnreadWhatsappCount(!!profile?.email);
   const unreadWa = pathname.startsWith("/whatsapp") ? 0 : rawUnreadWa;
 
+  // Titulo do separador do browser: prefixa com '(N)' quando ha unread
+  // somando WhatsApp + Chat. Util quando Maria tem multiplos tabs abertos.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const totalUnread = rawUnreadWa + rawUnreadChat;
+    const base = "FBR Admin";
+    document.title = totalUnread > 0 ? `(${totalUnread > 99 ? "99+" : totalUnread}) ${base}` : base;
+  }, [rawUnreadWa, rawUnreadChat]);
+
   useEffect(() => {
     if (profile?.role !== "admin") return;
     let cancelled = false;

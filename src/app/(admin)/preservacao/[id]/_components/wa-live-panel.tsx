@@ -5,11 +5,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText, RefreshCw } from "lucide-react";
+import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText, RefreshCw, MailQuestion } from "lucide-react";
 import { linkify } from "@/lib/linkify";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WhatsappConversation, WhatsappMessage } from "@/types/whatsapp-live";
+import { markConversationReadAction, markConversationUnreadAction } from "@/app/(admin)/whatsapp/actions";
 
 type Props = {
   // Telefone do cliente no formato livre da BD (ex: "935 896 353", "+351935...").
@@ -155,6 +156,14 @@ export default function WhatsappLivePanel({ phone }: Props) {
     }
   }, [messages]);
 
+  // Auto-mark-as-read quando a conversa esta visivel no workbench
+  // (consistencia com /whatsapp)
+  useEffect(() => {
+    if (conversation && conversation.unread_count > 0) {
+      markConversationReadAction(conversation.id);
+    }
+  }, [conversation?.id, conversation?.unread_count, conversation]);
+
   // ─── Empty states ───
   if (!phone || phoneTail.length < 9) {
     return (
@@ -193,8 +202,16 @@ export default function WhatsappLivePanel({ phone }: Props) {
             </span>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => markConversationUnreadAction(conversation.id)}
+          className="p-1 rounded hover:bg-cream-100 text-cocoa-500"
+          title="Marcar como não lida"
+        >
+          <MailQuestion className="h-3.5 w-3.5" />
+        </button>
         <Link
-          href="/whatsapp"
+          href={`/whatsapp?conv=${conversation.id}`}
           className="text-[11px] text-indigo-600 hover:underline inline-flex items-center gap-1"
           title="Abrir na Caixa de Entrada"
         >
