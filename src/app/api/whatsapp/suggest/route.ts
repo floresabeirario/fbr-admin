@@ -1,7 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentRole } from "@/lib/auth/server";
-import { CLAUDE_MODEL, createAnthropicClient } from "@/lib/claude";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentRole, getCurrentEmail } from "@/lib/auth/server";
+import {
+  CLAUDE_MODEL,
+  createAnthropicClient,
+  calculateClaudeCostUsd,
+  type ClaudeUsage,
+} from "@/lib/claude";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -165,7 +171,7 @@ Gera a próxima mensagem da FBR (pronta a copiar):`;
   const anthropic = createAnthropicClient();
 
   let suggestion: string;
-  let usage: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } = {};
+  let usage: ClaudeUsage = {};
   try {
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
@@ -192,13 +198,32 @@ Gera a próxima mensagem da FBR (pronta a copiar):`;
 
     const firstBlock = response.content[0];
     suggestion = firstBlock?.type === "text" ? firstBlock.text : "";
-    usage = response.usage as typeof usage;
+    usage = response.usage as ClaudeUsage;
   } catch (err) {
     console.error("[wa-suggest] anthropic error", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "anthropic error" },
       { status: 500 },
     );
+  }
+
+  // Log de uso para cost tracking (best-effort — nao bloqueia resposta)
+  try {
+    const admin = createAdminClient();
+    const cost = calculateClaudeCostUsd(usage);
+    const email = await getCurrentEmail();
+    await admin.from("claude_usage").insert({
+      model: CLAUDE_MODEL,
+      conversation_id: body.conversationId,
+      input_tokens: usage.input_tokens ?? 0,
+      output_tokens: usage.output_tokens ?? 0,
+      cache_read_tokens: usage.cache_read_input_tokens ?? 0,
+      cache_creation_tokens: usage.cache_creation_input_tokens ?? 0,
+      cost_usd: cost,
+      caller_email: email,
+    });
+  } catch (err) {
+    console.warn("[wa-suggest] falhou a logar uso", err);
   }
 
   return NextResponse.json({
