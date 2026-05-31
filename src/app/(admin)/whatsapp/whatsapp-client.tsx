@@ -339,7 +339,22 @@ function ConversationViewer({
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<WhatsappMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Reset search ao trocar de conversa
+  useEffect(() => {
+    setSearchOpen(false);
+    setSearchTerm("");
+  }, [conversation.id]);
+
+  // Filtro de mensagens por termo de pesquisa
+  const visibleMessages = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return messages;
+    return messages.filter((m) => (m.text ?? "").toLowerCase().includes(term));
+  }, [messages, searchTerm]);
 
   const linkedOrders = useMemo(() =>
     orders.filter((o) => phoneMatches(o.phone, conversation.phone_e164)),
@@ -448,6 +463,17 @@ function ConversationViewer({
         </div>
         <button
           type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          className={cn(
+            "p-1.5 rounded text-cocoa-600",
+            searchOpen ? "bg-cream-100" : "hover:bg-cream-100",
+          )}
+          title="Pesquisar nesta conversa"
+        >
+          <Search className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
           onClick={onMarkUnread}
           className="p-1.5 rounded hover:bg-cream-100 text-cocoa-600"
           title="Marcar como não lida (para retomar depois)"
@@ -468,6 +494,23 @@ function ConversationViewer({
         </button>
       </header>
 
+      {/* Search inline */}
+      {searchOpen && (
+        <div className="px-3 py-2 border-b border-cream-200 bg-cream-50 flex items-center gap-2">
+          <Search className="h-3.5 w-3.5 text-cocoa-400 shrink-0" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Procurar texto nesta conversa…"
+            autoFocus
+            className="h-7 text-xs flex-1"
+          />
+          <span className="text-[10px] text-cocoa-500 shrink-0">
+            {searchTerm.trim() ? `${visibleMessages.length} resultado${visibleMessages.length === 1 ? "" : "s"}` : ""}
+          </span>
+        </div>
+      )}
+
       {/* Notes */}
       <NotesArea
         conversationId={conversation.id}
@@ -480,13 +523,17 @@ function ConversationViewer({
           <div className="text-center text-xs text-cocoa-400 py-6">A carregar...</div>
         ) : messages.length === 0 ? (
           <div className="text-center text-xs text-cocoa-400 py-6">Sem mensagens.</div>
+        ) : visibleMessages.length === 0 ? (
+          <div className="text-center text-xs text-cocoa-400 py-6">
+            Nenhuma mensagem com &quot;{searchTerm}&quot;.
+          </div>
         ) : (
           (() => {
             // Map wamid -> message para resolver replies em O(1).
             const wamidMap = new Map<string, WhatsappMessage>();
             for (const m of messages) wamidMap.set(m.wamid, m);
-            return messages.map((m, i) => {
-              const prev = i > 0 ? messages[i - 1] : null;
+            return visibleMessages.map((m, i) => {
+              const prev = i > 0 ? visibleMessages[i - 1] : null;
               const showDay = !prev || dayBoundary(prev.received_at, m.received_at);
               const repliedTo = m.reply_to_wamid ? wamidMap.get(m.reply_to_wamid) ?? null : null;
               return (
