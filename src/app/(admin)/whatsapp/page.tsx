@@ -21,7 +21,7 @@ export default async function WhatsappPage() {
   // matching client-side.
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, order_id, client_name, phone, status")
+    .select("id, order_id, client_name, phone, status, drive_folder_url")
     .not("phone", "is", null)
     .is("deleted_at", null)
     .limit(2000);
@@ -35,6 +35,7 @@ export default async function WhatsappPage() {
         client_name: string | null;
         phone: string | null;
         status: string;
+        drive_folder_url: string | null;
       }>}
     />
   );

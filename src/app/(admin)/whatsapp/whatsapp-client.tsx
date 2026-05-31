@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen } from "lucide-react";
 import { linkify } from "@/lib/linkify";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ type OrderLite = {
   client_name: string | null;
   phone: string | null;
   status: string;
+  drive_folder_url: string | null;
 };
 
 type Props = {
@@ -446,14 +447,26 @@ function ConversationViewer({
           {linkedOrders.length > 0 && (
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
               {linkedOrders.slice(0, 4).map((o) => (
-                <Link
-                  key={o.id}
-                  href={`/preservacao/${o.order_id}`}
-                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 truncate max-w-[160px]"
-                  title={`${o.client_name ?? o.order_id} — ${o.status}`}
-                >
-                  {o.client_name ?? o.order_id}
-                </Link>
+                <span key={o.id} className="inline-flex items-center gap-0.5">
+                  <Link
+                    href={`/preservacao/${o.order_id}`}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 truncate max-w-[160px]"
+                    title={`${o.client_name ?? o.order_id} — ${o.status}`}
+                  >
+                    {o.client_name ?? o.order_id}
+                  </Link>
+                  {o.drive_folder_url && (
+                    <a
+                      href={o.drive_folder_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cocoa-500 hover:text-cocoa-800 p-0.5"
+                      title="Abrir pasta Drive desta encomenda"
+                    >
+                      <FolderOpen className="h-3 w-3" />
+                    </a>
+                  )}
+                </span>
               ))}
               {linkedOrders.length > 4 && (
                 <span className="text-[10px] text-cocoa-500">+{linkedOrders.length - 4}</span>

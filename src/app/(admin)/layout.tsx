@@ -27,6 +27,8 @@ import {
   Menu,
   X,
   Search,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
 import { startNavigationProgress } from "@/components/navigation-progress";
@@ -38,6 +40,11 @@ import { useUnreadChatCount } from "@/hooks/use-unread-chat";
 import { useMyActiveTasksCount } from "@/hooks/use-my-active-tasks";
 import { useUnreadOrdersCount } from "@/hooks/use-new-orders";
 import { useUnreadWhatsappCount } from "@/hooks/use-unread-whatsapp";
+import {
+  useNotificationSounds,
+  toggleNotificationSound,
+  isNotificationSoundOn,
+} from "@/hooks/use-notification-sounds";
 
 const PROFILES = [
   { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
@@ -155,6 +162,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const base = "FBR Admin";
     document.title = totalUnread > 0 ? `(${totalUnread > 99 ? "99+" : totalUnread}) ${base}` : base;
   }, [rawUnreadWa, rawUnreadChat]);
+
+  // Som ao chegar mensagem WhatsApp recebida ou nova encomenda do form.
+  useNotificationSounds(profile?.email ?? null);
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => { setSoundOn(isNotificationSoundOn()); }, []);
+  function handleToggleSound() { setSoundOn(toggleNotificationSound()); }
 
   useEffect(() => {
     if (profile?.role !== "admin") return;
@@ -429,7 +442,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {!collapsed && <span>Sair</span>}
           </button>
           <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between px-0.5")}>
-            {!collapsed && <ThemeToggle />}
+            {!collapsed && (
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <button
+                  onClick={handleToggleSound}
+                  className="flex items-center justify-center rounded-lg p-2 text-cocoa-500 hover:bg-cream-50 hover:text-cocoa-900 transition-colors"
+                  title={soundOn ? "Desligar sons de notificação" : "Ligar sons de notificação"}
+                  aria-label={soundOn ? "Sons ligados" : "Sons desligados"}
+                >
+                  {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-cocoa-400" />}
+                </button>
+              </div>
+            )}
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="flex items-center justify-center rounded-lg p-2 text-cocoa-500 hover:bg-cream-50 hover:text-cocoa-900 transition-colors"
