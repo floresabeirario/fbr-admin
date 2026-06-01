@@ -1,13 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Partner } from "@/types/partner";
-import ParceriasClient from "./parcerias-client";
+import type { PublicFigure } from "@/types/public-figure";
+import ParceriasTabs from "./parcerias-tabs";
 
 export default async function ParceriasPage() {
   const supabase = await createClient();
 
-  // Conta encomendas e vales por parceiro recomendador (clientes recomendados).
-  // Fazemos em paralelo: parceiros + agregados.
-  const [partnersRes, ordersRes, vouchersRes] = await Promise.all([
+  const [partnersRes, ordersRes, vouchersRes, figuresRes] = await Promise.all([
     supabase
       .from("partners")
       .select("*")
@@ -23,9 +22,15 @@ export default async function ParceriasPage() {
       .select("partner_id")
       .is("deleted_at", null)
       .not("partner_id", "is", null),
+    supabase
+      .from("public_figures")
+      .select("*")
+      .is("deleted_at", null)
+      .order("name", { ascending: true }),
   ]);
 
   const partners: Partner[] = (partnersRes.data ?? []) as Partner[];
+  const figures: PublicFigure[] = (figuresRes.data ?? []) as PublicFigure[];
 
   // Conta encomendas e vales por partner_id
   const ordersCount: Record<string, number> = {};
@@ -40,10 +45,11 @@ export default async function ParceriasPage() {
   }
 
   return (
-    <ParceriasClient
+    <ParceriasTabs
       initialPartners={partners}
       ordersCount={ordersCount}
       vouchersCount={vouchersCount}
+      initialFigures={figures}
     />
   );
 }

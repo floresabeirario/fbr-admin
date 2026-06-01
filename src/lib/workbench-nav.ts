@@ -15,7 +15,7 @@
 // mente não existe e as setas não aparecem.
 // ============================================================
 
-export type WorkbenchNavKey = "orders" | "vouchers" | "partners";
+export type WorkbenchNavKey = "orders" | "vouchers" | "partners" | "public_figures";
 
 const STORAGE_PREFIX = "fbr:nav:";
 
