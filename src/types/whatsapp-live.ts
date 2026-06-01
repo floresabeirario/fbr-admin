@@ -31,6 +31,7 @@ export type WhatsappMessage = {
   media_drive_file_id: string | null;
   media_pending: boolean;
   reply_to_wamid: string | null;
+  reaction_target_wamid: string | null;
   received_at: string;
   created_at: string;
   delivery_status: "delivered" | "read" | "failed" | null;

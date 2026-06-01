@@ -230,9 +230,19 @@ export default function WhatsappLivePanel({ phone }: Props) {
           (() => {
             const wamidMap = new Map<string, WhatsappMessage>();
             for (const m of messages) wamidMap.set(m.wamid, m);
-            return messages.map((m) => {
+            const reactionsByTarget = new Map<string, WhatsappMessage[]>();
+            for (const m of messages) {
+              if (m.content_type === "reaction" && m.reaction_target_wamid) {
+                const arr = reactionsByTarget.get(m.reaction_target_wamid) ?? [];
+                arr.push(m);
+                reactionsByTarget.set(m.reaction_target_wamid, arr);
+              }
+            }
+            const renderable = messages.filter((m) => m.content_type !== "reaction");
+            return renderable.map((m) => {
               const repliedTo = m.reply_to_wamid ? wamidMap.get(m.reply_to_wamid) ?? null : null;
-              return <MessageBubble key={m.id} message={m} repliedTo={repliedTo} />;
+              const reactions = reactionsByTarget.get(m.wamid) ?? [];
+              return <MessageBubble key={m.id} message={m} repliedTo={repliedTo} reactions={reactions} />;
             });
           })()
         )}
@@ -257,21 +267,40 @@ function EmptyBox({ title, description }: { title: string; description: string }
 function MessageBubble({
   message,
   repliedTo,
+  reactions = [],
 }: {
   message: WhatsappMessage;
   repliedTo?: WhatsappMessage | null;
+  reactions?: WhatsappMessage[];
 }) {
   const isSent = message.direction === "sent_echo";
   return (
-    <div className={cn("flex", isSent ? "justify-end" : "justify-start")}>
+    <div className={cn("flex relative", isSent ? "justify-end" : "justify-start", reactions.length > 0 && "mb-3")}>
       <div
         className={cn(
-          "max-w-[85%] px-2.5 py-1.5 rounded-2xl text-xs shadow-sm",
+          "max-w-[85%] px-2.5 py-1.5 rounded-2xl text-xs shadow-sm relative",
           isSent
             ? "bg-emerald-100 text-cocoa-900 rounded-br-sm"
             : "bg-surface border border-cream-200 text-cocoa-900 rounded-bl-sm",
         )}
       >
+        {reactions.length > 0 && (
+          <div
+            className={cn(
+              "absolute -bottom-2.5 flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-surface border border-cream-200 shadow-sm z-10",
+              isSent ? "right-1.5" : "left-1.5",
+            )}
+          >
+            {reactions.slice(0, 3).map((r) => (
+              <span key={r.id} className="text-xs leading-none" title={`Reagiu com ${r.text}`}>
+                {r.text || "•"}
+              </span>
+            ))}
+            {reactions.length > 3 && (
+              <span className="text-[9px] text-cocoa-500 ml-0.5">+{reactions.length - 3}</span>
+            )}
+          </div>
+        )}
         {repliedTo && (
           <div
             className={cn(

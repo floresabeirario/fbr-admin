@@ -343,6 +343,7 @@ function ConversationViewer({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Reset search ao trocar de conversa
   useEffect(() => {
@@ -416,12 +417,20 @@ function ConversationViewer({
     };
   }, [supabase, conversation.id]);
 
-  // Auto-scroll para fundo em cada mensagem nova
+  // Auto-scroll para fundo em cada mensagem nova.
+  // Usamos scrollIntoView num sentinel em vez de scrollTop=scrollHeight
+  // porque em mobile com imagens lazy o scrollHeight nao esta calculado
+  // na primeira render (resultava em abrir no topo da conversa).
+  // Dois passos: 1) imediato, 2) microtask para apanhar layouts que
+  // ainda estavam a estabilizar.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    if (!bottomRef.current) return;
+    bottomRef.current.scrollIntoView({ block: "end" });
+    const id = window.setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }, 100);
+    return () => window.clearTimeout(id);
+  }, [messages, loading]);
 
   return (
     <>
@@ -545,10 +554,24 @@ function ConversationViewer({
             // Map wamid -> message para resolver replies em O(1).
             const wamidMap = new Map<string, WhatsappMessage>();
             for (const m of messages) wamidMap.set(m.wamid, m);
-            return visibleMessages.map((m, i) => {
-              const prev = i > 0 ? visibleMessages[i - 1] : null;
+            // Reaccoes agrupadas por mensagem alvo. Sao filtradas das
+            // mensagens visiveis e renderizadas como badges anexas.
+            const reactionsByTarget = new Map<string, WhatsappMessage[]>();
+            for (const m of messages) {
+              if (m.content_type === "reaction" && m.reaction_target_wamid) {
+                const arr = reactionsByTarget.get(m.reaction_target_wamid) ?? [];
+                arr.push(m);
+                reactionsByTarget.set(m.reaction_target_wamid, arr);
+              }
+            }
+            const renderableMessages = visibleMessages.filter(
+              (m) => m.content_type !== "reaction",
+            );
+            return renderableMessages.map((m, i) => {
+              const prev = i > 0 ? renderableMessages[i - 1] : null;
               const showDay = !prev || dayBoundary(prev.received_at, m.received_at);
               const repliedTo = m.reply_to_wamid ? wamidMap.get(m.reply_to_wamid) ?? null : null;
+              const reactions = reactionsByTarget.get(m.wamid) ?? [];
               return (
                 <div key={m.id}>
                   {showDay && (
@@ -558,12 +581,13 @@ function ConversationViewer({
                       </span>
                     </div>
                   )}
-                  <MessageBubble message={m} repliedTo={repliedTo} />
+                  <MessageBubble message={m} repliedTo={repliedTo} reactions={reactions} />
                 </div>
               );
             });
           })()
         )}
+        <div ref={bottomRef} aria-hidden />
       </div>
 
       {/* Composer: caixa de instrucao opcional + sugerir resposta com Claude */}
@@ -719,16 +743,18 @@ function formatDayLabel(iso: string): string {
 function MessageBubble({
   message,
   repliedTo,
+  reactions = [],
 }: {
   message: WhatsappMessage;
   repliedTo?: WhatsappMessage | null;
+  reactions?: WhatsappMessage[];
 }) {
   const isSent = message.direction === "sent_echo";
   return (
-    <div className={cn("flex", isSent ? "justify-end" : "justify-start")}>
+    <div className={cn("flex relative", isSent ? "justify-end" : "justify-start", reactions.length > 0 && "mb-3")}>
       <div
         className={cn(
-          "max-w-[80%] sm:max-w-[60%] px-3 py-2 rounded-2xl text-sm shadow-sm",
+          "max-w-[80%] sm:max-w-[60%] px-3 py-2 rounded-2xl text-sm shadow-sm relative",
           isSent
             ? "bg-emerald-100 text-cocoa-900 rounded-br-sm"
             : "bg-surface border border-cream-200 text-cocoa-900 rounded-bl-sm",
@@ -736,6 +762,23 @@ function MessageBubble({
       >
         {repliedTo && <RepliedQuote message={repliedTo} />}
         <MessageContent message={message} />
+        {reactions.length > 0 && (
+          <div
+            className={cn(
+              "absolute -bottom-3 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-surface border border-cream-200 shadow-sm",
+              isSent ? "right-2" : "left-2",
+            )}
+          >
+            {reactions.slice(0, 3).map((r) => (
+              <span key={r.id} className="text-sm leading-none" title={`Reagiu com ${r.text}`}>
+                {r.text || "•"}
+              </span>
+            ))}
+            {reactions.length > 3 && (
+              <span className="text-[10px] text-cocoa-500 ml-0.5">+{reactions.length - 3}</span>
+            )}
+          </div>
+        )}
         <div
           className={cn(
             "text-[10px] mt-1 flex items-center gap-1",

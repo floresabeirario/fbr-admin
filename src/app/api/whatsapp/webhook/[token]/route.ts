@@ -320,6 +320,7 @@ async function insertMessage(
     media_mime: content.media_mime,
     media_pending: !!content.media_id,
     reply_to_wamid: msg.context?.id ?? null,
+    reaction_target_wamid: msg.reaction?.message_id ?? null,
     received_at: receivedAt,
     meta_payload: msg as unknown as Record<string, unknown>,
   });
