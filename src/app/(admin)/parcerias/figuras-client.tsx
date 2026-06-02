@@ -39,6 +39,7 @@ import {
   FIGURE_TERMINAL_STATUSES,
   FIGURE_PRIORITY_LABELS,
   FIGURE_PRIORITY_COLORS,
+  figureDisplayName,
 } from "@/types/public-figure";
 import {
   groupFiguresByStatus,
@@ -171,11 +172,14 @@ function FigureRow({
         <div className="flex items-start gap-2">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0 mt-1" />}
           <div className="min-w-0">
-            <div className="font-medium text-sm text-cocoa-900 truncate">{figure.name || "—"}</div>
+            <div className="font-medium text-sm text-cocoa-900 truncate">{figureDisplayName(figure)}</div>
             {figure.instagram_handle && (
               <div className="text-[11px] text-cocoa-700 truncate inline-flex items-center gap-1">
                 <AtSign className="h-3 w-3 shrink-0" />
                 @{figure.instagram_handle.replace(/^@/, "")}
+                {figure.partner_instagram && (
+                  <span className="text-cocoa-500"> · @{figure.partner_instagram.replace(/^@/, "")}</span>
+                )}
               </div>
             )}
           </div>

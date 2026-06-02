@@ -49,7 +49,9 @@ export function searchFigures(figures: PublicFigure[], query: string): PublicFig
   return figures.filter((f) => {
     return (
       f.name.toLowerCase().includes(q) ||
+      (f.partner_name?.toLowerCase().includes(q) ?? false) ||
       (f.instagram_handle?.toLowerCase().includes(q) ?? false) ||
+      (f.partner_instagram?.toLowerCase().includes(q) ?? false) ||
       (f.tiktok_handle?.toLowerCase().includes(q) ?? false) ||
       (f.email?.toLowerCase().includes(q) ?? false) ||
       (f.agency_name?.toLowerCase().includes(q) ?? false) ||

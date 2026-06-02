@@ -59,6 +59,9 @@ function initialForm(): PublicFigureInsert {
     instagram_handle: null,
     tiktok_handle: null,
     followers: null,
+    partner_name: null,
+    partner_instagram: null,
+    partner_followers: null,
     tags: [],
     event_type: "casamento",
     event_date: null,
@@ -104,6 +107,8 @@ export default function NovaFiguraSheet({ open, onOpenChange, onSuccess }: Props
         name: form.name.trim(),
         instagram_handle: form.instagram_handle?.trim().replace(/^@/, "") || null,
         tiktok_handle: form.tiktok_handle?.trim().replace(/^@/, "") || null,
+        partner_name: form.partner_name?.trim() || null,
+        partner_instagram: form.partner_instagram?.trim().replace(/^@/, "") || null,
         email: form.email?.trim() || null,
         notes: form.notes?.trim() || null,
         event_date: form.event_date || null,
@@ -131,14 +136,25 @@ export default function NovaFiguraSheet({ open, onOpenChange, onSuccess }: Props
           {/* Identificação */}
           <section className="space-y-3">
             <SectionTitle icon={Star} label="Identificação" />
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome *</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => set("name", e.target.value)}
-                placeholder="Ex: Sofia Costa"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  onChange={(e) => set("name", e.target.value)}
+                  placeholder="Ex: Sofia Costa"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="partner_name">Par / cônjuge</Label>
+                <Input
+                  id="partner_name"
+                  value={form.partner_name ?? ""}
+                  onChange={(e) => set("partner_name", e.target.value)}
+                  placeholder="Ex: João Silva"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-2">
@@ -214,6 +230,34 @@ export default function NovaFiguraSheet({ open, onOpenChange, onSuccess }: Props
                 placeholder="Ex: 25000"
               />
             </div>
+            {form.partner_name?.trim() && (
+              <div className="rounded-lg border border-dashed border-cream-200 bg-cream-50/50 p-3 space-y-3">
+                <p className="text-[11px] text-cocoa-700">
+                  Preenche só se <strong>{form.partner_name.trim()}</strong> também for figura pública.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="partner_ig">Instagram do par (@)</Label>
+                    <Input
+                      id="partner_ig"
+                      value={form.partner_instagram ?? ""}
+                      onChange={(e) => set("partner_instagram", e.target.value)}
+                      placeholder="joaosilva"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="partner_followers">Seguidores do par</Label>
+                    <Input
+                      id="partner_followers"
+                      type="number"
+                      value={form.partner_followers ?? ""}
+                      onChange={(e) => set("partner_followers", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                      placeholder="Ex: 12000"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Evento */}

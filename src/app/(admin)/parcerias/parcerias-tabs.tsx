@@ -25,7 +25,7 @@ export default function ParceriasTabs({
   vouchersCount,
   initialFigures,
 }: Props) {
-  const [mode, setMode] = useState<Mode>("parcerias");
+  const [mode, setMode] = useState<Mode>("figuras");
 
   return (
     <div className="flex flex-col h-full">
@@ -33,18 +33,18 @@ export default function ParceriasTabs({
       <div className="flex items-center gap-1 px-3 sm:px-6 pt-3 shrink-0">
         <div className="flex items-center gap-1 rounded-lg border border-cream-200 bg-surface p-1">
           <ModeButton
-            active={mode === "parcerias"}
-            onClick={() => setMode("parcerias")}
-            icon={Handshake}
-            label="Parcerias"
-            count={initialPartners.length}
-          />
-          <ModeButton
             active={mode === "figuras"}
             onClick={() => setMode("figuras")}
             icon={Star}
             label="Figuras Públicas"
             count={initialFigures.length}
+          />
+          <ModeButton
+            active={mode === "parcerias"}
+            onClick={() => setMode("parcerias")}
+            icon={Handshake}
+            label="Parcerias"
+            count={initialPartners.length}
           />
         </div>
       </div>

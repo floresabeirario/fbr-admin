@@ -78,6 +78,7 @@ import {
   FIGURE_EVENT_TYPE_LABELS,
   FIGURE_OFFER_TYPE_LABELS,
   FIGURE_CONTACT_CHANNEL_LABELS,
+  figureDisplayName,
 } from "@/types/public-figure";
 import {
   type InteractionChannel,
@@ -214,7 +215,7 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
             {FIGURE_TYPE_LABELS[figure.figure_type]}
           </span>
           <h1 className="font-['TanMemories'] text-xl text-cocoa-900 truncate">
-            {figure.name || "Sem nome"}
+            {figure.name || figure.partner_name ? figureDisplayName(figure) : "Sem nome"}
           </h1>
           {savingField && (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-cocoa-700">
@@ -281,9 +282,18 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
           <main className="lg:col-span-5 space-y-4">
             {/* Identificação + estado */}
             <Card icon={Star} title="Identificação" color="border-l-rose-400">
-              <Field label="Nome">
-                <Input defaultValue={figure.name} onBlur={(e) => saveField("name", e.target.value)} />
-              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Nome">
+                  <Input defaultValue={figure.name} onBlur={(e) => saveField("name", e.target.value)} />
+                </Field>
+                <Field label="Par / cônjuge">
+                  <Input
+                    defaultValue={figure.partner_name ?? ""}
+                    onBlur={(e) => saveField("partner_name", e.target.value.trim() || null)}
+                    placeholder="Ex: João Silva"
+                  />
+                </Field>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Tipo">
                   <Select value={figure.figure_type} onValueChange={(v) => saveField("figure_type", v as FigureType)}>
@@ -354,6 +364,29 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
                 </Field>
                 <div />
               </div>
+              {figure.partner_name && (
+                <div className="rounded-lg border border-dashed border-cream-200 bg-cream-50/50 p-3 space-y-3">
+                  <p className="text-[11px] text-cocoa-700">
+                    Redes de <strong>{figure.partner_name}</strong> — preenche só se também for figura pública.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Instagram do par (@)">
+                      <Input
+                        defaultValue={figure.partner_instagram ?? ""}
+                        onBlur={(e) => saveField("partner_instagram", e.target.value.trim().replace(/^@/, "") || null)}
+                        placeholder="joaosilva"
+                      />
+                    </Field>
+                    <Field label="Seguidores do par">
+                      <Input
+                        type="number"
+                        defaultValue={figure.partner_followers ?? ""}
+                        onBlur={(e) => saveField("partner_followers", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              )}
               <TagsField tags={figure.tags} onChange={(t) => saveField("tags", t)} />
               <Field label="Nota de fit (qualidade da audiência)">
                 <Textarea

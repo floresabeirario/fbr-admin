@@ -5,7 +5,6 @@
 import { differenceInDays, parseISO } from "date-fns";
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
-import { isWithoutResponse } from "@/lib/supabase/orders";
 import { isExpiringSoon } from "@/lib/supabase/vouchers";
 
 // ── Recolhas e entregas no horizonte próximo ─────────────────
@@ -160,9 +159,16 @@ export function getDashboardAlerts(
     });
   }
 
-  // 3. Pré-reservas sem contacto há ≥4 dias (já capturado pelo isWithoutResponse)
-  const noResponse = orders.filter((o) => isWithoutResponse(o));
-  for (const o of noResponse.slice(0, 10)) {
+  // 3. Pré-reservas sem contacto há ≥4 dias — lembrete para contactar.
+  // Critério próprio (não confundir com o grupo "Sem resposta", que é só ghost
+  // manual via isWithoutResponse): pré-reserva ainda não contactada há ≥4 dias.
+  const uncontactedPreReservas = orders.filter((o) => {
+    if (o.deleted_at) return false;
+    if (o.status !== "entrega_flores_agendar") return false;
+    if (o.contacted) return false;
+    return differenceInDays(today, parseISO(o.created_at)) >= 4;
+  });
+  for (const o of uncontactedPreReservas.slice(0, 10)) {
     const days = differenceInDays(today, parseISO(o.created_at));
     alerts.push({
       id: `noresp-${o.id}`,

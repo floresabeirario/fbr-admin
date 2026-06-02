@@ -1,6 +1,6 @@
 // ============================================================
 // FBR Admin — Tipos TypeScript para Figuras Públicas
-// (influencers / celebridades / figuras públicas — campanha de seeding)
+// (influencers / figuras públicas — campanha de seeding)
 //
 // Vive na mesma aba que as Parcerias mas é um modelo próprio.
 // Reaproveita as formas de interações, acções e telefones das Parcerias.
@@ -18,7 +18,7 @@ export type FigureInteraction = PartnerInteraction;
 export type FigureAction = PartnerAction;
 
 // ── Tipo de figura ───────────────────────────────────────────
-export type FigureType = "influencer" | "celebridade" | "figura_publica";
+export type FigureType = "influencer" | "figura_publica";
 
 // ── Estado (funil da oferta) ─────────────────────────────────
 export type FigureStatus =
@@ -77,6 +77,12 @@ export interface PublicFigure {
   tiktok_handle: string | null;
   followers: number | null;
 
+  // Par/cônjuge (casamentos): se só `partner_name` → é o cônjuge;
+  // se vier @ + alcance → o par também é figura pública.
+  partner_name: string | null;
+  partner_instagram: string | null;
+  partner_followers: number | null;
+
   tags: string[];
   fit_note: string | null;
 
@@ -108,6 +114,15 @@ export interface PublicFigure {
   actions: FigureAction[];
 }
 
+// ── Nome de exibição (inclui o par, se houver) ───────────────
+// "Sofia Costa & João Silva" quando há par; senão só o nome.
+export function figureDisplayName(f: Pick<PublicFigure, "name" | "partner_name">): string {
+  const name = f.name?.trim() || "";
+  const partner = f.partner_name?.trim() || "";
+  if (name && partner) return `${name} & ${partner}`;
+  return name || partner || "—";
+}
+
 // ── Insert / Update ──────────────────────────────────────────
 export type PublicFigureInsert = Partial<
   Omit<PublicFigure, "id" | "created_at" | "updated_at">
@@ -123,7 +138,6 @@ export type PublicFigureUpdate = Partial<Omit<PublicFigure, "id" | "created_at">
 
 export const FIGURE_TYPE_LABELS: Record<FigureType, string> = {
   influencer: "Influencer",
-  celebridade: "Celebridade",
   figura_publica: "Figura pública",
 };
 

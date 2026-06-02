@@ -1,6 +1,5 @@
 import { createClient } from "./client";
 import type { Order, OrderInsert, OrderUpdate, OrderStatus } from "@/types/database";
-import { differenceInDays } from "date-fns";
 import { generateUniqueCouponCode } from "@/lib/coupon";
 
 // ── Leitura ───────────────────────────────────────────────────
@@ -97,14 +96,14 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
 
 // ── Lógica de grupos ──────────────────────────────────────────
 
-const SEM_RESPOSTA_DAYS = 4;
-
+// "Sem resposta" é EXCLUSIVAMENTE manual: a cliente deu ghost depois de a
+// contactarmos. Não há regra automática por dias — uma encomenda só entra
+// aqui quando a arrastamos para o grupo (activa `manually_no_response`).
+// (O Dashboard tem um alerta próprio "pré-reservas sem contacto há ≥4 dias",
+// que é coisa diferente: lembra-nos de contactar, não de ghost.)
 export function isWithoutResponse(order: Order): boolean {
   if (order.status !== "entrega_flores_agendar") return false;
-  if (order.contacted) return false;
-  if (order.manually_no_response) return true;
-  const days = differenceInDays(new Date(), new Date(order.created_at));
-  return days >= SEM_RESPOSTA_DAYS;
+  return order.manually_no_response;
 }
 
 // Ordena por data do evento ascendente (mais próxima primeiro);

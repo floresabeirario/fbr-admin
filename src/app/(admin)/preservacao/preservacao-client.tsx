@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
-import { format, parseISO, differenceInDays, differenceInCalendarDays } from "date-fns";
+import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
   ChevronDown,
@@ -438,8 +438,6 @@ function OrderRow({
     daysUntilEvent <= 5;
 
   const isPreReserva = currentStatus === "entrega_flores_agendar";
-  const daysSinceCreated = differenceInDays(new Date(), new Date(order.created_at));
-  const autoFlaggedSemResposta = isPreReserva && !currentContacted && daysSinceCreated >= 4;
 
   // Destaque "Nova" — per-user, baseado em orders.seen_by[] (mig 047).
   // O badge desaparece para o utilizador actual depois de ele abrir o
@@ -658,7 +656,7 @@ function OrderRow({
               Marcar contactada
             </button>
           )}
-          {canEdit && inSemResposta && order.manually_no_response && !autoFlaggedSemResposta && (
+          {canEdit && inSemResposta && order.manually_no_response && (
             <button
               onClick={(e) => { e.stopPropagation(); moveOutOfSemResposta(); }}
               disabled={isPending}
@@ -990,12 +988,14 @@ export default function PreservacaoClient({
 
     const targetStatus = GROUP_TO_TARGET_STATUS[targetGroup];
 
-    // sem_resposta: especial — não muda status, só activa a flag manual.
+    // sem_resposta: especial — não muda status, só activa a flag manual
+    // `manually_no_response`. É o único critério do grupo (cliente deu ghost);
+    // a marca de "Contactada" é independente e fica intocada.
     if (targetGroup === "sem_resposta") {
       if (order.status !== "entrega_flores_agendar") {
         runMove(
           order,
-          { status: "entrega_flores_agendar", manually_no_response: true, contacted: false },
+          { status: "entrega_flores_agendar", manually_no_response: true },
           "entrega_flores_agendar",
           true,
         );
