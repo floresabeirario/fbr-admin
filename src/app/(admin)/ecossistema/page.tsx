@@ -1,4 +1,4 @@
-import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone } from "lucide-react";
+import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook } from "lucide-react";
 import SistemaTopbar from "@/components/sistema-topbar";
 import { getCurrentRole } from "@/lib/auth/server";
 
@@ -151,28 +151,37 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     statusNote: "Ligado",
   },
   {
+    name: "Dualhook",
+    url: "https://dualhook.com/dashboard/connections/conn_PXyQaTPUlQrz",
+    description: "Relay que reencaminha os webhooks do WhatsApp (Meta Cloud API) para a plataforma. Multi-tenant — não expõe App Secret, validamos por token no path.",
+    tone: "integration",
+    icon: Webhook,
+    status: "active",
+    statusNote: "Ligado — fonte das mensagens WhatsApp",
+  },
+  {
+    name: "WhatsApp (Meta Cloud API)",
+    description: "Caixa de entrada /whatsapp em tempo real: mensagens recebidas + ecos das respostas, multimédia guardada na Drive da cliente, estados de entrega/leitura. Tab live no workbench.",
+    tone: "integration",
+    icon: MessageCircle,
+    status: "active",
+    statusNote: "Recepção ligada (via Dualhook) — envio não implementado (0€ Meta)",
+  },
+  {
+    name: "Anthropic Claude",
+    description: "\"Cérebro do Claudio\": sugere respostas no WhatsApp e no workbench (PT/EN), com persona e factos editáveis. Só corre ao carregar no botão.",
+    tone: "integration",
+    icon: Sparkles,
+    status: "active",
+    statusNote: "Ligado — Claude Sonnet 4.6 com prompt caching",
+  },
+  {
     name: "Gmail",
     description: "Histórico de emails por encomenda no workbench.",
     tone: "integration",
     icon: Mail,
     status: "pending",
-    statusNote: "Por integrar no workbench",
-  },
-  {
-    name: "WhatsApp",
-    description: "Conversas com clientes registadas no workbench (screenshot ou texto colado).",
-    tone: "integration",
-    icon: MessageCircle,
-    status: "pending",
-    statusNote: "Registo manual — WhatsApp não tem API pública",
-  },
-  {
-    name: "Anthropic Claude",
-    description: "Assistente de resposta no workbench (sugestões em PT/EN).",
-    tone: "integration",
-    icon: Sparkles,
-    status: "pending",
-    statusNote: "Por integrar",
+    statusNote: "Scope OAuth pedido — painel no workbench por construir",
   },
   {
     name: "Cloudflare Turnstile",
@@ -376,11 +385,22 @@ function IntegrationCard({
   return (
     <div className="rounded-2xl border border-cream-200 p-4 space-y-2 bg-surface">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-violet-500" />
-          <span className="text-sm font-semibold text-cocoa-900">
-            {integration.name}
-          </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon className="h-4 w-4 text-violet-500 shrink-0" />
+          {integration.url ? (
+            <a
+              href={integration.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-cocoa-900 truncate hover:underline"
+            >
+              {integration.name}
+            </a>
+          ) : (
+            <span className="text-sm font-semibold text-cocoa-900 truncate">
+              {integration.name}
+            </span>
+          )}
         </div>
         <span
           className={`text-[10px] uppercase tracking-wider rounded-full px-2 py-0.5 font-bold ${
