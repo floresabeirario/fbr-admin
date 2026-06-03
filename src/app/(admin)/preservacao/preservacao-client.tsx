@@ -1110,6 +1110,9 @@ export default function PreservacaoClient({
   const totalActive = initialOrders.filter(
     (o) => o.status !== "cancelado" && o.status !== "quadro_recebido"
   ).length;
+  const totalNaoCanceladas = initialOrders.filter(
+    (o) => o.status !== "cancelado"
+  ).length;
 
   const VIEW_BUTTONS = [
     { id: "tabela" as ViewType,     label: "Tabela",     icon: <LayoutList className="h-3.5 w-3.5" /> },
@@ -1126,7 +1129,7 @@ export default function PreservacaoClient({
           <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Preservação de Flores</h1>
           <p className="text-xs text-cocoa-700 mt-0.5">
             {totalActive} encomenda{totalActive !== 1 ? "s" : ""} em curso ·{" "}
-            {initialOrders.length} total
+            <span title="Excluindo canceladas">{totalNaoCanceladas} total</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">

@@ -17,8 +17,6 @@ import {
   MessageCircle,
   MessageSquareText,
   MessagesSquare,
-  Sparkles,
-  BookText,
   LineChart,
   LogOut,
   ChevronLeft,
@@ -79,8 +77,8 @@ const navItems: NavItem[] = [
   },
   { href: "/whatsapp", label: "WhatsApp", icon: MessageSquareText, parent: "/comunicacoes" },
   { href: "/chat", label: "Chat interno", icon: MessageCircle, parent: "/comunicacoes" },
-  { href: "/comunicacoes/templates", label: "Templates", icon: BookText, parent: "/comunicacoes" },
-  { href: "/comunicacoes/claudio", label: "Cérebro do Claudio", icon: Sparkles, parent: "/comunicacoes" },
+  // Templates e Cérebro do Claudio saíram da sidebar (ficava demasiado cheia):
+  // acedem-se pelo hub /comunicacoes e por atalhos no topo da página /whatsapp.
   { href: "/ideias", label: "Ideias Futuras", icon: Lightbulb },
   {
     href: "/settings/google",
