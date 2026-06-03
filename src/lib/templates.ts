@@ -173,6 +173,7 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     data_evento_extenso: dataExtenso(order.event_date, "pt"),
     data_evento_extenso_en: dataExtenso(order.event_date, "en"),
     link_status: statusUrl(order.order_id),
+    link_avaliacao: settings.review_link || "",
     dados_pagamento: dadosPagamento(lang, settings),
     morada_estudio: settings.studio_address_url || "",
     morada_estudio_texto: settings.studio_address_text || "",
@@ -238,6 +239,7 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   { key: "data_evento_extenso", description: 'Data por extenso PT (ex: "15 de Maio de 2026")', scope: "order" },
   { key: "data_evento_extenso_en", description: 'Date in English (ex: "May 15th, 2026")', scope: "order" },
   { key: "link_status", description: "Link público de acompanhamento da encomenda", scope: "order" },
+  { key: "link_avaliacao", description: "Link para o cliente deixar opinião (Google / página de opiniões)", scope: "order" },
 
   // Vale
   { key: "nome_remetente", description: "Primeiro nome do remetente do vale", scope: "voucher" },

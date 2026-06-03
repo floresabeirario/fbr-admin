@@ -111,6 +111,7 @@ export type SystemSettingKey =
   | "payment_mbway"
   | "studio_address_url"
   | "studio_address_text"
+  | "review_link"
   | "claude_persona"
   | "claude_facts";
 
@@ -122,6 +123,7 @@ export const SYSTEM_SETTING_LABELS: Record<SystemSettingKey, string> = {
   payment_mbway: "MB Way",
   studio_address_url: "Morada do estúdio (link Maps)",
   studio_address_text: "Morada do estúdio (descrição)",
+  review_link: "Link de opinião / avaliação",
   claude_persona: "Tom / Persona do Claudio",
   claude_facts: "Factos & contexto adicional",
 };
@@ -134,6 +136,7 @@ export const SYSTEM_SETTING_KEYS: SystemSettingKey[] = [
   "payment_bank_name",
   "studio_address_url",
   "studio_address_text",
+  "review_link",
   "claude_persona",
   "claude_facts",
 ];

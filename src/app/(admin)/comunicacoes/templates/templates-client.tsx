@@ -15,6 +15,7 @@ import {
   Search,
   Languages,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -771,6 +772,32 @@ function SystemSettingsTab({
             isChanged={changed("studio_address_text")}
             isSaving={saving === "studio_address_text"}
             placeholder="ex: Estúdio FBR — Coimbra"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Star className="h-4 w-4 text-cocoa-700" />
+            Link de opinião
+          </CardTitle>
+          <p className="text-xs text-cocoa-500 mt-1">
+            Usado pela variável <code className="font-mono">{`{link_avaliacao}`}</code> na
+            mensagem de pedido de opinião (enviada à mão 2 dias após o quadro ser recebido).
+            Por agora o link do Google Maps; quando houver uma página própria de opiniões,
+            basta trocar aqui.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <SettingRow
+            label={SYSTEM_SETTING_LABELS.review_link}
+            value={drafts.review_link}
+            onChange={(v) => setDrafts((prev) => ({ ...prev, review_link: v }))}
+            onSave={() => save("review_link")}
+            isChanged={changed("review_link")}
+            isSaving={saving === "review_link"}
+            placeholder="https://maps.app.goo.gl/..."
           />
         </CardContent>
       </Card>

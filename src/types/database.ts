@@ -163,6 +163,10 @@ export interface Order {
   coupon_expiry: string | null;
   coupon_status: CouponStatus;
   client_feedback_status: ClientFeedbackStatus;
+  // Momentos da cadência de comunicação que já geraram tarefa-lembrete
+  // para esta encomenda (mig 072). Evita lembretes duplicados quando o
+  // estado muda para a frente e para trás. Ver src/lib/comms-cadence.ts.
+  comms_moments_done: string[];
   frame_delivery_date: string | null;
   drive_folder_url: string | null;
   drive_folder_id: string | null;

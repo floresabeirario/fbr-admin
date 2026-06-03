@@ -52,6 +52,7 @@ const SETTING_DEFAULTS: SystemSettingsMap = {
   payment_mbway: "",
   studio_address_url: "",
   studio_address_text: "",
+  review_link: "",
   claude_persona: "",
   claude_facts: "",
 };

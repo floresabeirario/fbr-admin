@@ -9,10 +9,15 @@
 
 export type Role = "admin" | "viewer";
 
-const ADMIN_EMAILS: ReadonlySet<string> = new Set([
+// Lista (ordem estável) dos emails admin. Útil quando precisamos de
+// atribuir algo aos dois admins (ex.: tarefas-lembrete geradas pela
+// cadência de comunicação). O Set abaixo deriva desta lista.
+export const ADMIN_EMAILS_LIST: readonly string[] = [
   "info+antonio@floresabeirario.pt",
   "info+mj@floresabeirario.pt",
-]);
+];
+
+const ADMIN_EMAILS: ReadonlySet<string> = new Set(ADMIN_EMAILS_LIST);
 
 export function roleForEmail(email: string | null | undefined): Role {
   return email && ADMIN_EMAILS.has(email) ? "admin" : "viewer";

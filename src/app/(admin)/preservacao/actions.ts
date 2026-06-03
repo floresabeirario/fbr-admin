@@ -19,7 +19,12 @@ import {
   statusBecomesCancelled,
   upsertOrderCalendarEvent,
 } from "@/lib/google/order-calendar-trigger";
-import type { OrderInsert, OrderUpdate, OrderStatus, Order } from "@/types/database";
+import type { OrderInsert, OrderUpdate, OrderStatus, Order, PaymentStatus } from "@/types/database";
+import {
+  detectTriggeredMoments,
+  dueDateFromOffset,
+  type CommsMoment,
+} from "@/lib/comms-cadence";
 
 // Marca um vale como "preservação agendada" quando uma encomenda passa
 // a usar o seu código. Evita dupla contagem na faturação: sem isto, o
@@ -319,12 +324,17 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   // Quais slots de fatura passaram de NULL → URL nesta operação.
   // Cada um cria uma tarefa "Enviar fatura — {nome} (slot)" após o UPDATE.
   const newInvoiceSlots: Array<"sinal" | "intermedio" | "final"> = [];
+  // Momentos da cadência de comunicação despoletados por esta transição
+  // (ex.: entrar em "Quadro recebido" → lembrete de pedir opinião). Cada
+  // um gera 1 tarefa-lembrete após o UPDATE.
+  let triggeredMoments: CommsMoment[] = [];
+  let prevCommsDone: string[] = [];
 
   if (needsPrev) {
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final",
+        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done",
       )
       .eq("id", id)
       .single();
@@ -380,6 +390,17 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
           newInvoiceSlots.push(slot);
         }
       }
+
+      // Cadência de comunicação: detectar momentos despoletados por esta
+      // transição de estado/pagamento (idempotente via comms_moments_done).
+      prevCommsDone = (prev.comms_moments_done as string[] | null) ?? [];
+      triggeredMoments = detectTriggeredMoments({
+        prevStatus: prev.status as OrderStatus | null,
+        nextStatus: updates.status,
+        prevPayment: prev.payment_status as PaymentStatus | null,
+        nextPayment: updates.payment_status,
+        alreadyDone: prevCommsDone,
+      });
 
       // Calendar: decide ordem de prioridade
       //   1. Se vai passar para `cancelado` E existe evento → apagar
@@ -537,6 +558,47 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         taskErr.message,
       );
     } else {
+      revalidatePath("/");
+    }
+  }
+
+  // Cadência de comunicação: criar 1 tarefa-lembrete por momento
+  // despoletado (ex.: "Pedir opinião sobre o quadro" 2 dias após a
+  // encomenda entrar em "Quadro recebido"). NADA é enviado — a tarefa
+  // só lembra e o picker de templates dá a mensagem pronta. Silencioso
+  // em falha; só marca o momento como feito se a tarefa for criada, para
+  // não ficar por lembrar.
+  if (triggeredMoments.length > 0) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const tasks = triggeredMoments.map((m) => ({
+      title: m.taskTitle(updatedOrder.client_name),
+      category: m.category,
+      priority: m.priority,
+      status: "por_comecar" as const,
+      due_date: dueDateFromOffset(m.dueOffsetDays),
+      assignee_emails: [...m.assignees],
+      order_id: updatedOrder.id,
+      created_by: user?.id ?? null,
+    }));
+    const { error: cadErr } = await supabase.from("tasks").insert(tasks);
+    if (cadErr) {
+      console.error(
+        `[updateOrderAction] Falhou criar tarefa(s) de cadência para encomenda ${id}:`,
+        cadErr.message,
+      );
+    } else {
+      // Marca os momentos como gerados (idempotência).
+      const newDone = [...prevCommsDone, ...triggeredMoments.map((m) => m.key)];
+      const { error: markErr } = await supabase
+        .from("orders")
+        .update({ comms_moments_done: newDone })
+        .eq("id", id);
+      if (markErr) {
+        console.error(
+          `[updateOrderAction] Falhou marcar momentos de cadência em ${id}:`,
+          markErr.message,
+        );
+      }
       revalidatePath("/");
     }
   }
