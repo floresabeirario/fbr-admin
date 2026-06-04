@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "FBR Admin — Flores à Beira Rio",
+    name: "Flores à Beira-Rio | Admin",
     short_name: "FBR Admin",
     description: "Painel de administração da Flores à Beira Rio: encomendas, vales, parcerias e métricas.",
     start_url: "/",

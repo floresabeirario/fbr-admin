@@ -157,8 +157,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (typeof document === "undefined") return;
     const totalUnread = rawUnreadWa + rawUnreadChat;
-    const base = "FBR Admin";
-    document.title = totalUnread > 0 ? `(${totalUnread > 99 ? "99+" : totalUnread}) ${base}` : base;
+    // Deixamos o titulo do separador vazio: na app instalada (PWA desktop) o
+    // Windows monta a barra como `{nome do manifest} - {titulo}` e so acrescenta
+    // o ` - …` quando o titulo nao esta vazio. Vazio => barra fica so com
+    // "Flores à Beira-Rio | Admin", sem o "- FBR Admin" redundante. Com unread
+    // mostramos so o contador "(N)" para o badge continuar a funcionar.
+    document.title = totalUnread > 0 ? `(${totalUnread > 99 ? "99+" : totalUnread})` : "";
   }, [rawUnreadWa, rawUnreadChat]);
 
   // Som ao chegar mensagem WhatsApp recebida ou nova encomenda do form.
