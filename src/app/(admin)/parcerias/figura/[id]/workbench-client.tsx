@@ -21,6 +21,8 @@ import {
   Trash2,
   ListChecks,
   MessageSquare,
+  MessageCircle,
+  Mail,
   Save,
   Archive,
   ExternalLink,
@@ -48,6 +50,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+// Painéis de comunicação reutilizados da Preservação (só dependem de
+// email/telefone, não da encomenda).
+import GmailPanel from "@/app/(admin)/preservacao/[id]/_components/gmail-panel";
+import WhatsappLivePanel from "@/app/(admin)/preservacao/[id]/_components/wa-live-panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -258,8 +265,9 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4">
-          {/* ── ESQUERDA: histórico + acções + contrapartida ── */}
+          {/* ── ESQUERDA: comunicações + histórico + acções + contrapartida ── */}
           <aside className="lg:col-span-4 space-y-4">
+            <CommunicationsCard email={figure.email} phones={figure.phones} />
             <InteractionsCard
               figureId={figure.id}
               interactions={figure.interactions}
@@ -940,6 +948,74 @@ function LinkedOrderCard({
             ))}
           </SelectContent>
         </Select>
+      </div>
+    </div>
+  );
+}
+
+// ── Comunicações (Gmail + WhatsApp) ──────────────────────────
+// Reutiliza os painéis da Preservação. A figura pode ter vários
+// telefones, por isso há um seletor para escolher qual conversa de
+// WhatsApp mostrar.
+
+function CommunicationsCard({
+  email,
+  phones,
+}: {
+  email: string | null;
+  phones: FigurePhone[];
+}) {
+  const [selectedPhone, setSelectedPhone] = useState(
+    () => phones[0]?.number ?? "",
+  );
+
+  return (
+    <div className="rounded-xl border border-cream-200 bg-surface border-l-4 border-l-blue-400 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
+        <MessageSquare className="h-3.5 w-3.5 text-cocoa-700" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-cocoa-700">
+          Comunicações
+        </span>
+      </div>
+      <div className="p-4">
+        <Tabs defaultValue="email">
+          <TabsList className="bg-cream-50 border border-cream-200 w-full">
+            <TabsTrigger
+              value="email"
+              className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-blue-700"
+            >
+              <Mail className="h-3.5 w-3.5 mr-1.5" />
+              Email
+            </TabsTrigger>
+            <TabsTrigger
+              value="whatsapp"
+              className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-green-700"
+            >
+              <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+              WhatsApp
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="email" className="mt-3">
+            <GmailPanel email={email} />
+          </TabsContent>
+          <TabsContent value="whatsapp" className="mt-3 space-y-2">
+            {phones.length > 1 && (
+              <Select value={selectedPhone} onValueChange={(v) => setSelectedPhone(v ?? "")}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Escolher telefone…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {phones.map((p, i) => (
+                    <SelectItem key={`${p.number}-${i}`} value={p.number}>
+                      {p.label ? `${p.label} · ${p.number}` : p.number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <WhatsappLivePanel phone={selectedPhone || null} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
