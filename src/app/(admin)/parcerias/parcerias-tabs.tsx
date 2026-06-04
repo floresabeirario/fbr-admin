@@ -5,6 +5,7 @@ import { Handshake, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Partner } from "@/types/partner";
 import type { PublicFigure } from "@/types/public-figure";
+import type { CommissionItem } from "@/lib/commissions";
 import ParceriasClient from "./parcerias-client";
 import FigurasClient from "./figuras-client";
 
@@ -13,6 +14,7 @@ interface Props {
   ordersCount: Record<string, number>;
   vouchersCount: Record<string, number>;
   initialFigures: PublicFigure[];
+  commissions: CommissionItem[];
 }
 
 type Mode = "parcerias" | "figuras";
@@ -24,6 +26,7 @@ export default function ParceriasTabs({
   ordersCount,
   vouchersCount,
   initialFigures,
+  commissions,
 }: Props) {
   const [mode, setMode] = useState<Mode>("figuras");
 
@@ -55,6 +58,7 @@ export default function ParceriasTabs({
             initialPartners={initialPartners}
             ordersCount={ordersCount}
             vouchersCount={vouchersCount}
+            commissions={commissions}
           />
         ) : (
           <FigurasClient initialFigures={initialFigures} />

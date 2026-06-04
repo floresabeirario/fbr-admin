@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireUser } from "@/lib/auth/server";
+import { requireUser, requireAdmin } from "@/lib/auth/server";
 import type {
   Partner,
   PartnerInsert,
@@ -10,6 +10,7 @@ import type {
   PartnerInteraction,
   PartnerAction,
 } from "@/types/partner";
+import type { CommissionKind } from "@/lib/commissions";
 
 // Aba Parcerias é editável por TODOS os 3 utilizadores (incluindo a Ana,
 // que noutras abas é só leitura). Usamos `requireUser` em vez de
@@ -44,6 +45,26 @@ export async function updatePartnerAction(
   revalidatePath("/parcerias");
   revalidatePath(`/parcerias/${id}`);
   return data as Partner;
+}
+
+// ── Comissões por saldar ─────────────────────────────────────
+// A comissão vive na encomenda/vale (campo `partner_commission_status`),
+// não no parceiro. Marcar como paga é uma acção financeira → requer admin
+// (a Ana pode ver a lista, mas não dá comissões por pagas).
+
+export async function markCommissionPaidAction(
+  kind: CommissionKind,
+  rowId: string,
+): Promise<void> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const table = kind === "order" ? "orders" : "vouchers";
+  const { error } = await supabase
+    .from(table)
+    .update({ partner_commission_status: "paga" })
+    .eq("id", rowId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/parcerias");
 }
 
 export async function archivePartnerAction(id: string): Promise<void> {

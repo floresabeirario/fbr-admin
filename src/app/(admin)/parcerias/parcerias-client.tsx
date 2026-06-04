@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Download,
+  Coins,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,9 +54,11 @@ import {
   searchPartners,
 } from "@/lib/supabase/partners";
 import { setNavList } from "@/lib/workbench-nav";
+import type { CommissionItem } from "@/lib/commissions";
 import { updatePartnerAction } from "./actions";
 import NovoParceiroSheet from "./novo-parceiro-sheet";
 import PortugalMap from "./portugal-map";
+import CommissionsView from "./commissions-view";
 
 // ── Utilitários ──────────────────────────────────────────────
 
@@ -384,11 +387,12 @@ interface Props {
   initialPartners: Partner[];
   ordersCount: Record<string, number>;
   vouchersCount: Record<string, number>;
+  commissions: CommissionItem[];
 }
 
-type ViewMode = "tabela" | "mapa";
+type ViewMode = "tabela" | "mapa" | "comissoes";
 
-export default function ParceriasClient({ initialPartners, ordersCount, vouchersCount }: Props) {
+export default function ParceriasClient({ initialPartners, ordersCount, vouchersCount, commissions }: Props) {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<PartnerCategory>("wedding_planners");
   const [viewMode, setViewMode] = useState<ViewMode>("tabela");
@@ -468,6 +472,10 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
     outros: 0,
   };
   for (const p of initialPartners) countByCategory[p.category]++;
+
+  // Comissões por saldar — nome do parceiro por id (para a vista Comissões)
+  const partnerNameById: Record<string, string> = {};
+  for (const p of initialPartners) partnerNameById[p.id] = p.name;
 
   return (
     <div className="flex flex-col h-full">
@@ -565,6 +573,26 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
             <Map className="h-3.5 w-3.5" />
             Mapa
           </button>
+          <button
+            onClick={() => setViewMode("comissoes")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+              viewMode === "comissoes"
+                ? "bg-cream-100 text-cocoa-900"
+                : "text-cocoa-700 hover:text-cocoa-900"
+            )}
+          >
+            <Coins className="h-3.5 w-3.5" />
+            Comissões
+            {commissions.length > 0 && (
+              <span className={cn(
+                "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                viewMode === "comissoes" ? "bg-amber-200 text-amber-900" : "bg-amber-100 text-amber-800"
+              )}>
+                {commissions.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -626,6 +654,8 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
               )}
             </>
           )
+        ) : viewMode === "comissoes" ? (
+          <CommissionsView commissions={commissions} partnerNameById={partnerNameById} />
         ) : (
           <div className="rounded-xl border border-cream-200 bg-surface p-6">
             <div className="mb-3 flex items-center justify-between">

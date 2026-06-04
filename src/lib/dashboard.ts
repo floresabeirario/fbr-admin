@@ -111,7 +111,6 @@ export interface DashboardAlert {
   href?: string;
 }
 
-const STUCK_DAYS = 14;
 const PRE_RESERVA_NO_CONTACT_DAYS = 4;
 const EVENT_HORIZON_DAYS = 7;
 
@@ -141,25 +140,7 @@ export function getDashboardAlerts(
     });
   }
 
-  // 2. Encomendas paradas há ≥14 dias (sem update e sem ser "Quadro recebido"/"Cancelado")
-  const stuckOrders = orders.filter((o) => {
-    if (o.deleted_at) return false;
-    if (o.status === "cancelado" || o.status === "quadro_recebido") return false;
-    const days = differenceInDays(today, parseISO(o.updated_at));
-    return days >= STUCK_DAYS;
-  });
-  for (const o of stuckOrders.slice(0, 10)) {
-    const days = differenceInDays(today, parseISO(o.updated_at));
-    alerts.push({
-      id: `stuck-${o.id}`,
-      severity: "warn",
-      label: `Parada há ${days} dias`,
-      detail: `${o.client_name} — sem actualização desde ${o.updated_at.slice(0, 10)}`,
-      href: `/preservacao/${o.order_id ?? o.id}`,
-    });
-  }
-
-  // 3. Pré-reservas sem contacto há ≥4 dias — lembrete para contactar.
+  // 2. Pré-reservas sem contacto há ≥4 dias — lembrete para contactar.
   // Critério próprio (não confundir com o grupo "Sem resposta", que é só ghost
   // manual via isWithoutResponse): pré-reserva ainda não contactada há ≥4 dias.
   const uncontactedPreReservas = orders.filter((o) => {
@@ -179,7 +160,7 @@ export function getDashboardAlerts(
     });
   }
 
-  // 4. Vales pagos sem preservação a expirar nos próximos 3 meses
+  // 3. Vales pagos sem preservação a expirar nos próximos 3 meses
   const expiringVouchers = vouchers.filter(
     (v) =>
       !v.deleted_at &&
