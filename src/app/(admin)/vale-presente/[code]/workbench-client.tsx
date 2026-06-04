@@ -44,6 +44,7 @@ import WorkbenchNavigator from "@/components/workbench-navigator";
 import TemplatePicker from "@/components/template-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WhatsappLivePanel from "../../preservacao/[id]/_components/wa-live-panel";
+import GmailPanel from "../../preservacao/[id]/_components/gmail-panel";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsForVoucher } from "@/lib/task-templates";
 import type { Task, TaskTemplate } from "@/types/tasks";
@@ -472,13 +473,7 @@ export default function VoucherWorkbenchClient({
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="email" className="mt-3">
-                    <div className="rounded-md border border-dashed border-cream-200 p-4 text-center bg-cream-50/40">
-                      <Mail className="h-5 w-5 text-cocoa-400 mx-auto mb-1.5" />
-                      <p className="text-xs font-medium text-cocoa-700">Sem emails sincronizados</p>
-                      <p className="text-[11px] text-cocoa-500 mt-1">
-                        Vai puxar automaticamente os emails trocados com {data.sender_email ?? "o remetente"} via Gmail API.
-                      </p>
-                    </div>
+                    <GmailPanel email={data.sender_email} />
                   </TabsContent>
                   <TabsContent value="whatsapp" className="mt-3">
                     <WhatsappLivePanel phone={data.sender_phone} />

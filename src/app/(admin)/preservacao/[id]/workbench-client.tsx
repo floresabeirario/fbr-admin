@@ -76,6 +76,7 @@ import AddressAutocomplete from "@/components/address-autocomplete";
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import TemplatePicker from "@/components/template-picker";
 import WhatsappLivePanel from "./_components/wa-live-panel";
+import GmailPanel from "./_components/gmail-panel";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type {
@@ -1025,11 +1026,7 @@ export default function WorkbenchClient({
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="email" className="mt-3">
-                    <PlaceholderBox
-                      icon={<Mail className="h-4 w-4" />}
-                      title="Sem emails sincronizados"
-                      description={`Vai puxar automaticamente os emails trocados com ${local.email ?? "o cliente"} via Gmail API.`}
-                    />
+                    <GmailPanel email={local.email} />
                   </TabsContent>
                   <TabsContent value="whatsapp" className="mt-3">
                     <WhatsappLivePanel phone={local.phone} />

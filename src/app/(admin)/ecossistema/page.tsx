@@ -177,11 +177,11 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
   },
   {
     name: "Gmail",
-    description: "Histórico de emails por encomenda no workbench.",
+    description: "Histórico de emails (só leitura) trocados com cada cliente, na tab \"Email\" do workbench de Preservação e Vale-Presente, com link para abrir no Gmail.",
     tone: "integration",
     icon: Mail,
-    status: "pending",
-    statusNote: "Scope OAuth pedido — painel no workbench por construir",
+    status: "active",
+    statusNote: "Ligado — leitura via gmail.readonly; envio continua à mão",
   },
   {
     name: "Cloudflare Turnstile",
