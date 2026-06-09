@@ -31,7 +31,6 @@ import {
   Hand,
   Package,
   HelpCircle,
-  Euro,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -584,10 +583,9 @@ function OrderRow({
                 currentPayment !== "70_pago" &&
                 currentPayment !== "100_pago" && (
                 <span
-                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 shrink-0"
+                  className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 shrink-0"
                   title="Os 40% foram pedidos ao cliente mas ainda não foram pagos"
                 >
-                  <Euro className="h-2.5 w-2.5" />
                   40% pedidos
                 </span>
               )}
