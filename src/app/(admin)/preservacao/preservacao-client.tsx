@@ -31,6 +31,7 @@ import {
   Hand,
   Package,
   HelpCircle,
+  Euro,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -573,6 +574,21 @@ function OrderRow({
                 <span className="inline-flex items-center gap-0.5 rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-[10px] font-medium text-green-700 shrink-0">
                   <Check className="h-2.5 w-2.5" />
                   Contactada
+                </span>
+              )}
+              {/* "40% pedidos" — já pedimos os 40% (payment_40_requested) mas o
+                  cliente ainda não pagou (payment_status continua em 30% ou por
+                  pagar). Desaparece assim que passa a 70%/100% pago. Espelha a
+                  checkbox "40% pedidos?" do cabeçalho do workbench. */}
+              {order.payment_40_requested &&
+                currentPayment !== "70_pago" &&
+                currentPayment !== "100_pago" && (
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 shrink-0"
+                  title="Os 40% foram pedidos ao cliente mas ainda não foram pagos"
+                >
+                  <Euro className="h-2.5 w-2.5" />
+                  40% pedidos
                 </span>
               )}
             </div>
