@@ -113,6 +113,8 @@ import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
 import { relativeMonthsDays } from "@/lib/format-date";
 import { formatPhone, phoneToWaMe } from "@/lib/format-phone";
+import { formatEUR } from "@/lib/format";
+import { computeBudgetAdjustment } from "@/lib/budget-adjustment";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Flag } from "@/components/ui/flag";
 import { HowFoundFbrLabel } from "@/components/ui/how-found-fbr-label";
@@ -636,6 +638,15 @@ export default function WorkbenchClient({
   // "30% pedidos?" aparece em quadro_pronto+ até payment_status=100_pago.
   const show30Prompt =
     reachedQuadroPronto && local.payment_status !== "100_pago";
+
+  // Acerto de pagamento: o orçamento subiu depois do sinal (normalmente
+  // porque o tamanho da moldura foi decidido na fase de design e ficou
+  // mais caro). Mostra os números para pedir a diferença ao cliente.
+  const budgetAdjustment = computeBudgetAdjustment(
+    local.budget,
+    local.budget_at_first_payment,
+    local.payment_status,
+  );
 
   return (
     <div className="flex flex-col h-full bg-cream-50">
@@ -1529,6 +1540,41 @@ export default function WorkbenchClient({
                       onValue={(v) => update("extra_small_frames", v)}
                       onQty={(q) => update("extra_small_frames_qty", q)}
                     />
+                    {(local.extra_small_frames === "sim" ||
+                      local.extra_small_frames === "mais_info") && (
+                      <div className="ml-2 pl-3 border-l-2 border-cream-200">
+                        <Field
+                          label="Fundo do quadro extra"
+                          hint="Só preencher se for diferente do fundo do quadro principal."
+                        >
+                          <Select
+                            value={local.extra_small_frames_background ?? ""}
+                            onValueChange={(v) =>
+                              update(
+                                "extra_small_frames_background",
+                                (v || null) as Order["extra_small_frames_background"],
+                              )
+                            }
+                          >
+                            <SelectTrigger className={sel}>
+                              <SelectValue
+                                placeholder="— (igual ao principal)"
+                                labels={FRAME_BACKGROUND_LABELS}
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="transparente">Transparente</SelectItem>
+                              <SelectItem value="preto">Preto</SelectItem>
+                              <SelectItem value="branco">Branco</SelectItem>
+                              <SelectItem value="fotografia">Fotografia</SelectItem>
+                              <SelectItem value="cor">Cor</SelectItem>
+                              <SelectItem value="voces_a_escolher">Vocês a escolher</SelectItem>
+                              <SelectItem value="nao_sei">Não sei</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </div>
+                    )}
                     <ExtraPieceRow
                       label="Ornamentos de Natal"
                       value={local.christmas_ornaments}
@@ -1873,6 +1919,38 @@ export default function WorkbenchClient({
                       </Select>
                     </Field>
                   </div>
+
+                  {/* Acerto de pagamento: orçamento subiu depois do sinal */}
+                  {budgetAdjustment && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-semibold text-amber-900">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        Orçamento subiu depois do 1.º pagamento
+                      </div>
+                      <div className="text-amber-800 space-y-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>Antes / agora</span>
+                          <span className="tabular-nums font-medium">
+                            {formatEUR(budgetAdjustment.oldBudget, { compact: true })} → {formatEUR(budgetAdjustment.newBudget, { compact: true })}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span>Já recebido ({Math.round(budgetAdjustment.paidFraction * 100)}% × {formatEUR(budgetAdjustment.oldBudget, { compact: true })})</span>
+                          <span className="tabular-nums font-medium">{formatEUR(budgetAdjustment.paidAmount, { compact: true })}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span>No valor actual: 30% / 70% / 100%</span>
+                          <span className="tabular-nums">
+                            {formatEUR(budgetAdjustment.sinal, { compact: true })} · {formatEUR(budgetAdjustment.cumul70, { compact: true })} · {formatEUR(budgetAdjustment.full, { compact: true })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 border-t border-amber-200 pt-1.5 font-semibold text-amber-900">
+                        <span>Para chegar aos {Math.round(budgetAdjustment.nextFraction * 100)}%, pedir</span>
+                        <span className="tabular-nums">{formatEUR(budgetAdjustment.missing, { compact: true })}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Pediu fatura — Sim/Não com NIF inline à direita do Sim */}
                   <div className="space-y-1.5">

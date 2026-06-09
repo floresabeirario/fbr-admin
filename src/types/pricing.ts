@@ -51,6 +51,11 @@ export interface PricingSnapshot {
   computed_at: string;
   total: number;
   lines: PricingSnapshotLine[];
+  // Orçamento provisório: o tamanho da moldura ainda não foi decidido
+  // (frame_size = "não sei" / "vocês a escolher"). Usámos a base 30x40
+  // (300€, a mais barata) como referência para poder pedir já o sinal.
+  // O orçamento ajusta-se quando o tamanho for definido (na fase de design).
+  provisional?: boolean;
 }
 
 // ── Labels PT para a UI ──────────────────────────────────────

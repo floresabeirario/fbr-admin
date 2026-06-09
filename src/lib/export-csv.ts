@@ -84,6 +84,7 @@ const COLUMNS: Array<{ header: string; get: (o: Order) => string }> = [
   { header: "Extras (notas)",           get: (o) => o.extras_in_frame?.notes ?? "" },
   { header: "Quadros pequenos",         get: (o) => lookup(o.extra_small_frames, YES_NO_INFO_LABELS) },
   { header: "Quadros pequenos qty",     get: (o) => o.extra_small_frames_qty?.toString() ?? "" },
+  { header: "Quadros pequenos fundo",   get: (o) => lookup(o.extra_small_frames_background, FRAME_BACKGROUND_LABELS) },
   { header: "Ornamentos Natal",         get: (o) => lookup(o.christmas_ornaments, YES_NO_INFO_LABELS) },
   { header: "Ornamentos Natal qty",     get: (o) => o.christmas_ornaments_qty?.toString() ?? "" },
   { header: "Pendentes colares",        get: (o) => lookup(o.necklace_pendants, YES_NO_INFO_LABELS) },

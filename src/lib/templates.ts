@@ -142,6 +142,29 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
   const parcela40 = total !== null ? Math.round(total * 0.4 * 100) / 100 : null;
   const parcela30 = total !== null ? Math.round(total * 0.3 * 100) / 100 : null;
 
+  // Acerto de pagamento: euros já pagos + o que falta para o próximo marco.
+  // Usa o orçamento no momento do 1º pagamento (budget_at_first_payment)
+  // como base do que foi realmente pago — relevante quando o tamanho da
+  // moldura foi decidido depois do sinal e o orçamento subiu. Sem âncora
+  // (encomenda normal), assume que o pago corresponde ao orçamento actual.
+  const paidFrac: Record<Order["payment_status"], number> = {
+    "100_por_pagar": 0,
+    "30_pago": 0.3,
+    "70_pago": 0.7,
+    "100_pago": 1,
+  };
+  const frac = paidFrac[order.payment_status] ?? 0;
+  const baseParaPago = order.budget_at_first_payment ?? total;
+  const sinalPago =
+    frac > 0 && baseParaPago !== null
+      ? Math.round(frac * baseParaPago * 100) / 100
+      : null;
+  const proxFrac = frac < 0.3 ? 0.3 : frac < 0.7 ? 0.7 : 1;
+  const valorEmFalta =
+    total !== null && sinalPago !== null
+      ? Math.round((proxFrac * total - sinalPago) * 100) / 100
+      : null;
+
   // Valor do quadro base (sem extras) — útil para mensagens de pré-reserva
   // onde só queremos mostrar o preço da moldura escolhida.
   let valorQuadro: number | null = null;
@@ -169,6 +192,8 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     valor_sinal: sinal30 !== null ? fmtEurMsg(sinal30) : "",
     valor_2a_parcela: parcela40 !== null ? fmtEurMsg(parcela40) : "",
     valor_3a_parcela: parcela30 !== null ? fmtEurMsg(parcela30) : "",
+    sinal_pago: sinalPago !== null ? fmtEurMsg(sinalPago) : "",
+    valor_em_falta: valorEmFalta !== null ? fmtEurMsg(valorEmFalta) : "",
     data_evento: dataCurta(order.event_date),
     data_evento_extenso: dataExtenso(order.event_date, "pt"),
     data_evento_extenso_en: dataExtenso(order.event_date, "en"),
@@ -235,6 +260,8 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   { key: "valor_sinal", description: "30% do total (sinal)", scope: "order" },
   { key: "valor_2a_parcela", description: "40% do total (após recepção das flores)", scope: "order" },
   { key: "valor_3a_parcela", description: "30% do total (antes da entrega)", scope: "order" },
+  { key: "sinal_pago", description: "Valor já pago pelo cliente (em €) — útil quando o tamanho foi decidido depois do sinal", scope: "order" },
+  { key: "valor_em_falta", description: "Valor a pedir nesta etapa (próximo marco menos o que já foi pago)", scope: "order" },
   { key: "data_evento", description: "Data do evento (dd/MM/yyyy)", scope: "order" },
   { key: "data_evento_extenso", description: 'Data por extenso PT (ex: "15 de Maio de 2026")', scope: "order" },
   { key: "data_evento_extenso_en", description: 'Date in English (ex: "May 15th, 2026")', scope: "order" },

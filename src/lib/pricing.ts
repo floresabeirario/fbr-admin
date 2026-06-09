@@ -33,30 +33,45 @@ function findItem(
   );
 }
 
+// Tamanho de referência usado para o orçamento provisório quando o
+// cliente ainda não escolheu a moldura. É a moldura mais barata (30x40,
+// 300€) — o "valor mínimo" da spec. O sinal pedido nunca fica acima do
+// que o cliente acabará por pagar.
+const PROVISIONAL_FRAME_SIZE = "30x40" as const;
+
 /**
  * Calcula um snapshot de preços para uma encomenda no momento actual.
- * Retorna `null` se não há informação suficiente (sem tamanho de moldura
- * conhecido — o orçamento fica manual nesse caso).
  *
- * Encomendas com `frame_size = voces_a_escolher` ou `nao_sei` recebem
- * snapshot `null` porque o preço-base não está determinado.
+ * Quando o tamanho da moldura ainda não foi decidido (`frame_size`
+ * indefinido, `voces_a_escolher` ou `nao_sei`), devolve um snapshot
+ * **provisório** baseado na 30x40 (300€) — o tamanho normalmente é
+ * decidido na fase de design, mas assim já é possível pedir o sinal.
+ * O snapshot fica marcado `provisional: true` para a UI distinguir.
+ *
+ * Só devolve `null` quando nem sequer existe a base 30x40 na tabela de
+ * preços (situação anómala — tabela mal configurada).
  */
 export function computePricingSnapshot(
   order: OrderForPricing,
   pricing: PricingItem[],
 ): PricingSnapshot | null {
-  if (
+  const sizeUndecided =
     !order.frame_size ||
     order.frame_size === "voces_a_escolher" ||
-    order.frame_size === "nao_sei"
-  ) {
-    return null;
-  }
+    order.frame_size === "nao_sei";
+
+  // Tamanho efectivo para o cálculo: o escolhido, ou a 30x40 provisória.
+  // (Quando sizeUndecided é false, frame_size é garantidamente não-nulo.)
+  const effectiveSize: string = sizeUndecided
+    ? PROVISIONAL_FRAME_SIZE
+    : (order.frame_size as string);
 
   const lines: PricingSnapshotLine[] = [];
 
   // 1. Base por tamanho
-  const base = findItem(pricing, "base_frame", order.frame_size);
+  const base = findItem(pricing, "base_frame", effectiveSize);
+  // Sem base 30x40 sequer → tabela mal configurada, não dá para calcular.
+  if (sizeUndecided && !base) return null;
   if (base) {
     lines.push({
       category: base.category,
@@ -79,7 +94,7 @@ export function computePricingSnapshot(
     let supp: PricingItem | undefined;
     if (order.frame_background === "fotografia") {
       supp =
-        findItem(pricing, "background_supplement", `fotografia_${order.frame_size}`) ??
+        findItem(pricing, "background_supplement", `fotografia_${effectiveSize}`) ??
         findItem(pricing, "background_supplement", "fotografia");
     } else {
       supp = findItem(pricing, "background_supplement", order.frame_background);
@@ -181,6 +196,7 @@ export function computePricingSnapshot(
     computed_at: new Date().toISOString(),
     total,
     lines,
+    ...(sizeUndecided ? { provisional: true } : {}),
   };
 }
 

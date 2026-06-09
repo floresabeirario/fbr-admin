@@ -41,7 +41,11 @@ export function BudgetSnapshotBadge({
   async function recompute() {
     setBusy(true);
     try {
-      await recomputeOrderBudgetAction(orderId);
+      const res = await recomputeOrderBudgetAction(orderId);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       toast.success("Orçamento recalculado a partir dos preços actuais.");
       router.refresh();
       setOpen(false);
@@ -70,6 +74,61 @@ export function BudgetSnapshotBadge({
           </button>
         )}
       </div>
+    );
+  }
+
+  // Orçamento provisório — tamanho da moldura ainda não decidido. Usa a
+  // base 30x40 (300€) como referência; ajusta-se quando a Maria escolher
+  // o tamanho na fase de design. Badge âmbar para se distinguir do "Auto".
+  if (snapshot.provisional) {
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          className="mt-1.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider rounded-full px-2 py-0.5 font-semibold transition-colors bg-amber-100 text-amber-800 hover:bg-amber-200"
+          title="Orçamento provisório — tamanho da moldura por definir"
+        >
+          <Sparkles className="h-2.5 w-2.5" />
+          Provisório · tamanho por definir
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0 overflow-hidden" align="start">
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <Sparkles className="h-4 w-4" />
+              Orçamento provisório
+            </div>
+          </div>
+          <div className="p-3 space-y-2 text-xs text-cocoa-800">
+            <p>
+              O tamanho da moldura ainda não foi escolhido, por isso o orçamento
+              usa a <strong>30x40 (300€)</strong> como referência — o quadro mais
+              barato. Já dá para pedir o sinal sem risco de cobrar a mais.
+            </p>
+            <p className="text-amber-700">
+              Quando escolheres o tamanho (normalmente na fase de design), o
+              orçamento ajusta-se sozinho. Se já tiver havido pagamento, a caixa
+              Finanças avisa-te quanto pedir de diferença.
+            </p>
+            <div className="border-t border-cream-200 pt-1.5 flex items-center justify-between text-sm font-semibold">
+              <span className="text-cocoa-900">Total provisório</span>
+              <span className="text-amber-700 tabular-nums">
+                {formatEUR(snapshot.total, { compact: true })}
+              </span>
+            </div>
+          </div>
+          {canEdit && (
+            <div className="border-t border-cream-200 p-2">
+              <button
+                type="button"
+                onClick={recompute}
+                disabled={busy}
+                className="w-full h-8 text-xs font-medium rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {busy ? "A recalcular…" : "Recalcular com preços actuais"}
+              </button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
     );
   }
 
@@ -161,7 +220,11 @@ export function ProductionCostBadge({
   async function capture() {
     setBusy(true);
     try {
-      await captureOrderProductionCostAction(orderId);
+      const res = await captureOrderProductionCostAction(orderId);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       toast.success("Custos de produção capturados.");
       router.refresh();
     } catch (err) {

@@ -29,6 +29,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
+import { StaleDataBanner } from "@/components/stale-data-banner";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
@@ -557,6 +558,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main className="flex-1 min-w-0 h-full overflow-auto">
         {children}
       </main>
+
+      {/* Aviso "há alterações novas" quando outro utilizador edita ao mesmo tempo */}
+      <StaleDataBanner />
 
       {/* Pesquisa global — Cmd/Ctrl+K + botões de trigger */}
       <GlobalSearch />

@@ -6,7 +6,7 @@ import { requireAdmin, requireUser } from "@/lib/auth/server";
 import { generateUniqueCouponCode } from "@/lib/coupon";
 import { computePricingSnapshot } from "@/lib/pricing";
 import { buildProductionCostSnapshot } from "@/lib/production-cost";
-import type { PricingItem } from "@/types/pricing";
+import type { PricingItem, PricingSnapshot } from "@/types/pricing";
 import type { ProductionCostItem } from "@/types/production-cost";
 import {
   createOrderDriveFolderIfNeeded,
@@ -25,6 +25,15 @@ import {
   dueDateFromOffset,
   type CommsMoment,
 } from "@/lib/comms-cadence";
+
+// Resultado discriminado para acções que precisam de devolver uma mensagem
+// de erro legível ao cliente. Em produção o Next.js censura a mensagem de
+// erros *lançados* dentro de Server Actions (vira o texto genérico "An error
+// occurred in the Server Components render…"). Devolver o erro em vez de o
+// lançar preserva a mensagem útil para mostrar no toast.
+export type ActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
 
 // Marca um vale como "preservação agendada" quando uma encomenda passa
 // a usar o seu código. Evita dupla contagem na faturação: sem isto, o
@@ -133,7 +142,9 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
  * depois de a encomenda já existir, ou quando importou uma encomenda
  * antiga e quer aplicar o cálculo.
  */
-export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
+export async function recomputeOrderBudgetAction(
+  id: string,
+): Promise<ActionResult<Order>> {
   await requireAdmin();
   const supabase = await createClient();
 
@@ -148,9 +159,12 @@ export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
     supabase.from("pricing_items").select("*").is("deleted_at", null),
   ]);
 
-  if (orderRes.error) throw new Error(orderRes.error.message);
+  if (orderRes.error) return { ok: false, error: orderRes.error.message };
   if (!pricingRes.data || pricingRes.data.length === 0) {
-    throw new Error("Tabela de preços vazia. Preenche os valores em Finanças.");
+    return {
+      ok: false,
+      error: "Tabela de preços vazia. Preenche os valores em Finanças.",
+    };
   }
 
   const snapshot = computePricingSnapshot(
@@ -159,9 +173,11 @@ export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
   );
 
   if (!snapshot) {
-    throw new Error(
-      "Não é possível calcular o orçamento — tamanho da moldura indefinido ou 'vocês a escolher'.",
-    );
+    return {
+      ok: false,
+      error:
+        "Falta a moldura 30x40 na tabela de preços (Finanças) — é a base do cálculo. Verifica os preços.",
+    };
   }
 
   const { data, error } = await supabase
@@ -170,11 +186,11 @@ export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
     .eq("id", id)
     .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath(`/preservacao/${id}`);
   revalidatePath("/preservacao");
-  return data as Order;
+  return { ok: true, data: data as Order };
 }
 
 /**
@@ -183,7 +199,9 @@ export async function recomputeOrderBudgetAction(id: string): Promise<Order> {
  * com a tabela actual. Útil quando se quer ver a margem de uma
  * encomenda que ainda não tem snapshot.
  */
-export async function captureOrderProductionCostAction(id: string): Promise<Order> {
+export async function captureOrderProductionCostAction(
+  id: string,
+): Promise<ActionResult<Order>> {
   await requireAdmin();
   const supabase = await createClient();
 
@@ -191,9 +209,9 @@ export async function captureOrderProductionCostAction(id: string): Promise<Orde
     .from("production_cost_items")
     .select("*")
     .is("deleted_at", null);
-  if (costErr) throw new Error(costErr.message);
+  if (costErr) return { ok: false, error: costErr.message };
   if (!costRows || costRows.length === 0) {
-    throw new Error("Tabela de custos de produção vazia.");
+    return { ok: false, error: "Tabela de custos de produção vazia." };
   }
 
   const snapshot = buildProductionCostSnapshot(costRows as ProductionCostItem[]);
@@ -203,11 +221,11 @@ export async function captureOrderProductionCostAction(id: string): Promise<Orde
     .eq("id", id)
     .select()
     .single();
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath(`/preservacao/${id}`);
   revalidatePath("/preservacao");
-  return data as Order;
+  return { ok: true, data: data as Order };
 }
 
 /**
@@ -315,12 +333,28 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.gift_voucher_code !== undefined ||
     updates.invoice_url_sinal !== undefined ||
     updates.invoice_url_intermedio !== undefined ||
-    updates.invoice_url_final !== undefined;
+    updates.invoice_url_final !== undefined ||
+    // Campos que afectam o preço — para recalcular o orçamento automático
+    // quando o tamanho da moldura (etc.) é decidido na fase de design.
+    updates.frame_size !== undefined ||
+    updates.frame_background !== undefined ||
+    updates.pyramid_frame !== undefined ||
+    updates.extra_small_frames !== undefined ||
+    updates.extra_small_frames_qty !== undefined ||
+    updates.christmas_ornaments !== undefined ||
+    updates.christmas_ornaments_qty !== undefined ||
+    updates.necklace_pendants !== undefined ||
+    updates.necklace_pendants_qty !== undefined;
 
   let triggerDriveCreation = false;
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
   let voucherToMark: string | null = null;
   let captureProductionSnapshot = false;
+  // Quando algum campo de preço muda e o orçamento ainda é o automático,
+  // recalculamos a partir destes campos (prev + updates) após o fetch.
+  let recomputeFromFields:
+    | Parameters<typeof computePricingSnapshot>[0]
+    | null = null;
   // Quais slots de fatura passaram de NULL → URL nesta operação.
   // Cada um cria uma tarefa "Enviar fatura — {nome} (slot)" após o UPDATE.
   const newInvoiceSlots: Array<"sinal" | "intermedio" | "final"> = [];
@@ -334,7 +368,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done",
+        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, pricing_snapshot, frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single();
@@ -369,6 +403,68 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         prev.payment_status !== "100_pago"
       ) {
         captureProductionSnapshot = true;
+      }
+
+      // Âncora para o acerto de pagamento: guarda o orçamento (em €) no
+      // momento do 1º pagamento. Permite ao workbench detectar mais tarde
+      // que o orçamento subiu (tamanho da moldura decidido na fase de
+      // design) e avisar para pedir a diferença ao cliente.
+      if (
+        updates.payment_status !== undefined &&
+        isFirstOrderPayment(
+          prev.payment_status as Order["payment_status"],
+          updates.payment_status,
+        ) &&
+        (prev.budget_at_first_payment === null ||
+          prev.budget_at_first_payment === undefined)
+      ) {
+        const budgetNow =
+          updates.budget !== undefined
+            ? updates.budget
+            : (prev.budget as number | null);
+        if (budgetNow !== null && budgetNow !== undefined) {
+          updates.budget_at_first_payment = budgetNow;
+        }
+      }
+
+      // Recálculo automático do orçamento quando um campo de preço muda
+      // (ex.: tamanho da moldura passa de "não sei" para 50x70 na fase de
+      // design) E o orçamento ainda é o automático (== ao snapshot, ou
+      // seja, não foi editado à mão) E a Maria não está a editar o
+      // orçamento neste mesmo update. Concretiza "300 provisório → 500".
+      const pricingFieldChanged =
+        updates.frame_size !== undefined ||
+        updates.frame_background !== undefined ||
+        updates.pyramid_frame !== undefined ||
+        updates.extra_small_frames !== undefined ||
+        updates.extra_small_frames_qty !== undefined ||
+        updates.christmas_ornaments !== undefined ||
+        updates.christmas_ornaments_qty !== undefined ||
+        updates.necklace_pendants !== undefined ||
+        updates.necklace_pendants_qty !== undefined;
+      const prevSnapshot = prev.pricing_snapshot as PricingSnapshot | null;
+      const budgetIsAuto =
+        prevSnapshot !== null &&
+        prev.budget !== null &&
+        prev.budget !== undefined &&
+        Math.abs((prev.budget as number) - prevSnapshot.total) < 0.01;
+      if (pricingFieldChanged && budgetIsAuto && updates.budget === undefined) {
+        const u = updates as Partial<Order>;
+        const pick = <K extends keyof Order>(key: K): Order[K] =>
+          (u[key] !== undefined
+            ? u[key]
+            : (prev[key as keyof typeof prev] as unknown)) as Order[K];
+        recomputeFromFields = {
+          frame_size: pick("frame_size"),
+          frame_background: pick("frame_background"),
+          pyramid_frame: pick("pyramid_frame") ?? false,
+          extra_small_frames: pick("extra_small_frames"),
+          extra_small_frames_qty: pick("extra_small_frames_qty"),
+          christmas_ornaments: pick("christmas_ornaments"),
+          christmas_ornaments_qty: pick("christmas_ornaments_qty"),
+          necklace_pendants: pick("necklace_pendants"),
+          necklace_pendants_qty: pick("necklace_pendants_qty"),
+        };
       }
 
       // Faturas: detectar NULL → URL em qualquer dos 3 slots. Cada
@@ -467,6 +563,25 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       console.warn(
         `[updateOrderAction] Transição para 100% pago em ${id} mas tabela de custos de produção está vazia — snapshot não capturado.`,
       );
+    }
+  }
+
+  // Recálculo automático do orçamento (tamanho da moldura decidido, etc.).
+  // Só corre quando o orçamento ainda era o automático — ver bloco acima.
+  if (recomputeFromFields) {
+    const { data: pricingRows } = await supabase
+      .from("pricing_items")
+      .select("*")
+      .is("deleted_at", null);
+    if (pricingRows && pricingRows.length > 0) {
+      const snap = computePricingSnapshot(
+        recomputeFromFields,
+        pricingRows as PricingItem[],
+      );
+      if (snap) {
+        updates.budget = snap.total;
+        updates.pricing_snapshot = snap;
+      }
     }
   }
 

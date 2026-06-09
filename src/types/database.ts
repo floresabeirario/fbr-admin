@@ -127,6 +127,9 @@ export interface Order {
   extras_in_frame: ExtrasInFrame;
   extra_small_frames: YesNoInfo | null;
   extra_small_frames_qty: number | null;
+  // Fundo dos quadros extra pequenos quando difere do principal
+  // (frame_background). Mesmas opções. NULL = não especificado.
+  extra_small_frames_background: FrameBackground | null;
   christmas_ornaments: YesNoInfo | null;
   christmas_ornaments_qty: number | null;
   necklace_pendants: YesNoInfo | null;
@@ -235,6 +238,14 @@ export interface Order {
   // criação. NULL para encomendas antigas (budget continua manual).
   // Aumentos futuros à tabela de preços não recalculam este snapshot.
   pricing_snapshot: PricingSnapshot | null;
+
+  // ── Orçamento no momento do 1º pagamento (mig 074) ──────────
+  // Guarda o valor do orçamento (em €) quando o cliente fez o 1º
+  // pagamento. Âncora para detectar que o orçamento subiu depois do
+  // sinal (ex.: o tamanho da moldura, antes "não sei", foi decidido na
+  // fase de design e ficou mais caro) → o workbench avisa para pedir a
+  // diferença. NULL = ainda não houve pagamento ou encomenda antiga.
+  budget_at_first_payment: number | null;
 
   // ── Moldura pirâmide e tipo interno (custos de produção) ────
   // pyramid_frame: cliente escolheu upgrade pirâmide (afecta preço E custo).

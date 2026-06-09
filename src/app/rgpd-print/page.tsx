@@ -152,6 +152,12 @@ function OrderBlock({ order }: { order: Order }) {
         <dd>{order.frame_delivery_method ? FRAME_DELIVERY_METHOD_LABELS[order.frame_delivery_method] : "—"}</dd>
         <dt>Fundo</dt>
         <dd>{order.frame_background ? FRAME_BACKGROUND_LABELS[order.frame_background] : "—"}</dd>
+        {order.extra_small_frames_background && (
+          <>
+            <dt>Fundo do quadro extra</dt>
+            <dd>{FRAME_BACKGROUND_LABELS[order.extra_small_frames_background]}</dd>
+          </>
+        )}
         <dt>Tamanho</dt>
         <dd>{order.frame_size ? FRAME_SIZE_LABELS[order.frame_size] : "—"}</dd>
         <dt>Como conheceu</dt>
