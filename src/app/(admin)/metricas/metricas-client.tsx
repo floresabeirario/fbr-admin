@@ -272,7 +272,7 @@ export default function MetricasClient({
   partnerNames,
   loadedAt,
 }: Props) {
-  const [preset, setPreset] = useState<RangePreset>("este_mes");
+  const [preset, setPreset] = useState<RangePreset>("desde_sempre");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
 
@@ -389,8 +389,12 @@ export default function MetricasClient({
             <HeroKpiCard
               label="Receita do período"
               value={formatEuro(metrics.revenue)}
-              pct={metrics.revenuePctChange}
-              sub={`vs. período anterior: ${formatEuro(metrics.revenuePrev)}`}
+              pct={metrics.showComparison ? metrics.revenuePctChange : undefined}
+              sub={
+                metrics.showComparison
+                  ? `vs. ${metrics.comparisonLabel}: ${formatEuro(metrics.revenuePrev)}`
+                  : "Todas as encomendas (data do evento)"
+              }
               icon={Euro}
               gradient="bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-green-900/30 dark:border-emerald-900/50"
               iconBg="bg-emerald-500"
@@ -409,8 +413,12 @@ export default function MetricasClient({
             <HeroKpiCard
               label="Encomendas novas"
               value={String(metrics.newOrders)}
-              pct={metrics.newOrdersPctChange}
-              sub={`vs. mês anterior: ${metrics.newOrdersPrev}`}
+              pct={metrics.showComparison ? metrics.newOrdersPctChange : undefined}
+              sub={
+                metrics.showComparison
+                  ? `vs. ${metrics.comparisonLabel}: ${metrics.newOrdersPrev}`
+                  : "Todas as encomendas (data de criação)"
+              }
               icon={ShoppingBag}
               gradient="bg-gradient-to-br from-violet-50 to-purple-100 border-violet-200 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-900/50"
               iconBg="bg-violet-500"

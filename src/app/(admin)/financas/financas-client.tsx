@@ -2493,7 +2493,9 @@ function FaturacaoTab({
   expenses: Expense[];
 }) {
   // Receita = orders proporcional ao % pago + vales pagos não convertidos (evitar dupla contagem)
+  // Encomendas CANCELADAS não contam (coerente com o Painel e as Métricas).
   const revenueFromOrder = (o: FaturacaoOrder): number => {
+    if (o.status === "cancelado") return 0;
     if (!o.budget) return 0;
     return o.budget * paidRatioOf(o.payment_status);
   };
@@ -2503,8 +2505,10 @@ function FaturacaoTab({
     return Number(v.amount);
   };
   // COGS tudo-ou-nada: só conta quando a encomenda está 100% paga
-  // (decisão Maria 2026-05-22). Implementação em lib/finance.ts.
-  const cogsFromOrder = (o: FaturacaoOrder): number => cogsRecognizedFromOrder(o);
+  // (decisão Maria 2026-05-22). Implementação em lib/finance.ts. Canceladas
+  // não contam (alinhado com a receita).
+  const cogsFromOrder = (o: FaturacaoOrder): number =>
+    o.status === "cancelado" ? 0 : cogsRecognizedFromOrder(o);
 
   const now = new Date();
   const currentYear = getYear(now);
@@ -2635,12 +2639,13 @@ function FaturacaoTab({
     .reduce((s, o) => s + cogsFromOrder(o), 0);
 
   // Comissões a parceiros: dedução à receita (decisão Maria 2026-05-19).
-  // Conta proporcional ao %pago, excluindo estados `na` e `nao_aceita`.
+  // Conta proporcional ao %pago, excluindo estados `na` e `nao_aceita` e
+  // encomendas canceladas (alinhado com a receita).
   const commissionMonth = orders
-    .filter((o) => inRange(o.event_date, monthStart, monthEnd))
+    .filter((o) => o.status !== "cancelado" && inRange(o.event_date, monthStart, monthEnd))
     .reduce((s, o) => s + commissionFromOrder(o), 0);
   const commissionYear = orders
-    .filter((o) => inRange(o.event_date, yearStart, yearEnd))
+    .filter((o) => o.status !== "cancelado" && inRange(o.event_date, yearStart, yearEnd))
     .reduce((s, o) => s + commissionFromOrder(o), 0);
 
   // Receita líquida = bruta − comissões (mostrado como sub-texto debaixo

@@ -27,11 +27,12 @@ import {
   Search,
   Volume2,
   VolumeX,
+  RotateCw,
 } from "lucide-react";
 import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
 import { StaleDataBanner } from "@/components/stale-data-banner";
 import { startNavigationProgress } from "@/components/navigation-progress";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
@@ -88,6 +89,29 @@ const navItems: NavItem[] = [
     matchPaths: ["/settings", "/healthchecks", "/ecossistema"],
   },
 ];
+
+// Botão de actualização global e discreto. Usa router.refresh() — re-corre os
+// Server Components e vai buscar dados frescos à BD sem recarregar a página
+// inteira (sem "flash" branco). Roda o ícone enquanto o refresh está em curso.
+function RefreshButton({ className }: { className?: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  return (
+    <button
+      type="button"
+      onClick={() => startTransition(() => router.refresh())}
+      disabled={pending}
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-lg text-cocoa-500 hover:bg-cream-50 hover:text-cocoa-900 transition-colors disabled:opacity-100",
+        className,
+      )}
+      title="Actualizar dados"
+      aria-label="Actualizar dados"
+    >
+      <RotateCw className={cn("h-4 w-4", pending && "animate-spin")} />
+    </button>
+  );
+}
 
 function useIsDesktop(): boolean {
   return useSyncExternalStore(
@@ -456,6 +480,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-cocoa-400" />}
                 </button>
+                <RefreshButton />
               </div>
             )}
             <button
@@ -466,7 +491,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             </button>
           </div>
-          {collapsed && <ThemeToggle className="mx-auto" />}
+          {collapsed && (
+            <div className="flex flex-col items-center gap-0.5">
+              <RefreshButton />
+              <ThemeToggle className="mx-auto" />
+            </div>
+          )}
         </div>
       ) : (
         <div className="p-2 border-t border-cream-200 flex items-center gap-1.5">
@@ -518,14 +548,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           FBR Admin
         </Link>
-        <button
-          type="button"
-          onClick={openGlobalSearch}
-          aria-label="Pesquisar"
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-cocoa-900 hover:bg-cream-50 dark:text-[#E8D5B5]"
-        >
-          <Search className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <RefreshButton className="h-10 w-10 text-cocoa-900 dark:text-[#E8D5B5]" />
+          <button
+            type="button"
+            onClick={openGlobalSearch}
+            aria-label="Pesquisar"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-cocoa-900 hover:bg-cream-50 dark:text-[#E8D5B5]"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       {/* Sidebar */}

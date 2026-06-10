@@ -34,6 +34,7 @@ import type {
   YesNoInfo,
 } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
+import { commissionFromOrder } from "@/lib/finance";
 import {
   STATUS_LABELS,
   FRAME_SIZE_LABELS,
@@ -49,6 +50,7 @@ import {
 // ── Date range presets ───────────────────────────────────────
 
 export type RangePreset =
+  | "desde_sempre"
   | "este_mes"
   | "mes_passado"
   | "ultimos_3_meses"
@@ -58,6 +60,7 @@ export type RangePreset =
   | "personalizado";
 
 export const RANGE_PRESET_LABELS: Record<RangePreset, string> = {
+  desde_sempre:    "Desde sempre",
   este_mes:        "Este mês",
   mes_passado:     "Mês passado",
   ultimos_3_meses: "Últimos 3 meses",
@@ -74,6 +77,9 @@ export interface DateRange {
 
 export function rangeFromPreset(preset: RangePreset, today: Date = new Date()): DateRange | null {
   switch (preset) {
+    case "desde_sempre":
+      // Range artificial que apanha tudo (igual à lógica "Todos" das Finanças).
+      return { start: new Date(1970, 0, 1), end: new Date(2999, 11, 31) };
     case "este_mes":
       return { start: startOfMonth(today), end: endOfMonth(today) };
     case "mes_passado": {
@@ -147,6 +153,29 @@ export function baselineRangeForPreset(
     case "ultimos_6_meses":
     case "personalizado":
       return previousEqualRange(range);
+    case "desde_sempre":
+      // Não há período anterior a "desde sempre" — devolvemos o próprio
+      // range; a comparação é escondida na UI (ver `showComparison`).
+      return range;
+  }
+}
+
+// Etiqueta humana do período de comparação, conforme o preset. Vazia para
+// "desde sempre" (sem comparação).
+export function comparisonLabelForPreset(preset: RangePreset): string {
+  switch (preset) {
+    case "este_mes":
+    case "mes_passado":
+      return "mês anterior";
+    case "este_ano":
+    case "ano_passado":
+      return "ano anterior";
+    case "ultimos_3_meses":
+    case "ultimos_6_meses":
+    case "personalizado":
+      return "período anterior";
+    case "desde_sempre":
+      return "";
   }
 }
 
@@ -161,18 +190,28 @@ function inRange(dateStr: string | null | undefined, range: DateRange): boolean 
   }
 }
 
-// Encomendas criadas no range
+// Encomendas criadas no range (usado para "encomendas novas" e distribuições)
 function ordersIn(orders: Order[], range: DateRange): Order[] {
   return orders.filter((o) => inRange(o.created_at, range));
+}
+
+// Encomendas que CONTAM PARA RECEITA no range: pela data do evento (igual às
+// Finanças, para os dois números baterem certo) e excluindo canceladas.
+function revenueOrdersIn(orders: Order[], range: DateRange): Order[] {
+  return orders.filter(
+    (o) => o.status !== "cancelado" && inRange(o.event_date, range),
+  );
 }
 
 // ── Cálculos de receita ──────────────────────────────────────
 // Receita = soma PROPORCIONAL do orçamento das encomendas
 // conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%).
 // Reflecte o dinheiro efectivamente recebido, não o orçamento total.
+// Encomendas CANCELADAS não contam. A janela é pela DATA DO EVENTO
+// (não pela data de criação) para bater certo com `financas-client.tsx`.
 // Vales: contam para receita os 100_pago + preservacao_nao_agendada
-// (se já foi convertido em preservação, contaria duas vezes).
-// IMPORTANTE: este cálculo tem de bater certo com `financas-client.tsx`.
+// (se já foi convertido em preservação, contaria duas vezes); janela
+// pela data de criação do vale (igual às Finanças).
 // ============================================================
 
 function orderRevenue(o: Order): number {
@@ -192,7 +231,7 @@ function voucherRevenue(v: Voucher): number {
 }
 
 function totalRevenue(orders: Order[], vouchers: Voucher[], range: DateRange): number {
-  const ordersSum = ordersIn(orders, range).reduce((s, o) => s + orderRevenue(o), 0);
+  const ordersSum = revenueOrdersIn(orders, range).reduce((s, o) => s + orderRevenue(o), 0);
   const vouchersSum = vouchers
     .filter((v) => inRange(v.created_at, range))
     .reduce((s, v) => s + voucherRevenue(v), 0);
@@ -252,6 +291,11 @@ export function pctChange(current: number, previous: number): number | null {
 export interface MetricsResult {
   range: DateRange;
   generatedAt: string;
+
+  // Comparação com período anterior — false em "desde sempre" (não há
+  // período anterior). A UI esconde os badges de variação quando false.
+  showComparison: boolean;
+  comparisonLabel: string; // "mês anterior" / "ano anterior" / "período anterior"
 
   // Receita
   revenue: number;
@@ -318,6 +362,7 @@ export function computeMetrics(
   // ano anterior homólogo para anuais, janela equivalente para últimos
   // N meses e personalizado. Ver `baselineRangeForPreset`.
   const prevRange = baselineRangeForPreset(preset, range);
+  const showComparison = preset !== "desde_sempre";
 
   // Receita
   const revenue = totalRevenue(orders, vouchers, range);
@@ -383,13 +428,15 @@ export function computeMetrics(
   const vouchersConvertedPct =
     vouchersSold === 0 ? null : Math.round((vouchersConverted / vouchersSold) * 100);
 
-  // Top parceiros
+  // Top parceiros — pela mesma base da receita (data do evento, sem
+  // canceladas). Comissão proporcional ao %pago e a excluir os estados
+  // "N/A" e "Não aceita" (via `commissionFromOrder`), igual às Finanças.
   const partnerStats = new Map<string, { revenue: number; commissions: number }>();
-  for (const o of ordersInRange) {
+  for (const o of revenueOrdersIn(orders, range)) {
     if (!o.partner_id) continue;
     const cur = partnerStats.get(o.partner_id) ?? { revenue: 0, commissions: 0 };
     cur.revenue += orderRevenue(o);
-    cur.commissions += Number(o.partner_commission ?? 0);
+    cur.commissions += commissionFromOrder(o);
     partnerStats.set(o.partner_id, cur);
   }
   const topPartners = [...partnerStats.entries()]
@@ -460,6 +507,8 @@ export function computeMetrics(
   return {
     range,
     generatedAt: new Date().toISOString(),
+    showComparison,
+    comparisonLabel: comparisonLabelForPreset(preset),
     revenue,
     revenuePrev,
     revenuePctChange: pctChange(revenue, revenuePrev),
