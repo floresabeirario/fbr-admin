@@ -111,7 +111,6 @@ export interface DashboardAlert {
   href?: string;
 }
 
-const PRE_RESERVA_NO_CONTACT_DAYS = 4;
 const EVENT_HORIZON_DAYS = 7;
 
 export function getDashboardAlerts(

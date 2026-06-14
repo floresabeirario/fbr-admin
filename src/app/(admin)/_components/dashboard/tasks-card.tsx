@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -214,10 +213,8 @@ const PRIORITY_DOT_COLOR: Record<TaskPriority, string> = {
   urgente: "bg-rose-500",
 };
 
-function readStoredOrder(): TaskCategory[] {
-  if (typeof window === "undefined") return DEFAULT_CATEGORY_ORDER;
+function parseStoredOrder(raw: string | null): TaskCategory[] {
   try {
-    const raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
     if (!raw) return DEFAULT_CATEGORY_ORDER;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return DEFAULT_CATEGORY_ORDER;
@@ -234,6 +231,47 @@ function readStoredOrder(): TaskCategory[] {
   } catch {
     return DEFAULT_CATEGORY_ORDER;
   }
+}
+
+// Snapshot cacheado por valor cru do localStorage — useSyncExternalStore exige
+// referência estável quando nada mudou (React #185).
+let orderCacheRaw: string | null | undefined = undefined;
+let orderCacheValue: TaskCategory[] = DEFAULT_CATEGORY_ORDER;
+
+function getStoredOrderSnapshot(): TaskCategory[] {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
+  } catch {
+    // privacy mode / quota — usa default
+  }
+  if (raw !== orderCacheRaw) {
+    orderCacheRaw = raw;
+    orderCacheValue = parseStoredOrder(raw);
+  }
+  return orderCacheValue;
+}
+
+const orderListeners = new Set<() => void>();
+
+function subscribeStoredOrder(cb: () => void) {
+  orderListeners.add(cb);
+  // "storage" dispara quando outra aba altera o localStorage.
+  window.addEventListener("storage", cb);
+  return () => {
+    orderListeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+function setStoredOrder(updater: (prev: TaskCategory[]) => TaskCategory[]) {
+  const next = updater(getStoredOrderSnapshot());
+  try {
+    window.localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* quota / privacy mode — ignorar */
+  }
+  orderListeners.forEach((cb) => cb());
 }
 
 export function TasksCard({
@@ -281,27 +319,13 @@ export function TasksCard({
   }
 
   // Ordem das colunas — persistida em localStorage (preferência por browser).
-  // SSR começa sempre com a ordem default; sync com localStorage ocorre após mount
-  // para evitar hydration mismatch.
-  const [columnOrder, setColumnOrder] = useState<TaskCategory[]>(
-    DEFAULT_CATEGORY_ORDER,
+  // useSyncExternalStore: servidor usa a ordem default, cliente lê o storage
+  // (sem setState em effect, sem hydration mismatch).
+  const columnOrder = useSyncExternalStore(
+    subscribeStoredOrder,
+    getStoredOrderSnapshot,
+    () => DEFAULT_CATEGORY_ORDER,
   );
-  const [orderHydrated, setOrderHydrated] = useState(false);
-  useEffect(() => {
-    setColumnOrder(readStoredOrder());
-    setOrderHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (!orderHydrated) return;
-    try {
-      window.localStorage.setItem(
-        COLUMN_ORDER_STORAGE_KEY,
-        JSON.stringify(columnOrder),
-      );
-    } catch {
-      /* ignore quota / privacy mode */
-    }
-  }, [columnOrder, orderHydrated]);
 
   // Form da nova tarefa
   const [newTitle, setNewTitle] = useState("");
@@ -623,7 +647,7 @@ export function TasksCard({
 
   function reorderColumn(from: TaskCategory, to: TaskCategory) {
     if (from === to) return;
-    setColumnOrder((prev) => {
+    setStoredOrder((prev) => {
       const i = prev.indexOf(from);
       const j = prev.indexOf(to);
       if (i === -1 || j === -1) return prev;

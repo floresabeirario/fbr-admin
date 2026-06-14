@@ -42,7 +42,6 @@ import {
   Globe,
   Mail,
   MessageCircle,
-  Sparkles,
   Plus,
   X,
   Link2,
@@ -1066,24 +1065,6 @@ export default function WorkbenchClient({
                 />
               </Card>
 
-              <Card title="Assistente de resposta" icon={<Sparkles className="h-3.5 w-3.5" />} accent="violet" className="order-11 lg:order-none">
-                <div className="space-y-3">
-                  <Textarea
-                    disabled
-                    rows={4}
-                    placeholder="Em breve: descreve o tipo de resposta (ex: 'agradecer feedback' ou 'confirmar agendamento') e a IA gera um rascunho com o tom da marca, em PT ou EN, baseado no contexto desta encomenda."
-                    className="text-sm border-cream-200 bg-cream-50 text-cocoa-700 rounded-lg resize-none italic"
-                  />
-                  <button
-                    disabled
-                    className="w-full h-9 inline-flex items-center justify-center gap-2 rounded-lg border border-cream-200 bg-cream-50 text-cocoa-500 text-xs font-medium cursor-not-allowed"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Sugerir resposta (em breve)
-                  </button>
-                </div>
-              </Card>
-
               {/* Galeria de inspiração — movida para a coluna esquerda */}
               <Card
                 title="Galeria de inspiração"
@@ -1918,6 +1899,25 @@ export default function WorkbenchClient({
                         </SelectContent>
                       </Select>
                     </Field>
+                  </div>
+
+                  {/* Pagamento em dinheiro à entrega — marcador interno.
+                      O link de status público funciona mesmo sem pagamento
+                      registado a partir do momento em que a encomenda fica
+                      agendada (ver mig 076). */}
+                  <div className="rounded-lg border border-cream-200 bg-cream-50/60 px-3 py-2.5 space-y-1.5">
+                    <CheckRow
+                      label="Pagamento em dinheiro à entrega"
+                      checked={local.cash_on_delivery}
+                      onChange={(v) => update("cash_on_delivery", v)}
+                    />
+                    {local.cash_on_delivery && (
+                      <p className="text-[11px] text-cocoa-600 leading-snug pl-6">
+                        O cliente paga em mão ao entregar as flores. O link de
+                        acompanhamento já funciona assim que a encomenda fica
+                        agendada — não é preciso registar pagamento.
+                      </p>
+                    )}
                   </div>
 
                   {/* Acerto de pagamento: orçamento subiu depois do sinal */}

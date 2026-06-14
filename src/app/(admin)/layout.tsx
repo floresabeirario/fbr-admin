@@ -43,7 +43,7 @@ import { useUnreadWhatsappCount } from "@/hooks/use-unread-whatsapp";
 import {
   useNotificationSounds,
   toggleNotificationSound,
-  isNotificationSoundOn,
+  useNotificationSoundOn,
 } from "@/hooks/use-notification-sounds";
 
 const PROFILES = [
@@ -192,9 +192,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Som ao chegar mensagem WhatsApp recebida ou nova encomenda do form.
   useNotificationSounds(profile?.email ?? null);
-  const [soundOn, setSoundOn] = useState(true);
-  useEffect(() => { setSoundOn(isNotificationSoundOn()); }, []);
-  function handleToggleSound() { setSoundOn(toggleNotificationSound()); }
+  const soundOn = useNotificationSoundOn();
+  function handleToggleSound() { toggleNotificationSound(); }
 
   useEffect(() => {
     if (profile?.role !== "admin") return;

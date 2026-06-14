@@ -62,6 +62,7 @@ export type HowFoundFBR =
   | "google"
   | "vale_presente"
   | "florista"
+  | "wedding_planner"
   | "recomendacao"
   | "recomendacao_ia"
   | "outro";
@@ -227,6 +228,13 @@ export interface Order {
   // true = já lembrei o cliente de pagar essa tranche
   payment_40_requested: boolean;
   payment_30_requested: boolean;
+
+  // ── Pagamento em dinheiro à entrega ─────────────────────────
+  // true = o cliente combinou pagar em mão quando entrega as flores.
+  // Marcador interno (mig 076). Quando true, o link de status público
+  // funciona mesmo sem pagamento registado, desde que a encomenda já
+  // esteja agendada (ver policy orders_public_status_read).
+  cash_on_delivery: boolean;
 
   // ── Resposta do cliente à proposta de composição ───────────
   // Quando true, deixa de aparecer o alerta de "cliente em silêncio"
@@ -474,6 +482,7 @@ export const HOW_FOUND_FBR_LABELS: Record<HowFoundFBR, string> = {
   google: "Google",
   vale_presente: "Vale-Presente",
   florista: "Florista",
+  wedding_planner: "Wedding Planner",
   recomendacao: "Recomendação",
   recomendacao_ia: "Recomendação de IA (ChatGPT, Gemini…)",
   outro: "Outro",
@@ -496,6 +505,7 @@ export const HOW_FOUND_FBR_COLORS: Record<HowFoundFBR, string> = {
   google:          "bg-surface text-slate-700 border-slate-300",
   vale_presente:   "bg-[#6E7DAF] text-white border-[#56689E]",
   florista:        "bg-pink-100 text-pink-700 border-pink-200",
+  wedding_planner: "bg-rose-100 text-rose-700 border-rose-200",
   recomendacao:    "bg-purple-100 text-purple-800 border-purple-300",
   recomendacao_ia: "bg-gradient-to-r from-violet-500 via-cyan-500 to-emerald-500 text-white border-transparent",
   outro:           "bg-slate-100 text-slate-700 border-slate-300",

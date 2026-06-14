@@ -1,4 +1,4 @@
-import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook } from "lucide-react";
+import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook, FolderGit2 } from "lucide-react";
 import SistemaTopbar from "@/components/sistema-topbar";
 import { getCurrentRole } from "@/lib/auth/server";
 
@@ -95,7 +95,7 @@ const EXTERNAL_CATEGORIES: ExternalCategory[] = [
 
 const ADMIN_CORE: Platform = {
   name: "admin.floresabeirario.pt",
-  description: "Esta plataforma. Painel da Maria, António, MJ, Ana. Substituiu o Monday.",
+  description: "Esta plataforma. Painel da Maria, António, MJ e Ana.",
   tone: "primary",
   icon: Database,
 };
@@ -117,7 +117,11 @@ const OUTPUTS_PUBLIC: Platform[] = [
   },
 ];
 
-const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote: string }> = [
+// Cada integração tem uma cor própria para o ícone, para deixarem de
+// parecer todas iguais. Tons aproximados das marcas reais.
+const INTEGRATIONS: Array<
+  Platform & { status: "active" | "pending"; statusNote: string; color: string }
+> = [
   {
     name: "Supabase",
     description: "BD + Auth + RLS. Toda a persistência.",
@@ -125,6 +129,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: Server,
     status: "active",
     statusNote: "Ligado",
+    color: "text-emerald-500",
   },
   {
     name: "Vercel",
@@ -133,6 +138,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: Cloud,
     status: "active",
     statusNote: "Ligado",
+    color: "text-cocoa-900 dark:text-[#E8D5B5]",
   },
   {
     name: "Google Drive",
@@ -141,6 +147,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: FolderOpen,
     status: "active",
     statusNote: "Ligado",
+    color: "text-yellow-500",
   },
   {
     name: "Google Calendar",
@@ -149,6 +156,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: Calendar,
     status: "active",
     statusNote: "Ligado",
+    color: "text-blue-500",
   },
   {
     name: "Dualhook",
@@ -158,6 +166,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: Webhook,
     status: "active",
     statusNote: "Ligado — fonte das mensagens WhatsApp",
+    color: "text-orange-500",
   },
   {
     name: "WhatsApp (Meta Cloud API)",
@@ -166,6 +175,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: MessageCircle,
     status: "active",
     statusNote: "Recepção ligada (via Dualhook) — envio não implementado (0€ Meta)",
+    color: "text-green-500",
   },
   {
     name: "Anthropic Claude",
@@ -174,6 +184,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: Sparkles,
     status: "active",
     statusNote: "Ligado — Claude Sonnet 4.6 com prompt caching",
+    color: "text-amber-600",
   },
   {
     name: "Gmail",
@@ -182,6 +193,7 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: Mail,
     status: "active",
     statusNote: "Ligado — leitura via gmail.readonly; envio continua à mão",
+    color: "text-red-500",
   },
   {
     name: "Cloudflare Turnstile",
@@ -190,6 +202,21 @@ const INTEGRATIONS: Array<Platform & { status: "active" | "pending"; statusNote:
     icon: ShieldCheck,
     status: "active",
     statusNote: "Ligado",
+    color: "text-orange-400",
+  },
+];
+
+// Repositórios de código no GitHub (org floresabeirario).
+const REPOSITORIES: { name: string; url: string; description: string }[] = [
+  {
+    name: "fbr-admin2",
+    url: "https://github.com/floresabeirario/fbr-admin2",
+    description: "Esta plataforma admin (Next.js + Supabase).",
+  },
+  {
+    name: "fbr-website",
+    url: "https://github.com/floresabeirario/fbr-website",
+    description: "Site público floresabeirario.pt + forms de reserva e vale-presente.",
   },
 ];
 
@@ -290,6 +317,39 @@ export default async function EcossistemaPage() {
         </div>
       </div>
 
+      {/* Repositórios de código */}
+      <div className="rounded-3xl border border-cream-200 bg-surface p-6">
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-cocoa-700">
+            Repositórios
+          </h2>
+          <p className="text-xs text-cocoa-500 mt-1">
+            Código no GitHub (organização floresabeirario) — clica para abrir
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {REPOSITORIES.map((repo) => (
+            <a
+              key={repo.name}
+              href={repo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-3 rounded-xl border border-cream-200 bg-cream-50 dark:bg-[#241D17] px-3 py-2.5 hover:border-cocoa-400 hover:shadow-sm transition-all"
+            >
+              <div className="h-8 w-8 rounded-lg bg-white dark:bg-[#1B1611] border border-cream-200 flex items-center justify-center shrink-0">
+                <FolderGit2 className="h-4 w-4 text-cocoa-900 dark:text-[#E8D5B5]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-cocoa-900 truncate group-hover:underline">
+                  {repo.name}
+                </div>
+                <div className="text-[11px] text-cocoa-500 truncate">{repo.description}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+
       {/* Nota sobre privacidade */}
       <div className="rounded-2xl border border-cream-200 bg-cream-50 p-4 flex gap-3">
         <Lock className="h-5 w-5 text-cocoa-700 shrink-0 mt-0.5" />
@@ -379,14 +439,14 @@ function ExternalToolCard({ tool }: { tool: ExternalTool }) {
 function IntegrationCard({
   integration,
 }: {
-  integration: Platform & { status: "active" | "pending"; statusNote: string };
+  integration: Platform & { status: "active" | "pending"; statusNote: string; color: string };
 }) {
   const Icon = integration.icon;
   return (
     <div className="rounded-2xl border border-cream-200 p-4 space-y-2 bg-surface">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Icon className="h-4 w-4 text-violet-500 shrink-0" />
+          <Icon className={`h-4 w-4 shrink-0 ${integration.color}`} />
           {integration.url ? (
             <a
               href={integration.url}

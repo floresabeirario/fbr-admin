@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
   Dialog,
@@ -29,14 +29,18 @@ export default function HardDeleteDialog({ open, onOpenChange, itemLabel, onConf
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Reset durante o render quando o diálogo fecha (padrão "store info from
+  // previous renders" — evita setState dentro de useEffect).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (!open) {
       setConfirmText("");
       setJustification("");
       setBusy(false);
       setError(null);
     }
-  }, [open]);
+  }
 
   const canConfirm =
     confirmText.trim().toUpperCase() === CONFIRM_WORD &&

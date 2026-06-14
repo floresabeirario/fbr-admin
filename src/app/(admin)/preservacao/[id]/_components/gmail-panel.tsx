@@ -62,27 +62,42 @@ function displayName(headerVal: string): string {
 
 export default function GmailPanel({ email }: Props) {
   const [result, setResult] = useState<FetchResult | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Bump força novo fetch (botão Actualizar / retry).
+  const [loadKey, setLoadKey] = useState(0);
+
+  const validEmail = !!email && email.includes("@");
+
+  // Reset durante o render quando o email muda — evita setState em effect.
+  const [prevEmail, setPrevEmail] = useState(email);
+  if (email !== prevEmail) {
+    setPrevEmail(email);
+    setResult(null);
+  }
+
+  // loading é derivado: ainda sem resultado para o email actual.
+  const loading = validEmail && result === null;
 
   function load() {
-    if (!email || !email.includes("@")) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    fetch(`/api/google/emails?email=${encodeURIComponent(email)}`)
-      .then((res) => res.json())
-      .then((data: FetchResult) => setResult(data))
-      .catch(() =>
-        setResult({ status: "error", error: "Não consegui contactar o servidor." }),
-      )
-      .finally(() => setLoading(false));
+    setResult(null);
+    setLoadKey((k) => k + 1);
   }
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email]);
+    if (!validEmail) return;
+    let cancelled = false;
+    fetch(`/api/google/emails?email=${encodeURIComponent(email)}`)
+      .then((res) => res.json())
+      .then((data: FetchResult) => {
+        if (!cancelled) setResult(data);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setResult({ status: "error", error: "Não consegui contactar o servidor." });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [email, validEmail, loadKey]);
 
   if (!email || !email.includes("@")) {
     return (

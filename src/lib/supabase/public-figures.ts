@@ -119,3 +119,10 @@ export function daysUntilEvent(eventDate: string | null): number | null {
   ev.setHours(0, 0, 0, 0);
   return Math.round((ev.getTime() - today.getTime()) / 86_400_000);
 }
+
+// Nº de dias desde a última actualização do registo (para alertas de
+// follow-up). Vive aqui (e não inline nos componentes) porque Date.now()
+// é impuro durante o render — react-hooks/purity.
+export function daysSinceUpdate(updatedAt: string): number {
+  return Math.round((Date.now() - new Date(updatedAt).getTime()) / 86_400_000);
+}

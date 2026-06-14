@@ -34,7 +34,7 @@ import type {
   YesNoInfo,
 } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
-import { commissionFromOrder } from "@/lib/finance";
+import { commissionFullFromOrder } from "@/lib/finance";
 import {
   STATUS_LABELS,
   FRAME_SIZE_LABELS,
@@ -326,8 +326,17 @@ export interface MetricsResult {
   vouchersSold: number;
   vouchersConvertedPct: number | null;
 
-  // Parceiros (top-5)
-  topPartners: Array<{ partner_id: string; revenue: number; commissions: number }>;
+  // Parceiros (top-5). Comissões em valor PLENO acordado (não proporcional
+  // ao %pago da cliente): `paid` = estado "Paga"; `due` = obrigações ainda
+  // por pagar (parceiro informado / a aguardar / a aguardar resposta);
+  // `total` = paid + due. Estados "N/A" e "Não aceita" não contam.
+  topPartners: Array<{
+    partner_id: string;
+    revenue: number;
+    commissionsPaid: number;
+    commissionsDue: number;
+    commissionsTotal: number;
+  }>;
 
   // Extras
   extrasOrdersPct: number;
@@ -429,20 +438,35 @@ export function computeMetrics(
     vouchersSold === 0 ? null : Math.round((vouchersConverted / vouchersSold) * 100);
 
   // Top parceiros — pela mesma base da receita (data do evento, sem
-  // canceladas). Comissão proporcional ao %pago e a excluir os estados
-  // "N/A" e "Não aceita" (via `commissionFromOrder`), igual às Finanças.
-  const partnerStats = new Map<string, { revenue: number; commissions: number }>();
+  // canceladas). Comissão em valor PLENO acordado (via
+  // `commissionFullFromOrder`, que já devolve 0 para "N/A"/"Não aceita"),
+  // separada entre já paga (estado "Paga") e ainda por pagar.
+  const partnerStats = new Map<
+    string,
+    { revenue: number; commissionsPaid: number; commissionsDue: number }
+  >();
   for (const o of revenueOrdersIn(orders, range)) {
     if (!o.partner_id) continue;
-    const cur = partnerStats.get(o.partner_id) ?? { revenue: 0, commissions: 0 };
+    const cur =
+      partnerStats.get(o.partner_id) ??
+      { revenue: 0, commissionsPaid: 0, commissionsDue: 0 };
     cur.revenue += orderRevenue(o);
-    cur.commissions += commissionFromOrder(o);
+    const fullCommission = commissionFullFromOrder(o);
+    if (o.partner_commission_status === "paga") {
+      cur.commissionsPaid += fullCommission;
+    } else {
+      cur.commissionsDue += fullCommission; // 0 para na/nao_aceita
+    }
     partnerStats.set(o.partner_id, cur);
   }
   const topPartners = [...partnerStats.entries()]
     .sort((a, b) => b[1].revenue - a[1].revenue)
     .slice(0, 5)
-    .map(([partner_id, v]) => ({ partner_id, ...v }));
+    .map(([partner_id, v]) => ({
+      partner_id,
+      ...v,
+      commissionsTotal: v.commissionsPaid + v.commissionsDue,
+    }));
 
   // Distribuição de método de envio das flores (cliente → FBR)
   const flowerDeliveryDist = topByCount<FlowerDeliveryMethod>(

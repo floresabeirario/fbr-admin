@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Star,
   AtSign,
-  Users2,
   CalendarHeart,
   Gift,
   User,
@@ -103,7 +102,7 @@ import {
   fillOutreachTemplate,
 } from "@/lib/outreach-templates";
 import type { TemplateLanguage } from "@/types/message-template";
-import { daysUntilEvent } from "@/lib/supabase/public-figures";
+import { daysUntilEvent, daysSinceUpdate } from "@/lib/supabase/public-figures";
 import type { LinkableOrder } from "./page";
 import {
   updateFigureAction,
@@ -194,10 +193,8 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
   const days = daysUntilEvent(figure.event_date);
   const inPlay = figure.status === "aceitou" || figure.status === "em_producao";
   const eventSoon = inPlay && days !== null && days >= 0 && days <= 14;
-  const daysSinceUpdate = Math.round(
-    (Date.now() - new Date(figure.updated_at).getTime()) / 86_400_000,
-  );
-  const staleContact = figure.status === "contactada" && daysSinceUpdate >= 7;
+  const staleContact =
+    figure.status === "contactada" && daysSinceUpdate(figure.updated_at) >= 7;
 
   return (
     <div className="flex flex-col h-full bg-cream-50">
@@ -258,7 +255,7 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
             {staleContact && (
               <div className="rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 flex items-center gap-2 text-sm text-orange-800">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                Contactada há <strong>{daysSinceUpdate} dias</strong> sem resposta — considera um follow-up.
+                Contactada há <strong>{daysSinceUpdate(figure.updated_at)} dias</strong> sem resposta — considera um follow-up.
               </div>
             )}
           </div>

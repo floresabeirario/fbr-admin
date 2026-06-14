@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 function isMuted(): boolean {
@@ -8,16 +8,37 @@ function isMuted(): boolean {
   return window.localStorage.getItem("fbr-notif-sound") === "off";
 }
 
+// Mini-store para o estado on/off do som — permite useSyncExternalStore
+// no layout em vez de useState+useEffect (lint: set-state-in-effect).
+const soundListeners = new Set<() => void>();
+
+function subscribeNotificationSound(cb: () => void) {
+  soundListeners.add(cb);
+  return () => {
+    soundListeners.delete(cb);
+  };
+}
+
 export function toggleNotificationSound(): boolean {
   if (typeof window === "undefined") return false;
   const cur = isMuted();
   window.localStorage.setItem("fbr-notif-sound", cur ? "on" : "off");
+  soundListeners.forEach((cb) => cb());
   return cur; // true = passou a ON
 }
 
 export function isNotificationSoundOn(): boolean {
   if (typeof window === "undefined") return false;
   return !isMuted();
+}
+
+// Snapshot devolve um primitivo (boolean) — sem risco de React #185.
+export function useNotificationSoundOn(): boolean {
+  return useSyncExternalStore(
+    subscribeNotificationSound,
+    isNotificationSoundOn,
+    () => true, // servidor assume ON (igual ao default antigo do layout)
+  );
 }
 
 // Tom curto gerado via Web Audio API. Evita ter ficheiro estatico.
@@ -57,9 +78,11 @@ export function useNotificationSounds(currentEmail: string | null) {
   const supabase = useMemo(() => createClient(), []);
   // Apanha startedAt para nao tocar para mensagens muito velhas que
   // cheguem em retransmissoes ou na carga inicial do Realtime.
-  const startedAtRef = useRef<number>(Date.now());
+  // Inicializado dentro do effect: Date.now() e impuro durante o render.
+  const startedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (startedAtRef.current === null) startedAtRef.current = Date.now();
     if (!currentEmail) return;
     const channel = supabase
       .channel("fbr-notif-sounds")
@@ -73,7 +96,7 @@ export function useNotificationSounds(currentEmail: string | null) {
           };
           if (m.direction !== "received") return;
           const receivedTs = new Date(m.received_at).getTime();
-          if (receivedTs < startedAtRef.current - 60_000) return; // ignorar atrasos > 1min
+          if (receivedTs < (startedAtRef.current ?? 0) - 60_000) return; // ignorar atrasos > 1min
           // Tom mais agudo para WhatsApp (cliente)
           playPop({ frequency: 880, volume: 0.12 });
         },
@@ -85,7 +108,7 @@ export function useNotificationSounds(currentEmail: string | null) {
           const o = payload.new as { created_at?: string };
           if (o.created_at) {
             const ts = new Date(o.created_at).getTime();
-            if (ts < startedAtRef.current - 60_000) return;
+            if (ts < (startedAtRef.current ?? 0) - 60_000) return;
           }
           // Tom mais grave para encomenda nova (distinguir)
           playPop({ frequency: 660, volume: 0.18 });

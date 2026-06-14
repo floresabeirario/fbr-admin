@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
@@ -84,9 +84,10 @@ import {
   countActiveFilters,
   COLUMN_MIN_PX,
   COLUMN_LABELS,
-  EMPTY_FILTERS,
-  readStorage,
-  writeStorage,
+  getViewsSnapshot,
+  getServerViewsSnapshot,
+  subscribeViews,
+  updateViewsStorage,
   type ColumnKey,
   type FilterConfig,
   type SavedView,
@@ -897,29 +898,21 @@ export default function PreservacaoClient({
   >(() => new Map());
 
   // ── Vistas/filtros/colunas — persistidas em localStorage ──────────
-  // SSR começa em vazio (sem hydration mismatch); hidrata pós-mount.
-  const [extraColumns, setExtraColumns] = useState<ColumnKey[]>([]);
-  const [filters, setFilters] = useState<FilterConfig>({ ...EMPTY_FILTERS });
-  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
-  const [activeViewId, setActiveViewId] = useState<string | null>(null);
-  const [viewsHydrated, setViewsHydrated] = useState(false);
-  useEffect(() => {
-    const s = readStorage();
-    setExtraColumns(s.activeColumns);
-    setFilters(s.filters);
-    setSavedViews(s.views);
-    setActiveViewId(s.activeViewId);
-    setViewsHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (!viewsHydrated) return;
-    writeStorage({
-      activeColumns: extraColumns,
-      filters,
-      views: savedViews,
-      activeViewId,
-    });
-  }, [extraColumns, filters, savedViews, activeViewId, viewsHydrated]);
+  // useSyncExternalStore: servidor usa shape vazio (sem hydration mismatch);
+  // cliente lê o storage. Os setters escrevem no storage e notificam.
+  const viewsState = useSyncExternalStore(
+    subscribeViews,
+    getViewsSnapshot,
+    getServerViewsSnapshot,
+  );
+  const extraColumns = viewsState.activeColumns;
+  const filters = viewsState.filters;
+  const savedViews = viewsState.views;
+  const activeViewId = viewsState.activeViewId;
+  const setExtraColumns = (v: ColumnKey[]) => updateViewsStorage({ activeColumns: v });
+  const setFilters = (f: FilterConfig) => updateViewsStorage({ filters: f });
+  const setSavedViews = (v: SavedView[]) => updateViewsStorage({ views: v });
+  const setActiveViewId = (id: string | null) => updateViewsStorage({ activeViewId: id });
 
   // Sensores: activação por distância (8px) deixa o click do row continuar a
   // funcionar normalmente; KeyboardSensor dá acessibilidade básica (Space para

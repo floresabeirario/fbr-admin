@@ -44,18 +44,29 @@ export default function WhatsappLivePanel({ phone }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const phoneTail = lastNineDigits(phone);
 
-  const [conversation, setConversation] = useState<WhatsappConversation | null>(null);
+  // undefined = ainda à procura; null = procurámos e não há conversa.
+  const [conversation, setConversation] = useState<WhatsappConversation | null | undefined>(undefined);
   const [messages, setMessages] = useState<WhatsappMessage[]>([]);
-  const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const validPhone = phoneTail.length >= 9;
+
+  // Reset durante o render quando o telefone muda (padrão "store info from
+  // previous renders" — sem setState em effect).
+  const [prevTail, setPrevTail] = useState(phoneTail);
+  if (phoneTail !== prevTail) {
+    setPrevTail(phoneTail);
+    setConversation(undefined);
+    setMessages([]);
+  }
+
+  // loading é derivado — sem estado próprio.
+  const loading = validPhone && conversation === undefined;
 
   // Procurar conversa por last 9 digits do telefone do cliente.
   useEffect(() => {
+    if (!phoneTail || phoneTail.length < 9) return;
     let cancelled = false;
-    if (!phoneTail || phoneTail.length < 9) {
-      setLoading(false);
-      return;
-    }
 
     supabase
       .from("whatsapp_conversations")
@@ -68,16 +79,16 @@ export default function WhatsappLivePanel({ phone }: Props) {
         if (cancelled) return;
         const c = (data?.[0] ?? null) as WhatsappConversation | null;
         setConversation(c);
-        setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [supabase, phoneTail]);
 
   // Quando temos conversa: ir buscar mensagens + Realtime.
+  // (reset de messages ao mudar de conversa é feito no render, acima)
   useEffect(() => {
-    if (!conversation) {
-      setMessages([]);
-      return;
-    }
+    if (!conversation) return;
     let cancelled = false;
 
     supabase
@@ -335,6 +346,7 @@ function MessageBubble({
               <div>
                 {proxyUrl && isVisualMedia ? (
                   <a href={message.media_url_drive ?? "#"} target="_blank" rel="noopener noreferrer" className="block mb-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- media do WhatsApp via proxy autenticado; next/image não traz benefício e custaria optimização */}
                     <img
                       src={proxyUrl}
                       alt={message.text ?? "foto"}
@@ -455,11 +467,14 @@ function SuggestComposer({ conversationId }: { conversationId: string }) {
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Reset durante o render quando muda de conversa — sem setState em effect.
+  const [prevConversationId, setPrevConversationId] = useState(conversationId);
+  if (conversationId !== prevConversationId) {
+    setPrevConversationId(conversationId);
     setInstruction("");
     setSuggestion(null);
     setLoading(false);
-  }, [conversationId]);
+  }
 
   async function handleSuggest() {
     if (loading) return;

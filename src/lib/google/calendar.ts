@@ -223,7 +223,21 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   let prefix: string | null = null;
   if (isPickup) prefix = "🚗 RECOLHA";
   else if (isHandDelivery) prefix = "🤲 EM MÃOS";
-  const summary = `${[prefix, namePart, typeLabel].filter(Boolean).join(" | ")} 💐`;
+
+  // Distinguir, no título, um evento que está mesmo na DATA DE ENTREGA
+  // (cliente já disse quando entrega) de um que está só na DATA DO EVENTO
+  // por ainda não haver data de entrega combinada. Só faz sentido para
+  // entregas em mãos / recolha no local (CTT vai por correio, não tem
+  // "marcação"; e nesses casos não poluímos o título).
+  const deliveryDateConfirmed =
+    (isPickup && !!order.pickup_date) ||
+    (isHandDelivery && !!order.hand_delivery_date);
+  const isCtt = order.flower_delivery_method === "ctt";
+  const showNoDeliveryDateNote = !deliveryDateConfirmed && !isCtt;
+
+  const summary =
+    `${[prefix, namePart, typeLabel].filter(Boolean).join(" | ")} 💐` +
+    (showNoDeliveryDateNote ? " — ⏳ entrega por combinar" : "");
 
   // Data efectiva do evento (dia em que o evento aparece no Calendar):
   //   - recolha: pickup_date se houver, senão event_date

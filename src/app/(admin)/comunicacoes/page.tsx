@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentRole } from "@/lib/auth/server";
 import { MessageSquareText, MessageCircle, BookText, Sparkles } from "lucide-react";

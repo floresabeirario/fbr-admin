@@ -1,10 +1,28 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentRole } from "@/lib/auth/server";
-import { HEALTHCHECK_STATUS_KEY, type HealthcheckSummary } from "@/lib/healthcheck-cache";
+import { runHealthchecks } from "@/lib/healthchecks";
+import {
+  HEALTHCHECK_STATUS_KEY,
+  summariseHealthchecks,
+  type HealthcheckSummary,
+} from "@/lib/healthcheck-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// Se a cache da bolinha tiver mais do que isto, voltamos a correr os
+// healthchecks aqui mesmo (auto-cura). Assim a bolinha mantém-se fresca
+// com o uso normal da plataforma, sem depender do cron diário nem de
+// alguém abrir a aba Healthchecks.
+const STALE_AFTER_MS = 6 * 60 * 60 * 1000; // 6 horas
+
+function isStale(summary: HealthcheckSummary | null): boolean {
+  if (!summary?.ran_at) return true;
+  const ranAt = new Date(summary.ran_at).getTime();
+  if (Number.isNaN(ranAt)) return true;
+  return Date.now() - ranAt > STALE_AFTER_MS;
+}
 
 export async function GET() {
   const role = await getCurrentRole();
@@ -23,14 +41,30 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (!data) {
-    return NextResponse.json({ summary: null });
+  let summary: HealthcheckSummary | null = null;
+  if (data) {
+    try {
+      summary = JSON.parse(data.value) as HealthcheckSummary;
+    } catch {
+      summary = null;
+    }
   }
 
-  try {
-    const summary = JSON.parse(data.value) as HealthcheckSummary;
-    return NextResponse.json({ summary });
-  } catch {
-    return NextResponse.json({ summary: null });
+  // Cache em falta ou velha → corre os checks agora e regrava. Maria é
+  // admin → a RLS de system_settings deixa escrever. Se algo falhar,
+  // devolvemos o que tínhamos (não rebenta a bolinha).
+  if (isStale(summary)) {
+    try {
+      const checks = await runHealthchecks(supabase);
+      const fresh = summariseHealthchecks(checks);
+      await supabase
+        .from("system_settings")
+        .upsert({ key: HEALTHCHECK_STATUS_KEY, value: JSON.stringify(fresh) });
+      summary = fresh;
+    } catch {
+      // mantém o summary anterior (pode ser null) — melhor que falhar
+    }
   }
+
+  return NextResponse.json({ summary });
 }

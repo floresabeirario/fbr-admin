@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Sparkles, BookText, MessageSquareText, FileText, Save, ExternalLink, Wallet } from "lucide-react";
@@ -175,14 +175,15 @@ function SettingCard({
   const [value, setValue] = useState(initialValue);
   const [savedValue, setSavedValue] = useState(initialValue);
   const [pending, startTransition] = useTransition();
-  const lastSavedRef = useRef(initialValue);
 
-  // Reset se prop muda (revalidate vindo do servidor)
-  useEffect(() => {
+  // Reset se prop muda (revalidate vindo do servidor) — feito durante o
+  // render (padrão "store info from previous renders", sem setState em effect).
+  const [prevInitial, setPrevInitial] = useState(initialValue);
+  if (initialValue !== prevInitial) {
+    setPrevInitial(initialValue);
     setValue(initialValue);
     setSavedValue(initialValue);
-    lastSavedRef.current = initialValue;
-  }, [initialValue]);
+  }
 
   const dirty = value !== savedValue;
 
@@ -191,7 +192,6 @@ function SettingCard({
       try {
         await updateSystemSettingAction(settingKey, value);
         setSavedValue(value);
-        lastSavedRef.current = value;
         toast.success(`${title} guardado.`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro a guardar");

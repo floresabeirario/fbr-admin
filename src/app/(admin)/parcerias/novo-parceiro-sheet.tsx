@@ -23,7 +23,6 @@ import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
   Building2,
   User,
-  Mail,
   Phone,
   MapPin,
   Link as LinkIcon,

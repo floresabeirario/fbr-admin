@@ -67,13 +67,6 @@ function formatMessageTime(iso: string): string {
   return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Usado na lista de conversas (preview da ultima mensagem). Se ha caption,
-// mostra o caption; se nao, o icone+label do tipo.
-function previewLabel(content_type: string, text: string | null): string {
-  if (text) return text;
-  return mediaIconLabel(content_type);
-}
-
 // Usado dentro das bolhas para a etiqueta do tipo de media. Nunca devolve
 // o caption — esse aparece numa linha separada por baixo.
 function mediaIconLabel(content_type: string): string {
@@ -102,12 +95,13 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("todas");
 
-  // Sincroniza com ?conv= quando muda externamente (ex: cmd+k → conversa)
-  useEffect(() => {
-    if (convParam && convParam !== selectedId) {
-      setSelectedId(convParam);
-    }
-  }, [convParam, selectedId]);
+  // Sincroniza com ?conv= quando muda externamente (ex: cmd+k → conversa).
+  // Feito durante o render (padrão "store info from previous renders").
+  const [prevConvParam, setPrevConvParam] = useState(convParam);
+  if (convParam !== prevConvParam) {
+    setPrevConvParam(convParam);
+    if (convParam) setSelectedId(convParam);
+  }
 
   // Pre-calcular para cada conversa se tem encomenda associada (matching por last 9 digits).
   const convHasOrder = useMemo(() => {
@@ -352,11 +346,16 @@ function ConversationViewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Reset search ao trocar de conversa
-  useEffect(() => {
+  // Reset ao trocar de conversa — durante o render (padrão "store info from
+  // previous renders", sem setState em effect).
+  const [prevConversationId, setPrevConversationId] = useState(conversation.id);
+  if (conversation.id !== prevConversationId) {
+    setPrevConversationId(conversation.id);
     setSearchOpen(false);
     setSearchTerm("");
-  }, [conversation.id]);
+    setMessages([]);
+    setLoading(true);
+  }
 
   // Filtro de mensagens por termo de pesquisa
   const visibleMessages = useMemo(() => {
@@ -370,11 +369,10 @@ function ConversationViewer({
     [orders, conversation.phone_e164],
   );
 
-  // Fetch mensagens da conversa + subscrever Realtime
+  // Fetch mensagens da conversa + subscrever Realtime.
+  // (reset de loading/messages ao mudar de conversa é feito no render, acima)
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setMessages([]);
 
     supabase
       .from("whatsapp_messages")
@@ -611,12 +609,14 @@ function SuggestComposer({ conversationId }: { conversationId: string }) {
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
 
-  // Reset quando muda de conversa
-  useEffect(() => {
+  // Reset quando muda de conversa — durante o render, sem setState em effect.
+  const [prevSuggestConvId, setPrevSuggestConvId] = useState(conversationId);
+  if (conversationId !== prevSuggestConvId) {
+    setPrevSuggestConvId(conversationId);
     setInstruction("");
     setSuggestion(null);
     setLoading(false);
-  }, [conversationId]);
+  }
 
   async function handleSuggest() {
     if (loading) return;
@@ -915,6 +915,7 @@ function MessageContent({ message }: { message: WhatsappMessage }) {
         {/* Bloco principal de media */}
         {proxyUrl && isVisualMedia ? (
           <a href={message.media_url_drive ?? "#"} target="_blank" rel="noopener noreferrer" className="block mb-1">
+            {/* eslint-disable-next-line @next/next/no-img-element -- media do WhatsApp via proxy autenticado; next/image não traz benefício e custaria optimização */}
             <img
               src={proxyUrl}
               alt={message.text ?? "foto"}
@@ -999,11 +1000,15 @@ function NotesArea({
   const [value, setValue] = useState(initialNotes ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset quando muda de conversa
-  useEffect(() => {
+  // Reset quando muda de conversa ou as notas vêm actualizadas do servidor —
+  // durante o render, sem setState em effect.
+  const [prevNotesKey, setPrevNotesKey] = useState(`${conversationId} ${initialNotes ?? ""}`);
+  const notesKey = `${conversationId} ${initialNotes ?? ""}`;
+  if (notesKey !== prevNotesKey) {
+    setPrevNotesKey(notesKey);
     setValue(initialNotes ?? "");
     setOpen(false);
-  }, [conversationId, initialNotes]);
+  }
 
   function handleChange(next: string) {
     setValue(next);

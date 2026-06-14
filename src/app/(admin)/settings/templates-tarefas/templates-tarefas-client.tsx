@@ -281,7 +281,7 @@ export default function TaskTemplatesClient({
           </p>
           <p className="text-[11px] text-cocoa-600">
             Click para copiar e cola no título do template. Variáveis sem valor na
-            encomenda/vale ficam como <span className="font-mono">"—"</span>.
+            encomenda/vale ficam como <span className="font-mono">“—”</span>.
           </p>
           <div className="flex flex-wrap gap-1.5">
             {TASK_TEMPLATE_VARIABLES.map((v) => (

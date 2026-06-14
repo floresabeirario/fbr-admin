@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/settings/google", label: "Definições", icon: Settings, adminOnly: true },
-  { href: "/settings/templates-tarefas", label: "Tarefas", icon: ListTodo, adminOnly: true },
+  { href: "/settings/templates-tarefas", label: "Templates de tarefas", icon: ListTodo, adminOnly: true },
   { href: "/settings/rgpd", label: "RGPD", icon: Shield, adminOnly: true },
   { href: "/settings/audit", label: "Histórico", icon: History, adminOnly: true },
   { href: "/healthchecks", label: "Healthchecks", icon: HeartPulse, adminOnly: true },

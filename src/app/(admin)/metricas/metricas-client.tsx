@@ -25,6 +25,7 @@ import {
   MessageCircle,
   Ticket,
   Sparkle,
+  Info,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
@@ -62,6 +63,9 @@ import type {
   FrameDeliveryMethod,
   ContactPreference,
   CouponStatus,
+  FrameBackground,
+  FrameSize,
+  EventType,
 } from "@/types/database";
 
 import type { Order } from "@/types/database";
@@ -76,12 +80,40 @@ import {
   type DateRange,
 } from "@/lib/metrics";
 
-// Paletas vivas (mais visíveis) por gráfico circular — cada gráfico tem
-// uma família de cores própria para diferenciar visualmente.
-const PIE_PALETTE_FRAME = ["#a78bfa", "#818cf8", "#60a5fa", "#38bdf8", "#22d3ee"]; // violeta → ciano
-const PIE_PALETTE_BG    = ["#fb7185", "#f472b6", "#e879f9", "#c084fc", "#fbbf24"]; // rosa → amber
-const PIE_PALETTE_EVENT = ["#34d399", "#a3e635", "#facc15", "#fb923c", "#fb7185"]; // verde → rosa
+// Paleta genérica (usada onde não há cor "natural" por categoria).
 const ACQ_PALETTE       = ["#c084fc", "#60a5fa", "#34d399", "#facc15", "#fb923c"];
+
+// Cores semânticas para o fundo do quadro — aproximam o significado real
+// de cada opção em vez de um arco-íris aleatório.
+const FRAME_BACKGROUND_HEX: Record<FrameBackground, string> = {
+  transparente:     "#cbd5e1", // slate-300 (vidro/transparente)
+  preto:            "#374151", // gray-700 (preto, legível)
+  branco:           "#e5e7eb", // gray-200 (branco/claro)
+  fotografia:       "#3b82f6", // blue-500 (fotografia)
+  cor:              "#d946ef", // fuchsia-500 (cor viva)
+  voces_a_escolher: "#94a3b8", // slate-400 (à nossa escolha)
+  nao_sei:          "#a8a29e", // stone-400 (não sei)
+};
+
+// Tamanho de moldura não tem cor "natural" → escala da marca, do mais
+// claro (menor) ao mais escuro (maior).
+const FRAME_SIZE_HEX: Record<FrameSize, string> = {
+  "30x40":          "#D4C19F",
+  "40x50":          "#C4A882",
+  "50x70":          "#9C7B4E",
+  voces_a_escolher: "#94a3b8",
+  nao_sei:          "#a8a29e",
+};
+
+// Tipo de evento — cor distinta e com alguma lógica (casamento rosa,
+// funeral sóbrio, etc.).
+const EVENT_TYPE_HEX: Record<EventType, string> = {
+  casamento:        "#f472b6", // pink (romance)
+  batizado:         "#60a5fa", // blue
+  funeral:          "#64748b", // slate (sóbrio)
+  pedido_casamento: "#fb7185", // rose
+  outro:            "#a8a29e", // stone
+};
 
 // Paletas semânticas — espelham as cores Tailwind usadas como badges
 // noutras zonas da app (types/database.ts, preservacao, entregas-recolhas)
@@ -153,6 +185,7 @@ function HeroKpiCard({
   gradient,
   iconBg,
   iconColor,
+  info,
 }: {
   label: string;
   value: string;
@@ -162,6 +195,8 @@ function HeroKpiCard({
   gradient: string;
   iconBg: string;
   iconColor: string;
+  /** Explicação do que o valor mede (mostrada num tooltip no ícone ⓘ). */
+  info?: string;
 }) {
   return (
     <div
@@ -171,8 +206,13 @@ function HeroKpiCard({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-cocoa-900/70 dark:text-[#E8D5B5]/70">
+        <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold text-cocoa-900/70 dark:text-[#E8D5B5]/70">
           {label}
+          {info && (
+            <span title={info} className="cursor-help inline-flex">
+              <Info className="h-3 w-3 opacity-60" />
+            </span>
+          )}
         </div>
         <div
           className={cn(
@@ -236,12 +276,15 @@ function ChartCard({
   iconColor,
   children,
   className,
+  info,
 }: {
   title: string;
   icon?: React.ComponentType<{ className?: string }>;
   iconColor?: string;
   children: React.ReactNode;
   className?: string;
+  /** Explicação do que o gráfico mede (tooltip no ícone ⓘ). */
+  info?: string;
 }) {
   return (
     <div
@@ -253,6 +296,11 @@ function ChartCard({
       <h3 className="text-sm font-semibold text-cocoa-900 flex items-center gap-2">
         {Icon && <Icon className={cn("h-4 w-4", iconColor)} />}
         {title}
+        {info && (
+          <span title={info} className="cursor-help inline-flex text-cocoa-500">
+            <Info className="h-3.5 w-3.5" />
+          </span>
+        )}
       </h3>
       {children}
     </div>
@@ -390,10 +438,11 @@ export default function MetricasClient({
               label="Receita do período"
               value={formatEuro(metrics.revenue)}
               pct={metrics.showComparison ? metrics.revenuePctChange : undefined}
+              info="Dinheiro JÁ RECEBIDO no período: orçamento de cada encomenda × % já pago (30/70/100%), mais vales 100% pagos ainda não convertidos em preservação. NÃO é o valor total das encomendas se todas pagassem 100%. Conta pela data do evento e exclui canceladas."
               sub={
                 metrics.showComparison
                   ? `vs. ${metrics.comparisonLabel}: ${formatEuro(metrics.revenuePrev)}`
-                  : "Todas as encomendas (data do evento)"
+                  : "Já recebido (orçamento × %pago + vales pagos)"
               }
               icon={Euro}
               gradient="bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-green-900/30 dark:border-emerald-900/50"
@@ -404,6 +453,7 @@ export default function MetricasClient({
               label="Receita do ano"
               value={formatEuro(metrics.yearRevenue)}
               pct={metrics.yearRevenuePctChange}
+              info="Mesma base da 'Receita do período' mas para o ano civil inteiro: dinheiro já recebido (orçamento × %pago + vales pagos), pela data do evento, sem canceladas. Comparado com o mesmo período do ano passado."
               sub={`vs. ano passado: ${formatEuro(metrics.yearRevenuePrev)}`}
               icon={CalendarRange}
               gradient="bg-gradient-to-br from-sky-50 to-blue-100 border-sky-200 dark:from-sky-950/40 dark:to-blue-900/30 dark:border-sky-900/50"
@@ -459,6 +509,7 @@ export default function MetricasClient({
             title="Receita por mês (últimos 12 meses)"
             icon={Euro}
             iconColor="text-emerald-500"
+            info="Cada mês mostra o dinheiro já recebido (orçamento × %pago + vales pagos), pela data do evento, sem canceladas — a mesma base do cartão 'Receita do período'."
           >
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={monthly}>
@@ -526,13 +577,22 @@ export default function MetricasClient({
           {/* Distribuições circulares — 3 columns, cada pie com palette própria */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <ChartCard title="Tamanho de moldura" icon={Frame} iconColor="text-violet-500">
-              <PieDist data={metrics.ordersByFrameSize} palette={PIE_PALETTE_FRAME} />
+              <PieDist
+                data={metrics.ordersByFrameSize}
+                fills={metrics.ordersByFrameSize.map((d) => FRAME_SIZE_HEX[d.key])}
+              />
             </ChartCard>
             <ChartCard title="Tipo de fundo" icon={Palette} iconColor="text-rose-500">
-              <PieDist data={metrics.ordersByFrameBackground} palette={PIE_PALETTE_BG} />
+              <PieDist
+                data={metrics.ordersByFrameBackground}
+                fills={metrics.ordersByFrameBackground.map((d) => FRAME_BACKGROUND_HEX[d.key])}
+              />
             </ChartCard>
             <ChartCard title="Tipo de evento" icon={PartyPopper} iconColor="text-emerald-500">
-              <PieDist data={metrics.ordersByEventType} palette={PIE_PALETTE_EVENT} />
+              <PieDist
+                data={metrics.ordersByEventType}
+                fills={metrics.ordersByEventType.map((d) => EVENT_TYPE_HEX[d.key])}
+              />
             </ChartCard>
           </div>
 
@@ -649,6 +709,7 @@ export default function MetricasClient({
               title="Top 5 parceiros (receita + comissões)"
               icon={Trophy}
               iconColor="text-amber-500"
+              info="Receita = dinheiro já recebido das encomendas deste parceiro (orçamento × %pago). Comissões em valor total acordado (não proporcional ao que a cliente já pagou): 'Paga' = já liquidada ao parceiro; 'Por pagar' = ainda em dívida; 'Total' = soma das duas. Estados 'N/A' e 'Não aceita' não contam."
             >
               <table className="w-full text-sm">
                 <thead className="text-xs uppercase tracking-wider text-cocoa-700">
@@ -656,7 +717,9 @@ export default function MetricasClient({
                     <th className="text-left py-2">#</th>
                     <th className="text-left py-2">Parceiro</th>
                     <th className="text-right py-2">Receita</th>
-                    <th className="text-right py-2">Comissão devida</th>
+                    <th className="text-right py-2" title="Comissão já liquidada ao parceiro (estado 'Paga')">Comissão paga</th>
+                    <th className="text-right py-2" title="Comissão ainda em dívida ao parceiro (parceiro informado / a aguardar)">Por pagar</th>
+                    <th className="text-right py-2" title="Soma da comissão paga + por pagar">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -694,8 +757,14 @@ export default function MetricasClient({
                         <td className="py-2 text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
                           {formatEuro(p.revenue)}
                         </td>
+                        <td className="py-2 text-right tabular-nums text-emerald-700/80 dark:text-emerald-400/80">
+                          {formatEuro(p.commissionsPaid)}
+                        </td>
                         <td className="py-2 text-right tabular-nums text-amber-700 dark:text-amber-400">
-                          {formatEuro(p.commissions)}
+                          {formatEuro(p.commissionsDue)}
+                        </td>
+                        <td className="py-2 text-right tabular-nums font-semibold text-cocoa-900">
+                          {formatEuro(p.commissionsTotal)}
                         </td>
                       </tr>
                     );

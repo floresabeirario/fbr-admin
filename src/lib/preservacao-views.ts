@@ -143,10 +143,8 @@ function emptyShape(): StorageShape {
   };
 }
 
-export function readStorage(): StorageShape {
-  if (typeof window === "undefined") return emptyShape();
+function parseStorage(raw: string | null): StorageShape {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyShape();
     const parsed = JSON.parse(raw) as Partial<StorageShape>;
     return {
@@ -164,13 +162,52 @@ export function readStorage(): StorageShape {
   }
 }
 
-export function writeStorage(state: StorageShape): void {
-  if (typeof window === "undefined") return;
+// ── Store reactivo (useSyncExternalStore) ────────────────────
+// Snapshot cacheado por valor cru do localStorage — o React exige referência
+// estável quando nada mudou (React #185).
+
+let viewsCacheRaw: string | null | undefined = undefined;
+let viewsCacheValue: StorageShape = emptyShape();
+const SERVER_VIEWS_SHAPE: StorageShape = emptyShape();
+const viewsListeners = new Set<() => void>();
+
+export function getViewsSnapshot(): StorageShape {
+  let raw: string | null = null;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    /* privacy mode — usa default */
+  }
+  if (raw !== viewsCacheRaw) {
+    viewsCacheRaw = raw;
+    viewsCacheValue = parseStorage(raw);
+  }
+  return viewsCacheValue;
+}
+
+export function getServerViewsSnapshot(): StorageShape {
+  return SERVER_VIEWS_SHAPE;
+}
+
+export function subscribeViews(cb: () => void): () => void {
+  viewsListeners.add(cb);
+  // "storage" cobre alterações feitas noutra aba.
+  window.addEventListener("storage", cb);
+  return () => {
+    viewsListeners.delete(cb);
+    window.removeEventListener("storage", cb);
+  };
+}
+
+export function updateViewsStorage(partial: Partial<StorageShape>): void {
+  if (typeof window === "undefined") return;
+  const next = { ...getViewsSnapshot(), ...partial };
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     /* quota / privacy mode — ignorar */
   }
+  viewsListeners.forEach((cb) => cb());
 }
 
 // Helper para gerar IDs curtos sem dependência externa.

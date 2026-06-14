@@ -46,6 +46,7 @@ import {
   searchFigures,
   figureStats,
   daysUntilEvent,
+  daysSinceUpdate,
 } from "@/lib/supabase/public-figures";
 import { setNavList } from "@/lib/workbench-nav";
 import { updateFigureAction } from "./figuras-actions";
@@ -141,10 +142,8 @@ function FigureRow({
   const pendingActions = figure.actions.filter((a) => !a.done).length;
 
   // Alerta de follow-up: contactada e sem mexer há 7+ dias.
-  const daysSinceUpdate = Math.round(
-    (Date.now() - new Date(figure.updated_at).getTime()) / 86_400_000,
-  );
-  const staleContact = currentStatus === "contactada" && daysSinceUpdate >= 7;
+  const staleContact =
+    currentStatus === "contactada" && daysSinceUpdate(figure.updated_at) >= 7;
 
   function changeStatus(s: FigureStatus) {
     if (s === currentStatus) return;

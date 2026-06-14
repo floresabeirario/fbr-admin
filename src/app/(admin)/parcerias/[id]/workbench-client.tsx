@@ -31,7 +31,6 @@ import {
   User,
   Users,
   Gift,
-  Flower2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,7 +147,7 @@ export default function PartnerWorkbenchClient({
 }: Props) {
   const router = useRouter();
   const [partner, setPartner] = useState<Partner>(initial);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [savingField, setSavingField] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
