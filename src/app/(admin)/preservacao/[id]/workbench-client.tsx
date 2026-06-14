@@ -42,6 +42,7 @@ import {
   Globe,
   Mail,
   MessageCircle,
+  Info,
   Plus,
   X,
   Link2,
@@ -1901,23 +1902,22 @@ export default function WorkbenchClient({
                     </Field>
                   </div>
 
-                  {/* Pagamento em dinheiro à entrega — marcador interno.
-                      O link de status público funciona mesmo sem pagamento
-                      registado a partir do momento em que a encomenda fica
-                      agendada (ver mig 076). */}
-                  <div className="rounded-lg border border-cream-200 bg-cream-50/60 px-3 py-2.5 space-y-1.5">
+                  {/* Pagamento em dinheiro à entrega — marcador interno. A
+                      explicação foi para um tooltip (ⓘ) para poupar espaço; o
+                      link público funciona sem pagamento registado a partir do
+                      momento em que a encomenda fica agendada (ver mig 076). */}
+                  <div className="flex items-center gap-1.5">
                     <CheckRow
                       label="Pagamento em dinheiro à entrega"
                       checked={local.cash_on_delivery}
                       onChange={(v) => update("cash_on_delivery", v)}
                     />
-                    {local.cash_on_delivery && (
-                      <p className="text-[11px] text-cocoa-600 leading-snug pl-6">
-                        O cliente paga em mão ao entregar as flores. O link de
-                        acompanhamento já funciona assim que a encomenda fica
-                        agendada — não é preciso registar pagamento.
-                      </p>
-                    )}
+                    <span
+                      title="O cliente paga em mão ao entregar as flores. O link de acompanhamento já funciona assim que a encomenda fica agendada — não é preciso registar pagamento."
+                      className="cursor-help text-cocoa-400 shrink-0"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </span>
                   </div>
 
                   {/* Acerto de pagamento: orçamento subiu depois do sinal */}
