@@ -326,8 +326,8 @@ function DespesasUnicas({
       </div>
 
       {creating && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-rose-900">Registar nova despesa</h3>
+        <div className="rounded-xl border border-violet-200 bg-violet-50/60 dark:bg-violet-950/20 dark:border-violet-900/50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-200">Registar nova despesa</h3>
           <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr_180px_120px] gap-2">
             <Input
               type="date"

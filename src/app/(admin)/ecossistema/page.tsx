@@ -179,7 +179,7 @@ const INTEGRATIONS: Array<
   },
   {
     name: "Anthropic Claude",
-    description: "\"Cérebro do Claudio\": sugere respostas no WhatsApp e no workbench (PT/EN), com persona e factos editáveis. Só corre ao carregar no botão.",
+    description: "\"Cérebro da Claude\": sugere respostas no WhatsApp e no workbench (PT/EN), com persona e factos editáveis. Só corre ao carregar no botão.",
     tone: "integration",
     icon: Sparkles,
     status: "active",
@@ -209,8 +209,8 @@ const INTEGRATIONS: Array<
 // Repositórios de código no GitHub (org floresabeirario).
 const REPOSITORIES: { name: string; url: string; description: string }[] = [
   {
-    name: "fbr-admin2",
-    url: "https://github.com/floresabeirario/fbr-admin2",
+    name: "fbr-admin",
+    url: "https://github.com/floresabeirario/fbr-admin",
     description: "Esta plataforma admin (Next.js + Supabase).",
   },
   {

@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils";
 import { formatEUR } from "@/lib/format";
 import {
   commissionFromOrder,
+  commissionFullFromVoucher,
+  voucherCodesWithCommission,
+  orderCommissionSuppressedByVoucher,
   cogsRecognizedFromOrder,
   paidRatio as paidRatioOf,
 } from "@/lib/finance";
@@ -44,7 +47,7 @@ const INFO_DESPESAS =
 const INFO_COGS =
   "Custo de produção reconhecido: só conta os materiais das encomendas 100% pagas (tudo-ou-nada). Encomendas a 30/70% ainda não entram.";
 const INFO_COMISSOES =
-  "Comissões a parceiros, proporcionais ao % já pago, nos estados que contam (parceiro informado / a aguardar / paga). 'N/A' e 'Não aceita' não entram.";
+  "Comissões a parceiros, proporcionais ao % já pago, nos estados que contam (parceiro informado / a aguardar / paga). 'N/A' e 'Não aceita' não entram. Inclui comissões de vales recomendados (só quando o vale está 100% pago); contam uma única vez no vale e não recontam quando este vira preservação.";
 const INFO_LUCRO =
   "Receita recebida − despesas − custo de produção − comissões, no período.";
 
@@ -207,13 +210,32 @@ export function FaturacaoTab({
 
   // Comissões a parceiros: dedução à receita (decisão Maria 2026-05-19).
   // Conta proporcional ao %pago, excluindo estados `na` e `nao_aceita` e
-  // encomendas canceladas (alinhado com a receita).
-  const commissionMonth = orders
-    .filter((o) => o.status !== "cancelado" && inRange(o.event_date, monthStart, monthEnd))
-    .reduce((s, o) => s + commissionFromOrder(o), 0);
-  const commissionYear = orders
-    .filter((o) => o.status !== "cancelado" && inRange(o.event_date, yearStart, yearEnd))
-    .reduce((s, o) => s + commissionFromOrder(o), 0);
+  // encomendas canceladas (alinhado com a receita). Inclui também as
+  // comissões dos VALES com parceiro (contam uma única vez no vale, só
+  // quando 100% pago — decisão Maria sessão 116); a comissão de uma
+  // encomenda paga com um vale comissionado é suprimida (não recontar).
+  const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
+  const orderCommissionInRange = (start: Date, end: Date) =>
+    orders
+      .filter((o) => o.status !== "cancelado" && inRange(o.event_date, start, end))
+      .reduce(
+        (s, o) =>
+          s +
+          (orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
+            ? 0
+            : commissionFromOrder(o)),
+        0,
+      );
+  const voucherCommissionInRange = (start: Date, end: Date) =>
+    vouchers
+      .filter((v) => inRange(v.created_at, start, end))
+      .reduce((s, v) => s + commissionFullFromVoucher(v), 0);
+  const commissionMonth =
+    orderCommissionInRange(monthStart, monthEnd) +
+    voucherCommissionInRange(monthStart, monthEnd);
+  const commissionYear =
+    orderCommissionInRange(yearStart, yearEnd) +
+    voucherCommissionInRange(yearStart, yearEnd);
 
   // Receita líquida = bruta − comissões (mostrado como sub-texto debaixo
   // do KPI principal, sem inflar a grelha com mais um KPI por linha).

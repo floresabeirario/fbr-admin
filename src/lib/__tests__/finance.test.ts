@@ -9,6 +9,9 @@ import {
   paidRatio,
   commissionFromOrder,
   commissionFullFromOrder,
+  commissionFullFromVoucher,
+  voucherCodesWithCommission,
+  orderCommissionSuppressedByVoucher,
   cogsFullFromOrder,
   cogsRecognizedFromOrder,
   orderPnL,
@@ -90,6 +93,67 @@ describe("commissionFromOrder", () => {
         partner_commission_status: "paga",
       }),
     ).toBe(0);
+  });
+});
+
+describe("comissão em vales (#15 — conta uma única vez no vale)", () => {
+  const baseVoucher = {
+    code: "ABC123",
+    partner_commission: 30,
+    partner_commission_status: "a_aguardar" as const,
+    payment_status: "100_pago" as const,
+  };
+
+  it("commissionFullFromVoucher: valor pleno quando 100% pago e estado conta", () => {
+    expect(commissionFullFromVoucher(baseVoucher)).toBe(30);
+    expect(
+      commissionFullFromVoucher({ ...baseVoucher, partner_commission_status: "paga" }),
+    ).toBe(30);
+  });
+
+  it("commissionFullFromVoucher: 0 quando o vale ainda não está pago", () => {
+    expect(
+      commissionFullFromVoucher({ ...baseVoucher, payment_status: "100_por_pagar" }),
+    ).toBe(0);
+  });
+
+  it('commissionFullFromVoucher: 0 para "N/A"/"Não aceita" ou valor nulo', () => {
+    expect(
+      commissionFullFromVoucher({ ...baseVoucher, partner_commission_status: "na" }),
+    ).toBe(0);
+    expect(
+      commissionFullFromVoucher({ ...baseVoucher, partner_commission_status: "nao_aceita" }),
+    ).toBe(0);
+    expect(
+      commissionFullFromVoucher({ ...baseVoucher, partner_commission: null }),
+    ).toBe(0);
+  });
+
+  it("voucherCodesWithCommission: só inclui vales pagos com comissão que conta", () => {
+    const set = voucherCodesWithCommission([
+      baseVoucher, // ABC123 — conta
+      { ...baseVoucher, code: "UNPAID", payment_status: "100_por_pagar" }, // não pago
+      { ...baseVoucher, code: "NA", partner_commission_status: "na" }, // estado não conta
+      { ...baseVoucher, code: "ZERO", partner_commission: 0 }, // sem valor
+    ]);
+    expect(set.has("ABC123")).toBe(true);
+    expect(set.has("UNPAID")).toBe(false);
+    expect(set.has("NA")).toBe(false);
+    expect(set.has("ZERO")).toBe(false);
+    expect(set.size).toBe(1);
+  });
+
+  it("orderCommissionSuppressedByVoucher: suprime quando a encomenda veio de um vale comissionado", () => {
+    const codes = new Set(["ABC123"]);
+    expect(
+      orderCommissionSuppressedByVoucher({ gift_voucher_code: "ABC123" }, codes),
+    ).toBe(true);
+    expect(
+      orderCommissionSuppressedByVoucher({ gift_voucher_code: "OUTRO" }, codes),
+    ).toBe(false);
+    expect(
+      orderCommissionSuppressedByVoucher({ gift_voucher_code: null }, codes),
+    ).toBe(false);
   });
 });
 

@@ -34,7 +34,12 @@ import type {
   YesNoInfo,
 } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
-import { commissionFullFromOrder } from "@/lib/finance";
+import {
+  commissionFullFromOrder,
+  commissionFullFromVoucher,
+  voucherCodesWithCommission,
+  orderCommissionSuppressedByVoucher,
+} from "@/lib/finance";
 import {
   STATUS_LABELS,
   FRAME_SIZE_LABELS,
@@ -445,19 +450,44 @@ export function computeMetrics(
     string,
     { revenue: number; commissionsPaid: number; commissionsDue: number }
   >();
+  // Vales que já carregam comissão contada → suprime a comissão das
+  // encomendas que vieram desses vales (não recontar; ver finance.ts).
+  const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
   for (const o of revenueOrdersIn(orders, range)) {
     if (!o.partner_id) continue;
     const cur =
       partnerStats.get(o.partner_id) ??
       { revenue: 0, commissionsPaid: 0, commissionsDue: 0 };
     cur.revenue += orderRevenue(o);
-    const fullCommission = commissionFullFromOrder(o);
+    const fullCommission = orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
+      ? 0
+      : commissionFullFromOrder(o);
     if (o.partner_commission_status === "paga") {
       cur.commissionsPaid += fullCommission;
     } else {
       cur.commissionsDue += fullCommission; // 0 para na/nao_aceita
     }
     partnerStats.set(o.partner_id, cur);
+  }
+  // Comissões (e receita) dos vales com parceiro — contam uma única vez no
+  // vale (decisão Maria, sessão 116), mesmo que o destinatário nunca reserve.
+  // Período do vale = created_at, igual à receita do vale.
+  for (const v of vouchers) {
+    if (!v.partner_id) continue;
+    if (!inRange(v.created_at, range)) continue;
+    const vRevenue = voucherRevenue(v);
+    const fullCommission = commissionFullFromVoucher(v);
+    if (vRevenue === 0 && fullCommission === 0) continue;
+    const cur =
+      partnerStats.get(v.partner_id) ??
+      { revenue: 0, commissionsPaid: 0, commissionsDue: 0 };
+    cur.revenue += vRevenue;
+    if (v.partner_commission_status === "paga") {
+      cur.commissionsPaid += fullCommission;
+    } else {
+      cur.commissionsDue += fullCommission;
+    }
+    partnerStats.set(v.partner_id, cur);
   }
   const topPartners = [...partnerStats.entries()]
     .sort((a, b) => b[1].revenue - a[1].revenue)

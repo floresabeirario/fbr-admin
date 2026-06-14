@@ -32,10 +32,18 @@ export type FaturacaoOrder = Pick<
   | "production_cost_snapshot"
   | "partner_commission"
   | "partner_commission_status"
+  | "gift_voucher_code"
 >;
 export type FaturacaoVoucher = Pick<
   import("@/types/voucher").Voucher,
-  "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status"
+  | "id"
+  | "code"
+  | "created_at"
+  | "amount"
+  | "payment_status"
+  | "usage_status"
+  | "partner_commission"
+  | "partner_commission_status"
 >;
 
 export function inRangeISO(iso: string | null, start: Date, end: Date): boolean {

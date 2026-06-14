@@ -53,7 +53,7 @@ const TABS: TabDef[] = [
   },
   {
     key: "pnl",
-    label: "P&L por encomenda",
+    label: "Lucro por encomenda",
     helper: "Margem por quadro",
     icon: Frame,
     accent: "text-amber-600",

@@ -20,7 +20,14 @@ import {
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
 import { formatEUR } from "@/lib/format";
-import { orderPnL, aggregateExpensesByAccountingType, ACCOUNTING_TYPE_LABELS } from "@/lib/finance";
+import {
+  orderPnL,
+  aggregateExpensesByAccountingType,
+  ACCOUNTING_TYPE_LABELS,
+  commissionFullFromVoucher,
+  voucherCodesWithCommission,
+  orderCommissionSuppressedByVoucher,
+} from "@/lib/finance";
 import { FRAME_SIZE_LABELS, FRAME_BACKGROUND_LABELS } from "@/types/database";
 import type { FrameSize, FrameBackground } from "@/types/database";
 import type { Expense } from "@/types/expense";
@@ -48,6 +55,9 @@ export function PainelTab({
   // A função vive dentro do useMemo para as deps ficarem completas
   // (react-hooks/exhaustive-deps).
   const { month, prevMonth } = useMemo(() => {
+    // Vales que já carregam comissão contada → suprime a comissão das
+    // encomendas que vieram desses vales (não recontar; decisão Maria s116).
+    const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
     const aggregate = (start: Date, end: Date) => {
       const ordersInRange = orders.filter((o) => inRangeISO(o.event_date, start, end));
       let revenueGross = 0;
@@ -60,7 +70,9 @@ export function PainelTab({
         const p = orderPnL(o);
         revenueGross += p.revenue_recognized;
         cogs += p.cogs_recognized;
-        commission += p.commission_recognized;
+        commission += orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
+          ? 0
+          : p.commission_recognized;
         orderCount += 1;
         if (o.status === "quadro_recebido") completedCount += 1;
       }
@@ -70,6 +82,12 @@ export function PainelTab({
         .filter((v) => v.payment_status === "100_pago" && v.usage_status !== "preservacao_agendada")
         .reduce((s, v) => s + Number(v.amount), 0);
       revenueGross += voucherRevenue;
+      // Comissões dos vales com parceiro — contam uma única vez no vale, só
+      // quando 100% pago (decisão Maria s116). Período = data de criação.
+      const voucherCommission = vouchers
+        .filter((v) => inRangeISO(v.created_at, start, end))
+        .reduce((s, v) => s + commissionFullFromVoucher(v), 0);
+      commission += voucherCommission;
       const expensesInRange = expenses.filter((e) => inRangeISO(e.expense_date, start, end));
       const expensesTotal = expensesInRange.reduce((s, e) => s + Number(e.amount), 0);
       const expensesByType = aggregateExpensesByAccountingType(expensesInRange);

@@ -63,7 +63,7 @@ export default async function ComunicacoesHub() {
     {
       href: "/comunicacoes/templates",
       label: "Templates",
-      description: "Biblioteca de mensagens prontas (PT + EN). A Claudio usa-as como referência de tom.",
+      description: "Biblioteca de mensagens prontas (PT + EN). A Claude usa-as como referência de tom.",
       icon: BookText,
       accent: "text-amber-600 bg-amber-50",
       stat: `${templatesCount} templates`,
@@ -71,8 +71,8 @@ export default async function ComunicacoesHub() {
     },
     {
       href: "/comunicacoes/claudio",
-      label: "Cérebro do Claudio",
-      description: "Persona, factos da FBR e configuração da IA. Edita aqui como o Claudio fala.",
+      label: "Cérebro da Claude",
+      description: "Persona, factos da FBR e configuração da IA. Edita aqui como a Claude fala.",
       icon: Sparkles,
       accent: "text-indigo-600 bg-indigo-50",
       hidden: role !== "admin",

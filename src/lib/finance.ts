@@ -16,6 +16,7 @@
 
 import type { Expense, ExpenseCategory } from "@/types/expense";
 import type { Order, PartnerCommissionStatus, PaymentStatus } from "@/types/database";
+import type { VoucherPaymentStatus } from "@/types/voucher";
 import { computeProductionCost } from "@/lib/production-cost";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
 
@@ -143,6 +144,62 @@ export function commissionFromOrder(
   order: Pick<Order, "partner_commission" | "partner_commission_status" | "payment_status">,
 ): number {
   return commissionFullFromOrder(order) * paidRatio(order.payment_status);
+}
+
+// ── Comissões em vales (vouchers) ────────────────────────────
+//
+// Regra (decisão Maria, sessão 116): a comissão de uma recomendação que
+// resulta na compra de um VALE conta uma única vez — NO VALE — e só
+// quando o vale está 100% pago (sem dinheiro recebido não há comissão).
+// Quando o vale vira preservação, a comissão NÃO volta a contar na
+// encomenda (ver `orderCommissionSuppressedByVoucher`). É o espelho da
+// receita, onde é a encomenda que conta e o vale convertido é zerado.
+
+type VoucherCommissionInput = {
+  partner_commission: number | null;
+  partner_commission_status: PartnerCommissionStatus;
+  payment_status: VoucherPaymentStatus;
+};
+
+/**
+ * Comissão plena de um vale — valor pleno acordado, mas só quando o vale
+ * está 100% pago. Devolve 0 para na/nao_aceita, valor nulo/zero, ou vale
+ * ainda por pagar. (Os vales são all-or-nothing no pagamento, logo não há
+ * proporção como nas encomendas.)
+ */
+export function commissionFullFromVoucher(v: VoucherCommissionInput): number {
+  if (v.payment_status !== "100_pago") return 0;
+  return commissionFullFromOrder(v);
+}
+
+/**
+ * Conjunto de códigos de vale que carregam uma comissão que já conta
+ * (parceiro + valor + estado que deduz + vale pago). Usado pela guarda de
+ * dupla contagem: uma encomenda criada a partir de um destes vales
+ * (`gift_voucher_code`) NÃO deve contar a sua própria comissão.
+ */
+export function voucherCodesWithCommission(
+  vouchers: ReadonlyArray<VoucherCommissionInput & { code: string }>,
+): Set<string> {
+  const set = new Set<string>();
+  for (const v of vouchers) {
+    if (commissionFullFromVoucher(v) > 0) set.add(v.code);
+  }
+  return set;
+}
+
+/**
+ * True quando a comissão desta encomenda deve ser SUPRIMIDA por já estar
+ * contada no vale de origem — a encomenda foi paga com um vale que carrega
+ * comissão. Evita contar a mesma comissão duas vezes.
+ */
+export function orderCommissionSuppressedByVoucher(
+  order: Pick<Order, "gift_voucher_code">,
+  voucherCommissionCodes: ReadonlySet<string>,
+): boolean {
+  return (
+    !!order.gift_voucher_code && voucherCommissionCodes.has(order.gift_voucher_code)
+  );
 }
 
 // ── COGS por encomenda ───────────────────────────────────────
