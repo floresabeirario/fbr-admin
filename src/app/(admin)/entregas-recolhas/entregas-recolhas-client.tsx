@@ -105,10 +105,18 @@ function isCompleted(item: { kind: LogisticsKind; order: Order }): boolean {
   return s === "quadro_recebido";
 }
 
-function getAllLogistics(orders: Order[]): LogisticsItem[] {
+// Uma pré-reserva ainda não está confirmada — a recolha/envio das flores
+// não é certa, por isso não entra na agenda nem no mapa; vai para a
+// secção "Por confirmar" para não se perder o sinal.
+function getAllLogistics(orders: Order[]): {
+  items: LogisticsItem[];
+  unconfirmed: LogisticsItem[];
+} {
   const items: LogisticsItem[] = [];
+  const unconfirmed: LogisticsItem[] = [];
   for (const o of orders) {
     if (o.status === "cancelado") continue;
+    const isPreReserva = o.status === "entrega_flores_agendar";
 
     // Recolha no local
     if (
@@ -127,7 +135,8 @@ function getAllLogistics(orders: Order[]): LogisticsItem[] {
         contactName: o.pickup_contact_name,
         contactPhone: o.pickup_contact_phone,
       };
-      items.push({ ...base, completed: isCompleted(base) });
+      const item = { ...base, completed: isCompleted(base) };
+      (isPreReserva ? unconfirmed : items).push(item);
     }
 
     // Envio CTT flores (cliente envia até à data do evento)
@@ -138,7 +147,8 @@ function getAllLogistics(orders: Order[]): LogisticsItem[] {
         kind: "envio_ctt_flores" as const,
         location: o.event_location ?? "—",
       };
-      items.push({ ...base, completed: isCompleted(base) });
+      const item = { ...base, completed: isCompleted(base) };
+      (isPreReserva ? unconfirmed : items).push(item);
     }
 
     // Envio CTT do quadro (de nós para o cliente)
@@ -157,14 +167,18 @@ function getAllLogistics(orders: Order[]): LogisticsItem[] {
       items.push({ ...base, completed: isCompleted(base) });
     }
   }
-  return items.sort((a, b) => {
+  const byDateThenTime = (a: LogisticsItem, b: LogisticsItem) => {
     // Ordena por data ascendente; dentro da mesma data, por hora de início
     const dateCmp = a.date.localeCompare(b.date);
     if (dateCmp !== 0) return dateCmp;
     const tA = a.timeFrom ?? "99:99";
     const tB = b.timeFrom ?? "99:99";
     return tA.localeCompare(tB);
-  });
+  };
+  return {
+    items: items.sort(byDateThenTime),
+    unconfirmed: unconfirmed.sort(byDateThenTime),
+  };
 }
 
 type FilterKind = "todas" | LogisticsKind;
@@ -175,9 +189,13 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
   const [kindFilter, setKindFilter] = useState<FilterKind>("todas");
   const [search, setSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showUnconfirmed, setShowUnconfirmed] = useState(false);
   const [mapFilter, setMapFilter] = useState<MapFilter>("recolhas");
 
-  const allItems = useMemo(() => getAllLogistics(orders), [orders]);
+  const { items: allItems, unconfirmed } = useMemo(
+    () => getAllLogistics(orders),
+    [orders],
+  );
 
   // Datas de referência calculadas uma vez (evita Date.now() durante render)
   const tomorrowSubtitle = useMemo(
@@ -353,7 +371,9 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
         {/* Coluna esquerda — lista de agenda (col-span-2 em desktop) */}
         <div className="lg:col-span-2">
-          {totalAgendadas === 0 && buckets.concluidas.length === 0 ? (
+          {totalAgendadas === 0 &&
+          buckets.concluidas.length === 0 &&
+          unconfirmed.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-cream-200 p-10 text-center text-sm text-cocoa-500">
               Nenhuma recolha ou envio agendado.
             </div>
@@ -421,6 +441,51 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
                   items={buckets.maisTarde}
                   groupByDate
                 />
+              )}
+
+              {/* Por confirmar — pré-reservas com recolha/CTT marcados.
+                  Não são recolhas certas: só entram na agenda quando a
+                  encomenda sai de pré-reserva. */}
+              {unconfirmed.length > 0 && (
+                <div className="rounded-2xl border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowUnconfirmed((v) => !v)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-amber-100/40 dark:hover:bg-amber-950/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <div>
+                        <h2 className="text-sm font-semibold text-cocoa-900">
+                          Por confirmar (pré-reservas)
+                        </h2>
+                        <p className="text-[11px] text-cocoa-700">
+                          Ainda em pré-reserva — só contam como recolha/envio
+                          quando a entrega for agendada
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-cocoa-700">
+                      <span className="font-medium">{unconfirmed.length}</span>
+                      {showUnconfirmed ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </div>
+                  </button>
+                  {showUnconfirmed && (
+                    <div className="divide-y divide-cream-100 border-t border-amber-200 dark:border-amber-900">
+                      {unconfirmed.map((i, idx) => (
+                        <LogisticsRow
+                          key={`unconf-${i.order.id}-${i.kind}-${idx}`}
+                          item={i}
+                          muted
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Concluídas — colapsável, sem peso visual */}

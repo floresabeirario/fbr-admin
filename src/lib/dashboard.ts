@@ -28,6 +28,10 @@ export function getUpcomingPickups(orders: Order[]): PickupItem[] {
   for (const o of orders) {
     if (o.deleted_at) continue;
     if (o.status === "cancelado") continue;
+    // Pré-reserva = encomenda não confirmada; a recolha/envio ainda não é
+    // certa, por isso não entra no planeamento (aparece na página Entregas
+    // e Recolhas como "Por confirmar").
+    if (o.status === "entrega_flores_agendar") continue;
 
     // Recolha no local (data = pickup_date se existir, senão event_date;
     // localização = pickup_address se existir, senão event_location)
@@ -135,6 +139,24 @@ export function getDashboardAlerts(
       severity: days <= 2 ? "danger" : "warn",
       label: `Evento em ${days === 0 ? "hoje" : days === 1 ? "1 dia" : `${days} dias`}`,
       detail: `${o.client_name} — ${o.event_location ?? "sem localização"}`,
+      href: `/preservacao/${o.order_id ?? o.id}`,
+    });
+  }
+
+  // 1b. Flores prontas a sair do congelador (5 dias anti-insectos, mig 079).
+  // Só alerta quando os 5 dias já passaram e a saída ainda não foi marcada.
+  const freezerReady = orders.filter((o) => {
+    if (o.deleted_at || o.status === "cancelado") return false;
+    if (!o.freezer_in_at || o.freezer_out_at) return false;
+    return differenceInDays(today, parseISO(o.freezer_in_at)) >= 5;
+  });
+  for (const o of freezerReady) {
+    const days = differenceInDays(today, parseISO(o.freezer_in_at!));
+    alerts.push({
+      id: `freezer-${o.id}`,
+      severity: "warn",
+      label: `❄ Pronta a sair do congelador (${days} dias)`,
+      detail: `${o.client_name} — entrou a ${o.freezer_in_at!.slice(0, 10).split("-").reverse().join("/")}`,
       href: `/preservacao/${o.order_id ?? o.id}`,
     });
   }

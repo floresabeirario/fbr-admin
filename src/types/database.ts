@@ -236,6 +236,12 @@ export interface Order {
   // esteja agendada (ver policy orders_public_status_read).
   cash_on_delivery: boolean;
 
+  // ── Congelador (5 dias anti-insectos, mig 079) ──────────────
+  // Marcação manual no workbench: entrada e saída das flores do
+  // congelador. null = ainda não entrou / ainda não saiu.
+  freezer_in_at: string | null;
+  freezer_out_at: string | null;
+
   // ── Resposta do cliente à proposta de composição ───────────
   // Quando true, deixa de aparecer o alerta de "cliente em silêncio"
   // mesmo que estejam ≥4 dias no estado a_aguardar_aprovacao.

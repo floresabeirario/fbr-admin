@@ -295,12 +295,13 @@ export function TasksCard({
   /** uuid → nome do remetente do vale (display). */
   voucherSenderById?: Record<string, string>;
 }) {
-  // Filtro por membro — 3 avatares no topo, default todos seleccionados
-  // (= sem filtro). Click num avatar alterna; quando o set é o total dos
-  // membros, considera-se "default" e tarefas sem responsável também aparecem.
-  const [selectedMembers, setSelectedMembers] = useState<string[]>(() =>
-    TEAM_MEMBERS.map((m) => m.email),
-  );
+  // Filtro por membro — 3 avatares no topo. Default: só as tarefas de quem
+  // fez login (clicar nos avatares alarga/alterna). Tarefas sem responsável
+  // aparecem sempre — são de todos, senão perdiam-se com o filtro activo.
+  const [selectedMembers, setSelectedMembers] = useState<string[]>(() => {
+    const isMember = TEAM_MEMBERS.some((m) => m.email === currentEmail);
+    return isMember ? [currentEmail] : TEAM_MEMBERS.map((m) => m.email);
+  });
   // Estado independente: mostrar concluídas ou activas?
   const [viewDone, setViewDone] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -361,9 +362,12 @@ export function TasksCard({
     let list = tasks;
     list = list.filter((t) => (viewDone ? t.done : !t.done));
     // Filtro por membro só se aplica quando há subset (não default).
+    // Tarefas sem responsável passam sempre (pertencem a todos).
     if (!allMembersSelected) {
-      list = list.filter((t) =>
-        t.assignee_emails.some((e) => selectedMembers.includes(e)),
+      list = list.filter(
+        (t) =>
+          t.assignee_emails.length === 0 ||
+          t.assignee_emails.some((e) => selectedMembers.includes(e)),
       );
     }
     return list.sort((a, b) => {
@@ -401,8 +405,10 @@ export function TasksCard({
   const recentDoneTasks = useMemo(() => {
     let list = tasks.filter((t) => t.done);
     if (!allMembersSelected) {
-      list = list.filter((t) =>
-        t.assignee_emails.some((e) => selectedMembers.includes(e)),
+      list = list.filter(
+        (t) =>
+          t.assignee_emails.length === 0 ||
+          t.assignee_emails.some((e) => selectedMembers.includes(e)),
       );
     }
     return list

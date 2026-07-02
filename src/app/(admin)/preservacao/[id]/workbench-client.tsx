@@ -50,6 +50,7 @@ import {
   Heart,
   Receipt,
   Flower2,
+  Snowflake,
   StickyNote,
   Wallet,
   Handshake,
@@ -1391,6 +1392,80 @@ export default function WorkbenchClient({
               {/* Card único: Flores, quadro, extras e peças extra */}
               {/* Inventário das flores vive na coluna esquerda — secção própria */}
               <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald" className="order-6 lg:order-none">
+                {/* Congelador — 5 dias para eliminar insectos (mig 079).
+                    Marcação manual: nem todas as encomendas passam pelo
+                    congelador ao mesmo ritmo. */}
+                <div className="rounded-lg border border-sky-200 bg-sky-50/60 dark:bg-sky-950/20 dark:border-sky-900 px-3 py-2.5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700 dark:text-sky-300 flex items-center gap-1">
+                      <Snowflake className="h-3 w-3" />
+                      Congelador (5 dias anti-insectos)
+                    </p>
+                    {local.freezer_in_at && !local.freezer_out_at && (() => {
+                      const dias = differenceInCalendarDays(new Date(), parseISO(local.freezer_in_at));
+                      const pronto = dias >= 5;
+                      return (
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                            pronto
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              : "bg-sky-100 border-sky-300 text-sky-800"
+                          }`}
+                        >
+                          {pronto ? "Pronto a sair ✓" : `Dia ${Math.max(dias, 0) + 1} de 5`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  {!local.freezer_in_at ? (
+                    <button
+                      type="button"
+                      onClick={() => update("freezer_in_at", new Date().toISOString())}
+                      className="text-xs font-medium rounded-lg border border-sky-300 bg-surface px-2.5 py-1.5 text-sky-800 dark:text-sky-200 hover:bg-sky-100 dark:hover:bg-sky-950/40 transition-colors"
+                    >
+                      ❄ Entrou no congelador agora
+                    </button>
+                  ) : !local.freezer_out_at ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-cocoa-700">
+                        Entrou a {format(parseISO(local.freezer_in_at), "dd/MM/yyyy HH:mm")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => update("freezer_out_at", new Date().toISOString())}
+                        className="text-xs font-medium rounded-lg border border-sky-300 bg-surface px-2.5 py-1.5 text-sky-800 dark:text-sky-200 hover:bg-sky-100 dark:hover:bg-sky-950/40 transition-colors"
+                      >
+                        Saiu do congelador
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => update("freezer_in_at", null)}
+                        className="text-[11px] text-cocoa-500 hover:text-cocoa-700 underline"
+                        title="Anular a entrada (engano)"
+                      >
+                        anular
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-emerald-700 font-medium">
+                        ✓ Concluído: {format(parseISO(local.freezer_in_at), "dd/MM")} → {format(parseISO(local.freezer_out_at), "dd/MM/yyyy")}
+                        {" "}({differenceInCalendarDays(parseISO(local.freezer_out_at), parseISO(local.freezer_in_at))} dias)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { update("freezer_in_at", null); update("freezer_out_at", null); }}
+                        className="text-[11px] text-cocoa-500 hover:text-cocoa-700 underline"
+                        title="Limpar o registo do congelador"
+                      >
+                        limpar
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="bg-cream-100" />
+
                 <Grid2>
                   <Field label="Tipo de flores" span2>
                     <Input className={inp} value={local.flower_type ?? ""} onChange={(e) => update("flower_type", e.target.value || null)} placeholder="Rosas, peónias, silvestres…" />

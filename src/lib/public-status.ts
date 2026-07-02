@@ -119,7 +119,7 @@ export const DEFAULT_MESSAGES_PT: Record<PublicPhase, string> = {
   0:
     "A sua reserva foi recebida. Estamos a coordenar consigo a melhor forma de receber as flores.",
   1:
-    "O primeiro passo para eternizar a sua memória! Já reservámos o nosso calendário para receber o seu bouquet.",
+    "O primeiro passo para eternizar a sua memória! Já reservámos o nosso calendário para receber as suas flores.",
   2:
     "As suas flores já chegaram ao nosso atelier! Vamos agora iniciar o processo de tratamento e preservação para que durem para sempre.",
   3:
@@ -150,7 +150,7 @@ export const DEFAULT_MESSAGES_EN: Record<PublicPhase, string> = {
   0:
     "Your reservation has been received. We are coordinating with you the best way to receive the flowers.",
   1:
-    "The first step to eternalizing your memory! We have already reserved our calendar to receive your bouquet.",
+    "The first step to eternalizing your memory! We have already reserved our calendar to receive your flowers.",
   2:
     "Your flowers have arrived at our studio! We will now begin the treatment and preservation process so they can last forever.",
   3:

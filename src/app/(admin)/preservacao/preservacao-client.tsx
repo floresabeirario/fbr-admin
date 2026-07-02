@@ -590,6 +590,29 @@ function OrderRow({
                   40% pedidos
                 </span>
               )}
+              {/* Congelador — flores dentro do congelador (5 dias anti-insectos).
+                  Mostra o dia actual; verde quando os 5 dias passaram.
+                  Espelha o bloco Congelador do workbench (mig 079). */}
+              {order.freezer_in_at && !order.freezer_out_at && (() => {
+                const dias = differenceInCalendarDays(new Date(), parseISO(order.freezer_in_at));
+                const pronto = dias >= 5;
+                return (
+                  <span
+                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${
+                      pronto
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        : "bg-sky-50 border-sky-200 text-sky-700"
+                    }`}
+                    title={
+                      pronto
+                        ? "Já passaram os 5 dias — flores prontas a sair do congelador"
+                        : `Flores no congelador desde ${format(parseISO(order.freezer_in_at), "dd/MM")}`
+                    }
+                  >
+                    ❄ {pronto ? "pronto" : `${Math.max(dias, 0) + 1}/5`}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
