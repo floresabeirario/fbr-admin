@@ -613,6 +613,28 @@ function OrderRow({
                   </span>
                 );
               })()}
+              {/* "Entregar até" — prazo de entrega pedido pelo cliente (mig 082).
+                  Âmbar por defeito; rose quando faltam ≤14 dias ou já passou.
+                  Desaparece quando o quadro foi enviado/recebido ou cancelada. */}
+              {order.delivery_deadline &&
+                !["quadro_enviado", "quadro_recebido", "cancelado"].includes(currentStatus) && (() => {
+                const dias = differenceInCalendarDays(parseISO(order.delivery_deadline), new Date());
+                const urgente = dias <= 14;
+                return (
+                  <span
+                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${
+                      urgente
+                        ? "bg-rose-50 border-rose-200 text-rose-700"
+                        : "bg-amber-50 border-amber-200 text-amber-700"
+                    }`}
+                    title={`Cliente pediu entrega até ${format(parseISO(order.delivery_deadline), "dd/MM/yyyy")}${
+                      order.delivery_deadline_reason ? ` — ${order.delivery_deadline_reason}` : ""
+                    }${dias < 0 ? " (JÁ PASSOU)" : ""}`}
+                  >
+                    ⏰ até {format(parseISO(order.delivery_deadline), "dd/MM")}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -801,12 +823,12 @@ function GroupSection({
               // alinhadas — caso contrário cada grupo calcula o seu próprio
               // layout consoante o conteúdo e os cabeçalhos saltam.
               tableLayout: "fixed",
-              // 830 = soma das colunas fixas (handle+data+envio+estado+orçamento+pagamento+acção).
+              // 885 = soma das colunas fixas (handle+data+envio+estado+orçamento+pagamento+acção).
               // +200 dá à coluna "Cliente" (elástica, sem width explícito) um mínimo
               // garantido — sem isto, em mobile a Cliente colapsava a 0px e o
               // header "Cliente" + valores nome/evento sobrepunham-se à Data.
               minWidth:
-                830 + 200 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
+                885 + 200 + extraColumns.reduce((acc, c) => acc + COLUMN_MIN_PX[c], 0),
             }}
           >
             <thead>
@@ -818,7 +840,10 @@ function GroupSection({
                 <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 110 }}>Data evento</th>
                 <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide hidden xl:table-cell" style={{ width: 140 }}>Localização</th>
                 <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 140 }}>{shippingHeader}</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 200 }}>Estado</th>
+                {/* 235px: o trigger do Estado pode ter até 220px (max-w) — com 200px
+                    a pill "Entrega de flores por agendar" transbordava da coluna e
+                    encostava ao Orçamento. */}
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 235 }}>Estado</th>
                 {extraColumns.map((c) => (
                   <th
                     key={c}
@@ -829,7 +854,8 @@ function GroupSection({
                   </th>
                 ))}
                 <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide text-right" style={{ width: 110 }}>Orçamento</th>
-                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 150 }}>Pagamento</th>
+                {/* 170px: "100% por pagar" + chevron ficava cortado com 150px */}
+                <th className="px-4 py-2 text-xs font-medium text-cocoa-700 uppercase tracking-wide" style={{ width: 170 }}>Pagamento</th>
                 <th className="px-4 py-2" style={{ width: 80 }} />
               </tr>
             </thead>

@@ -111,6 +111,8 @@ const COLUMNS: Array<{ header: string; get: (o: Order) => string }> = [
   { header: "Estado cupão",             get: (o) => lookup(o.coupon_status, COUPON_STATUS_LABELS) },
   { header: "Feedback cliente",         get: (o) => lookup(o.client_feedback_status, CLIENT_FEEDBACK_STATUS_LABELS) },
   { header: "Data entrega quadro",      get: (o) => fmtDate(o.frame_delivery_date) },
+  { header: "Entregar até",             get: (o) => fmtDate(o.delivery_deadline) },
+  { header: "Motivo do prazo",          get: (o) => o.delivery_deadline_reason ?? "" },
   { header: "Notas adicionais",         get: (o) => o.additional_notes ?? "" },
   { header: "Pasta Drive",              get: (o) => o.drive_folder_url ?? "" },
   { header: "Foto encomenda",           get: (o) => o.flowers_photo_url ?? "" },

@@ -245,8 +245,10 @@ function MargemTeoricaSection({
       </div>
 
       {/* Bloco 1 — Quadros */}
-      <div className="rounded-xl bg-surface overflow-hidden border border-emerald-200/60 dark:border-emerald-900/40">
-        <table className="w-full text-sm">
+      {/* overflow-x-auto + min-w: no telemóvel a tabela ganha scroll horizontal
+          em vez de esmagar as colunas. No PC nada muda (já cabe folgada). */}
+      <div className="rounded-xl bg-surface overflow-hidden overflow-x-auto border border-emerald-200/60 dark:border-emerald-900/40">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
             <tr>
               <th className="text-left px-3 py-2 font-medium">Combinação</th>
@@ -338,8 +340,8 @@ function MargemTeoricaSection({
         <h3 className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide">
           Extras (vendidos à parte)
         </h3>
-        <div className="rounded-xl bg-surface overflow-hidden border border-emerald-200/60 dark:border-emerald-900/40">
-          <table className="w-full text-sm">
+        <div className="rounded-xl bg-surface overflow-hidden overflow-x-auto border border-emerald-200/60 dark:border-emerald-900/40">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Item</th>

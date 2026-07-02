@@ -711,7 +711,10 @@ export default function MetricasClient({
               iconColor="text-amber-500"
               info="Receita = dinheiro já recebido das encomendas deste parceiro (orçamento × %pago). Comissões em valor total acordado (não proporcional ao que a cliente já pagou): 'Paga' = já liquidada ao parceiro; 'Por pagar' = ainda em dívida; 'Total' = soma das duas. Estados 'N/A' e 'Não aceita' não contam."
             >
-              <table className="w-full text-sm">
+              {/* overflow-x-auto + min-w: 6 colunas de € não cabem num telemóvel;
+                  ganha scroll horizontal em vez de esmagar. No PC nada muda. */}
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead className="text-xs uppercase tracking-wider text-cocoa-700">
                   <tr>
                     <th className="text-left py-2">#</th>
@@ -771,6 +774,7 @@ export default function MetricasClient({
                   })}
                 </tbody>
               </table>
+              </div>
             </ChartCard>
           )}
         </>

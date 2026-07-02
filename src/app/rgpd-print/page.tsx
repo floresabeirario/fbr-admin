@@ -179,6 +179,15 @@ function OrderBlock({ order }: { order: Order }) {
         <dd>{formatDate(order.estimated_delivery_date)}</dd>
         <dt>Data efectiva de entrega</dt>
         <dd>{formatDate(order.frame_delivery_date)}</dd>
+        {order.delivery_deadline && (
+          <>
+            <dt>Entregar até (prazo pedido)</dt>
+            <dd>
+              {formatDate(order.delivery_deadline)}
+              {order.delivery_deadline_reason ? ` (${order.delivery_deadline_reason})` : ""}
+            </dd>
+          </>
+        )}
         <dt>Consentimento</dt>
         <dd>
           {order.consent_at

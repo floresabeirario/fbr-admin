@@ -260,13 +260,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Logo */}
       <div className={cn("flex items-center h-14 px-4 border-b border-cream-200 shrink-0 justify-between", isDesktop && collapsed && "justify-center")}>
         {(!isDesktop || !collapsed) && (
-          <Link
-            href="/"
-            className="font-['TanMemories'] text-lg text-cocoa-900 truncate hover:opacity-80 transition-opacity"
-            title="Ir para o Dashboard"
-          >
-            FBR Admin
-          </Link>
+          <>
+            <Link
+              href="/"
+              className="font-['TanMemories'] text-lg text-cocoa-900 truncate hover:opacity-80 transition-opacity"
+              title="Ir para o Dashboard"
+            >
+              FBR Admin
+            </Link>
+            {/* Refresh no topo da sidebar (desktop): a Maria não encontrava o
+                botão escondido no rodapé e fazia F5. O do rodapé mantém-se. */}
+            {isDesktop && <RefreshButton />}
+          </>
         )}
         {isDesktop && collapsed && (
           <Link

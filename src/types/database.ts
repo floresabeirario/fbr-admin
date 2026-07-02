@@ -172,6 +172,10 @@ export interface Order {
   // estado muda para a frente e para trás. Ver src/lib/comms-cadence.ts.
   comms_moments_done: string[];
   frame_delivery_date: string | null;
+  // "Entregar até" — data-limite de entrega do quadro pedida pelo cliente
+  // (aniversário, oferta, …) + motivo (mig 082). NULL = sem prazo especial.
+  delivery_deadline: string | null;
+  delivery_deadline_reason: string | null;
   drive_folder_url: string | null;
   drive_folder_id: string | null;
   calendar_event_id: string | null;

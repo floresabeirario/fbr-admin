@@ -1839,6 +1839,46 @@ export default function WorkbenchClient({
                       ["nao_sei", "Não sei"],
                     ]}
                   />
+
+                  {/* "Entregar até" — data-limite pedida pelo cliente (mig 082).
+                      Alimenta a pill ⏰ na tabela e o alerta do Dashboard. */}
+                  <Grid2>
+                    <Field label="Entregar até" hint="Data-limite pedida pelo cliente. Vazio = sem prazo especial.">
+                      <Input
+                        className={inp}
+                        type="date"
+                        value={toDateInput(local.delivery_deadline)}
+                        onChange={(e) => update("delivery_deadline", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Motivo do prazo">
+                      <Input
+                        className={inp}
+                        value={local.delivery_deadline_reason ?? ""}
+                        onChange={(e) => update("delivery_deadline_reason", e.target.value || null)}
+                        placeholder="Ex: aniversário da mãe a 15/09"
+                      />
+                    </Field>
+                  </Grid2>
+                  {local.delivery_deadline &&
+                    !["quadro_enviado", "quadro_recebido", "cancelado"].includes(local.status) && (() => {
+                      const dias = differenceInCalendarDays(parseISO(local.delivery_deadline!), new Date());
+                      if (dias > 30) return null;
+                      const atrasado = dias < 0;
+                      return (
+                        <div className={`rounded-lg border p-2.5 text-xs font-medium ${
+                          atrasado || dias <= 14
+                            ? "border-rose-200 bg-rose-50 text-rose-800"
+                            : "border-amber-200 bg-amber-50 text-amber-800"
+                        }`}>
+                          ⏰ {atrasado
+                            ? `O prazo de entrega pedido pelo cliente passou há ${Math.abs(dias)} dia${Math.abs(dias) === 1 ? "" : "s"}.`
+                            : dias === 0
+                              ? "O prazo de entrega pedido pelo cliente é HOJE."
+                              : `Faltam ${dias} dia${dias === 1 ? "" : "s"} para o prazo de entrega pedido pelo cliente.`}
+                        </div>
+                      );
+                    })()}
                 </div>
               </Card>
 

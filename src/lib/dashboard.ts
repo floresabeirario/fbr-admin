@@ -161,6 +161,29 @@ export function getDashboardAlerts(
     });
   }
 
+  // 1c. "Entregar até" — prazo de entrega pedido pelo cliente (mig 082).
+  // Alerta quando faltam ≤30 dias e o quadro ainda não foi enviado/recebido;
+  // danger quando faltam ≤14 dias ou o prazo já passou.
+  const deadlineOrders = orders.filter((o) => {
+    if (o.deleted_at || o.status === "cancelado") return false;
+    if (["quadro_enviado", "quadro_recebido"].includes(o.status)) return false;
+    if (!o.delivery_deadline) return false;
+    return differenceInDays(parseISO(o.delivery_deadline), today) <= 30;
+  });
+  for (const o of deadlineOrders) {
+    const days = differenceInDays(parseISO(o.delivery_deadline!), today);
+    const overdue = days < 0;
+    alerts.push({
+      id: `deadline-${o.id}`,
+      severity: overdue || days <= 14 ? "danger" : "warn",
+      label: overdue
+        ? `⏰ Prazo de entrega passou há ${Math.abs(days)} dia${Math.abs(days) === 1 ? "" : "s"}`
+        : `⏰ Entregar até ${o.delivery_deadline!.slice(0, 10).split("-").reverse().join("/")} (${days === 0 ? "hoje" : `${days} dia${days === 1 ? "" : "s"}`})`,
+      detail: `${o.client_name}${o.delivery_deadline_reason ? ` — ${o.delivery_deadline_reason}` : ""}`,
+      href: `/preservacao/${o.order_id ?? o.id}`,
+    });
+  }
+
   // 2. Pré-reservas sem contacto há ≥4 dias — lembrete para contactar.
   // Critério próprio (não confundir com o grupo "Sem resposta", que é só ghost
   // manual via isWithoutResponse): pré-reserva ainda não contactada há ≥4 dias.

@@ -25,7 +25,13 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims() em vez de getUser(): valida o JWT localmente (assinatura
+  // verificada com as chaves públicas do projecto, cacheadas) em vez de
+  // fazer uma chamada de rede ao Supabase Auth em CADA pedido. Continua a
+  // refrescar a sessão quando o token está a expirar. Isto tira ~100-300ms
+  // a cada navegação — era uma das causas da app "demorar imenso a carregar".
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const isLoginPage = request.nextUrl.pathname === "/login";
   const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/");

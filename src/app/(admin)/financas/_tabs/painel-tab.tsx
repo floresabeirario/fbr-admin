@@ -345,8 +345,10 @@ function RankingTable({
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
   const totalMargin = rows.reduce((s, r) => s + r.margin, 0);
   return (
-    <div className="rounded-lg overflow-hidden border border-cream-200">
-      <table className="w-full text-sm">
+    // overflow-x-auto + min-w: scroll horizontal no telemóvel em vez de
+    // esmagar as 7 colunas. No PC nada muda.
+    <div className="rounded-lg overflow-hidden overflow-x-auto border border-cream-200">
+      <table className="w-full min-w-[640px] text-sm">
         <thead className="bg-cream-50 text-xs uppercase tracking-wide text-cocoa-700">
           <tr>
             <th className="text-left px-3 py-2 font-medium">Categoria</th>

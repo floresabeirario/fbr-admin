@@ -270,8 +270,10 @@ export function CustosTab({
             Somado ao custo do quadro quando o cliente escolhe fundo fotografia
           </span>
         </div>
-        <div className="rounded-xl bg-surface border border-white/40 overflow-hidden">
-          <table className="w-full text-sm">
+        {/* overflow-x-auto + min-w: scroll horizontal no telemóvel em vez de
+            esmagar os inputs. No PC nada muda. */}
+        <div className="rounded-xl bg-surface border border-white/40 overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
             <thead className="bg-cream-50 text-[10px] uppercase tracking-wide text-cocoa-700">
               <tr>
                 {PRODUCTION_SIZES_ORDER.map((s) => (
@@ -362,8 +364,10 @@ function ConsumablesSection({
           Custo por produto vendável (tamanho do quadro ou extra autónomo)
         </span>
       </div>
-      <div className="rounded-xl bg-surface border border-white/40 overflow-hidden">
-        <table className="w-full text-sm">
+      {/* overflow-x-auto + min-w: 6 colunas de produto não cabem num telemóvel;
+          ganha scroll horizontal em vez de esmagar. No PC nada muda. */}
+      <div className="rounded-xl bg-surface border border-white/40 overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-cream-50 text-[10px] uppercase tracking-wide text-cocoa-700">
             <tr>
               <th className="text-left px-3 py-1.5 font-medium">Item</th>

@@ -300,7 +300,9 @@ export default function TaskTemplatesClient({
         </div>
 
         {/* Lista de templates */}
-        <div className="rounded-lg border border-cream-200 bg-surface overflow-hidden">
+        {/* overflow-x-auto + min-w: scroll horizontal no telemóvel em vez de
+            esmagar as 7 colunas. No PC nada muda. */}
+        <div className="rounded-lg border border-cream-200 bg-surface overflow-hidden overflow-x-auto">
           {visible.length === 0 ? (
             <p className="text-center text-sm text-cocoa-500 py-8">
               {showArchived
@@ -308,7 +310,7 @@ export default function TaskTemplatesClient({
                 : "Sem templates. Carrega em + para criar um."}
             </p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[680px] text-sm">
               <thead className="bg-cream-50 text-[11px] uppercase tracking-wider text-cocoa-600">
                 <tr>
                   <th className="text-left px-3 py-2 font-semibold">Nome</th>
