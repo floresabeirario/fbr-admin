@@ -124,7 +124,7 @@ export const SYSTEM_SETTING_LABELS: Record<SystemSettingKey, string> = {
   studio_address_url: "Morada do estúdio (link Maps)",
   studio_address_text: "Morada do estúdio (descrição)",
   review_link: "Link de opinião / avaliação",
-  claude_persona: "Tom / Persona da Claude",
+  claude_persona: "Tom / Persona do Claude",
   claude_facts: "Factos & contexto adicional",
 };
 

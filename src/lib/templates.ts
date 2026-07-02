@@ -276,12 +276,210 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   { key: "valor_vale", description: "Valor do vale", scope: "voucher" },
 ];
 
+// ─── Sugestões por campos da encomenda ─────────────────────
+// Regras que olham para o que o cliente preencheu no formulário
+// ("não sei" no envio das flores, tamanho indeciso, funeral, …) e
+// devolvem os slugs-base das templates certas para a situação. O
+// picker (e o Claude) usam isto para que a Maria não tenha de andar
+// à procura quando a informação já está toda na encomenda.
+
+export interface OrderFieldsForSuggestion {
+  status: string;
+  payment_status: string;
+  event_type?: string | null;
+  frame_size?: string | null;
+  flower_delivery_method?: string | null;
+  pickup_address?: string | null;
+  budget_at_first_payment?: number | null;
+  // Pagamento em dinheiro à entrega (mig 076)
+  cash_on_delivery?: boolean;
+  // Encomenda paga com vale-presente
+  gift_voucher_code?: string | null;
+}
+
+const STATUSES_FASE_DESIGN = new Set([
+  "flores_na_prensa",
+  "reconstrucao_botanica",
+  "a_compor_design",
+  "a_aguardar_aprovacao",
+]);
+
+export function fieldSuggestionBases(order: OrderFieldsForSuggestion): string[] {
+  const bases: string[] = [];
+  const st = order.status;
+  const preReserva = st === "entrega_flores_agendar";
+  const agendada = st === "entrega_agendada";
+  const metodo = order.flower_delivery_method ?? null;
+  const tamanhoIndeciso =
+    !order.frame_size ||
+    order.frame_size === "nao_sei" ||
+    order.frame_size === "voces_a_escolher";
+
+  // Funeral: condolências primeiro, nunca "parabéns"
+  if (order.event_type === "funeral" && (preReserva || agendada)) {
+    bases.push("funeral_condolencias");
+  }
+
+  // Pré-reserva sem sinal pago: a mensagem certa depende do tamanho —
+  // excepto se a encomenda está coberta por um vale-presente (não se
+  // pede sinal a quem recebeu o vale).
+  if (preReserva && order.payment_status === "100_por_pagar") {
+    if (order.gift_voucher_code) {
+      bases.push("vale_reserva_coberta");
+    } else {
+      bases.push(
+        tamanhoIndeciso
+          ? "pre_reserva_tamanho_indeciso"
+          : "pre_reserva_tamanho_escolhido",
+      );
+    }
+  }
+
+  // Envio das flores "não sei" (ou por preencher) → apresentar as 3 opções
+  if ((preReserva || agendada) && (metodo === null || metodo === "nao_sei")) {
+    bases.push("opcoes_entrega_flores");
+  }
+
+  // Recolha escolhida mas ainda sem morada → pedir morada p/ orçamento
+  if ((preReserva || agendada) && metodo === "recolha_evento" && !order.pickup_address) {
+    bases.push("recolha_orcamento");
+  }
+
+  // Reserva confirmada: confirmação certa consoante o método de envio.
+  // Pagamento em dinheiro à entrega tem confirmação própria (explica que
+  // pode pagar o sinal ou sinal+2ª parcela em mão).
+  if (agendada) {
+    if (order.cash_on_delivery) bases.push("confirmacao_reserva_dinheiro");
+    if (metodo === "maos" && !order.cash_on_delivery) {
+      bases.push("confirmacao_reserva_maos");
+    }
+    if (metodo === "ctt") bases.push("confirmacao_reserva_ctt", "ctt_enviar_hoje");
+    if (metodo === "recolha_evento") bases.push("confirmacao_reserva_recolha");
+    bases.push("preparacao_flores");
+  }
+
+  // Flores connosco → 2ª parcela
+  if (st === "flores_enviadas" || st === "flores_recebidas") {
+    bases.push("recepcao_flores_2a_parcela");
+  }
+
+  // Fase de design: se o sinal foi pago com tamanho indeciso e o
+  // tamanho entretanto ficou decidido, é altura do reajuste (mig 074).
+  if (STATUSES_FASE_DESIGN.has(st)) {
+    if (order.budget_at_first_payment != null && !tamanhoIndeciso) {
+      bases.push("reajuste_pagamento_tamanho");
+    }
+    if (tamanhoIndeciso) bases.push("orientacao_quadro");
+  }
+
+  // Quadro a caminho → mensagem com código de seguimento
+  if (st === "quadro_enviado") bases.push("quadro_enviado_tracking");
+
+  return bases;
+}
+
+// Compara o slug de uma template com um slug-base (sem sufixo de língua)
+function slugBase(slug: string): string {
+  return slug.replace(/_(pt|en)$/, "");
+}
+
+// ─── Leads (contacto directo no WhatsApp, ainda sem encomenda) ──
+// Muita gente escreve antes de preencher o formulário. Estas são as
+// templates típicas dessas conversas, na ordem mais frequente.
+
+export const LEAD_SUGGESTED_BASES = [
+  "primeiro_contacto_info",
+  "pos_evento_vai_a_tempo",
+  "opcoes_entrega_flores",
+  "vale_oferta_info",
+  "como_funciona_processo",
+  "mostrar_trabalhos",
+  "nao_fazemos_3d",
+  "resposta_orcamento_caro",
+  "funeral_condolencias",
+  "recolha_orcamento",
+];
+
+export interface RenderLeadContext {
+  contactName?: string | null;
+  settings: SystemSettingsMap;
+  now?: Date;
+}
+
+/**
+ * Render de template para um lead (sem encomenda/vale): só resolve as
+ * variáveis genéricas (saudação, nome do contacto, dados de pagamento,
+ * morada, link de avaliação). Variáveis de encomenda ficam visíveis
+ * ({assim}) para a Maria reparar e preencher antes de copiar.
+ */
+export function renderLeadTemplate(template: MessageTemplate, ctx: RenderLeadContext): string {
+  const { contactName, settings, now = new Date() } = ctx;
+  const lang = template.language;
+  const vars: Record<string, string> = {
+    saudacao: saudacaoPorHora(lang, now),
+    saudacao_en: saudacaoPorHora("en", now),
+    nome: primeiroNome(contactName),
+    nome_completo: contactName ?? "",
+    dados_pagamento: dadosPagamento(lang, settings),
+    morada_estudio: settings.studio_address_url || "",
+    morada_estudio_texto: settings.studio_address_text || "",
+    link_avaliacao: settings.review_link || "",
+  };
+  return substituir(template.body, vars);
+}
+
+/**
+ * Ordenação de templates para uma conversa de lead: primeiro as
+ * templates típicas de primeiro contacto (LEAD_SUGGESTED_BASES, na
+ * ordem definida), depois as restantes por categoria. Templates
+ * exclusivas de vale ("voucher") ficam de fora, excepto as marcadas
+ * como "both".
+ */
+export function rankTemplatesForLead(
+  templates: MessageTemplate[],
+  preferredLanguage?: TemplateLanguage,
+): { suggested: MessageTemplate[]; others: MessageTemplate[] } {
+  const filtered = templates.filter(
+    (t) => t.deleted_at === null && t.scope !== "voucher",
+  );
+  const rank = new Map(LEAD_SUGGESTED_BASES.map((b, i) => [b, i]));
+
+  const suggested: MessageTemplate[] = [];
+  const others: MessageTemplate[] = [];
+  for (const t of filtered) {
+    if (rank.has(slugBase(t.slug))) suggested.push(t);
+    else others.push(t);
+  }
+
+  const byLang = (a: MessageTemplate, b: MessageTemplate) => {
+    if (!preferredLanguage) return 0;
+    const aPref = a.language === preferredLanguage ? 0 : 1;
+    const bPref = b.language === preferredLanguage ? 0 : 1;
+    return aPref - bPref;
+  };
+  suggested.sort((a, b) => {
+    const ra = rank.get(slugBase(a.slug)) ?? 99;
+    const rb = rank.get(slugBase(b.slug)) ?? 99;
+    if (ra !== rb) return ra - rb;
+    return byLang(a, b);
+  });
+  others.sort((a, b) => {
+    const l = byLang(a, b);
+    if (l !== 0) return l;
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return a.position - b.position;
+  });
+
+  return { suggested, others };
+}
+
 // ─── Ordenação por estado sugerido ─────────────────────────
 
 /**
  * Devolve uma lista de templates ordenada com:
- *   1. Templates sugeridos para `currentStatus` (na ordem da posição)
- *   2. Restantes templates por categoria
+ *   1. Templates sugeridos pelas regras de campos (fieldSuggestionBases)
+ *   2. Templates sugeridos para `currentStatus` (na ordem da posição)
+ *   3. Restantes templates por categoria
  *
  * Filtra automaticamente pelo `scope` (order/voucher) e opcionalmente pelo
  * idioma preferido (ex: idioma do formulário do cliente).
@@ -292,6 +490,7 @@ export function rankTemplatesForStatus(
     scope: "order" | "voucher";
     currentStatus?: string | null;
     preferredLanguage?: TemplateLanguage;
+    orderFields?: OrderFieldsForSuggestion;
   },
 ): { suggested: MessageTemplate[]; others: MessageTemplate[] } {
   const filtered = templates.filter(
@@ -300,10 +499,20 @@ export function rankTemplatesForStatus(
       (t.scope === options.scope || t.scope === "both"),
   );
 
+  const fieldBases = options.orderFields
+    ? fieldSuggestionBases(options.orderFields)
+    : [];
+  const fieldBaseRank = new Map(fieldBases.map((b, i) => [b, i]));
+
+  const fieldSuggested: MessageTemplate[] = [];
   const suggested: MessageTemplate[] = [];
   const others: MessageTemplate[] = [];
 
   for (const t of filtered) {
+    if (fieldBaseRank.has(slugBase(t.slug))) {
+      fieldSuggested.push(t);
+      continue;
+    }
     const matchesStatus =
       options.currentStatus &&
       t.suggested_statuses.includes(options.currentStatus as never);
@@ -327,8 +536,17 @@ export function rankTemplatesForStatus(
     return a.position - b.position;
   };
 
+  // Os sugeridos por campos ordenam pela ordem das regras (a mais
+  // específica primeiro), com o idioma preferido à frente dentro da
+  // mesma regra.
+  fieldSuggested.sort((a, b) => {
+    const ra = fieldBaseRank.get(slugBase(a.slug)) ?? 99;
+    const rb = fieldBaseRank.get(slugBase(b.slug)) ?? 99;
+    if (ra !== rb) return ra - rb;
+    return byPreferred(a, b);
+  });
   suggested.sort(byPreferred);
   others.sort(byPreferred);
 
-  return { suggested, others };
+  return { suggested: [...fieldSuggested, ...suggested], others };
 }

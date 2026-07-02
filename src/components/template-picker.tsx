@@ -38,8 +38,10 @@ import {
 } from "@/types/message-template";
 import {
   rankTemplatesForStatus,
+  rankTemplatesForLead,
   renderOrderTemplate,
   renderVoucherTemplate,
+  renderLeadTemplate,
   type VoucherForTemplate,
 } from "@/lib/templates";
 import type { Order } from "@/types/database";
@@ -63,12 +65,23 @@ type PickerProps =
       order: Order;
       preferredLanguage?: TemplateLanguage;
       voucher?: never;
+      contactName?: never;
     }
   | {
       scope: "voucher";
       voucher: VoucherForTemplate;
       preferredLanguage?: TemplateLanguage;
       order?: never;
+      contactName?: never;
+    }
+  | {
+      // Lead: conversa de WhatsApp sem encomenda ligada. Só resolve as
+      // variáveis genéricas (saudação, nome, morada, pagamento).
+      scope: "lead";
+      contactName?: string | null;
+      preferredLanguage?: TemplateLanguage;
+      order?: never;
+      voucher?: never;
     };
 
 /**
@@ -128,11 +141,16 @@ export default function TemplatePicker(props: PickerProps) {
 
   const ranked = useMemo(() => {
     if (!templates) return { suggested: [], others: [] };
+    if (scope === "lead") {
+      return rankTemplatesForLead(templates, preferredLanguage);
+    }
     const currentStatus = scope === "order" ? props.order.status : null;
     return rankTemplatesForStatus(templates, {
       scope,
       currentStatus,
       preferredLanguage,
+      // Sugestões por campos: "não sei" no envio/tamanho, funeral, etc.
+      orderFields: scope === "order" ? props.order : undefined,
     });
   }, [templates, scope, preferredLanguage, props]);
 
@@ -163,7 +181,7 @@ export default function TemplatePicker(props: PickerProps) {
             <div className="p-2 border-b border-cream-200">
               <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 font-semibold flex items-center gap-1">
                 <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                Sugeridos para esta fase
+                {scope === "lead" ? "Típicos de primeiro contacto" : "Sugeridos para esta fase"}
               </div>
               {ranked.suggested.map((t) => (
                 <TemplateItem key={t.id} template={t} onPick={pick} highlighted />
@@ -209,6 +227,9 @@ function renderTemplate(
 ): string {
   if (ctx.scope === "order") {
     return renderOrderTemplate(template, { order: ctx.order, settings });
+  }
+  if (ctx.scope === "lead") {
+    return renderLeadTemplate(template, { contactName: ctx.contactName, settings });
   }
   return renderVoucherTemplate(template, { voucher: ctx.voucher, settings });
 }

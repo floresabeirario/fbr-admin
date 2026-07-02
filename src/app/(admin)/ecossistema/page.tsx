@@ -179,7 +179,7 @@ const INTEGRATIONS: Array<
   },
   {
     name: "Anthropic Claude",
-    description: "\"Cérebro da Claude\": sugere respostas no WhatsApp e no workbench (PT/EN), com persona e factos editáveis. Só corre ao carregar no botão.",
+    description: "\"Cérebro do Claude\": sugere respostas no WhatsApp e no workbench (PT/EN), com persona e factos editáveis. Só corre ao carregar no botão.",
     tone: "integration",
     icon: Sparkles,
     status: "active",

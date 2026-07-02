@@ -46,7 +46,7 @@ export default async function ComunicacoesHub() {
     {
       href: "/whatsapp",
       label: "WhatsApp",
-      description: "Conversas em tempo real com clientes e leads. Echoes do telemóvel, sugestões da Claude.",
+      description: "Conversas em tempo real com clientes e leads. Echoes do telemóvel, sugestões do Claude.",
       icon: MessageSquareText,
       accent: "text-emerald-600 bg-emerald-50",
       stat: `${waConvsCount} conversa${waConvsCount === 1 ? "" : "s"} activa${waConvsCount === 1 ? "" : "s"}`,
@@ -63,7 +63,7 @@ export default async function ComunicacoesHub() {
     {
       href: "/comunicacoes/templates",
       label: "Templates",
-      description: "Biblioteca de mensagens prontas (PT + EN). A Claude usa-as como referência de tom.",
+      description: "Biblioteca de mensagens prontas (PT + EN). O Claude usa-as como base de conteúdo e tom.",
       icon: BookText,
       accent: "text-amber-600 bg-amber-50",
       stat: `${templatesCount} templates`,
@@ -71,8 +71,8 @@ export default async function ComunicacoesHub() {
     },
     {
       href: "/comunicacoes/claudio",
-      label: "Cérebro da Claude",
-      description: "Persona, factos da FBR e configuração da IA. Edita aqui como a Claude fala.",
+      label: "Cérebro do Claude",
+      description: "Persona, factos da FBR e configuração da IA. Edita aqui como o Claude fala.",
       icon: Sparkles,
       accent: "text-indigo-600 bg-indigo-50",
       hidden: role !== "admin",

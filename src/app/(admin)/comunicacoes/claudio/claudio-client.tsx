@@ -38,11 +38,11 @@ export default function ClaudioClient({
       <header className="space-y-1">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-indigo-500" />
-          <h1 className="text-xl font-semibold text-cocoa-900">Cérebro da Claude</h1>
+          <h1 className="text-xl font-semibold text-cocoa-900">Cérebro do Claude</h1>
         </div>
         <p className="text-sm text-cocoa-600">
-          O que a Claude sabe sobre a FBR e como deve falar. Tudo o que mudares aqui afecta as
-          sugestões de resposta no WhatsApp e em qualquer sítio onde ela apareça.
+          O que o Claude sabe sobre a FBR e como deve falar. Tudo o que mudares aqui afecta as
+          sugestões de resposta no WhatsApp e em qualquer sítio onde ele apareça.
         </p>
       </header>
 
@@ -51,7 +51,7 @@ export default function ClaudioClient({
         <div className="flex items-start gap-2 mb-3">
           <Wallet className="h-4 w-4 text-emerald-600 mt-0.5" />
           <div className="flex-1">
-            <h2 className="text-sm font-semibold text-cocoa-900">Custo da Claude</h2>
+            <h2 className="text-sm font-semibold text-cocoa-900">Custo do Claude</h2>
             <p className="text-xs text-cocoa-600 mt-0.5">
               Estimativa baseada em tokens × preço do modelo (USD × 0,92 ≈ EUR). Conta oficial em
               <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline ml-1">
@@ -77,7 +77,7 @@ export default function ClaudioClient({
       {/* A. Persona */}
       <SettingCard
         title="Tom & Persona"
-        subtitle="A voz da FBR. Como a Claude escreve — formalidade, emojis, regras de tratamento."
+        subtitle="A voz da FBR. Como o Claude escreve — formalidade, emojis, regras de tratamento."
         icon={<MessageSquareText className="h-4 w-4 text-indigo-500" />}
         settingKey="claude_persona"
         initialValue={initialPersona}
@@ -88,7 +88,7 @@ export default function ClaudioClient({
       {/* B. Factos */}
       <SettingCard
         title="Factos & contexto adicional"
-        subtitle="Coisas que a Claude deve sempre saber sobre o negócio. Uma frase por linha."
+        subtitle="Coisas que o Claude deve sempre saber sobre o negócio. Uma frase por linha."
         icon={<FileText className="h-4 w-4 text-amber-500" />}
         settingKey="claude_facts"
         initialValue={initialFacts}
@@ -103,8 +103,8 @@ export default function ClaudioClient({
           <div className="flex-1">
             <h2 className="text-sm font-semibold text-cocoa-900">Biblioteca de templates</h2>
             <p className="text-xs text-cocoa-600 mt-0.5">
-              Mensagens prontas que tu validaste. A Claude lê todas como **referência de estilo** ao
-              gerar sugestões — não as copia tal e qual, mas inspira-se no tom.
+              Mensagens prontas que tu validaste. O Claude usa-as como **base de conteúdo** ao
+              gerar sugestões — adapta nomes, valores e datas ao contexto da conversa.
             </p>
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function ClaudioClient({
             <h2 className="text-sm font-semibold text-cocoa-900">Notas por conversa</h2>
             <p className="text-xs text-cocoa-600 mt-0.5">
               Cada conversa de WhatsApp tem uma caixa de notas onde podes escrever info sobre a
-              pessoa (ex: &quot;quer borgonha, não gosta de gypsophila&quot;). A Claude lê essas notas
+              pessoa (ex: &quot;quer borgonha, não gosta de gypsophila&quot;). O Claude lê essas notas
               quando sugere resposta APENAS para essa conversa.
             </p>
             <p className="text-xs text-cocoa-500 mt-1">

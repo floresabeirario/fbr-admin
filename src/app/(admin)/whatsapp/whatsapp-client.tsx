@@ -11,6 +11,7 @@ import { linkify } from "@/lib/linkify";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import TemplatePicker from "@/components/template-picker";
 import type {
   WhatsappConversation,
   WhatsappMessage,
@@ -596,7 +597,10 @@ function ConversationViewer({
       </div>
 
       {/* Composer: caixa de instrucao opcional + sugerir resposta com Claude */}
-      <SuggestComposer conversationId={conversation.id} />
+      <SuggestComposer
+        conversationId={conversation.id}
+        contactName={conversation.contact_name}
+      />
     </>
   );
 }
@@ -604,7 +608,13 @@ function ConversationViewer({
 // ──────────────────────────────────────────────────────────────
 // COMPOSER — "Sugerir resposta" com Claude
 // ──────────────────────────────────────────────────────────────
-function SuggestComposer({ conversationId }: { conversationId: string }) {
+function SuggestComposer({
+  conversationId,
+  contactName,
+}: {
+  conversationId: string;
+  contactName?: string | null;
+}) {
   const [instruction, setInstruction] = useState("");
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
@@ -703,20 +713,24 @@ function SuggestComposer({ conversationId }: { conversationId: string }) {
       <Textarea
         value={instruction}
         onChange={(e) => setInstruction(e.target.value)}
-        placeholder='Diz à Claude o que queres comunicar (opcional). Ex: "responde que sim, conseguimos fazer mas o prazo é mais longo"'
+        placeholder='Diz ao Claude o que queres comunicar (opcional). Ex: "responde que sim, conseguimos fazer mas o prazo é mais longo"'
         rows={2}
         className="text-sm"
       />
-      <Button
-        type="button"
-        size="sm"
-        onClick={handleSuggest}
-        disabled={loading}
-        className="w-full"
-      >
-        <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-        {loading ? "A pensar…" : "Sugerir resposta"}
-      </Button>
+      <div className="flex items-center gap-2">
+        {/* Templates prontos a copiar/colar (leads: 1º contacto, preços, 3 opções de entrega, …) */}
+        <TemplatePicker scope="lead" contactName={contactName} />
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSuggest}
+          disabled={loading}
+          className="flex-1"
+        >
+          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+          {loading ? "A pensar…" : "Sugerir resposta"}
+        </Button>
+      </div>
     </footer>
   );
 }

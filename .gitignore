@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# conversas WhatsApp exportadas (dados pessoais de clientes — RGPD).
+# Estão em public/ só para leitura local; NUNCA podem ir para o git,
+# senão o Vercel serve-as publicamente.
+/public/conversas whatsapp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
