@@ -436,14 +436,29 @@ export function slugBase(slug: string): string {
   return slug.replace(/_(pt|en)$/, "");
 }
 
-// Snippet para listas: primeira frase útil do corpo, saltando a linha
-// de saudação ({saudacao} {nome} 🌷 / Hello {nome}…), que é igual em
-// quase todos os templates e não ajuda a distingui-los.
+// Snippet para listas: primeira frase útil do corpo, saltando as linhas
+// de saudação ({saudacao} {nome} 🌷, "Bom dia, {nome}", "Cara {nome},",
+// "Dear {nome}"…), que são iguais em quase todos os templates e não
+// ajudam a distingui-los.
+const GREETING_START =
+  /^(\{saudacao(_en)?\}|(bom dia|boa tarde|boa noite|ol[aá]|hello|hi|hey|dear|good (morning|afternoon|evening)|car[oa]s?)\b)/i;
+
+function isGreetingLine(line: string): boolean {
+  if (!GREETING_START.test(line)) return false;
+  // Só conta como saudação se, tirando variáveis, emojis e pontuação,
+  // não sobrar texto com substância ("Bom dia, {nome} 🌷" é saudação;
+  // "Olá! O seu quadro está pronto" não é).
+  const stripped = line
+    .replace(/\{[a-z_]+\}/gi, "")
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/[\s,.!?…:;–-]+/g, " ")
+    .trim();
+  return stripped.length <= 20;
+}
+
 export function templateSnippet(body: string, maxLen = 120): string {
   const lines = body.split("\n").map((l) => l.trim()).filter(Boolean);
-  const isGreeting = (l: string) =>
-    /^\{saudacao\}/i.test(l) || /^(hello|hi|olá|ola)\b/i.test(l);
-  const useful = lines.find((l) => !isGreeting(l)) ?? lines[0] ?? "";
+  const useful = lines.find((l) => !isGreetingLine(l)) ?? lines[0] ?? "";
   return useful.length > maxLen ? `${useful.slice(0, maxLen)}…` : useful;
 }
 

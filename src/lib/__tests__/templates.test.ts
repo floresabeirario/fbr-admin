@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fieldSuggestionBases, rankTemplatesForStatus } from "../templates";
+import { fieldSuggestionBases, rankTemplatesForStatus, templateSnippet } from "../templates";
 import type { MessageTemplate, TemplateLanguage } from "@/types/message-template";
 import type { OrderStatus } from "@/types/database";
 
@@ -256,5 +256,45 @@ describe("rankTemplatesForStatus — filtro por campos e idioma", () => {
     });
     // Sem campos nem idioma: comportamento antigo (tudo o que bate no estado)
     expect(suggested.length).toBe(catalogo.length);
+  });
+});
+
+// Snippet nas listas de templates (sessão 127): a primeira frase ÚTIL,
+// saltando saudações — incluindo as escritas à mão ("Bom dia, {nome}",
+// "Cara {nome},"), que apareciam como snippet e não diziam nada.
+
+describe("templateSnippet", () => {
+  it("salta a linha {saudacao} e mostra a frase seguinte", () => {
+    expect(
+      templateSnippet("{saudacao} {nome} 🌷\n\nAntes de mais, muitos parabéns!"),
+    ).toBe("Antes de mais, muitos parabéns!");
+  });
+
+  it("salta saudações escritas à mão (Bom dia / Cara / Dear)", () => {
+    expect(
+      templateSnippet("Bom dia, {nome} 🌷\n\nChegou o momento de escolher a moldura."),
+    ).toBe("Chegou o momento de escolher a moldura.");
+    expect(
+      templateSnippet("Cara {nome},\n\nSegue em anexo a fatura."),
+    ).toBe("Segue em anexo a fatura.");
+    expect(
+      templateSnippet("Dear {nome},\n\nYour frame is ready! 🎉"),
+    ).toBe("Your frame is ready! 🎉");
+  });
+
+  it("não salta primeiras linhas que começam por saudação mas têm substância", () => {
+    expect(
+      templateSnippet("Olá! O seu quadro já seguiu viagem para a sua morada."),
+    ).toBe("Olá! O seu quadro já seguiu viagem para a sua morada.");
+  });
+
+  it("se o corpo for só a saudação, mostra-a na mesma (melhor que vazio)", () => {
+    expect(templateSnippet("{saudacao} {nome} 🌷")).toBe("{saudacao} {nome} 🌷");
+  });
+
+  it("trunca frases longas ao limite", () => {
+    const longa = "Relativamente ao envio do quadro final, ".repeat(6);
+    expect(templateSnippet(longa).length).toBeLessThanOrEqual(121);
+    expect(templateSnippet(longa).endsWith("…")).toBe(true);
   });
 });
