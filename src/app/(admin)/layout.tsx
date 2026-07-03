@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
 import { StaleDataBanner } from "@/components/stale-data-banner";
+import { ErrorReporter } from "@/components/error-reporter";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { cn } from "@/lib/utils";
@@ -598,6 +599,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Pesquisa global — Cmd/Ctrl+K + botões de trigger */}
       <GlobalSearch />
+
+      {/* Captura de erros JS → tabela client_errors (mig 086) */}
+      <ErrorReporter />
     </div>
   );
 }

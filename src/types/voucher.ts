@@ -92,7 +92,9 @@ export interface Voucher {
   sticky_note: string | null;
 
   // ── Drive (Fase 6 — auto-criação ao 1º pagamento) ───────────
-  drive_folder_url: string | null;
+  // NOTA: ao contrário de orders, vouchers NÃO tem drive_folder_url —
+  // o teste schema-drift apanhou o campo fantasma na sessão 124
+  // (existia no tipo mas em nenhuma migração nem na produção).
   drive_folder_id: string | null;
 
   // ── RGPD (anonimização) ────────────────────────────────────

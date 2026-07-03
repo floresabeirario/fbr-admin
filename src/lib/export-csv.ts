@@ -179,7 +179,10 @@ const VOUCHER_COLUMNS: Array<{ header: string; get: (v: Voucher) => string }> = 
   { header: "Comissão (€)",            get: (v) => fmtEuro(v.partner_commission) },
   { header: "Estado comissão",         get: (v) => lookup(v.partner_commission_status, PARTNER_COMMISSION_STATUS_LABELS) },
   { header: "Sticky note",             get: (v) => v.sticky_note ?? "" },
-  { header: "Pasta Drive",             get: (v) => v.drive_folder_url ?? "" },
+  // vouchers só têm drive_folder_id (ao contrário de orders) — a coluna
+  // antiga lia drive_folder_url, que NUNCA existiu na BD, e o CSV vinha
+  // sempre vazio (apanhado pelo teste schema-drift na sessão 124).
+  { header: "Pasta Drive",             get: (v) => (v.drive_folder_id ? `https://drive.google.com/drive/folders/${v.drive_folder_id}` : "") },
 ];
 
 export function exportVouchersToCsv(vouchers: Voucher[]): void {

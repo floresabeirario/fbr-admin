@@ -136,3 +136,30 @@ export async function deleteChecklistItemAction(id: string): Promise<void> {
   if (error) throw new Error(error.message);
   revalidatePath("/");
 }
+
+// ============================================================
+// Monitorização de erros (mig 086) — regista erros JS do browser
+// ============================================================
+// Best-effort: se falhar (mig por correr, offline), falha em silêncio
+// — reportar um erro nunca pode causar outro erro visível.
+
+export async function reportClientErrorAction(input: {
+  message: string;
+  stack?: string | null;
+  path?: string | null;
+  source?: "client" | "boundary";
+}): Promise<void> {
+  try {
+    const email = await requireUser();
+    const supabase = await createClient();
+    await supabase.from("client_errors").insert({
+      message: String(input.message ?? "sem mensagem").slice(0, 1000),
+      stack: input.stack ? String(input.stack).slice(0, 4000) : null,
+      path: input.path ? String(input.path).slice(0, 300) : null,
+      source: input.source === "boundary" ? "boundary" : "client",
+      user_email: email,
+    });
+  } catch {
+    // silêncio intencional
+  }
+}

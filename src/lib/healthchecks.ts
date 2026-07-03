@@ -200,6 +200,40 @@ export async function runHealthchecks(
     });
   }
 
+  // Erros JS da app (mig 086): registados pelo ErrorReporter/error
+  // boundary. Antes disto um crash no browser era invisível.
+  {
+    const dayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: errCount, error: errReadError } = await supabase
+      .from("client_errors")
+      .select("*", { count: "exact", head: true })
+      .gte("at", dayAgoIso);
+    let details = "Sem erros registados nas últimas 24h";
+    let status: HealthCheck["status"] = "ok";
+    if (errReadError) {
+      status = "warning";
+      details =
+        errReadError.code === "42P01" || /find the table/i.test(errReadError.message ?? "")
+          ? "Tabela client_errors não existe — corre a mig 086"
+          : `Não consegui ler client_errors: ${errReadError.message}`;
+    } else if ((errCount ?? 0) > 0) {
+      status = (errCount ?? 0) >= 10 ? "error" : "warning";
+      details = `${errCount} erro(s) de JavaScript nas últimas 24h`;
+    }
+    checks.push({
+      id: "data-client-errors",
+      label: "Erros na app (últimas 24h)",
+      category: "data",
+      status,
+      details,
+      count: errCount ?? undefined,
+      hint:
+        status !== "ok" && !errReadError
+          ? "Vê os detalhes: SELECT * FROM client_errors ORDER BY at DESC LIMIT 20"
+          : undefined,
+    });
+  }
+
   // Backup diário da BD para a Drive (cron das 05:00 UTC). Um backup
   // que parte em silêncio é pior que não ter backup — daí este check.
   const { data: backupRow, error: backupReadError } = await supabase

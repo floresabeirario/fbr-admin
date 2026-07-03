@@ -35,6 +35,15 @@ export async function GET(request: Request) {
 
   const summary = summariseHealthchecks(checks);
 
+  // Retenção dos erros JS (mig 086): apaga registos com >30 dias.
+  // Best-effort — se a tabela ainda não existir, o check próprio avisa.
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from("client_errors").delete().lt("at", thirtyDaysAgo);
+  } catch {
+    // silêncio — nunca falhar o healthcheck por causa da limpeza
+  }
+
   const { error: upsertError } = await supabase
     .from("system_settings")
     .upsert({ key: HEALTHCHECK_STATUS_KEY, value: JSON.stringify(summary) });
