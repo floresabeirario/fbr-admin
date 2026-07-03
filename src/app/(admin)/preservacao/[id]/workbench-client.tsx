@@ -90,6 +90,7 @@ import type {
 } from "@/types/database";
 import type { Task, TaskTemplate } from "@/types/tasks";
 import {
+  STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
   FLOWER_DELIVERY_METHOD_LABELS,
@@ -195,6 +196,17 @@ const EXTRA_OPTIONS = [
 
 // ── Componente principal ───────────────────────────────────────
 
+/** Outra encomenda do mesmo cliente (mesmo email/telemóvel). Só
+ *  informativo — avisa com link, NUNCA bloqueia (regra da Maria). */
+export type DuplicateOrderInfo = {
+  id: string;
+  order_id: string;
+  client_name: string;
+  status: Order["status"];
+  event_date: string | null;
+  matchedBy: string;
+};
+
 export default function WorkbenchClient({
   order,
   canEdit,
@@ -203,6 +215,7 @@ export default function WorkbenchClient({
   orderTasks = [],
   currentEmail = "",
   linkedVoucherCode = null,
+  duplicateOrders = [],
 }: {
   order: Order;
   canEdit: boolean;
@@ -212,6 +225,7 @@ export default function WorkbenchClient({
   currentEmail?: string;
   /** Código de vale existente quando `gift_voucher_code` corresponde a um vale activo. */
   linkedVoucherCode?: string | null;
+  duplicateOrders?: DuplicateOrderInfo[];
 }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
@@ -816,6 +830,34 @@ export default function WorkbenchClient({
           )}
         </div>
       </header>
+
+      {/* Cliente repetido — aviso informativo com links. NUNCA bloqueia:
+          a mesma pessoa pode fazer várias encomendas (regra da Maria). */}
+      {duplicateOrders.length > 0 && (
+        <div className="border-b border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 px-3 sm:px-4 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sky-900 dark:text-sky-200">
+          <span className="font-medium shrink-0">
+            🌸 Cliente repetido — {duplicateOrders.length === 1
+              ? "tem outra encomenda"
+              : `tem ${duplicateOrders.length} outras encomendas`}:
+          </span>
+          {duplicateOrders.map((d) => (
+            <Link
+              key={d.id}
+              href={`/preservacao/${d.order_id}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 dark:border-sky-800 bg-surface px-2 py-0.5 hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors"
+              title={`${d.client_name} — coincide por ${d.matchedBy}`}
+            >
+              <span className="font-mono">#{d.order_id.slice(0, 6)}</span>
+              <span>{STATUS_LABELS[d.status] ?? d.status}</span>
+              {d.event_date && (
+                <span className="text-sky-700 dark:text-sky-300">
+                  {format(parseISO(d.event_date), "dd/MM/yyyy")}
+                </span>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* ── Corpo: 3 colunas em desktop, lista plana em mobile ──
           As 3 colunas usam `display: contents` em mobile (<lg) para deixar

@@ -6,8 +6,9 @@ import type { Partner } from "@/types/partner";
 import type { Task, TaskTemplate } from "@/types/tasks";
 import { loadIntegration } from "@/lib/google/oauth";
 import { computeEventHtmlLink } from "@/lib/google/calendar";
+import { findDuplicates } from "@/lib/duplicates";
 import { markOrderSeenAction } from "../actions";
-import WorkbenchClient from "./workbench-client";
+import WorkbenchClient, { type DuplicateOrderInfo } from "./workbench-client";
 
 export default async function WorkbenchPage({
   params,
@@ -69,6 +70,29 @@ export default async function WorkbenchPage({
     linkedVoucherCode = voucherRow?.code ?? null;
   }
 
+  // Cliente repetido: outras encomendas com o mesmo email/telemóvel.
+  // Só informativo (aviso com link, NUNCA bloqueia — regra da Maria).
+  // Matching em JS porque a normalização de telefones não se faz bem
+  // em PostgREST; a tabela tem centenas de linhas, é barato.
+  let duplicateOrders: DuplicateOrderInfo[] = [];
+  if (order.email || order.phone) {
+    const { data: otherOrders } = await supabase
+      .from("orders")
+      .select("id, order_id, client_name, email, phone, status, event_date")
+      .is("deleted_at", null)
+      .neq("id", order.id);
+    duplicateOrders = findDuplicates(order, otherOrders ?? []).map(
+      ({ record, matchedBy }) => ({
+        id: record.id as string,
+        order_id: record.order_id as string,
+        client_name: (record.client_name as string | null) ?? "Sem nome",
+        status: record.status as Order["status"],
+        event_date: record.event_date as string | null,
+        matchedBy,
+      }),
+    );
+  }
+
   // Marcar como vista pelo utilizador actual (acrescenta email ao seen_by[]).
   // Fire-and-forget — não bloqueia o render se a RPC falhar. Idempotente
   // a partir da segunda visita (a RPC verifica NOT email = ANY(seen_by)).
@@ -103,6 +127,7 @@ export default async function WorkbenchPage({
       orderTasks={orderTasks}
       currentEmail={currentEmail}
       linkedVoucherCode={linkedVoucherCode}
+      duplicateOrders={duplicateOrders}
     />
   );
 }

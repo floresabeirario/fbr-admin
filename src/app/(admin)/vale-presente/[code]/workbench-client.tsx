@@ -111,6 +111,16 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
+/** Outro vale ou encomenda do mesmo remetente (mesmo email/telemóvel).
+ *  Só informativo — avisa com link, NUNCA bloqueia (regra da Maria).
+ *  Labels resolvidos no servidor para o client só renderizar chips. */
+export type VoucherDuplicateInfo = {
+  key: string;
+  href: string;
+  label: string;
+  matchedBy: string;
+};
+
 interface Props {
   voucher: Voucher;
   canEdit: boolean;
@@ -118,6 +128,7 @@ interface Props {
   taskTemplates?: TaskTemplate[];
   voucherTasks?: Task[];
   currentEmail?: string;
+  duplicates?: VoucherDuplicateInfo[];
 }
 
 // ── Edição inline do código do vale ────────────────────────
@@ -187,6 +198,7 @@ export default function VoucherWorkbenchClient({
   taskTemplates = [],
   voucherTasks = [],
   currentEmail = "",
+  duplicates = [],
 }: Props) {
   const router = useRouter();
   const [data, setData] = useState<Voucher>(voucher);
@@ -356,6 +368,26 @@ export default function VoucherWorkbenchClient({
           )}
         </div>
       </div>
+
+      {/* Cliente repetido — aviso informativo com links. NUNCA bloqueia:
+          a mesma pessoa pode comprar vários vales/encomendas (regra da Maria). */}
+      {duplicates.length > 0 && (
+        <div className="border-b border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 px-3 sm:px-6 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-sky-900 dark:text-sky-200">
+          <span className="font-medium shrink-0">
+            🌸 Cliente repetido — este contacto também tem:
+          </span>
+          {duplicates.map((d) => (
+            <Link
+              key={d.key}
+              href={d.href}
+              className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 dark:border-sky-800 bg-surface px-2 py-0.5 hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors"
+              title={`Coincide por ${d.matchedBy}`}
+            >
+              {d.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Banner de viewer */}
       {!canEdit && (
