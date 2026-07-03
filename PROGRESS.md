@@ -999,6 +999,7 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
 - **Aba "Healthchecks"** — versão útil entregue na sessão 43, mas pode crescer (form checks, SEO, etc.)
 - **Filtros guardáveis em Preservação** (proposto na sessão 62, adiado pela Maria) — chips ao lado da pesquisa com filtros pré-feitos: "Urgentes (≤7 dias)", "Pagamento pendente", "Em prensa", etc. Reduz cliques no dia-a-dia. Estimativa: 1h, risco zero. Avaliar também em Parcerias.
 - **Push notifications PWA** (pedido pela Maria na sessão 75, adiado por complexidade) — usar Web Push API + VAPID keys para notificar no telemóvel/desktop nativo quando uma tarefa é atribuída (ou pré-reserva nova chega, etc.). Service worker já existe (PWA da sessão 39). Implica: subscribe no client, guardar push subscriptions na BD por user+device, endpoint server que envia via VAPID, fallback gracioso para browsers sem permissão.
+- **Relatório mensal de analytics do site (Clarity) — compilar + enviar por email** (2026-07-03, adiado de propósito): a recolha automática já corre (cron `clarity-snapshot` de 3/3 dias no fbr-website → tabela `analytics_snapshots`, auto-limpa >45 dias; migração 087). Falta: (1) escrever a compilação mensal para `analytics_monthly` **com o formato real dos dados à frente** (não às cegas, para não plantar quebra silenciosa); (2) job mensal que envia o resumo por email via Resend (a Maria já tem), para chegar sozinho sem ela pedir. Ver [[project_website_analytics]].
 - Outras ideias geridas dentro da própria aba `/ideias` desde a sessão 42
 
 ---
