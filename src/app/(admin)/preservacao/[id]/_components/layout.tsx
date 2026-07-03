@@ -82,8 +82,11 @@ export function Grid2({ children }: { children: React.ReactNode }) {
 }
 
 export function Field({ label, children, span2, hint }: { label: string; children: React.ReactNode; span2?: boolean; hint?: string }) {
+  // span2 só a partir de xl (o Grid2 é grid-cols-1 até lá). Um col-span-2
+  // fixo num grid de 1 coluna cria uma 2ª coluna IMPLÍCITA e esmaga os
+  // campos seguintes uns sobre os outros no telemóvel.
   return (
-    <div className={`space-y-1.5 ${span2 ? "col-span-2" : ""}`}>
+    <div className={`space-y-1.5 ${span2 ? "xl:col-span-2" : ""}`}>
       <Label className="text-xs font-medium text-cocoa-700">{label}</Label>
       {children}
       {hint && <p className="text-[10px] text-cocoa-500">{hint}</p>}
@@ -93,8 +96,9 @@ export function Field({ label, children, span2, hint }: { label: string; childre
 
 // Versão de Field para o hero — labels micro (uppercase + tracking) para harmonizar com inputs sem borda.
 export function HeroField({ label, children, span2 }: { label: string; children: React.ReactNode; span2?: boolean }) {
+  // Mesma regra do Field, mas o grid do hero passa a 2 colunas em lg.
   return (
-    <div className={`space-y-0.5 ${span2 ? "col-span-2" : ""}`}>
+    <div className={`space-y-0.5 ${span2 ? "lg:col-span-2" : ""}`}>
       <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-cocoa-500">{label}</Label>
       {children}
     </div>

@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { roleForEmail, type Role } from "./roles";
+import { isTeamEmail, roleForEmail, type Role } from "./roles";
 
 // getClaims() em vez de getUser(): valida a assinatura do JWT localmente
 // (chaves públicas do projecto, cacheadas) em vez de uma chamada de rede
@@ -12,7 +12,10 @@ async function getVerifiedEmail(): Promise<string | null> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const email = data?.claims?.email;
-  return typeof email === "string" ? email : null;
+  // Contas fora da equipa não contam como autenticadas — mesmo com
+  // sessão Supabase válida (ex.: signups abertos por engano), nunca
+  // passam num requireUser/requireAdmin nem contam como "logadas".
+  return typeof email === "string" && isTeamEmail(email) ? email : null;
 }
 
 export async function getCurrentRole(): Promise<Role> {

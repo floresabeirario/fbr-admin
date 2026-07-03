@@ -1,0 +1,30 @@
+# ============================================================
+# CI — corre o preflight (tsc + testes + build) em cada push/PR.
+# ============================================================
+# O preflight local continua a ser obrigatório antes de fechar
+# sessão; isto é a rede de segurança para o dia em que alguém se
+# esquece (ou para sessões Claude em paralelo).
+#
+# As env vars são dummy: o build do Next só precisa que existam
+# (nenhuma página estática toca na BD real durante o build; as
+# páginas de dados são todas dinâmicas).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://dummy-ci.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-so-o-build-passa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run preflight

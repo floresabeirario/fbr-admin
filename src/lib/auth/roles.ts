@@ -19,6 +19,22 @@ export const ADMIN_EMAILS_LIST: readonly string[] = [
 
 const ADMIN_EMAILS: ReadonlySet<string> = new Set(ADMIN_EMAILS_LIST);
 
+export const VIEWER_EMAILS_LIST: readonly string[] = [
+  "info+ana@floresabeirario.pt",
+];
+
+// Toda a equipa (admins + viewer). Usado pelo proxy para barrar sessões
+// de contas desconhecidas: mesmo que os signups do Supabase estejam
+// abertos por engano, uma conta estranha nunca passa do /login.
+const TEAM_EMAILS: ReadonlySet<string> = new Set([
+  ...ADMIN_EMAILS_LIST,
+  ...VIEWER_EMAILS_LIST,
+]);
+
+export function isTeamEmail(email: string | null | undefined): boolean {
+  return !!email && TEAM_EMAILS.has(email);
+}
+
 export function roleForEmail(email: string | null | undefined): Role {
   return email && ADMIN_EMAILS.has(email) ? "admin" : "viewer";
 }

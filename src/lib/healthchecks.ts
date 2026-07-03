@@ -200,5 +200,63 @@ export async function runHealthchecks(
     });
   }
 
+  // Backup diário da BD para a Drive (cron das 05:00 UTC). Um backup
+  // que parte em silêncio é pior que não ter backup — daí este check.
+  const { data: backupRow, error: backupReadError } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", "backup_status")
+    .maybeSingle();
+  let backupStatus: HealthCheck["status"] = "warning";
+  let backupDetails = "Ainda nenhum backup registado — o cron corre às 05:00 UTC";
+  let backupHint: string | undefined =
+    "Se já passou um dia do deploy, verifica o cron /api/cron/backup na Vercel";
+  if (backupReadError) {
+    backupDetails = `Não consegui ler o estado do backup: ${backupReadError.message}`;
+    backupHint = undefined;
+  } else if (backupRow?.value) {
+    try {
+      const parsed = JSON.parse(backupRow.value) as {
+        ran_at?: string;
+        ok?: boolean;
+        file_name?: string;
+        size_bytes?: number;
+        total_rows?: number;
+        error?: string;
+      };
+      const ranAtMs = parsed.ran_at ? Date.parse(parsed.ran_at) : NaN;
+      const ageHours = Number.isNaN(ranAtMs)
+        ? Infinity
+        : (Date.now() - ranAtMs) / 3_600_000;
+      if (parsed.ok === false) {
+        backupStatus = "error";
+        backupDetails = `Último backup FALHOU: ${parsed.error ?? "sem detalhe"}`;
+        backupHint = "Vê os logs do /api/cron/backup na Vercel";
+      } else if (ageHours > 48) {
+        backupStatus = "error";
+        backupDetails = `Último backup com sucesso há ${Math.floor(ageHours / 24)} dia(s) — o cron deixou de correr`;
+        backupHint = "Verifica os crons do projecto na Vercel";
+      } else {
+        backupStatus = "ok";
+        const sizeKb = parsed.size_bytes ? Math.round(parsed.size_bytes / 1024) : null;
+        backupDetails = `${parsed.file_name ?? "backup"} na Drive${
+          parsed.total_rows != null ? ` — ${parsed.total_rows} registos` : ""
+        }${sizeKb != null ? `, ${sizeKb} KB` : ""}`;
+        backupHint = undefined;
+      }
+    } catch {
+      backupDetails = "Estado do backup ilegível (JSON inválido em system_settings)";
+      backupHint = undefined;
+    }
+  }
+  checks.push({
+    id: "integration-backup",
+    label: "Backup diário da BD → Drive",
+    category: "integrations",
+    status: backupStatus,
+    details: backupDetails,
+    hint: backupHint,
+  });
+
   return checks;
 }

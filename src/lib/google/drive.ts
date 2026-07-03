@@ -1,5 +1,6 @@
 import "server-only";
 import { google, type drive_v3 } from "googleapis";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getAuthenticatedClient,
   loadIntegration,
@@ -72,8 +73,12 @@ function sanitize(name: string): string {
   return name.replace(/[\\/<>:"|?*]/g, " ").replace(/\s+/g, " ").trim() || "Sem nome";
 }
 
-async function getDrive(): Promise<drive_v3.Drive> {
-  const auth = await getAuthenticatedClient();
+// `client` opcional em getDrive/ensureRootFolders/uploadWhatsappMedia:
+// por defeito usam a sessão do utilizador; jobs de background sem
+// sessão (webhook WhatsApp) passam o seu createAdminClient() — ver
+// nota no loadIntegration (oauth.ts).
+async function getDrive(client?: SupabaseClient): Promise<drive_v3.Drive> {
+  const auth = await getAuthenticatedClient(client);
   return google.drive({ version: "v3", auth });
 }
 
@@ -127,17 +132,17 @@ async function ensureFolder(
  * Garante que as 3 pastas-mãe existem (raiz + Preservação + Vale-Presente)
  * e cacheia os IDs em `google_integration`. Idempotente.
  */
-export async function ensureRootFolders(): Promise<{
+export async function ensureRootFolders(client?: SupabaseClient): Promise<{
   rootId: string;
   ordersId: string;
   vouchersId: string;
 }> {
-  const integration = await loadIntegration();
+  const integration = await loadIntegration(client);
   if (!integration) {
     throw new Error("Integração Google não encontrada. Conecta primeiro em /settings/google.");
   }
 
-  const drive = await getDrive();
+  const drive = await getDrive(client);
 
   let rootId = integration.drive_root_folder_id;
   if (!rootId) {
@@ -160,7 +165,7 @@ export async function ensureRootFolders(): Promise<{
     ordersId !== integration.drive_orders_folder_id ||
     vouchersId !== integration.drive_vouchers_folder_id
   ) {
-    const supabase = await createClient();
+    const supabase = client ?? (await createClient());
     await supabase
       .from("google_integration")
       .update({
@@ -288,14 +293,17 @@ export async function uploadExpenseInvoice(params: {
  * Estrutura: <FBR Root>/WhatsApp media/<phone_e164>/<filename>
  * Devolve o URL do ficheiro.
  */
-export async function uploadWhatsappMedia(params: {
-  phoneE164: string;
-  filename: string;
-  mimeType: string;
-  buffer: Buffer;
-}): Promise<{ id: string; url: string }> {
-  const { rootId } = await ensureRootFolders();
-  const drive = await getDrive();
+export async function uploadWhatsappMedia(
+  params: {
+    phoneE164: string;
+    filename: string;
+    mimeType: string;
+    buffer: Buffer;
+  },
+  client?: SupabaseClient,
+): Promise<{ id: string; url: string }> {
+  const { rootId } = await ensureRootFolders(client);
+  const drive = await getDrive(client);
 
   const waFolderId = await ensureFolder(drive, "WhatsApp media", rootId);
   // Sanitizar phone para nome de pasta — manter apenas digitos e +.

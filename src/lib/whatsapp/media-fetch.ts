@@ -114,12 +114,14 @@ async function fetchOne(
   const tsPart = msg.received_at.replace(/[:.]/g, "-").slice(0, 19);
   const filename = `${tsPart}-${msg.wamid.slice(-10)}.${ext}`;
 
-  const { id: driveFileId, url: driveUrl } = await uploadWhatsappMedia({
-    phoneE164,
-    filename,
-    mimeType,
-    buffer,
-  });
+  // Passa o client service_role: este código corre no webhook/after()
+  // SEM sessão — com o client por defeito (sessão), a leitura de
+  // google_integration corria como anon e falhava sempre à primeira
+  // (as imagens só entravam na Drive pelo botão de retry de um admin).
+  const { id: driveFileId, url: driveUrl } = await uploadWhatsappMedia(
+    { phoneE164, filename, mimeType, buffer },
+    supabase,
+  );
 
   // 4. Update mensagem
   const { error } = await supabase

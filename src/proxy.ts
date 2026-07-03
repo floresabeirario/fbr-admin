@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isTeamEmail } from "@/lib/auth/roles";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -31,7 +32,14 @@ export async function proxy(request: NextRequest) {
   // refrescar a sessão quando o token está a expirar. Isto tira ~100-300ms
   // a cada navegação — era uma das causas da app "demorar imenso a carregar".
   const { data } = await supabase.auth.getClaims();
-  const user = data?.claims ?? null;
+  const claims = data?.claims ?? null;
+  // Sessão só conta se o email for de um dos 3 membros da equipa.
+  // Defesa em profundidade: mesmo que os signups do Supabase Auth
+  // fiquem abertos por engano, uma conta estranha com sessão válida
+  // fica presa no /login (as RLS já a impediam de ler dados; isto
+  // impede-a de sequer entrar na app ou tocar em rotas internas).
+  const email = typeof claims?.email === "string" ? claims.email : null;
+  const user = claims && isTeamEmail(email) ? claims : null;
 
   const isLoginPage = request.nextUrl.pathname === "/login";
   const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/");

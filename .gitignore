@@ -44,3 +44,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ficheiros de trabalho locais (nunca para o repo nem para o public/)
+/_privado/

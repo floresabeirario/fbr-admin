@@ -5,12 +5,17 @@ import { createClient } from "@supabase/supabase-js";
  *
  * **NUNCA** importar isto em código que possa ser executado a pedido do
  * utilizador (Server Components, server actions chamadas via formulário,
- * client-side). Só pode ser usado em route handlers de servidor que
- * verifiquem `Authorization: Bearer ${CRON_SECRET}` antes de chamar
- * qualquer função que use este client.
+ * client-side) sem antes validar a sessão E o âmbito do pedido.
  *
- * Casos de uso legítimos: cron jobs (Vercel Cron envia o header
- * automaticamente em produção), webhooks autenticados, jobs de background.
+ * Casos de uso legítimos:
+ *  - cron jobs — verificar `Authorization: Bearer ${CRON_SECRET}` (a
+ *    Vercel envia o header automaticamente em produção);
+ *  - webhooks autenticados (HMAC/token) e jobs de background;
+ *  - route handlers com sessão verificada onde a RLS do utilizador já
+ *    validou o âmbito e só falta um dado interno fora do alcance dela
+ *    (ex.: /api/whatsapp/media lê o refresh_token da Google DEPOIS de
+ *    confirmar que o ficheiro pertence a uma mensagem que o utilizador
+ *    pode ler).
  */
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

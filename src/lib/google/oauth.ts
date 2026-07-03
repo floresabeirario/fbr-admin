@@ -1,5 +1,6 @@
 import "server-only";
 import { google } from "googleapis";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -74,8 +75,16 @@ export function buildConsentUrl(state: string): string {
   });
 }
 
-export async function loadIntegration(): Promise<GoogleIntegrationRow | null> {
-  const supabase = await createClient();
+// `client` opcional: por defeito usa a sessão do utilizador (RLS
+// só-admins decide). Jobs de background SEM sessão (webhook WhatsApp,
+// crons) têm de passar o seu createAdminClient() — senão a leitura
+// corre como `anon` e falha com permission denied (era o bug que fazia
+// o upload de media do webhook falhar sempre à primeira; a mig 065
+// deu o GRANT a service_role mas o código nunca o usava aqui).
+export async function loadIntegration(
+  client?: SupabaseClient,
+): Promise<GoogleIntegrationRow | null> {
+  const supabase = client ?? (await createClient());
   const { data, error } = await supabase
     .from("google_integration")
     .select("*")
@@ -142,8 +151,8 @@ export async function disconnectIntegration(): Promise<void> {
  * Devolve um OAuth2Client autenticado com o refresh_token persistido.
  * Lança erro descritivo se a integração ainda não foi conectada.
  */
-export async function getAuthenticatedClient() {
-  const integration = await loadIntegration();
+export async function getAuthenticatedClient(client?: SupabaseClient) {
+  const integration = await loadIntegration(client);
   if (!integration?.refresh_token) {
     throw new Error(
       "Integração Google ainda não está conectada. Vai a /settings/google e clica em 'Conectar Google'.",
