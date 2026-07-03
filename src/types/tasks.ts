@@ -51,6 +51,12 @@ export interface Task {
   // (ex.: fatura) que perguntam o montante no diálogo de criação.
   // Mostra-se alinhado à direita na lista.
   amount: number | null;
+
+  // Lembrete pontual (data+hora) → push no telemóvel (mig 089). Disparado
+  // pelo cron de lembretes (~10 min). reminder_sent_at = quando foi enviado
+  // (NULL = por enviar; reposto a NULL quando reminder_at muda).
+  reminder_at: string | null;
+  reminder_sent_at: string | null;
 }
 
 export type TaskInsert = Partial<Omit<Task, "id" | "created_at" | "updated_at">> & {

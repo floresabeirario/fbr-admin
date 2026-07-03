@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeDailyPushItems,
   computeTaskDeadlineItems,
+  reminderItemFor,
   tomorrowLisbonYMD,
 } from "@/lib/push/daily";
 import type { Order } from "@/types/database";
@@ -181,5 +182,19 @@ describe("prazos de tarefas", () => {
     const items = computeTaskDeadlineItems([task({ due_date: "2026-07-04", assignee_emails: [] })], NOW);
     expect(items).toHaveLength(1);
     expect(items[0].recipients).toBeUndefined();
+  });
+});
+
+describe("lembrete pontual (reminderItemFor)", () => {
+  it("vai para a pessoa atribuída, com o título da tarefa", () => {
+    const { recipients, payload } = reminderItemFor(task({ id: "r9", title: "Ligar à cliente" }));
+    expect(recipients).toEqual(["info+ana@floresabeirario.pt"]);
+    expect(payload.body).toBe("Ligar à cliente");
+    expect(payload.tag).toBe("reminder-r9");
+  });
+
+  it("sem responsável cai para os admins (recipients ausente)", () => {
+    const { recipients } = reminderItemFor(task({ assignee_emails: [] }));
+    expect(recipients).toBeUndefined();
   });
 });

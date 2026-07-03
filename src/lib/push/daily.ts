@@ -156,3 +156,19 @@ export function computeTaskDeadlineItems(tasks: Task[], now: Date): DailyPushIte
 
   return items;
 }
+
+// 🔔 Lembrete pontual de uma tarefa ("lembra-me a esta data/hora"). Vai para
+// a(s) pessoa(s) atribuída(s); sem responsável cai para os admins. O cron de
+// lembretes (/api/cron/reminders) filtra as que já estão na hora e marca-as
+// como enviadas — por isso aqui não há dedupKey.
+export function reminderItemFor(t: Task): { recipients?: string[]; payload: PushPayload } {
+  return {
+    recipients: t.assignee_emails?.length ? t.assignee_emails : undefined,
+    payload: {
+      title: "🔔 Lembrete",
+      body: t.title,
+      url: "/",
+      tag: `reminder-${t.id}`,
+    },
+  };
+}

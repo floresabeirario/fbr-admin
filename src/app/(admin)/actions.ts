@@ -75,16 +75,28 @@ export async function updateTaskAction(
     updates.done_by = null;
   }
 
-  // Se os responsáveis vão mudar, buscamos os anteriores para notificar só
-  // quem é NOVO na tarefa (não re-avisar quem já lá estava).
+  // Se os responsáveis ou o lembrete vão mudar, buscamos o estado anterior:
+  //  - responsáveis → notificar só quem é NOVO na tarefa;
+  //  - lembrete → se a data/hora mudou, repor reminder_sent_at a NULL para
+  //    o lembrete voltar a poder disparar (comparação por instante, não por
+  //    string, porque o Postgres devolve o timestamptz noutro formato).
   let prevAssignees: string[] | null = null;
-  if (updates.assignee_emails !== undefined) {
+  const needPrev =
+    updates.assignee_emails !== undefined || updates.reminder_at !== undefined;
+  if (needPrev) {
     const { data: prev } = await supabase
       .from("tasks")
-      .select("assignee_emails")
+      .select("assignee_emails, reminder_at")
       .eq("id", id)
       .single();
-    prevAssignees = (prev?.assignee_emails as string[] | null) ?? [];
+    if (updates.assignee_emails !== undefined) {
+      prevAssignees = (prev?.assignee_emails as string[] | null) ?? [];
+    }
+    if (updates.reminder_at !== undefined) {
+      const nextMs = updates.reminder_at ? new Date(updates.reminder_at).getTime() : null;
+      const prevMs = prev?.reminder_at ? new Date(prev.reminder_at as string).getTime() : null;
+      if (nextMs !== prevMs) updates.reminder_sent_at = null;
+    }
   }
 
   const { data, error } = await supabase

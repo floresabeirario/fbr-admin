@@ -41,6 +41,40 @@ export function formatCreatedAgo(iso: string): string {
   return `há ${years} ano${years === 1 ? "" : "s"}`;
 }
 
+// ── Lembrete pontual (data+hora) ─────────────────────────────
+// O <input type="datetime-local"> trabalha em hora LOCAL sem fuso; guardamos
+// sempre em ISO (UTC). Estas convertem nos dois sentidos no browser (que
+// está na hora de Portugal).
+export function reminderIsoToInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function reminderInputToIso(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value); // datetime-local sem fuso => hora local (Lisboa)
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// "dd/MM, HH:mm" fixo na hora de Portugal — igual no servidor e no cliente
+// (evita o mismatch de hidratação React #418, ver sessão 129).
+const lisbonReminderFmt = new Intl.DateTimeFormat("pt-PT", {
+  timeZone: "Europe/Lisbon",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+export function formatReminder(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return lisbonReminderFmt.format(d);
+}
+
 // "Há X min/h/d" para a secção "Concluídas recentes". Salta para "dd/MM"
 // quando passa de 7 dias para evitar valores enormes.
 export function formatDoneAgo(iso: string): string {

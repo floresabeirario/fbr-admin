@@ -102,7 +102,13 @@ import {
 
 import { SectionCard } from "./section-card";
 import { RecentDoneRow } from "./recent-done-row";
-import { formatDate, formatCreatedAgo } from "./format-helpers";
+import {
+  formatDate,
+  formatCreatedAgo,
+  formatReminder,
+  reminderIsoToInput,
+  reminderInputToIso,
+} from "./format-helpers";
 import { TEAM_MEMBERS } from "./team-members";
 
 // Mobile = sm- (<640px). Usado para desactivar DnD e mudar layout para
@@ -336,6 +342,7 @@ export function TasksCard({
   const [newCategory, setNewCategory] = useState<TaskCategory>("outros");
   const [newStatus, setNewStatus] = useState<TaskStatus>("por_comecar");
   const [newDueDate, setNewDueDate] = useState<string>("");
+  const [newReminderAt, setNewReminderAt] = useState<string>("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -448,6 +455,7 @@ export function TasksCard({
     setNewCategory("outros");
     setNewStatus("por_comecar");
     setNewDueDate("");
+    setNewReminderAt("");
     setShowNew(false);
   }
 
@@ -467,6 +475,7 @@ export function TasksCard({
           category: newCategory,
           status: newStatus,
           due_date: newDueDate || null,
+          reminder_at: reminderInputToIso(newReminderAt),
         });
         setTasks((prev) => [created, ...prev]);
         resetNewForm();
@@ -605,6 +614,7 @@ export function TasksCard({
       status: TaskStatus;
       priority: TaskPriority;
       due_date: string | null;
+      reminder_at: string | null;
       assignee_emails: string[];
     },
   ) {
@@ -626,6 +636,7 @@ export function TasksCard({
               status: next.status,
               priority: next.priority,
               due_date: next.due_date,
+              reminder_at: next.reminder_at,
               assignee_emails: next.assignee_emails,
               seen_by,
             }
@@ -642,6 +653,7 @@ export function TasksCard({
           status: next.status,
           priority: next.priority,
           due_date: next.due_date,
+          reminder_at: next.reminder_at,
           assignee_emails: next.assignee_emails,
           seen_by,
         });
@@ -872,6 +884,28 @@ export function TasksCard({
               onChange={(e) => setNewDueDate(e.target.value)}
               className="h-8 text-xs"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-[11px] text-cocoa-600 shrink-0 flex items-center gap-1">
+              🔔 Lembrar-me
+            </Label>
+            <Input
+              type="datetime-local"
+              value={newReminderAt}
+              onChange={(e) => setNewReminderAt(e.target.value)}
+              className="h-8 text-xs"
+              title="Recebes uma notificação no telemóvel a esta data e hora"
+            />
+            {newReminderAt && (
+              <button
+                type="button"
+                onClick={() => setNewReminderAt("")}
+                className="text-[11px] text-cocoa-500 hover:text-rose-600 shrink-0"
+                title="Remover lembrete"
+              >
+                limpar
+              </button>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
             <Button
@@ -1376,6 +1410,22 @@ function DraggableTaskTile({
               {formatDate(task.due_date)}
             </Badge>
           )}
+          {task.reminder_at && !task.done && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "h-4 px-1 py-0 text-[10px] font-normal bg-violet-100 text-violet-800 border-violet-300",
+                task.reminder_sent_at && "opacity-50 line-through",
+              )}
+              title={
+                task.reminder_sent_at
+                  ? "Lembrete já enviado"
+                  : "Lembrete: recebes uma notificação a esta hora"
+              }
+            >
+              🔔 {formatReminder(task.reminder_at)}
+            </Badge>
+          )}
           {/* "Há X dias" — sempre visível, mostra a idade da tarefa.
               formatCreatedAgo mantém-se relativo até em datas antigas
               (formatDoneAgo cairia para dd/MM passados 7 dias). */}
@@ -1562,6 +1612,7 @@ function TaskEditDialog({
       status: TaskStatus;
       priority: TaskPriority;
       due_date: string | null;
+      reminder_at: string | null;
       assignee_emails: string[];
     },
   ) => void;
@@ -1573,6 +1624,7 @@ function TaskEditDialog({
   const [status, setStatus] = useState<TaskStatus>("por_comecar");
   const [priority, setPriority] = useState<TaskPriority>("media");
   const [dueDate, setDueDate] = useState<string>("");
+  const [reminderAt, setReminderAt] = useState<string>("");
   const [assignees, setAssignees] = useState<string[]>([]);
 
   // Cada vez que abrimos com uma tarefa nova, repõe o draft a partir dela.
@@ -1587,6 +1639,7 @@ function TaskEditDialog({
     setStatus(task.status);
     setPriority(task.priority);
     setDueDate(task.due_date ?? "");
+    setReminderAt(reminderIsoToInput(task.reminder_at));
     setAssignees(task.assignee_emails);
   }
   if (!task && lastTaskId !== null) {
@@ -1604,6 +1657,7 @@ function TaskEditDialog({
       status,
       priority,
       due_date: dueDate || null,
+      reminder_at: reminderInputToIso(reminderAt),
       assignee_emails: assignees,
     });
   }
@@ -1747,6 +1801,30 @@ function TaskEditDialog({
                 onChange={(e) => setDueDate(e.target.value)}
                 className="mt-1 h-9 text-sm"
               />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-cocoa-700 flex items-center gap-1">
+              🔔 Lembrar-me (data e hora)
+            </Label>
+            <div className="mt-1 flex items-center gap-2">
+              <Input
+                type="datetime-local"
+                value={reminderAt}
+                onChange={(e) => setReminderAt(e.target.value)}
+                className="h-9 text-sm"
+                title="Recebes uma notificação no telemóvel a esta data e hora"
+              />
+              {reminderAt && (
+                <button
+                  type="button"
+                  onClick={() => setReminderAt("")}
+                  className="text-xs text-cocoa-500 hover:text-rose-600 shrink-0"
+                  title="Remover lembrete"
+                >
+                  limpar
+                </button>
+              )}
             </div>
           </div>
         </div>
