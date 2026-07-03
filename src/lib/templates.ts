@@ -440,8 +440,10 @@ export function slugBase(slug: string): string {
 // de saudação ({saudacao} {nome} 🌷, "Bom dia, {nome}", "Cara {nome},",
 // "Dear {nome}"…), que são iguais em quase todos os templates e não
 // ajudam a distingui-los.
+// Nota: nada de \b aqui — em JS, \b falha depois de vogal acentuada
+// ("Olá " não tem fronteira porque á não é word char). Lookahead unicode.
 const GREETING_START =
-  /^(\{saudacao(_en)?\}|(bom dia|boa tarde|boa noite|ol[aá]|hello|hi|hey|dear|good (morning|afternoon|evening)|car[oa]s?)\b)/i;
+  /^(\{saudacao(_en)?\}|(bom dia|boa tarde|boa noite|ol[aá]|hello|hi|hey|dear|good (morning|afternoon|evening)|car[oa]s?)(?=[\s\p{P}]|$))/iu;
 
 function isGreetingLine(line: string): boolean {
   if (!GREETING_START.test(line)) return false;

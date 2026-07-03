@@ -280,6 +280,11 @@ describe("templateSnippet", () => {
     expect(
       templateSnippet("Dear {nome},\n\nYour frame is ready! 🎉"),
     ).toBe("Your frame is ready! 🎉");
+    // "Olá" tem vogal acentuada — \b em JS falharia aqui (bug real do
+    // template pós-venda: o snippet mostrava "Olá {nome} 🌸").
+    expect(
+      templateSnippet("Olá {nome} 🌸\n\nEsperamos que esteja a gostar do seu quadro!"),
+    ).toBe("Esperamos que esteja a gostar do seu quadro!");
   });
 
   it("não salta primeiras linhas que começam por saudação mas têm substância", () => {
