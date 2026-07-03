@@ -6,6 +6,7 @@ import Script from "next/script";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { TEAM } from "@/lib/auth/roles";
 import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -36,13 +37,11 @@ declare global {
   }
 }
 
-const PROFILES = [
-  { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
-  { name: "MJ", email: "info+mj@floresabeirario.pt", photo: "/userphotos/mj.webp" },
-  { name: "Ana", email: "info+ana@floresabeirario.pt", photo: "/userphotos/ana.webp" },
-];
+// Fonte única da equipa: src/lib/auth/roles.ts (TEAM). O /login mostra
+// os perfis antes de haver sessão, por isso a lista é estática no código.
+const PROFILES = TEAM.map(({ name, email, photo }) => ({ name, email, photo }));
 
-type Profile = typeof PROFILES[number];
+type Profile = (typeof PROFILES)[number];
 
 export default function LoginPage() {
   const router = useRouter();

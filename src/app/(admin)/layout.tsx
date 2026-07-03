@@ -35,7 +35,7 @@ import { startNavigationProgress } from "@/components/navigation-progress";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { roleForEmail, ROLE_LABELS, type Role } from "@/lib/auth/roles";
+import { roleForEmail, ROLE_LABELS, TEAM, type Role } from "@/lib/auth/roles";
 import { useUnreadChatCount } from "@/hooks/use-unread-chat";
 import { useMyActiveTasksCount } from "@/hooks/use-my-active-tasks";
 import { useUnreadOrdersCount } from "@/hooks/use-new-orders";
@@ -46,11 +46,8 @@ import {
   useNotificationSoundOn,
 } from "@/hooks/use-notification-sounds";
 
-const PROFILES = [
-  { name: "António", email: "info+antonio@floresabeirario.pt", photo: "/userphotos/antonio.webp" },
-  { name: "MJ", email: "info+mj@floresabeirario.pt", photo: "/userphotos/mj.webp" },
-  { name: "Ana", email: "info+ana@floresabeirario.pt", photo: "/userphotos/ana.webp" },
-];
+// Fonte única da equipa: src/lib/auth/roles.ts (TEAM).
+const PROFILES = TEAM.map(({ name, email, photo }) => ({ name, email, photo }));
 
 type NavItem = {
   href: string;

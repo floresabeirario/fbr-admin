@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
+import { TEAM } from "@/lib/auth/roles";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -119,11 +120,8 @@ import {
 
 // ── Constantes ───────────────────────────────────────────────
 
-const ASSIGNEES = [
-  { email: "info+antonio@floresabeirario.pt", name: "António" },
-  { email: "info+mj@floresabeirario.pt", name: "MJ" },
-  { email: "info+ana@floresabeirario.pt", name: "Ana" },
-];
+// Fonte única da equipa: src/lib/auth/roles.ts (TEAM).
+const ASSIGNEES = TEAM.map(({ email, name }) => ({ email, name }));
 
 function nameForEmail(email: string | null): string {
   if (!email) return "—";

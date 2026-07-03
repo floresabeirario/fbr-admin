@@ -1,13 +1,15 @@
-// Membros da equipa para o Dashboard. NOTA: a fonte autoritária dos
-// emails admin/viewer está em `src/lib/auth/roles.ts` — esta constante
-// duplica apenas os emails para a UI (avatar + nome legível).
-// Refactor C1 (unificação) consolidará tudo numa só tabela.
+// Membros da equipa para a UI (avatar + nome legível). A fonte única
+// no código é `src/lib/auth/roles.ts` (TEAM); na BD é a tabela
+// team_members (mig 085). Este ficheiro só re-exporta na forma que o
+// Dashboard consome.
 
-export const TEAM_MEMBERS = [
-  { email: "info+antonio@floresabeirario.pt", name: "António", photo: "/userphotos/antonio.webp" },
-  { email: "info+mj@floresabeirario.pt",      name: "MJ",      photo: "/userphotos/mj.webp" },
-  { email: "info+ana@floresabeirario.pt",     name: "Ana",     photo: "/userphotos/ana.webp" },
-] as const;
+import { TEAM } from "@/lib/auth/roles";
+
+export const TEAM_MEMBERS = TEAM.map(({ email, name, photo }) => ({
+  email,
+  name,
+  photo,
+}));
 
 export function memberName(email: string | null | undefined): string {
   if (!email) return "—";

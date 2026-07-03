@@ -111,12 +111,22 @@ function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
 
 import type { ChatMessage } from "@/types/chat";
 import { sendChatMessageAction, deleteChatMessageAction, markChatMessagesReadAction } from "./actions";
+import { TEAM as TEAM_ROLES } from "@/lib/auth/roles";
 
-const TEAM = [
-  { email: "info+antonio@floresabeirario.pt", name: "António", photo: "/userphotos/antonio.webp", color: "bg-emerald-500" },
-  { email: "info+mj@floresabeirario.pt",      name: "MJ",      photo: "/userphotos/mj.webp",      color: "bg-rose-500" },
-  { email: "info+ana@floresabeirario.pt",     name: "Ana",     photo: "/userphotos/ana.webp",     color: "bg-violet-500" },
-];
+// Fonte única da equipa em roles.ts; as cores das bolhas são detalhe
+// do chat e vivem aqui. Membro novo sem cor atribuída cai no fallback.
+const CHAT_COLORS: Record<string, string> = {
+  "info+antonio@floresabeirario.pt": "bg-emerald-500",
+  "info+mj@floresabeirario.pt": "bg-rose-500",
+  "info+ana@floresabeirario.pt": "bg-violet-500",
+};
+
+const TEAM = TEAM_ROLES.map(({ email, name, photo }) => ({
+  email,
+  name,
+  photo,
+  color: CHAT_COLORS[email] ?? "bg-slate-500",
+}));
 
 function memberFor(email: string) {
   return TEAM.find((m) => m.email === email) ?? {
