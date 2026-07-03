@@ -1,4 +1,5 @@
 import type { Order } from "@/types/database";
+import type { Task } from "@/types/tasks";
 import type { PushPayload } from "./send";
 
 // ============================================================
@@ -21,6 +22,8 @@ export type DailyPushItem = {
   /** Chave única para não repetir o mesmo aviso em dias seguidos. */
   dedupKey: string;
   payload: PushPayload;
+  /** Destinatários. Se ausente, vai para os admins (atalho do cron). */
+  recipients?: string[];
 };
 
 const HOURS_120_MS = 120 * 60 * 60 * 1000;
@@ -35,13 +38,18 @@ function lisbonYMD(d: Date): string {
   }).format(d);
 }
 
-// "Amanhã" em Portugal, como yyyy-mm-dd. Usa meio-dia UTC para nunca cair
-// numa fronteira de horário de verão.
-export function tomorrowLisbonYMD(now: Date): string {
+// yyyy-mm-dd de daqui a `n` dias em Portugal. Usa meio-dia UTC para nunca
+// cair numa fronteira de horário de verão.
+export function plusDaysLisbonYMD(now: Date, n: number): string {
   const [y, m, d] = lisbonYMD(now).split("-").map(Number);
   const base = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
-  base.setUTCDate(base.getUTCDate() + 1);
+  base.setUTCDate(base.getUTCDate() + n);
   return lisbonYMD(base);
+}
+
+// "Amanhã" em Portugal, como yyyy-mm-dd.
+export function tomorrowLisbonYMD(now: Date): string {
+  return plusDaysLisbonYMD(now, 1);
 }
 
 // Normaliza uma data-só (pode vir "yyyy-mm-dd" ou ISO completo) para os
@@ -115,6 +123,35 @@ export function computeDailyPushItems(orders: Order[], now: Date): DailyPushItem
         });
       }
     }
+  }
+
+  return items;
+}
+
+// ⏰ Prazo das tarefas: avisa quem está atribuído 3 dias e 1 dia antes do
+// due_date. Tarefa sem responsável cai para os admins (recipients ausente).
+export function computeTaskDeadlineItems(tasks: Task[], now: Date): DailyPushItem[] {
+  const in3 = plusDaysLisbonYMD(now, 3);
+  const in1 = plusDaysLisbonYMD(now, 1);
+  const items: DailyPushItem[] = [];
+
+  for (const t of tasks) {
+    if (t.deleted_at || t.done || !t.due_date) continue;
+    const due = dateOnly(t.due_date);
+    if (due !== in3 && due !== in1) continue;
+
+    const dias = due === in3 ? 3 : 1;
+    const recipients = t.assignee_emails?.length ? t.assignee_emails : undefined;
+    items.push({
+      dedupKey: `taskdue:${t.id}:${due}:${dias}`,
+      recipients,
+      payload: {
+        title: dias === 1 ? "⏰ Tarefa com prazo amanhã" : "⏰ Tarefa com prazo em 3 dias",
+        body: t.title,
+        url: "/",
+        tag: `taskdue-${t.id}`,
+      },
+    });
   }
 
   return items;

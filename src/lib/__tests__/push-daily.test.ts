@@ -3,8 +3,13 @@
 // COMPLETOS (120h). Envio CTT das flores fica de fora de propósito.
 
 import { describe, it, expect } from "vitest";
-import { computeDailyPushItems, tomorrowLisbonYMD } from "@/lib/push/daily";
+import {
+  computeDailyPushItems,
+  computeTaskDeadlineItems,
+  tomorrowLisbonYMD,
+} from "@/lib/push/daily";
 import type { Order } from "@/types/database";
+import type { Task } from "@/types/tasks";
 
 // "now" fixo: 2026-07-03 09:00 UTC = 10:00 em Lisboa (verão) → amanhã = 04/07.
 const NOW = new Date("2026-07-03T09:00:00Z");
@@ -130,5 +135,51 @@ describe("encomendas apagadas", () => {
       freezer_in_at: "2026-06-01T00:00:00Z",
     });
     expect(keys([o])).toEqual([]);
+  });
+});
+
+// ── Prazos de tarefas (3 dias e 1 dia antes) ─────────────────
+function task(over: Partial<Task>): Task {
+  return {
+    id: "t1",
+    title: "Comprar molduras",
+    due_date: null,
+    done: false,
+    deleted_at: null,
+    assignee_emails: ["info+ana@floresabeirario.pt"],
+    ...over,
+  } as Task;
+}
+
+describe("prazos de tarefas", () => {
+  it("avisa 3 dias antes (due 06/07) com a pessoa atribuída", () => {
+    const items = computeTaskDeadlineItems([task({ due_date: "2026-07-06" })], NOW);
+    expect(items).toHaveLength(1);
+    expect(items[0].dedupKey).toBe("taskdue:t1:2026-07-06:3");
+    expect(items[0].recipients).toEqual(["info+ana@floresabeirario.pt"]);
+    expect(items[0].payload.title).toContain("3 dias");
+  });
+
+  it("avisa 1 dia antes (due 04/07) com título de amanhã", () => {
+    const items = computeTaskDeadlineItems([task({ id: "t2", due_date: "2026-07-04" })], NOW);
+    expect(items.map((i) => i.dedupKey)).toEqual(["taskdue:t2:2026-07-04:1"]);
+    expect(items[0].payload.title).toContain("amanhã");
+  });
+
+  it("NÃO avisa a 2 dias (só 3 e 1)", () => {
+    expect(computeTaskDeadlineItems([task({ due_date: "2026-07-05" })], NOW)).toEqual([]);
+  });
+
+  it("ignora tarefas feitas, apagadas ou sem prazo", () => {
+    const done = task({ due_date: "2026-07-04", done: true });
+    const del = task({ due_date: "2026-07-04", deleted_at: "2026-07-01T00:00:00Z" });
+    const noDate = task({ due_date: null });
+    expect(computeTaskDeadlineItems([done, del, noDate], NOW)).toEqual([]);
+  });
+
+  it("tarefa sem responsável cai para os admins (recipients ausente)", () => {
+    const items = computeTaskDeadlineItems([task({ due_date: "2026-07-04", assignee_emails: [] })], NOW);
+    expect(items).toHaveLength(1);
+    expect(items[0].recipients).toBeUndefined();
   });
 });

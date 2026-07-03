@@ -7,9 +7,10 @@ import {
   summariseHealthchecks,
   type HealthcheckSummary,
 } from "@/lib/healthcheck-cache";
-import { computeDailyPushItems } from "@/lib/push/daily";
-import { claimDedupKey, sendPushToAdmins } from "@/lib/push/send";
+import { computeDailyPushItems, computeTaskDeadlineItems } from "@/lib/push/daily";
+import { claimDedupKey, sendPushToAdmins, sendPushToEmails } from "@/lib/push/send";
 import type { Order } from "@/types/database";
+import type { Task } from "@/types/tasks";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -110,11 +111,27 @@ async function runDailyPushNotifications(
     )
     .is("deleted_at", null);
 
-  const items = computeDailyPushItems((orders ?? []) as unknown as Order[], now);
+  // ── Prazos de tarefas (3 dias e 1 dia antes) ─────────────────
+  const { data: tasks } = await supabase
+    .from("tasks")
+    .select("id, title, due_date, done, deleted_at, assignee_emails")
+    .is("deleted_at", null)
+    .eq("done", false)
+    .not("due_date", "is", null);
+
+  const items = [
+    ...computeDailyPushItems((orders ?? []) as unknown as Order[], now),
+    ...computeTaskDeadlineItems((tasks ?? []) as unknown as Task[], now),
+  ];
   for (const item of items) {
     // Deduplica primeiro: se já enviámos este aviso, saltamos.
     const isNew = await claimDedupKey(supabase, item.dedupKey);
-    if (isNew) await sendPushToAdmins(supabase, item.payload);
+    if (!isNew) continue;
+    if (item.recipients?.length) {
+      await sendPushToEmails(supabase, item.recipients, item.payload);
+    } else {
+      await sendPushToAdmins(supabase, item.payload);
+    }
   }
 
   // ── Healthcheck a vermelho (só na transição para vermelho) ────

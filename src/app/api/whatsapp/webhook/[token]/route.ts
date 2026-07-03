@@ -4,6 +4,26 @@ import type { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPhone } from "@/lib/format-phone";
 import { fetchPendingMediaBatch } from "@/lib/whatsapp/media-fetch";
+import { sendPushToEmails } from "@/lib/push/send";
+import { TEAM } from "@/lib/auth/roles";
+
+// Notificações push de WhatsApp vão SÓ para o António (decisão da Maria).
+// Derivado do TEAM (fonte única) — nunca hardcodar o email aqui.
+const ANTONIO_EMAIL = TEAM.find((m) => m.name === "António")?.email ?? null;
+
+// Pré-visualização curta da mensagem para o corpo da notificação.
+function whatsappPreview(contentType: string, text: string | null): string {
+  if (text && text.trim()) return text.trim();
+  switch (contentType) {
+    case "image": return "📷 Imagem";
+    case "video": return "🎥 Vídeo";
+    case "audio": return "🎧 Mensagem de voz";
+    case "document": return "📄 Documento";
+    case "sticker": return "Sticker";
+    case "location": return "📍 Localização";
+    default: return "Nova mensagem";
+  }
+}
 
 // node:crypto nao esta no Edge runtime.
 export const runtime = "nodejs";
@@ -328,6 +348,30 @@ async function insertMessage(
   if (error) {
     if (error.code === "23505") return null; // duplicate — wamid ja existe (idempotencia)
     throw error;
+  }
+
+  // Push ao António quando chega mensagem de cliente (não em ecos das
+  // nossas respostas nem em reações). tag por conversa => uma rajada de
+  // mensagens colapsa numa só notificação em vez de empilhar 10.
+  if (
+    direction === "received" &&
+    content.content_type !== "reaction" &&
+    ANTONIO_EMAIL
+  ) {
+    const sender = contactName ?? displayPhone;
+    const preview = whatsappPreview(content.content_type, content.text);
+    after(async () => {
+      try {
+        await sendPushToEmails(supabase, [ANTONIO_EMAIL], {
+          title: `💬 ${sender}`,
+          body: preview,
+          url: "/whatsapp",
+          tag: `wa-${conversationId}`,
+        });
+      } catch (err) {
+        console.error("[wa-webhook] push falhou", serializeError(err));
+      }
+    });
   }
 
   // Quando recebemos um eco da Maria (mensagem que ela enviou pelo

@@ -214,7 +214,7 @@ const INTEGRATIONS: Array<
   },
   {
     name: "Notificações push (Web Push / VAPID)",
-    description: "Avisos no telemóvel dos 3 utilizadores mesmo com a app fechada: nova encomenda, tarefa atribuída, data de entrega das flores, recolha/flores amanhã, congelador 5 dias, healthcheck vermelho. Cada pessoa liga no seu dispositivo (sino na sidebar). Tudo interno — nada vai a clientes. Sem serviço externo (chaves VAPID próprias).",
+    description: "Avisos no telemóvel mesmo com a app fechada: nova encomenda, novo vale-presente, tarefa atribuída, prazo de tarefa (3 e 1 dia antes), data de entrega das flores, recolha/flores amanhã, congelador 5 dias, healthcheck vermelho — e WhatsApp de cliente (só ao António). Cada pessoa liga no seu dispositivo (sino na sidebar). Tudo interno — nada vai a clientes. Sem serviço externo (chaves VAPID próprias).",
     tone: "integration",
     icon: BellRing,
     status: "active",
