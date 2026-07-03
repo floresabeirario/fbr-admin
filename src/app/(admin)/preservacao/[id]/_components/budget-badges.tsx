@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
 import { Frame, Sparkles } from "lucide-react";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import {
   Popover,
   PopoverContent,
@@ -155,7 +155,7 @@ export function BudgetSnapshotBadge({
             Cálculo automático
           </div>
           <div className="text-[11px] text-emerald-700 mt-0.5">
-            Snapshot feito em {format(parseISO(snapshot.computed_at), "dd/MM/yyyy HH:mm")}
+            Snapshot feito em {formatDateTimeLisbon(snapshot.computed_at)}
           </div>
         </div>
         <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto">
@@ -292,7 +292,7 @@ export function ProductionCostBadge({
             Custo de produção
           </div>
           <div className="text-[11px] text-amber-700 mt-0.5">
-            Snapshot de {format(parseISO(snapshot.captured_at), "dd/MM/yyyy HH:mm")}
+            Snapshot de {formatDateTimeLisbon(snapshot.captured_at)}
           </div>
         </div>
         <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto">

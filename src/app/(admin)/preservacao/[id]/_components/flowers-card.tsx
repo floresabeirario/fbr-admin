@@ -6,6 +6,7 @@
 
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { Flower2, Snowflake } from "lucide-react";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -117,7 +118,7 @@ export function FlowersCard({
         ) : !local.freezer_out_at ? (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-cocoa-700">
-              Entrou a {format(parseISO(local.freezer_in_at), "dd/MM/yyyy HH:mm")}
+              Entrou a {formatDateTimeLisbon(local.freezer_in_at)}
             </span>
             <button
               type="button"

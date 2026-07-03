@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { pt } from "date-fns/locale";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import {
   ChevronDown,
   ChevronRight,
@@ -552,7 +553,7 @@ function OrderRow({
               {isNew && (
                 <span
                   className="inline-flex items-center rounded-full bg-sky-100 border border-sky-300 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 uppercase tracking-wide shrink-0"
-                  title={`Ainda não abriste esta encomenda. Criada ${format(parseISO(order.created_at), "dd/MM/yyyy HH:mm")}`}
+                  title={`Ainda não abriste esta encomenda. Criada ${formatDateTimeLisbon(order.created_at)}`}
                 >
                   Nova
                 </span>

@@ -4,8 +4,8 @@
 // de Quadro pronto), "Cupão 5%" e o rodapé com as datas de criação.
 // Extraídos do workbench-client.tsx (refactor sessão 128).
 
-import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
+import { format } from "date-fns";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import { Package, Ticket, CalendarPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -115,11 +115,11 @@ export function MetaFooter({ local }: { local: Order }) {
   return (
     <div className="order-[15] lg:order-none rounded-xl border border-cream-200 bg-surface px-4 py-3 space-y-1">
       <p className="text-[10px] text-cocoa-500">
-        Criada em {local.created_at ? format(parseISO(local.created_at), "dd/MM/yyyy, HH:mm", { locale: pt }) : "—"}
+        Criada em {formatDateTimeLisbon(local.created_at)}
       </p>
       {local.updated_at && local.updated_at !== local.created_at && (
         <p className="text-[10px] text-cocoa-500">
-          Actualizada em {format(parseISO(local.updated_at), "dd/MM/yyyy, HH:mm", { locale: pt })}
+          Actualizada em {formatDateTimeLisbon(local.updated_at)}
         </p>
       )}
       <p className="font-mono text-[10px] text-[#D0C4B8]">{local.order_id}</p>

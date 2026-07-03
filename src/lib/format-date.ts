@@ -1,5 +1,28 @@
 import { differenceInCalendarDays, differenceInCalendarMonths, parseISO } from "date-fns";
 
+// Formatador de instantes (timestamptz) FIXO na hora de Portugal
+// continental. Sem timeZone fixo, `format`/`toLocale…` imprimem na hora
+// da máquina: o servidor Vercel corre em UTC e o browser em Europe/Lisbon
+// (UTC+1 no verão) → o HH:mm desfasa 1h entre SSR e cliente e o React
+// deita a árvore fora (mismatch de hidratação, error #418). Formatar
+// sempre em Lisboa dá o mesmo texto dos dois lados E é a hora certa para nós.
+const lisbonDateTime = new Intl.DateTimeFormat("pt-PT", {
+  timeZone: "Europe/Lisbon",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** "dd/MM/aaaa, HH:mm" na hora de Portugal — consistente SSR↔browser. */
+export function formatDateTimeLisbon(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return lisbonDateTime.format(d);
+}
+
 /**
  * Distância humana até/desde uma data, em meses+dias.
  * Ex: "Em 2 meses e 3 dias", "Há 1 mês e 5 dias", "Hoje", "Amanhã".
