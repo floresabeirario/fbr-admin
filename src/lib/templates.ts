@@ -304,16 +304,21 @@ const STATUSES_FASE_DESIGN = new Set([
   "a_aguardar_aprovacao",
 ]);
 
+function tamanhoIndecisoDe(order: OrderFieldsForSuggestion): boolean {
+  return (
+    !order.frame_size ||
+    order.frame_size === "nao_sei" ||
+    order.frame_size === "voces_a_escolher"
+  );
+}
+
 export function fieldSuggestionBases(order: OrderFieldsForSuggestion): string[] {
   const bases: string[] = [];
   const st = order.status;
   const preReserva = st === "entrega_flores_agendar";
   const agendada = st === "entrega_agendada";
   const metodo = order.flower_delivery_method ?? null;
-  const tamanhoIndeciso =
-    !order.frame_size ||
-    order.frame_size === "nao_sei" ||
-    order.frame_size === "voces_a_escolher";
+  const tamanhoIndeciso = tamanhoIndecisoDe(order);
 
   // Funeral: condolências primeiro, nunca "parabéns"
   if (order.event_type === "funeral" && (preReserva || agendada)) {
@@ -378,9 +383,83 @@ export function fieldSuggestionBases(order: OrderFieldsForSuggestion): string[] 
   return bases;
 }
 
+// ─── Relevância das sugestões por estado face aos campos ───
+// Uma template marcada para o estado actual (suggested_statuses) só é
+// realmente sugerida se os campos da encomenda não a contradisserem:
+// condolências numa encomenda de casamento, "tamanho indeciso" quando
+// o tamanho já está escolhido, confirmação CTT quando o envio é em
+// mãos, etc. Sem entrada neste mapa = relevante sempre.
+// As condições espelham as regras de fieldSuggestionBases, por isso
+// uma template excluída aqui nunca é a que essas regras escolheram.
+const RELEVANCIA_POR_CAMPOS: Record<
+  string,
+  (order: OrderFieldsForSuggestion) => boolean
+> = {
+  // Nunca sugerir condolências fora de funerais
+  funeral_condolencias: (o) => o.event_type === "funeral",
+
+  // Pedidos de sinal: só sem pagamento e sem vale-presente, e apenas a
+  // variante que corresponde ao tamanho (escolhido vs indeciso)
+  pre_reserva_tamanho_escolhido: (o) =>
+    o.payment_status === "100_por_pagar" &&
+    !o.gift_voucher_code &&
+    !tamanhoIndecisoDe(o),
+  pre_reserva_tamanho_indeciso: (o) =>
+    o.payment_status === "100_por_pagar" &&
+    !o.gift_voucher_code &&
+    tamanhoIndecisoDe(o),
+  lembrete_reserva_nao_paga: (o) =>
+    o.payment_status === "100_por_pagar" && !o.gift_voucher_code,
+  vale_reserva_coberta: (o) => Boolean(o.gift_voucher_code),
+
+  // Envio das flores: cada mensagem só faz sentido com o método certo
+  opcoes_entrega_flores: (o) => {
+    const m = o.flower_delivery_method ?? null;
+    return m === null || m === "nao_sei";
+  },
+  recolha_orcamento: (o) =>
+    o.flower_delivery_method === "recolha_evento" && !o.pickup_address,
+  ctt_enviar_hoje: (o) => o.flower_delivery_method === "ctt",
+  confirmacao_reserva_ctt: (o) => o.flower_delivery_method === "ctt",
+  confirmacao_reserva_recolha: (o) =>
+    o.flower_delivery_method === "recolha_evento",
+  confirmacao_reserva_maos: (o) =>
+    o.flower_delivery_method === "maos" && !o.cash_on_delivery,
+  confirmacao_reserva_dinheiro: (o) => o.cash_on_delivery === true,
+
+  // Orientação do quadro só enquanto o tamanho estiver por decidir
+  orientacao_quadro: (o) => tamanhoIndecisoDe(o),
+};
+
 // Compara o slug de uma template com um slug-base (sem sufixo de língua)
 function slugBase(slug: string): string {
   return slug.replace(/_(pt|en)$/, "");
+}
+
+// Quando sabemos o idioma do cliente, a gémea no outro idioma é
+// redundante nos sugeridos — desce para `demoted` (= "Todos os
+// templates"). Uma template sem gémea no idioma preferido mantém-se:
+// melhor sugerir no idioma errado do que não sugerir.
+function soIdiomaPreferido(
+  suggested: MessageTemplate[],
+  preferred: TemplateLanguage | undefined,
+  demoted: MessageTemplate[],
+): MessageTemplate[] {
+  if (!preferred) return suggested;
+  const basesNoIdioma = new Set(
+    suggested
+      .filter((t) => t.language === preferred)
+      .map((t) => slugBase(t.slug)),
+  );
+  const kept: MessageTemplate[] = [];
+  for (const t of suggested) {
+    if (t.language !== preferred && basesNoIdioma.has(slugBase(t.slug))) {
+      demoted.push(t);
+    } else {
+      kept.push(t);
+    }
+  }
+  return kept;
 }
 
 // ─── Leads (contacto directo no WhatsApp, ainda sem encomenda) ──
@@ -463,6 +542,7 @@ export function rankTemplatesForLead(
     if (ra !== rb) return ra - rb;
     return byLang(a, b);
   });
+  const finalSuggested = soIdiomaPreferido(suggested, preferredLanguage, others);
   others.sort((a, b) => {
     const l = byLang(a, b);
     if (l !== 0) return l;
@@ -470,7 +550,7 @@ export function rankTemplatesForLead(
     return a.position - b.position;
   });
 
-  return { suggested, others };
+  return { suggested: finalSuggested, others };
 }
 
 // ─── Ordenação por estado sugerido ─────────────────────────
@@ -516,7 +596,12 @@ export function rankTemplatesForStatus(
     const matchesStatus =
       options.currentStatus &&
       t.suggested_statuses.includes(options.currentStatus as never);
-    if (matchesStatus) {
+    // Marcada para este estado mas contradita pelos campos (funeral
+    // num casamento, CTT quando o envio é em mãos, …) → não sugerir.
+    const relevante =
+      !options.orderFields ||
+      (RELEVANCIA_POR_CAMPOS[slugBase(t.slug)]?.(options.orderFields) ?? true);
+    if (matchesStatus && relevante) {
       suggested.push(t);
     } else {
       others.push(t);
@@ -546,7 +631,12 @@ export function rankTemplatesForStatus(
     return byPreferred(a, b);
   });
   suggested.sort(byPreferred);
+  const finalSuggested = soIdiomaPreferido(
+    [...fieldSuggested, ...suggested],
+    options.preferredLanguage,
+    others,
+  );
   others.sort(byPreferred);
 
-  return { suggested: [...fieldSuggested, ...suggested], others };
+  return { suggested: finalSuggested, others };
 }

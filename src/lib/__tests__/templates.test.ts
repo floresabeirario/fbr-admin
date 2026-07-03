@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { fieldSuggestionBases } from "../templates";
+import { fieldSuggestionBases, rankTemplatesForStatus } from "../templates";
+import type { MessageTemplate, TemplateLanguage } from "@/types/message-template";
+import type { OrderStatus } from "@/types/database";
 
 // Regras de sugestão de templates por campos da encomenda (sessão 118).
 // O objectivo: a Maria não escolhe — se o cliente disse "não sei" no
@@ -117,5 +119,142 @@ describe("fieldSuggestionBases", () => {
     });
     expect(bases).toContain("reajuste_pagamento_tamanho");
     expect(bases).not.toContain("orientacao_quadro");
+  });
+});
+
+// Sessão 123: as sugeridas por estado (suggested_statuses) passaram a
+// ser filtradas pelos campos da encomenda e pelo idioma do cliente —
+// na pré-reserva havia ~18 sugeridas (9 bases × PT/EN), incluindo
+// contradições (condolências num casamento, "tamanho indeciso" com o
+// tamanho já escolhido). Nada desaparece: o que não é relevante desce
+// para "Todos os templates".
+
+let seq = 0;
+function tpl(
+  base: string,
+  language: TemplateLanguage,
+  statuses: OrderStatus[],
+): MessageTemplate {
+  seq += 1;
+  return {
+    id: `t${seq}`,
+    created_at: "2026-01-01",
+    updated_at: "2026-01-01",
+    deleted_at: null,
+    created_by: null,
+    updated_by: null,
+    slug: `${base}_${language}`,
+    name: base,
+    language,
+    category: "pre_reserva",
+    body: "…",
+    suggested_statuses: statuses,
+    scope: "order",
+    position: seq,
+    is_seed: true,
+  };
+}
+
+// Par PT+EN da mesma base, como nos seeds das migrações 041/080
+function par(base: string, statuses: OrderStatus[]): MessageTemplate[] {
+  return [tpl(base, "pt", statuses), tpl(base, "en", statuses)];
+}
+
+describe("rankTemplatesForStatus — filtro por campos e idioma", () => {
+  const preReserva: OrderStatus[] = ["entrega_flores_agendar"];
+  // As 9 bases marcadas para pré-reserva na migração 080
+  const catalogo: MessageTemplate[] = [
+    ...par("funeral_condolencias", preReserva),
+    ...par("pre_reserva_tamanho_escolhido", preReserva),
+    ...par("pre_reserva_tamanho_indeciso", preReserva),
+    ...par("lembrete_reserva_nao_paga", preReserva),
+    ...par("seguimento_sem_resposta", preReserva),
+    ...par("opcoes_entrega_flores", preReserva),
+    ...par("recolha_orcamento", preReserva),
+    ...par("ctt_enviar_hoje", preReserva),
+    ...par("vale_reserva_coberta", preReserva),
+  ];
+
+  it("casamento EN, tamanho escolhido, envio por decidir → só 4 sugeridas relevantes", () => {
+    const { suggested, others } = rankTemplatesForStatus(catalogo, {
+      scope: "order",
+      currentStatus: "entrega_flores_agendar",
+      preferredLanguage: "en",
+      orderFields: {
+        status: "entrega_flores_agendar",
+        payment_status: "100_por_pagar",
+        event_type: "casamento",
+        frame_size: "30x40",
+        flower_delivery_method: null,
+      },
+    });
+    expect(suggested.map((t) => t.slug)).toEqual([
+      "pre_reserva_tamanho_escolhido_en",
+      "opcoes_entrega_flores_en",
+      "lembrete_reserva_nao_paga_en",
+      "seguimento_sem_resposta_en",
+    ]);
+    // Nada se perde: o resto continua em "Todos os templates"
+    expect(suggested.length + others.length).toBe(catalogo.length);
+  });
+
+  it("funeral → condolências no topo; nunca em casamentos", () => {
+    const { suggested } = rankTemplatesForStatus(catalogo, {
+      scope: "order",
+      currentStatus: "entrega_flores_agendar",
+      preferredLanguage: "pt",
+      orderFields: {
+        status: "entrega_flores_agendar",
+        payment_status: "100_por_pagar",
+        event_type: "funeral",
+        frame_size: "30x40",
+        flower_delivery_method: "maos",
+      },
+    });
+    expect(suggested[0].slug).toBe("funeral_condolencias_pt");
+  });
+
+  it("coberta por vale-presente → sugere a do vale, nunca pede sinal", () => {
+    const { suggested } = rankTemplatesForStatus(catalogo, {
+      scope: "order",
+      currentStatus: "entrega_flores_agendar",
+      preferredLanguage: "pt",
+      orderFields: {
+        status: "entrega_flores_agendar",
+        payment_status: "100_por_pagar",
+        frame_size: "30x40",
+        flower_delivery_method: "maos",
+        gift_voucher_code: "A7K9X2",
+      },
+    });
+    const slugs = suggested.map((t) => t.slug);
+    expect(slugs).toContain("vale_reserva_coberta_pt");
+    expect(slugs).not.toContain("pre_reserva_tamanho_escolhido_pt");
+    expect(slugs).not.toContain("lembrete_reserva_nao_paga_pt");
+  });
+
+  it("template sem gémea no idioma do cliente mantém-se sugerida", () => {
+    const soPt = [tpl("seguimento_sem_resposta", "pt", preReserva)];
+    const { suggested } = rankTemplatesForStatus(soPt, {
+      scope: "order",
+      currentStatus: "entrega_flores_agendar",
+      preferredLanguage: "en",
+      orderFields: {
+        status: "entrega_flores_agendar",
+        payment_status: "100_por_pagar",
+        frame_size: "30x40",
+        flower_delivery_method: "maos",
+      },
+    });
+    expect(suggested.map((t) => t.slug)).toEqual(["seguimento_sem_resposta_pt"]);
+  });
+
+  it("sem orderFields (ex: vale) o filtro por campos não se aplica", () => {
+    const { suggested } = rankTemplatesForStatus(catalogo, {
+      scope: "order",
+      currentStatus: "entrega_flores_agendar",
+    });
+    // Sem campos nem idioma: comportamento antigo (tudo o que bate no estado)
+    expect(suggested.length).toBe(catalogo.length);
   });
 });
