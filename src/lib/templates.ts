@@ -432,8 +432,19 @@ const RELEVANCIA_POR_CAMPOS: Record<
 };
 
 // Compara o slug de uma template com um slug-base (sem sufixo de língua)
-function slugBase(slug: string): string {
+export function slugBase(slug: string): string {
   return slug.replace(/_(pt|en)$/, "");
+}
+
+// Snippet para listas: primeira frase útil do corpo, saltando a linha
+// de saudação ({saudacao} {nome} 🌷 / Hello {nome}…), que é igual em
+// quase todos os templates e não ajuda a distingui-los.
+export function templateSnippet(body: string, maxLen = 120): string {
+  const lines = body.split("\n").map((l) => l.trim()).filter(Boolean);
+  const isGreeting = (l: string) =>
+    /^\{saudacao\}/i.test(l) || /^(hello|hi|olá|ola)\b/i.test(l);
+  const useful = lines.find((l) => !isGreeting(l)) ?? lines[0] ?? "";
+  return useful.length > maxLen ? `${useful.slice(0, maxLen)}…` : useful;
 }
 
 // Quando sabemos o idioma do cliente, a gémea no outro idioma é

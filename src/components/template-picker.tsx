@@ -9,6 +9,7 @@ import {
   Pencil,
   X,
   Languages,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -42,6 +43,7 @@ import {
   renderOrderTemplate,
   renderVoucherTemplate,
   renderLeadTemplate,
+  templateSnippet,
   type VoucherForTemplate,
 } from "@/lib/templates";
 import type { Order } from "@/types/database";
@@ -99,6 +101,7 @@ export default function TemplatePicker(props: PickerProps) {
   const [settings, setSettings] = useState<SystemSettingsMap>(SETTING_DEFAULTS);
   const [chosen, setChosen] = useState<MessageTemplate | null>(null);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
   // Carrega templates + system_settings da BD. Chamado pelo handler do
   // popover (não num useEffect) para evitar set-state-in-effect.
@@ -137,6 +140,7 @@ export default function TemplatePicker(props: PickerProps) {
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (next) loadTemplates();
+    else setSearch("");
   }
 
   const ranked = useMemo(() => {
@@ -153,6 +157,19 @@ export default function TemplatePicker(props: PickerProps) {
       orderFields: scope === "order" ? props.order : undefined,
     });
   }, [templates, scope, preferredLanguage, props]);
+
+  // Pesquisa: filtra por nome e conteúdo, mantendo a separação
+  // sugeridos / restantes.
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return ranked;
+    const matches = (t: MessageTemplate) =>
+      t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q);
+    return {
+      suggested: ranked.suggested.filter(matches),
+      others: ranked.others.filter(matches),
+    };
+  }, [ranked, search]);
 
   function pick(t: MessageTemplate) {
     setOpen(false);
@@ -171,40 +188,65 @@ export default function TemplatePicker(props: PickerProps) {
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-[360px] p-0 max-h-[480px] overflow-y-auto"
+          className="w-[420px] max-w-[calc(100vw-2rem)] p-0"
         >
-          {loading && (
-            <div className="p-4 text-xs text-cocoa-500 text-center">A carregar…</div>
-          )}
+          <div className="p-2 border-b border-cream-200">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Pesquisar por nome ou conteúdo…"
+                className="w-full h-8 pl-8 pr-2 rounded-md border border-cream-200 bg-surface text-xs text-cocoa-900 placeholder:text-cocoa-500 focus:outline-none focus:ring-1 focus:ring-cocoa-300"
+              />
+            </div>
+          </div>
 
-          {!loading && ranked.suggested.length > 0 && (
-            <div className="p-2 border-b border-cream-200">
-              <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 font-semibold flex items-center gap-1">
-                <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                {scope === "lead" ? "Típicos de primeiro contacto" : "Sugeridos para esta fase"}
+          <div className="max-h-[420px] overflow-y-auto">
+            {loading && (
+              <div className="p-4 text-xs text-cocoa-500 text-center">A carregar…</div>
+            )}
+
+            {!loading && visible.suggested.length > 0 && (
+              <div className="p-2 border-b border-cream-200">
+                <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 font-semibold flex items-center gap-1">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                  {scope === "lead" ? "Típicos de primeiro contacto" : "Sugeridos para esta fase"}
+                </div>
+                {visible.suggested.map((t) => (
+                  <TemplateItem key={t.id} template={t} onPick={pick} highlighted />
+                ))}
               </div>
-              {ranked.suggested.map((t) => (
-                <TemplateItem key={t.id} template={t} onPick={pick} highlighted />
-              ))}
-            </div>
-          )}
+            )}
 
-          {!loading && ranked.others.length > 0 && (
-            <div className="p-2">
-              <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-cocoa-500 font-semibold">
-                Todos os templates
+            {!loading && visible.others.length > 0 && (
+              <div className="p-2">
+                <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-cocoa-500 font-semibold">
+                  Todos os templates
+                </div>
+                {visible.others.map((t) => (
+                  <TemplateItem key={t.id} template={t} onPick={pick} />
+                ))}
               </div>
-              {ranked.others.map((t) => (
-                <TemplateItem key={t.id} template={t} onPick={pick} />
-              ))}
-            </div>
-          )}
+            )}
 
-          {!loading && templates && templates.length === 0 && (
-            <div className="p-4 text-xs text-cocoa-500 text-center">
-              Ainda não há templates. Vai a Sistema → Templates para criar.
-            </div>
-          )}
+            {!loading &&
+              templates &&
+              templates.length > 0 &&
+              visible.suggested.length === 0 &&
+              visible.others.length === 0 && (
+                <div className="p-4 text-xs text-cocoa-500 text-center">
+                  Nenhum template corresponde à pesquisa.
+                </div>
+              )}
+
+            {!loading && templates && templates.length === 0 && (
+              <div className="p-4 text-xs text-cocoa-500 text-center">
+                Ainda não há templates. Vai a Sistema → Templates para criar.
+              </div>
+            )}
+          </div>
         </PopoverContent>
       </Popover>
 
@@ -254,12 +296,15 @@ function TemplateItem({
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-cocoa-900 truncate">{template.name}</span>
+        <span className="text-cocoa-900 truncate font-medium">{template.name}</span>
         <Badge variant="outline" className="text-[9px] shrink-0">
           <Languages className="h-2.5 w-2.5 mr-0.5" />
           {TEMPLATE_LANGUAGE_LABELS[template.language]}
         </Badge>
       </div>
+      <p className="text-[10px] text-cocoa-500 mt-0.5 line-clamp-2">
+        {templateSnippet(template.body)}
+      </p>
     </button>
   );
 }
@@ -292,18 +337,18 @@ function TemplatePreviewDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquareText className="h-5 w-5 text-cocoa-700" />
-            {template.name}
-            <Badge variant="outline" className="text-[10px] ml-1">
+          <DialogTitle className="flex items-start gap-2 min-w-0 pr-8">
+            <MessageSquareText className="h-5 w-5 text-cocoa-700 shrink-0 mt-0.5" />
+            <span className="min-w-0 break-words">{template.name}</span>
+            <Badge variant="outline" className="text-[10px] ml-1 shrink-0">
               {TEMPLATE_LANGUAGE_LABELS[template.language]}
             </Badge>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           {editing ? (
             <Textarea
               value={edited}
@@ -318,7 +363,7 @@ function TemplatePreviewDialog({
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -330,18 +375,18 @@ function TemplatePreviewDialog({
                   setEditing(true);
                 }
               }}
-              className="text-xs"
+              className="text-xs w-full sm:w-auto"
             >
               <Pencil className="h-3.5 w-3.5 mr-1.5" />
               {editing ? "Cancelar edição" : "Editar antes de copiar"}
             </Button>
 
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
+              <Button variant="outline" size="sm" onClick={onClose} className="text-xs flex-1 sm:flex-none">
                 <X className="h-3.5 w-3.5 mr-1.5" />
                 Fechar
               </Button>
-              <Button size="sm" onClick={handleCopy} className="text-xs">
+              <Button size="sm" onClick={handleCopy} className="text-xs flex-1 sm:flex-none">
                 {copied ? (
                   <>
                     <Check className="h-3.5 w-3.5 mr-1.5" />
@@ -350,7 +395,7 @@ function TemplatePreviewDialog({
                 ) : (
                   <>
                     <Copy className="h-3.5 w-3.5 mr-1.5" />
-                    Copiar para clipboard
+                    Copiar
                   </>
                 )}
               </Button>

@@ -56,7 +56,7 @@ import {
   TEMPLATE_SCOPE_LABELS,
   SYSTEM_SETTING_LABELS,
 } from "@/types/message-template";
-import { AVAILABLE_VARIABLES } from "@/lib/templates";
+import { AVAILABLE_VARIABLES, slugBase } from "@/lib/templates";
 import {
   archiveTemplateAction,
   createTemplateAction,
@@ -69,6 +69,13 @@ import {
 const STATUS_KEYS = Object.keys(STATUS_LABELS) as OrderStatus[];
 
 type TabKey = "templates" | "config";
+
+// Par PT/EN com o mesmo slug base (ex: primeiro_contacto_info_pt/_en).
+type TemplatePair = {
+  base: string;
+  pt: MessageTemplate | null;
+  en: MessageTemplate | null;
+};
 
 export default function TemplatesClient({
   initialTemplates,
@@ -87,9 +94,10 @@ export default function TemplatesClient({
   const [filterCategory, setFilterCategory] = useState<TemplateCategory | "all">("all");
   const [showArchived, setShowArchived] = useState(false);
 
-  // Dialogo de edição
+  // Dialogo de edição. `createInitial` permite pré-preencher o criador
+  // (ex: "Criar versão EN" a partir da gémea PT).
   const [editing, setEditing] = useState<MessageTemplate | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [createInitial, setCreateInitial] = useState<Partial<MessageTemplate> | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -104,15 +112,40 @@ export default function TemplatesClient({
       );
   }, [templates, search, filterLang, filterCategory, showArchived]);
 
+  // Vista emparelhada PT/EN: templates com o mesmo slug base ficam lado
+  // a lado. Só faz sentido quando se vêem os dois idiomas; com filtro de
+  // idioma cada par teria sempre um lado vazio.
+  const paired = filterLang === "all";
+
   const groupedByCategory = useMemo(() => {
-    const map = new Map<TemplateCategory, MessageTemplate[]>();
+    const map = new Map<TemplateCategory, TemplatePair[]>();
     for (const t of filtered) {
+      const base = slugBase(t.slug);
       const list = map.get(t.category) ?? [];
-      list.push(t);
+      let pair = paired ? list.find((p) => p.base === base && p[t.language] === null) : undefined;
+      if (!pair) {
+        pair = { base, pt: null, en: null };
+        list.push(pair);
+      }
+      pair[t.language] = t;
       map.set(t.category, list);
     }
     return map;
-  }, [filtered]);
+  }, [filtered, paired]);
+
+  // Gémea (outro idioma, activa) de um template — para o painel de
+  // consulta no editor e para saber se falta criar a versão EN/PT.
+  function findTwin(t: MessageTemplate): MessageTemplate | null {
+    return (
+      templates.find(
+        (x) =>
+          x.id !== t.id &&
+          x.deleted_at === null &&
+          x.language !== t.language &&
+          slugBase(x.slug) === slugBase(t.slug),
+      ) ?? null
+    );
+  }
 
   // Estado optimista: actualiza-se localmente antes do server refresh.
   function patchLocal(id: string, patch: Partial<MessageTemplate>) {
@@ -217,7 +250,7 @@ export default function TemplatesClient({
 
               <div className="flex-1" />
               <Button
-                onClick={() => setCreating(true)}
+                onClick={() => setCreateInitial({})}
                 size="sm"
                 className="text-xs"
               >
@@ -228,53 +261,96 @@ export default function TemplatesClient({
 
             {/* Lista por categoria */}
             <div className="space-y-5">
-              {TEMPLATE_CATEGORY_ORDER.filter((c) => groupedByCategory.has(c)).map((category) => (
-                <Card key={category}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">
-                      {TEMPLATE_CATEGORY_LABELS[category]}{" "}
-                      <span className="text-cocoa-500 font-normal">
-                        ({groupedByCategory.get(category)?.length})
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {groupedByCategory.get(category)?.map((t) => (
-                      <TemplateRow
-                        key={t.id}
-                        template={t}
-                        onEdit={() => setEditing(t)}
-                        onDuplicate={async () => {
-                          try {
-                            await duplicateTemplateAction(t.id);
-                            toast.success("Template duplicado.");
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Erro ao duplicar.");
-                          }
-                        }}
-                        onArchive={async () => {
-                          try {
-                            await archiveTemplateAction(t.id);
-                            patchLocal(t.id, { deleted_at: new Date().toISOString() });
-                            toast.success("Template arquivado.");
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Erro ao arquivar.");
-                          }
-                        }}
-                        onRestore={async () => {
-                          try {
-                            await restoreTemplateAction(t.id);
-                            patchLocal(t.id, { deleted_at: null });
-                            toast.success("Template restaurado.");
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Erro ao restaurar.");
-                          }
-                        }}
-                      />
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
+              {TEMPLATE_CATEGORY_ORDER.filter((c) => groupedByCategory.has(c)).map((category) => {
+                const pairs = groupedByCategory.get(category) ?? [];
+                const count = pairs.reduce(
+                  (n, p) => n + (p.pt ? 1 : 0) + (p.en ? 1 : 0),
+                  0,
+                );
+
+                const renderRow = (t: MessageTemplate) => (
+                  <TemplateRow
+                    template={t}
+                    onEdit={() => setEditing(t)}
+                    onDuplicate={async () => {
+                      try {
+                        await duplicateTemplateAction(t.id);
+                        toast.success("Template duplicado.");
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Erro ao duplicar.");
+                      }
+                    }}
+                    onArchive={async () => {
+                      try {
+                        await archiveTemplateAction(t.id);
+                        patchLocal(t.id, { deleted_at: new Date().toISOString() });
+                        toast.success("Template arquivado.");
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Erro ao arquivar.");
+                      }
+                    }}
+                    onRestore={async () => {
+                      try {
+                        await restoreTemplateAction(t.id);
+                        patchLocal(t.id, { deleted_at: null });
+                        toast.success("Template restaurado.");
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Erro ao restaurar.");
+                      }
+                    }}
+                  />
+                );
+
+                return (
+                  <Card key={category}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">
+                        {TEMPLATE_CATEGORY_LABELS[category]}{" "}
+                        <span className="text-cocoa-500 font-normal">({count})</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {!paired &&
+                        pairs.map((p) => {
+                          const t = (p.pt ?? p.en)!;
+                          return <div key={t.id}>{renderRow(t)}</div>;
+                        })}
+
+                      {paired &&
+                        pairs.map((p) => {
+                          const single = p.pt && p.en ? null : (p.pt ?? p.en)!;
+                          return (
+                            <div
+                              key={p.pt?.id ?? p.en?.id}
+                              className="grid grid-cols-1 lg:grid-cols-2 gap-2"
+                            >
+                              {p.pt ? renderRow(p.pt) : null}
+                              {p.en ? renderRow(p.en) : null}
+                              {single && !showArchived && (
+                                <MissingTwinSlot
+                                  template={single}
+                                  onCreate={() => {
+                                    const missingLang: TemplateLanguage =
+                                      single.language === "pt" ? "en" : "pt";
+                                    setCreateInitial({
+                                      name: single.name,
+                                      slug: `${p.base}_${missingLang}`,
+                                      language: missingLang,
+                                      category: single.category,
+                                      scope: single.scope,
+                                      body: single.body,
+                                      suggested_statuses: single.suggested_statuses,
+                                    });
+                                  }}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
 
               {filtered.length === 0 && (
                 <div className="text-center py-12 text-sm text-cocoa-500">
@@ -294,12 +370,14 @@ export default function TemplatesClient({
       </div>
 
       {/* Dialog de edição */}
-      {(editing || creating) && (
+      {(editing || createInitial) && (
         <TemplateEditorDialog
           template={editing}
+          initial={createInitial}
+          twin={editing ? findTwin(editing) : null}
           onClose={() => {
             setEditing(null);
-            setCreating(false);
+            setCreateInitial(null);
           }}
           onSaved={(updated) => {
             if (updated) {
@@ -310,7 +388,7 @@ export default function TemplatesClient({
               }
             }
             setEditing(null);
-            setCreating(false);
+            setCreateInitial(null);
           }}
         />
       )}
@@ -411,27 +489,55 @@ function TemplateRow({
   );
 }
 
+// ─── Slot "falta a versão no outro idioma" ──────────────────
+
+function MissingTwinSlot({
+  template,
+  onCreate,
+}: {
+  template: MessageTemplate;
+  onCreate: () => void;
+}) {
+  const missingLang = template.language === "pt" ? "en" : "pt";
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      className="flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-cream-300 text-xs text-cocoa-500 hover:border-cocoa-300 hover:text-cocoa-700 hover:bg-cream-50 transition-colors"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      Falta a versão {TEMPLATE_LANGUAGE_LABELS[missingLang]} — criar a partir desta
+    </button>
+  );
+}
+
 // ─── Dialogo de edição ──────────────────────────────────────
 
 function TemplateEditorDialog({
   template,
+  initial,
+  twin,
   onClose,
   onSaved,
 }: {
   template: MessageTemplate | null; // null = criar
+  initial?: Partial<MessageTemplate> | null; // pré-preenchimento ao criar
+  twin?: MessageTemplate | null; // gémea no outro idioma (só ao editar)
   onClose: () => void;
   onSaved: (saved: MessageTemplate | null) => void;
 }) {
   const isCreating = template === null;
-  const [name, setName] = useState(template?.name ?? "");
-  const [slug, setSlug] = useState(template?.slug ?? "");
-  const [language, setLanguage] = useState<TemplateLanguage>(template?.language ?? "pt");
-  const [category, setCategory] = useState<TemplateCategory>(template?.category ?? "pre_reserva");
-  const [scope, setScope] = useState<TemplateScope>(template?.scope ?? "order");
-  const [body, setBody] = useState(template?.body ?? "");
+  const seed = template ?? initial ?? null;
+  const [name, setName] = useState(seed?.name ?? "");
+  const [slug, setSlug] = useState(seed?.slug ?? "");
+  const [language, setLanguage] = useState<TemplateLanguage>(seed?.language ?? "pt");
+  const [category, setCategory] = useState<TemplateCategory>(seed?.category ?? "pre_reserva");
+  const [scope, setScope] = useState<TemplateScope>(seed?.scope ?? "order");
+  const [body, setBody] = useState(seed?.body ?? "");
   const [suggestedStatuses, setSuggestedStatuses] = useState<OrderStatus[]>(
-    (template?.suggested_statuses ?? []) as OrderStatus[],
+    (seed?.suggested_statuses ?? []) as OrderStatus[],
   );
+  const [showTwin, setShowTwin] = useState(false);
   const [pending, startTransition] = useTransition();
 
   // Auto-gera slug ao escrever o nome (só para novos templates).
@@ -523,15 +629,40 @@ function TemplateEditorDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquareText className="h-5 w-5 text-cocoa-700" />
-            {isCreating ? "Novo template" : "Editar template"}
+          <DialogTitle className="flex items-center gap-2 min-w-0 pr-8">
+            <MessageSquareText className="h-5 w-5 text-cocoa-700 shrink-0" />
+            <span className="truncate">
+              {isCreating ? "Novo template" : "Editar template"}
+            </span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
+          {twin && (
+            <div className="rounded-lg border border-cream-200 bg-cream-50/60">
+              <button
+                type="button"
+                onClick={() => setShowTwin((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs text-cocoa-700"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Languages className="h-3.5 w-3.5" />
+                  Versão {TEMPLATE_LANGUAGE_LABELS[twin.language]} (para comparar)
+                </span>
+                <span className="text-cocoa-500">{showTwin ? "Esconder" : "Mostrar"}</span>
+              </button>
+              {showTwin && (
+                <div className="px-3 pb-3">
+                  <div className="rounded-md border border-cream-200 bg-surface p-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-cocoa-700 max-h-[240px] overflow-y-auto">
+                    {twin.body}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Nome</Label>
