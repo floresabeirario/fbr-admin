@@ -832,7 +832,7 @@ export function TasksCard({
                   : `${newAssignees.length} responsáveis (partilhada)`}
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Select
               value={newCategory}
               onValueChange={(v) => v && setNewCategory(v as TaskCategory)}
@@ -883,29 +883,32 @@ export function TasksCard({
               value={newDueDate}
               onChange={(e) => setNewDueDate(e.target.value)}
               className="h-8 text-xs"
+              title="Prazo da tarefa"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-[11px] text-cocoa-600 shrink-0 flex items-center gap-1">
-              🔔 Lembrar-me
+          <div>
+            <Label className="text-[11px] text-cocoa-600 flex items-center gap-1">
+              🔔 Lembrar-me (data e hora)
             </Label>
-            <Input
-              type="datetime-local"
-              value={newReminderAt}
-              onChange={(e) => setNewReminderAt(e.target.value)}
-              className="h-8 text-xs"
-              title="Recebes uma notificação no telemóvel a esta data e hora"
-            />
-            {newReminderAt && (
-              <button
-                type="button"
-                onClick={() => setNewReminderAt("")}
-                className="text-[11px] text-cocoa-500 hover:text-rose-600 shrink-0"
-                title="Remover lembrete"
-              >
-                limpar
-              </button>
-            )}
+            <div className="mt-1 flex items-center gap-2">
+              <Input
+                type="datetime-local"
+                value={newReminderAt}
+                onChange={(e) => setNewReminderAt(e.target.value)}
+                className="h-8 text-xs min-w-0 flex-1"
+                title="Recebes uma notificação no telemóvel a esta data e hora"
+              />
+              {newReminderAt && (
+                <button
+                  type="button"
+                  onClick={() => setNewReminderAt("")}
+                  className="text-[11px] text-cocoa-500 hover:text-rose-600 shrink-0"
+                  title="Remover lembrete"
+                >
+                  limpar
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <Button
@@ -1664,7 +1667,7 @@ function TaskEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-cocoa-900">
             <Pencil className="h-4 w-4 text-cocoa-600" />
@@ -1738,7 +1741,7 @@ function TaskEditDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-xs text-cocoa-700">Categoria</Label>
               <Select
@@ -1812,7 +1815,7 @@ function TaskEditDialog({
                 type="datetime-local"
                 value={reminderAt}
                 onChange={(e) => setReminderAt(e.target.value)}
-                className="h-9 text-sm"
+                className="h-9 text-sm min-w-0 flex-1"
                 title="Recebes uma notificação no telemóvel a esta data e hora"
               />
               {reminderAt && (
