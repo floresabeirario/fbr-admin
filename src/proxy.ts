@@ -49,8 +49,11 @@ export async function proxy(request: NextRequest) {
   // Webhook do WhatsApp é chamado pela Meta sem sessão; validação é por
   // HMAC (X-Hub-Signature-256) e verify token (handshake GET).
   const isWhatsappWebhook = request.nextUrl.pathname.startsWith("/api/whatsapp/");
+  // Endpoints internos (ex.: o site avisa de nova encomenda para push) são
+  // chamados sem sessão e autenticam-se com INTERNAL_NOTIFY_SECRET.
+  const isInternalEndpoint = request.nextUrl.pathname.startsWith("/api/internal/");
 
-  if (!user && !isLoginPage && !isAuthCallback && !isCronEndpoint && !isWhatsappWebhook) {
+  if (!user && !isLoginPage && !isAuthCallback && !isCronEndpoint && !isWhatsappWebhook && !isInternalEndpoint) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

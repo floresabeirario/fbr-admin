@@ -1,8 +1,12 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin, requireUser } from "@/lib/auth/server";
+import { sendPushToAdmins } from "@/lib/push/send";
+import { formatDatePT } from "@/lib/format-date";
 import { generateUniqueCouponCode } from "@/lib/coupon";
 import { computePricingSnapshot } from "@/lib/pricing";
 import { buildProductionCostSnapshot } from "@/lib/production-cost";
@@ -350,6 +354,9 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
   let voucherToMark: string | null = null;
   let captureProductionSnapshot = false;
+  // Push aos admins quando a data de entrega das flores (recolha ou entrega
+  // em mãos) é preenchida pela 1ª vez — a logística das flores ficou marcada.
+  let flowerDateFilledPush: string | null = null;
   // Quando algum campo de preço muda e o orçamento ainda é o automático,
   // recalculamos a partir destes campos (prev + updates) após o fetch.
   let recomputeFromFields:
@@ -487,6 +494,22 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         }
       }
 
+      // Data de entrega das flores preenchida pela 1ª vez (recolha no local
+      // OU entrega em mãos): NULL → valor. Guardamos a data para o push.
+      if (
+        updates.pickup_date !== undefined &&
+        updates.pickup_date &&
+        !prev.pickup_date
+      ) {
+        flowerDateFilledPush = updates.pickup_date;
+      } else if (
+        updates.hand_delivery_date !== undefined &&
+        updates.hand_delivery_date &&
+        !prev.hand_delivery_date
+      ) {
+        flowerDateFilledPush = updates.hand_delivery_date;
+      }
+
       // Cadência de comunicação: detectar momentos despoletados por esta
       // transição de estado/pagamento (idempotente via comms_moments_done).
       prevCommsDone = (prev.comms_moments_done as string[] | null) ?? [];
@@ -594,6 +617,24 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   if (error) throw new Error(error.message);
 
   const updatedOrder = data as Order;
+
+  // Push aos admins: data de entrega das flores acabou de ser marcada.
+  // Best-effort, fora do caminho crítico — nunca atrasa/falha o UPDATE.
+  if (flowerDateFilledPush) {
+    const flowerDate = flowerDateFilledPush;
+    after(async () => {
+      try {
+        await sendPushToAdmins(createAdminClient(), {
+          title: "📅 Data de entrega das flores",
+          body: `${updatedOrder.client_name} — flores a chegar em ${formatDatePT(flowerDate)}`,
+          url: `/preservacao/${updatedOrder.order_id}`,
+          tag: `order-flowerdate-${updatedOrder.id}`,
+        });
+      } catch (err) {
+        console.error("[push] flowerDateFilled falhou", err);
+      }
+    });
+  }
 
   if (triggerDriveCreation) {
     // Não bloqueia o response perante falha — só loga (ver helper).

@@ -1,4 +1,4 @@
-import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook, FolderGit2, BarChart3, Flame } from "lucide-react";
+import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook, FolderGit2, BarChart3, Flame, BellRing } from "lucide-react";
 import SistemaTopbar from "@/components/sistema-topbar";
 import { getCurrentRole } from "@/lib/auth/server";
 
@@ -211,6 +211,15 @@ const INTEGRATIONS: Array<
     status: "active",
     statusNote: "Ligado",
     color: "text-orange-400",
+  },
+  {
+    name: "Notificações push (Web Push / VAPID)",
+    description: "Avisos no telemóvel dos 3 utilizadores mesmo com a app fechada: nova encomenda, tarefa atribuída, data de entrega das flores, recolha/flores amanhã, congelador 5 dias, healthcheck vermelho. Cada pessoa liga no seu dispositivo (sino na sidebar). Tudo interno — nada vai a clientes. Sem serviço externo (chaves VAPID próprias).",
+    tone: "integration",
+    icon: BellRing,
+    status: "active",
+    statusNote: "Ligado — subscrições por dispositivo, envio pelo servidor",
+    color: "text-emerald-600",
   },
 ];
 

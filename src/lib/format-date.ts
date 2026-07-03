@@ -15,6 +15,19 @@ const lisbonDateTime = new Intl.DateTimeFormat("pt-PT", {
   minute: "2-digit",
 });
 
+/**
+ * "dd/MM/aaaa" a partir de uma data-só (coluna DATE, ex.: "2026-07-04").
+ * Reordena os componentes da string — sem `new Date()` — por isso não há
+ * risco de desvio de fuso (uma DATE não tem hora). Aceita ISO completo,
+ * usando apenas a parte da data.
+ */
+export function formatDatePT(date: string | null | undefined): string {
+  if (!date) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  if (!m) return date;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
 /** "dd/MM/aaaa, HH:mm" na hora de Portugal — consistente SSR↔browser. */
 export function formatDateTimeLisbon(iso: string | null | undefined): string {
   if (!iso) return "—";

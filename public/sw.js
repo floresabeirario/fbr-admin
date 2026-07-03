@@ -12,7 +12,7 @@
  * Bump CACHE_VERSION sempre que quiseres invalidar todos os caches.
  */
 
-const CACHE_VERSION = "fbr-admin-v5";
+const CACHE_VERSION = "fbr-admin-v6";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 self.addEventListener("install", (event) => {
@@ -80,4 +80,67 @@ self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+// ──────────────────────────────────────────────────────────────
+// Notificações push internas (Web Push / VAPID)
+// ──────────────────────────────────────────────────────────────
+// O servidor (webhook de nova encomenda, actions de tarefas/encomendas,
+// cron das 7h) envia um payload JSON { title, body, url, tag }. Aqui só
+// o mostramos e, ao clicar, abrimos/focamos a rota certa. Tudo interno —
+// nunca chega nada a clientes.
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+
+  const title = data.title || "Flores à Beira-Rio";
+  const options = {
+    body: data.body || "",
+    icon: "/favicon/android-chrome-192x192.png",
+    badge: "/favicon/favicon-32x32.png",
+    // `tag` agrupa/substitui notificações do mesmo tipo (ex.: várias
+    // atualizações da mesma encomenda não empilham 5 avisos).
+    tag: data.tag || undefined,
+    // Guardamos a URL para o notificationclick saber para onde ir.
+    data: { url: data.url || "/" },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      // Se a app já está aberta nalgum separador, foca-o e navega lá dentro.
+      for (const client of allClients) {
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) {
+            try {
+              await client.navigate(targetUrl);
+            } catch {
+              // navegação cross-origin bloqueada — ignorar; o focus já ajudou
+            }
+          }
+          return;
+        }
+      }
+      // Caso contrário, abre uma janela nova.
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl);
+      }
+    })(),
+  );
 });

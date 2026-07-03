@@ -32,6 +32,7 @@ import {
 import { GlobalSearch, openGlobalSearch } from "@/components/global-search";
 import { StaleDataBanner } from "@/components/stale-data-banner";
 import { ErrorReporter } from "@/components/error-reporter";
+import { PushToggle } from "@/components/push-toggle";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { cn } from "@/lib/utils";
@@ -482,6 +483,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   {soundOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-cocoa-400" />}
                 </button>
+                <PushToggle />
                 <RefreshButton />
               </div>
             )}
@@ -525,6 +527,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <LogOut className="h-4 w-4" />
           </button>
+          <PushToggle />
           <ThemeToggle />
         </div>
       )}

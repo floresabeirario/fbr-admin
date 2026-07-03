@@ -1,8 +1,11 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/server";
+import { sendPushToEmails } from "@/lib/push/send";
 import type {
   Task,
   TaskInsert,
@@ -12,12 +15,34 @@ import type {
   ChecklistItemUpdate,
 } from "@/types/tasks";
 
+// Notifica (push) quem foi atribuído a uma tarefa, exceto quem fez a
+// atribuição (não faz sentido avisar-me de uma tarefa que eu próprio me
+// dei). Best-effort e fora do caminho crítico (`after`): nunca atrasa nem
+// faz falhar a criação/edição da tarefa.
+function notifyTaskAssignees(assignees: string[], actor: string, task: Task) {
+  const targets = assignees.filter((e) => e && e !== actor);
+  if (targets.length === 0) return;
+  after(async () => {
+    try {
+      const admin = createAdminClient();
+      await sendPushToEmails(admin, targets, {
+        title: "✅ Tarefa nova para ti",
+        body: task.title,
+        url: "/",
+        tag: `task-${task.id}`,
+      });
+    } catch (err) {
+      console.error("[push] notifyTaskAssignees falhou", err);
+    }
+  });
+}
+
 // ============================================================
 // Afazeres globais (tasks)
 // ============================================================
 
 export async function createTaskAction(task: TaskInsert): Promise<Task> {
-  await requireUser();
+  const actor = await requireUser();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tasks")
@@ -25,15 +50,17 @@ export async function createTaskAction(task: TaskInsert): Promise<Task> {
     .select()
     .single();
   if (error) throw new Error(error.message);
+  const created = data as Task;
+  notifyTaskAssignees(created.assignee_emails ?? [], actor, created);
   revalidatePath("/");
-  return data as Task;
+  return created;
 }
 
 export async function updateTaskAction(
   id: string,
   updates: TaskUpdate,
 ): Promise<Task> {
-  await requireUser();
+  const actor = await requireUser();
   const supabase = await createClient();
 
   // Marcar como feita: regista quando e por quem
@@ -48,6 +75,18 @@ export async function updateTaskAction(
     updates.done_by = null;
   }
 
+  // Se os responsáveis vão mudar, buscamos os anteriores para notificar só
+  // quem é NOVO na tarefa (não re-avisar quem já lá estava).
+  let prevAssignees: string[] | null = null;
+  if (updates.assignee_emails !== undefined) {
+    const { data: prev } = await supabase
+      .from("tasks")
+      .select("assignee_emails")
+      .eq("id", id)
+      .single();
+    prevAssignees = (prev?.assignee_emails as string[] | null) ?? [];
+  }
+
   const { data, error } = await supabase
     .from("tasks")
     .update(updates)
@@ -55,8 +94,17 @@ export async function updateTaskAction(
     .select()
     .single();
   if (error) throw new Error(error.message);
+  const updated = data as Task;
+
+  if (prevAssignees !== null) {
+    const added = (updated.assignee_emails ?? []).filter(
+      (e) => !prevAssignees!.includes(e),
+    );
+    notifyTaskAssignees(added, actor, updated);
+  }
+
   revalidatePath("/");
-  return data as Task;
+  return updated;
 }
 
 export async function deleteTaskAction(id: string): Promise<void> {
