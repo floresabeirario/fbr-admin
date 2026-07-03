@@ -24,6 +24,36 @@ export type OrderStatus =
   | "quadro_recebido"
   | "cancelado";
 
+// Ordem cronológica dos estados de produção. Exclui "cancelado" (terminal,
+// fora da progressão). Usado para gates do tipo "só a partir de X" — ex.: a
+// secção do congelador só aparece de "Flores na prensa" para a frente.
+export const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
+  "entrega_flores_agendar",
+  "entrega_agendada",
+  "flores_enviadas",
+  "flores_recebidas",
+  "flores_na_prensa",
+  "reconstrucao_botanica",
+  "a_compor_design",
+  "a_aguardar_aprovacao",
+  "a_finalizar_quadro",
+  "a_ser_emoldurado",
+  "emoldurado",
+  "a_ser_fotografado",
+  "quadro_pronto",
+  "quadro_enviado",
+  "quadro_recebido",
+];
+
+// True quando `status` está em `ref` ou depois na sequência de produção.
+// "cancelado" (e qualquer estado fora da sequência) devolve sempre false.
+export function isStatusAtOrAfter(status: OrderStatus, ref: OrderStatus): boolean {
+  const si = ORDER_STATUS_SEQUENCE.indexOf(status);
+  const ri = ORDER_STATUS_SEQUENCE.indexOf(ref);
+  if (si === -1 || ri === -1) return false;
+  return si >= ri;
+}
+
 export type PaymentStatus =
   | "100_pago"
   | "70_pago"
