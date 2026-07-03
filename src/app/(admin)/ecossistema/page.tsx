@@ -1,4 +1,4 @@
-import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook, FolderGit2 } from "lucide-react";
+import { Globe, ArrowRight, Database, Cloud, Mail, Image as ImageIcon, MessageCircle, Sparkles, ShieldCheck, Calendar, FolderOpen, Server, Lock, Eye, Camera, Users, Truck, Search, Megaphone, Webhook, FolderGit2, BarChart3, Flame } from "lucide-react";
 import SistemaTopbar from "@/components/sistema-topbar";
 import { getCurrentRole } from "@/lib/auth/server";
 
@@ -89,6 +89,14 @@ const EXTERNAL_CATEGORIES: ExternalCategory[] = [
       { name: "Domínio (Site.pt)", url: "https://clientes.site.pt/index.php?rp=/login", icon: Server, note: "Gestão de DNS e domínio" },
       { name: "Google Search Console", url: "https://search.google.com/search-console?resource_id=sc-domain%3Afloresabeirario.pt", icon: Search, note: "SEO e indexação" },
       { name: "Cloudflare Turnstile", url: "https://dash.cloudflare.com/?to=/:account/turnstile", icon: ShieldCheck, note: "CAPTCHA do login admin e dos forms públicos" },
+    ],
+  },
+  {
+    title: "Analytics do site",
+    description: "Como se comportam os visitantes do site",
+    tools: [
+      { name: "Umami", url: "https://cloud.umami.is/analytics/eu/websites/606212ea-2f93-40ea-a895-acfca1485d7f", icon: BarChart3, note: "Visitas, páginas e conversões (sem cookies)" },
+      { name: "Microsoft Clarity", url: "https://clarity.microsoft.com/projects/view/xgpjfvvk3s", icon: Flame, note: "Mapas de calor + gravações; alimenta o relatório mensal" },
     ],
   },
 ];
@@ -217,6 +225,16 @@ const REPOSITORIES: { name: string; url: string; description: string }[] = [
     name: "fbr-website",
     url: "https://github.com/floresabeirario/fbr-website",
     description: "Site público floresabeirario.pt + forms de reserva e vale-presente.",
+  },
+  {
+    name: "fbr-tracking",
+    url: "https://github.com/floresabeirario/fbr-tracking",
+    description: "Site público de acompanhamento por encomenda (status.floresabeirario.pt).",
+  },
+  {
+    name: "fbr-voucher",
+    url: "https://github.com/floresabeirario/fbr-voucher",
+    description: "Site do vale digital (voucher.floresabeirario.pt).",
   },
 ];
 
