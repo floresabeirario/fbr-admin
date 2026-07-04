@@ -7,6 +7,7 @@ import { startNavigationProgress } from "@/components/navigation-progress";
 import { TEAM } from "@/lib/auth/roles";
 import { format, parseISO } from "date-fns";
 import { pt } from "date-fns/locale";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import {
   ArrowLeft,
   Building2,
@@ -117,12 +118,7 @@ function formatDate(d: string | null): string {
 }
 
 function formatDateTime(d: string | null): string {
-  if (!d) return "—";
-  try {
-    return format(parseISO(d), "dd/MM/yyyy, HH:mm", { locale: pt });
-  } catch {
-    return "—";
-  }
+  return formatDateTimeLisbon(d);
 }
 
 // ── Tipos ────────────────────────────────────────────────────

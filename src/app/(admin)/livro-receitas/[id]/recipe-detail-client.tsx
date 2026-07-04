@@ -12,8 +12,7 @@ import {
   Flower2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,12 +36,7 @@ import {
 import { updateRecipeAction, archiveRecipeAction } from "../actions";
 
 function formatTimestamp(value: string | null): string {
-  if (!value) return "—";
-  try {
-    return format(parseISO(value), "dd/MM/yyyy, HH:mm", { locale: pt });
-  } catch {
-    return "—";
-  }
+  return formatDateTimeLisbon(value);
 }
 
 export default function RecipeDetailClient({ recipe }: { recipe: Recipe }) {

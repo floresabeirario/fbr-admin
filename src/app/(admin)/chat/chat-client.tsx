@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { pt } from "date-fns/locale";
+import { formatTimeLisbon } from "@/lib/format-date";
 import {
   MessageCircle,
   Send,
@@ -138,11 +139,7 @@ function memberFor(email: string) {
 }
 
 function formatTime(value: string): string {
-  try {
-    return format(parseISO(value), "HH:mm");
-  } catch {
-    return "";
-  }
+  return formatTimeLisbon(value);
 }
 
 function formatDayHeader(value: string): string {

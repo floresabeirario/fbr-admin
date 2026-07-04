@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import { formatEUR } from "@/lib/format";
 import {
   orderPnL,
@@ -217,7 +218,7 @@ export function PainelTab({
             Resumo de {monthLabel}
           </h2>
           <span className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
-            Atualizado em {format(now, "dd/MM/yyyy HH:mm")}
+            Atualizado em {formatDateTimeLisbon(now.toISOString())}
           </span>
         </div>
       </div>

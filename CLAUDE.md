@@ -139,7 +139,7 @@ Grupos: Pré-reservas (100% por pagar) / Reservas (100% pago)
 
 ### 4. Status
 Alimenta status.floresabeirario.pt — acompanhamento público de encomendas
-Campos: ID, nome, estado (mapeado para 11 estados públicos), mensagem (PT/EN editável), última atualização, data de previsão de entrega
+Campos: ID, nome, estado (mapeado para 13 fases públicas: 0-12 + cancelada), mensagem (PT/EN editável), última atualização, data de previsão de entrega
 Data de previsão: gerada automaticamente quando passa para "Flores na prensa" (data + 6 meses)
 Opção de mostrar em PT, EN ou AMBOS
 

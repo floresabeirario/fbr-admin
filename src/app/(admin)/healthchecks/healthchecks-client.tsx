@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import {
   HeartPulse,
   Check,
@@ -138,7 +137,7 @@ export default function HealthchecksClient({
           ))}
         </div>
         <p className="text-xs text-cocoa-700">
-          Verificado em {format(parseISO(generatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: pt })}.
+          Verificado em {formatDateTimeLisbon(generatedAt)}.
         </p>
       </div>
 

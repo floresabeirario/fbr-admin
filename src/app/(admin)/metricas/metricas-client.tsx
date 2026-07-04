@@ -27,8 +27,8 @@ import {
   Sparkle,
   Info,
 } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
+import { parseISO } from "date-fns";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import {
   BarChart,
   Bar,
@@ -374,7 +374,7 @@ export default function MetricasClient({
             Métricas
           </h1>
           <p className="text-sm text-cocoa-700">
-            Última actualização: {format(parseISO(loadedAt), "dd/MM/yyyy, HH:mm", { locale: pt })}
+            Última actualização: {formatDateTimeLisbon(loadedAt)}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">

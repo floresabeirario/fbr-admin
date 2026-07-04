@@ -2,8 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO } from "date-fns";
-import { pt } from "date-fns/locale";
+import { formatDateTimeLisbonWithSeconds } from "@/lib/format-date";
 import {
   History,
   Filter,
@@ -255,7 +254,7 @@ function AuditEntry({ entry }: { entry: AuditLogEntry }) {
             <User className="h-3 w-3" />
             <span>{shortName(entry.changed_by_email)}</span>
             <span>·</span>
-            <span>{format(parseISO(entry.changed_at), "dd/MM/yyyy HH:mm:ss", { locale: pt })}</span>
+            <span>{formatDateTimeLisbonWithSeconds(entry.changed_at)}</span>
             {entry.action === "UPDATE" && diffs.length > 0 && (
               <>
                 <span>·</span>

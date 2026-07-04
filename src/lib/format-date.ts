@@ -15,6 +15,22 @@ const lisbonDateTime = new Intl.DateTimeFormat("pt-PT", {
   minute: "2-digit",
 });
 
+const lisbonDateTimeSeconds = new Intl.DateTimeFormat("pt-PT", {
+  timeZone: "Europe/Lisbon",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+const lisbonTime = new Intl.DateTimeFormat("pt-PT", {
+  timeZone: "Europe/Lisbon",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 /**
  * "dd/MM/aaaa" a partir de uma data-só (coluna DATE, ex.: "2026-07-04").
  * Reordena os componentes da string — sem `new Date()` — por isso não há
@@ -34,6 +50,22 @@ export function formatDateTimeLisbon(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return lisbonDateTime.format(d);
+}
+
+/** "dd/MM/aaaa, HH:mm:ss" na hora de Portugal (ex.: audit log). */
+export function formatDateTimeLisbonWithSeconds(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return lisbonDateTimeSeconds.format(d);
+}
+
+/** "HH:mm" na hora de Portugal (ex.: bolhas de chat). "" se inválido. */
+export function formatTimeLisbon(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return lisbonTime.format(d);
 }
 
 /**
