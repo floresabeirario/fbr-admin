@@ -181,8 +181,11 @@ const CATEGORY_META: Record<Category, { label: string; chip: string; dot: string
 const CATEGORY_ORDER: Category[] = ["cliente", "lead", "operacional"];
 
 // Categoria automática a partir das encomendas que fazem match por telefone.
-// Cliente assim que UMA delas chega a "Entrega agendada" (Reservas+); senão Lead.
-function autoCategoryFromOrders(matched: OrderLite[]): Category {
+// SÓ infere quando existe encomenda: Cliente assim que UMA delas chega a
+// "Entrega agendada" (Reservas+); senão (pré-reserva) Lead. Sem encomenda
+// nenhuma → null (sem etiqueta) — a Maria põe à mão se quiser (ex.: Operacional).
+function autoCategoryFromOrders(matched: OrderLite[]): Category | null {
+  if (matched.length === 0) return null;
   const isClient = matched.some((o) =>
     isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada"),
   );
@@ -210,19 +213,27 @@ function CategoryPicker({
   onChange,
 }: {
   stored: Category | null; // valor gravado (null = automático)
-  auto: Category; // derivado das encomendas
+  auto: Category | null; // derivado das encomendas (null = sem encomenda)
   onChange: (v: Category | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const effective = stored ?? auto;
+  const effective = stored ?? auto; // pode ser null (sem etiqueta)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className="inline-flex items-center gap-1 rounded hover:opacity-80"
         title="Mudar categoria desta conversa"
       >
-        <CategoryChip category={effective} />
-        {stored === null && <span className="text-[8px] text-cocoa-400 lowercase">auto</span>}
+        {effective ? (
+          <CategoryChip category={effective} />
+        ) : (
+          <span className="inline-flex items-center text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-cream-300 text-cocoa-400">
+            + etiqueta
+          </span>
+        )}
+        {stored === null && effective && (
+          <span className="text-[8px] text-cocoa-400 lowercase">auto</span>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-52 p-1" align="start">
         <div className="px-2 py-1 text-[10px] text-cocoa-400">Categoria da conversa</div>
@@ -250,7 +261,10 @@ function CategoryPicker({
           className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-left hover:bg-cream-100"
         >
           <span className="text-xs text-cocoa-700">
-            Automático <span className="text-cocoa-400">({CATEGORY_META[auto].label})</span>
+            Automático{" "}
+            <span className="text-cocoa-400">
+              ({auto ? CATEGORY_META[auto].label : "sem etiqueta"})
+            </span>
           </span>
           {stored === null && <span className="text-emerald-600 text-xs">✓</span>}
         </button>
@@ -311,19 +325,24 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
     return map;
   }, [conversations, orders]);
 
-  // Categoria automática por conversa (cliente se alguma encomenda ligada
-  // já está em "Entrega agendada" ou mais à frente; senão lead).
+  // Categoria automática por conversa. SÓ para conversas com encomenda:
+  // cliente se alguma encomenda ligada já está em "Entrega agendada" ou mais
+  // à frente; senão (pré-reserva) lead. Conversas sem encomenda ficam de fora
+  // do mapa (sem etiqueta).
   const convAutoCategory = useMemo(() => {
-    const clientTails = new Set<string>();
+    const tailCat = new Map<string, Category>();
     for (const o of orders) {
-      if (isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada")) {
-        const tail = digitsOnly(o.phone).slice(-9);
-        if (tail.length === 9) clientTails.add(tail);
-      }
+      const tail = digitsOnly(o.phone).slice(-9);
+      if (tail.length !== 9) continue;
+      const isClient = isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada");
+      // cliente ganha sobre lead se a pessoa tiver várias encomendas.
+      if (isClient) tailCat.set(tail, "cliente");
+      else if (tailCat.get(tail) !== "cliente") tailCat.set(tail, "lead");
     }
     const map = new Map<string, Category>();
     for (const c of conversations) {
-      map.set(c.id, clientTails.has(digitsOnly(c.phone_e164).slice(-9)) ? "cliente" : "lead");
+      const cat = tailCat.get(digitsOnly(c.phone_e164).slice(-9));
+      if (cat) map.set(c.id, cat);
     }
     return map;
   }, [conversations, orders]);
@@ -511,9 +530,11 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
                           </span>
                         )}
                       </div>
-                      <div className="mt-1">
-                        <CategoryChip category={c.category ?? convAutoCategory.get(c.id) ?? "lead"} />
-                      </div>
+                      {(c.category ?? convAutoCategory.get(c.id)) && (
+                        <div className="mt-1">
+                          <CategoryChip category={(c.category ?? convAutoCategory.get(c.id))!} />
+                        </div>
+                      )}
                     </div>
                   </button>
                 </li>
