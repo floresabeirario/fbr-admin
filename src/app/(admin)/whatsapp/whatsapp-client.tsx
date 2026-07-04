@@ -6,8 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User } from "lucide-react";
 import { linkify } from "@/lib/linkify";
+import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +31,7 @@ type OrderLite = {
   phone: string | null;
   status: string;
   drive_folder_url: string | null;
+  flowers_photo_url: string | null;
 };
 
 type Props = {
@@ -84,6 +86,80 @@ function mediaIconLabel(content_type: string): string {
   }
 }
 
+// ──────────────────────────────────────────────────────────────
+// AVATAR — círculo colorido com iniciais (à WhatsApp).
+// A API da Meta não expõe a foto de perfil real do contacto, por isso
+// mostramos iniciais sobre uma cor derivada do número (estável para a
+// mesma pessoa, mesmo que o nome mude). Sem número→nome, cai no ícone.
+// Cores escolhidas para assentarem na paleta creme/cocoa da marca.
+// ──────────────────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  "bg-rose-400", "bg-amber-500", "bg-emerald-500", "bg-sky-500",
+  "bg-indigo-400", "bg-violet-400", "bg-teal-500", "bg-orange-400",
+  "bg-pink-400", "bg-cyan-500", "bg-lime-600", "bg-fuchsia-400",
+];
+
+function avatarColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function avatarInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function Avatar({
+  name,
+  seed,
+  size = 44,
+  photoUrl,
+}: {
+  name: string | null | undefined;
+  seed: string;
+  size?: number;
+  // Foto principal do quadro (flowers_photo_url da encomenda ligada), quando existe.
+  photoUrl?: string | null;
+}) {
+  const [imgError, setImgError] = useState(false);
+  // Reset do erro quando a foto muda (avatar reutilizado ao trocar de conversa) —
+  // durante o render, sem setState em effect.
+  const [prevPhoto, setPrevPhoto] = useState(photoUrl);
+  if (photoUrl !== prevPhoto) {
+    setPrevPhoto(photoUrl);
+    setImgError(false);
+  }
+
+  const showPhoto = Boolean(photoUrl) && !imgError;
+  const label = name ? avatarInitials(name) : "";
+  return (
+    <div
+      className={cn(
+        "shrink-0 rounded-full overflow-hidden flex items-center justify-center text-white font-medium select-none leading-none",
+        avatarColor(seed),
+      )}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}
+      aria-hidden
+    >
+      {showPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element -- foto do Drive/lh3; next/image não traz benefício aqui
+        <img
+          src={photoUrl as string}
+          alt=""
+          loading="lazy"
+          onError={() => setImgError(true)}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        label || <User style={{ width: size * 0.5, height: size * 0.5 }} />
+      )}
+    </div>
+  );
+}
+
 type InboxFilter = "todas" | "nao_lidas" | "com_encomenda" | "sem_encomenda";
 
 export default function WhatsappClient({ initialConversations, orders }: Props) {
@@ -112,6 +188,26 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
     const map = new Map<string, boolean>();
     for (const c of conversations) {
       map.set(c.id, phoneTails.has(digitsOnly(c.phone_e164).slice(-9)));
+    }
+    return map;
+  }, [conversations, orders]);
+
+  // Foto de perfil = foto principal do quadro da encomenda ligada (quando existe).
+  // Índice telefone(últimos 9)→foto, depois resolvido por conversa. A 1ª encomenda
+  // com foto para aquele número ganha.
+  const convPhoto = useMemo(() => {
+    const tailToPhoto = new Map<string, string>();
+    for (const o of orders) {
+      if (!o.flowers_photo_url) continue;
+      const tail = digitsOnly(o.phone).slice(-9);
+      if (tail.length !== 9 || tailToPhoto.has(tail)) continue;
+      const embed = toEmbeddableImageUrl(o.flowers_photo_url);
+      if (embed) tailToPhoto.set(tail, embed);
+    }
+    const map = new Map<string, string>();
+    for (const c of conversations) {
+      const photo = tailToPhoto.get(digitsOnly(c.phone_e164).slice(-9));
+      if (photo) map.set(c.id, photo);
     }
     return map;
   }, [conversations, orders]);
@@ -264,30 +360,33 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
                     type="button"
                     onClick={() => setSelectedId(c.id)}
                     className={cn(
-                      "w-full text-left p-3 hover:bg-cream-50 transition-colors",
+                      "w-full text-left p-3 flex items-center gap-3 hover:bg-cream-50 transition-colors",
                       selectedId === c.id && "bg-cream-100",
                     )}
                   >
-                    <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                      <span className="font-medium text-sm text-cocoa-900 truncate">
-                        {c.contact_name || c.display_phone || c.phone_e164}
-                      </span>
-                      <span className="text-[10px] text-cocoa-500 shrink-0">
-                        {formatRelativeTime(c.last_message_at)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-cocoa-600 truncate flex-1">
-                        {c.last_message_direction === "sent_echo" && (
-                          <span className="text-cocoa-400">↪ </span>
-                        )}
-                        {c.last_message_preview ?? "(sem mensagens)"}
-                      </p>
-                      {c.unread_count > 0 && (
-                        <span className="bg-emerald-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1.5 inline-flex items-center justify-center shrink-0">
-                          {c.unread_count > 99 ? "99+" : c.unread_count}
+                    <Avatar name={c.contact_name} seed={c.phone_e164} size={44} photoUrl={convPhoto.get(c.id)} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                        <span className="font-medium text-sm text-cocoa-900 truncate">
+                          {c.contact_name || c.display_phone || c.phone_e164}
                         </span>
-                      )}
+                        <span className="text-[10px] text-cocoa-500 shrink-0">
+                          {formatRelativeTime(c.last_message_at)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-cocoa-600 truncate flex-1">
+                          {c.last_message_direction === "sent_echo" && (
+                            <span className="text-cocoa-400">↪ </span>
+                          )}
+                          {c.last_message_preview ?? "(sem mensagens)"}
+                        </p>
+                        {c.unread_count > 0 && (
+                          <span className="bg-emerald-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1.5 inline-flex items-center justify-center shrink-0">
+                            {c.unread_count > 99 ? "99+" : c.unread_count}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 </li>
@@ -370,6 +469,12 @@ function ConversationViewer({
     [orders, conversation.phone_e164],
   );
 
+  // Foto principal do quadro da 1ª encomenda ligada que a tenha → foto de perfil.
+  const avatarPhoto = useMemo(() => {
+    const withPhoto = linkedOrders.find((o) => o.flowers_photo_url);
+    return withPhoto ? toEmbeddableImageUrl(withPhoto.flowers_photo_url) : null;
+  }, [linkedOrders]);
+
   // Fetch mensagens da conversa + subscrever Realtime.
   // (reset de loading/messages ao mudar de conversa é feito no render, acima)
   useEffect(() => {
@@ -450,6 +555,7 @@ function ConversationViewer({
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
+        <Avatar name={conversation.contact_name} seed={conversation.phone_e164} size={40} photoUrl={avatarPhoto} />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
             <h2 className="text-sm font-semibold text-cocoa-900 truncate">
