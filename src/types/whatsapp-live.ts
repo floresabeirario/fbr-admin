@@ -9,8 +9,9 @@ export type WhatsappConversation = {
   unread_count: number;
   archived: boolean;
   notes: string | null;
-  // Etiqueta manual (cliente/lead/operacional). NULL = derivada do estado da encomenda.
-  category: "cliente" | "lead" | "operacional" | null;
+  // Key da etiqueta manual (ver system_settings.whatsapp_labels).
+  // NULL = derivada automaticamente do estado da encomenda.
+  category: string | null;
   created_at: string;
   updated_at: string;
 };

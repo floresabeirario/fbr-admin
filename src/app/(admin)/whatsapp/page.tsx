@@ -1,11 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WhatsappConversation } from "@/types/whatsapp-live";
+import { parseLabelsJson, SETTINGS_KEY } from "@/lib/whatsapp/labels";
 import WhatsappClient from "./whatsapp-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function WhatsappPage() {
   const supabase = await createClient();
+
+  const { data: labelsRow } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", SETTINGS_KEY)
+    .maybeSingle();
+  const labels = parseLabelsJson(
+    typeof labelsRow?.value === "string" ? labelsRow.value : null,
+  );
 
   const { data: convs } = await supabase
     .from("whatsapp_conversations")
@@ -29,6 +39,7 @@ export default async function WhatsappPage() {
   return (
     <WhatsappClient
       initialConversations={(convs ?? []) as WhatsappConversation[]}
+      initialLabels={labels}
       orders={(orders ?? []) as Array<{
         id: string;
         order_id: string;

@@ -6,14 +6,31 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check } from "lucide-react";
 import { linkify } from "@/lib/linkify";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { isStatusAtOrAfter, type OrderStatus } from "@/types/database";
+import {
+  LABEL_PALETTE,
+  PALETTE_ORDER,
+  resolveLabel,
+  newLabelKey,
+  type WhatsappLabel,
+  type LabelColor,
+  type AutoLabelKey,
+} from "@/lib/whatsapp/labels";
 import TemplatePicker from "@/components/template-picker";
 import type {
   WhatsappConversation,
@@ -25,6 +42,7 @@ import {
   archiveConversationAction,
   updateConversationNotesAction,
   setConversationCategoryAction,
+  saveWhatsappLabelsAction,
 } from "./actions";
 
 type OrderLite = {
@@ -39,6 +57,7 @@ type OrderLite = {
 
 type Props = {
   initialConversations: WhatsappConversation[];
+  initialLabels: WhatsappLabel[];
   orders: OrderLite[];
 };
 
@@ -164,116 +183,103 @@ function Avatar({
 }
 
 // ──────────────────────────────────────────────────────────────
-// CATEGORIA — etiqueta da conversa (à WhatsApp Business).
-// Automática quando a conversa não tem categoria manual gravada:
-//   cliente = encomenda ligada em "Entrega agendada" ou mais à frente;
-//   lead    = pré-reserva ou sem encomenda.
-// Manual (guardada na BD) sobrepõe-se — é por aqui que entra "operacional".
+// ETIQUETAS — categorias geríveis da conversa (à WhatsApp Business).
+// Definições (nome/cor) vêm de system_settings via props; a `category` da
+// conversa guarda a KEY de uma etiqueta. Três keys são automáticas
+// (cliente/lead/cancelado), derivadas do estado da encomenda ligada:
+//   cliente   = encomenda em "Entrega agendada" ou mais à frente;
+//   lead      = pré-reserva;
+//   cancelado = encomenda cancelada.
+// A etiqueta gravada (manual) sobrepõe-se ao automático.
 // ──────────────────────────────────────────────────────────────
-type Category = "cliente" | "lead" | "operacional" | "cancelado";
-// Subconjunto que pode ser gravado à mão na BD (o CHECK da mig 090). "cancelado"
-// é só automático/exibição e nunca é persistido.
-type StoredCategory = Exclude<Category, "cancelado">;
 
-const CATEGORY_META: Record<Category, { label: string; chip: string; dot: string }> = {
-  cliente: { label: "Cliente", chip: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
-  lead: { label: "Lead", chip: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
-  operacional: { label: "Operacional", chip: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
-  cancelado: { label: "Cancelado", chip: "bg-cream-200 text-cocoa-500", dot: "bg-cocoa-400" },
-};
+// Prioridade das automáticas quando a pessoa tem várias encomendas:
+// uma reserva activa (cliente) ganha a uma pré-reserva (lead), que ganha
+// a um cancelamento.
+const AUTO_PRIORITY: Record<AutoLabelKey, number> = { cliente: 3, lead: 2, cancelado: 1 };
 
-// Opções que a Maria pode escolher à mão no seletor. "cancelado" fica de fora
-// (é só automático, derivado do estado da encomenda) e não é gravado na BD, por
-// isso não precisa de estar no CHECK da mig 090.
-const CATEGORY_ORDER: StoredCategory[] = ["cliente", "lead", "operacional"];
-
-// Prioridade quando uma pessoa tem várias encomendas: uma reserva activa
-// (cliente) ganha a uma pré-reserva (lead), que ganha a um cancelamento.
-const CATEGORY_PRIORITY: Record<Category, number> = {
-  cliente: 3,
-  lead: 2,
-  cancelado: 1,
-  operacional: 0, // nunca inferido automaticamente
-};
-
-// Categoria automática de UMA encomenda a partir do seu estado.
-function orderAutoCategory(status: OrderStatus): Category {
+function orderAutoKey(status: OrderStatus): AutoLabelKey {
   if (isStatusAtOrAfter(status, "entrega_agendada")) return "cliente";
   if (status === "cancelado") return "cancelado";
   return "lead"; // pré-reserva ("Entrega de flores por agendar")
 }
 
-// Categoria automática a partir das encomendas que fazem match por telefone.
-// SÓ infere quando existe encomenda; sem encomenda nenhuma → null (sem
-// etiqueta) — a Maria põe à mão se quiser (ex.: Operacional).
-function autoCategoryFromOrders(matched: OrderLite[]): Category | null {
-  let best: Category | null = null;
+// Key automática a partir das encomendas que fazem match por telefone.
+// SÓ infere quando existe encomenda; sem encomenda nenhuma → null (sem etiqueta).
+function autoKeyFromOrders(matched: OrderLite[]): AutoLabelKey | null {
+  let best: AutoLabelKey | null = null;
   for (const o of matched) {
-    const cat = orderAutoCategory(o.status as OrderStatus);
-    if (best === null || CATEGORY_PRIORITY[cat] > CATEGORY_PRIORITY[best]) best = cat;
+    const k = orderAutoKey(o.status as OrderStatus);
+    if (best === null || AUTO_PRIORITY[k] > AUTO_PRIORITY[best]) best = k;
   }
   return best;
 }
 
-function CategoryChip({ category }: { category: Category }) {
-  const m = CATEGORY_META[category];
+function LabelChip({ label }: { label: WhatsappLabel }) {
   return (
     <span
       className={cn(
         "inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
-        m.chip,
+        LABEL_PALETTE[label.color].chip,
       )}
     >
-      {m.label}
+      {label.name}
     </span>
   );
 }
 
-// Chip clicável no cabeçalho que abre o seletor de categoria.
+// Chip clicável no cabeçalho que abre o seletor de etiqueta.
 function CategoryPicker({
-  stored,
-  auto,
+  storedKey,
+  autoKey,
+  labels,
+  labelByKey,
   onChange,
 }: {
-  stored: StoredCategory | null; // valor gravado (null = automático)
-  auto: Category | null; // derivado das encomendas (null = sem encomenda)
-  onChange: (v: StoredCategory | null) => void;
+  storedKey: string | null; // valor gravado (null = automático)
+  autoKey: AutoLabelKey | null; // derivado das encomendas (null = sem encomenda)
+  labels: WhatsappLabel[];
+  labelByKey: Map<string, WhatsappLabel>;
+  onChange: (key: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const effective = stored ?? auto; // pode ser null (sem etiqueta)
+  const effectiveKey = storedKey ?? autoKey;
+  const effective = effectiveKey ? resolveLabel(effectiveKey, labelByKey) : null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className="inline-flex items-center gap-1 rounded hover:opacity-80"
-        title="Mudar categoria desta conversa"
+        title="Mudar etiqueta desta conversa"
       >
         {effective ? (
-          <CategoryChip category={effective} />
+          <LabelChip label={effective} />
         ) : (
           <span className="inline-flex items-center text-[9px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border border-dashed border-cream-300 text-cocoa-400">
             + etiqueta
           </span>
         )}
-        {stored === null && effective && (
+        {storedKey === null && effective && (
           <span className="text-[8px] text-cocoa-400 lowercase">auto</span>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-52 p-1" align="start">
-        <div className="px-2 py-1 text-[10px] text-cocoa-400">Categoria da conversa</div>
-        {CATEGORY_ORDER.map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => {
-              onChange(k);
-              setOpen(false);
-            }}
-            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-left hover:bg-cream-100"
-          >
-            <CategoryChip category={k} />
-            {stored === k && <span className="text-emerald-600 text-xs">✓</span>}
-          </button>
-        ))}
+      <PopoverContent className="w-56 p-1" align="start">
+        <div className="px-2 py-1 text-[10px] text-cocoa-400">Etiqueta da conversa</div>
+        <div className="max-h-64 overflow-y-auto">
+          {labels.map((l) => (
+            <button
+              key={l.key}
+              type="button"
+              onClick={() => {
+                onChange(l.key);
+                setOpen(false);
+              }}
+              className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-left hover:bg-cream-100"
+            >
+              <LabelChip label={l} />
+              {storedKey === l.key && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+            </button>
+          ))}
+        </div>
         <div className="my-1 border-t border-cream-100" />
         <button
           type="button"
@@ -286,27 +292,163 @@ function CategoryPicker({
           <span className="text-xs text-cocoa-700">
             Automático{" "}
             <span className="text-cocoa-400">
-              ({auto ? CATEGORY_META[auto].label : "sem etiqueta"})
+              ({autoKey ? resolveLabel(autoKey, labelByKey).name : "sem etiqueta"})
             </span>
           </span>
-          {stored === null && <span className="text-emerald-600 text-xs">✓</span>}
+          {storedKey === null && <Check className="h-3.5 w-3.5 text-emerald-600" />}
         </button>
       </PopoverContent>
     </Popover>
   );
 }
 
+// Painel de gestão de etiquetas: recolorir/renomear as existentes, criar e
+// apagar (as automáticas não se apagam). Guarda em system_settings.
+function LabelsManager({
+  open,
+  onOpenChange,
+  labels,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  labels: WhatsappLabel[];
+  onSaved: (labels: WhatsappLabel[]) => void;
+}) {
+  const [draft, setDraft] = useState<WhatsappLabel[]>(labels);
+  const [saving, setSaving] = useState(false);
+
+  // Repõe o rascunho sempre que o painel abre — durante o render.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setDraft(labels);
+  }
+
+  function patchLabel(key: string, patch: Partial<WhatsappLabel>) {
+    setDraft((d) => d.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+  function addLabel() {
+    setDraft((d) => [...d, { key: newLabelKey(), name: "Nova etiqueta", color: "violet" }]);
+  }
+  function removeLabel(key: string) {
+    setDraft((d) => d.filter((l) => l.key !== key));
+  }
+
+  async function handleSave() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const clean = await saveWhatsappLabelsAction(draft);
+      onSaved(clean);
+      onOpenChange(false);
+      toast.success("Etiquetas guardadas.");
+    } catch {
+      toast.error("Não consegui guardar as etiquetas.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden">
+        <DialogHeader>
+          <DialogTitle>Etiquetas do WhatsApp</DialogTitle>
+          <DialogDescription>
+            Muda a cor e o nome, ou cria novas. As três automáticas
+            (Cliente, Lead, Cancelado) são postas sozinhas pelo estado da
+            encomenda, mas podes recolori-las.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {draft.map((l) => (
+            <div key={l.key} className="rounded-lg border border-cream-200 p-2.5 space-y-2">
+              <div className="flex items-center gap-2">
+                <LabelChip label={l} />
+                <input
+                  value={l.name}
+                  onChange={(e) => patchLabel(l.key, { name: e.target.value })}
+                  maxLength={24}
+                  className="flex-1 min-w-0 h-8 px-2 text-sm rounded border border-cream-200 focus:outline-none focus:border-cocoa-300"
+                />
+                {l.auto ? (
+                  <span className="text-[9px] text-cocoa-400 uppercase tracking-wide shrink-0">
+                    Auto
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => removeLabel(l.key)}
+                    className="p-1.5 rounded text-cocoa-400 hover:text-rose-600 hover:bg-cream-100 shrink-0"
+                    title="Apagar etiqueta"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {PALETTE_ORDER.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => patchLabel(l.key, { color: c as LabelColor })}
+                    title={LABEL_PALETTE[c].name}
+                    className={cn(
+                      "h-6 w-6 rounded-full transition-transform",
+                      LABEL_PALETTE[c].solid,
+                      l.color === c
+                        ? "ring-2 ring-offset-1 ring-cocoa-500 scale-110"
+                        : "hover:scale-110",
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addLabel}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-cream-300 text-sm text-cocoa-600 hover:bg-cream-50"
+          >
+            <Plus className="h-4 w-4" /> Adicionar etiqueta
+          </button>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={saving}>
+            {saving ? "A guardar…" : "Guardar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 type InboxFilter = "todas" | "nao_lidas" | "com_encomenda" | "sem_encomenda";
 
-export default function WhatsappClient({ initialConversations, orders }: Props) {
+export default function WhatsappClient({ initialConversations, initialLabels, orders }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const convParam = searchParams.get("conv");
   const [conversations, setConversations] = useState<WhatsappConversation[]>(initialConversations);
+  const [labels, setLabels] = useState<WhatsappLabel[]>(initialLabels);
+  const [labelsManagerOpen, setLabelsManagerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(convParam);
   const [showArchived, setShowArchived] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("todas");
+
+  const labelByKey = useMemo(() => {
+    const m = new Map<string, WhatsappLabel>();
+    for (const l of labels) m.set(l.key, l);
+    return m;
+  }, [labels]);
 
   // Sincroniza com ?conv= quando muda externamente (ex: cmd+k → conversa).
   // Feito durante o render (padrão "store info from previous renders").
@@ -348,30 +490,30 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
     return map;
   }, [conversations, orders]);
 
-  // Categoria automática por conversa. SÓ para conversas com encomenda:
-  // cliente se alguma encomenda ligada já está em "Entrega agendada" ou mais
-  // à frente; senão (pré-reserva) lead. Conversas sem encomenda ficam de fora
-  // do mapa (sem etiqueta).
-  const convAutoCategory = useMemo(() => {
-    const tailCat = new Map<string, Category>();
+  // Key automática por conversa. SÓ para conversas com encomenda: cliente se
+  // alguma encomenda ligada já está em "Entrega agendada" ou mais à frente;
+  // lead na pré-reserva; cancelado se cancelada. Conversas sem encomenda ficam
+  // de fora do mapa (sem etiqueta).
+  const convAutoKey = useMemo(() => {
+    const tailKey = new Map<string, AutoLabelKey>();
     for (const o of orders) {
       const tail = digitsOnly(o.phone).slice(-9);
       if (tail.length !== 9) continue;
-      const cat = orderAutoCategory(o.status as OrderStatus);
-      const cur = tailCat.get(tail);
+      const k = orderAutoKey(o.status as OrderStatus);
+      const cur = tailKey.get(tail);
       // cliente > lead > cancelado se a pessoa tiver várias encomendas.
-      if (!cur || CATEGORY_PRIORITY[cat] > CATEGORY_PRIORITY[cur]) tailCat.set(tail, cat);
+      if (!cur || AUTO_PRIORITY[k] > AUTO_PRIORITY[cur]) tailKey.set(tail, k);
     }
-    const map = new Map<string, Category>();
+    const map = new Map<string, AutoLabelKey>();
     for (const c of conversations) {
-      const cat = tailCat.get(digitsOnly(c.phone_e164).slice(-9));
-      if (cat) map.set(c.id, cat);
+      const k = tailKey.get(digitsOnly(c.phone_e164).slice(-9));
+      if (k) map.set(c.id, k);
     }
     return map;
   }, [conversations, orders]);
 
-  // Muda a categoria: optimista no estado local + persiste na BD.
-  function handleSetCategory(convId: string, category: StoredCategory | null) {
+  // Muda a etiqueta: optimista no estado local + persiste na BD.
+  function handleSetCategory(convId: string, category: string | null) {
     setConversations((prev) =>
       prev.map((c) => (c.id === convId ? { ...c, category } : c)),
     );
@@ -468,6 +610,14 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
             </Link>
             <button
               type="button"
+              onClick={() => setLabelsManagerOpen(true)}
+              title="Gerir etiquetas (cores e nomes)"
+              className="text-xs text-cocoa-600 hover:text-cocoa-900 px-2 py-1 rounded border border-cream-200 hover:bg-cream-100 inline-flex items-center gap-1"
+            >
+              <Tag className="h-3 w-3 text-rose-500" /> Etiquetas
+            </button>
+            <button
+              type="button"
               onClick={() => setShowArchived((v) => !v)}
               className="text-xs text-cocoa-600 hover:text-cocoa-900 px-2 py-1 rounded border border-cream-200 hover:bg-cream-100"
               title={showArchived ? "Voltar a activas" : "Ver arquivadas"}
@@ -553,11 +703,14 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
                           </span>
                         )}
                       </div>
-                      {(c.category ?? convAutoCategory.get(c.id)) && (
-                        <div className="mt-1">
-                          <CategoryChip category={(c.category ?? convAutoCategory.get(c.id))!} />
-                        </div>
-                      )}
+                      {(() => {
+                        const key = c.category ?? convAutoKey.get(c.id);
+                        return key ? (
+                          <div className="mt-1">
+                            <LabelChip label={resolveLabel(key, labelByKey)} />
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </button>
                 </li>
@@ -573,6 +726,8 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
           <ConversationViewer
             conversation={selectedConv}
             orders={orders}
+            labels={labels}
+            labelByKey={labelByKey}
             onBack={() => setSelectedId(null)}
             onMarkUnread={() => {
               markConversationUnreadAction(selectedConv.id);
@@ -586,6 +741,13 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
           </div>
         )}
       </main>
+
+      <LabelsManager
+        open={labelsManagerOpen}
+        onOpenChange={setLabelsManagerOpen}
+        labels={labels}
+        onSaved={setLabels}
+      />
     </div>
   );
 }
@@ -602,15 +764,19 @@ function sortByLastMessage(a: WhatsappConversation, b: WhatsappConversation): nu
 function ConversationViewer({
   conversation,
   orders,
+  labels,
+  labelByKey,
   onBack,
   onMarkUnread,
   onSetCategory,
 }: {
   conversation: WhatsappConversation;
   orders: OrderLite[];
+  labels: WhatsappLabel[];
+  labelByKey: Map<string, WhatsappLabel>;
   onBack: () => void;
   onMarkUnread: () => void;
-  onSetCategory: (category: StoredCategory | null) => void;
+  onSetCategory: (category: string | null) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<WhatsappMessage[]>([]);
@@ -649,8 +815,8 @@ function ConversationViewer({
     return withPhoto ? toEmbeddableImageUrl(withPhoto.flowers_photo_url) : null;
   }, [linkedOrders]);
 
-  // Categoria automática desta conversa (usada quando não há categoria manual).
-  const autoCategory = useMemo(() => autoCategoryFromOrders(linkedOrders), [linkedOrders]);
+  // Key automática desta conversa (usada quando não há etiqueta manual).
+  const autoKey = useMemo(() => autoKeyFromOrders(linkedOrders), [linkedOrders]);
 
   // Fetch mensagens da conversa + subscrever Realtime.
   // (reset de loading/messages ao mudar de conversa é feito no render, acima)
@@ -742,8 +908,10 @@ function ConversationViewer({
               <span className="text-xs text-cocoa-500 truncate">{conversation.display_phone}</span>
             )}
             <CategoryPicker
-              stored={conversation.category}
-              auto={autoCategory}
+              storedKey={conversation.category}
+              autoKey={autoKey}
+              labels={labels}
+              labelByKey={labelByKey}
               onChange={onSetCategory}
             />
           </div>
@@ -1311,8 +1479,8 @@ function NotesArea({
 
   // Reset quando muda de conversa ou as notas vêm actualizadas do servidor —
   // durante o render, sem setState em effect.
-  const [prevNotesKey, setPrevNotesKey] = useState(`${conversationId} ${initialNotes ?? ""}`);
-  const notesKey = `${conversationId} ${initialNotes ?? ""}`;
+  const [prevNotesKey, setPrevNotesKey] = useState(`${conversationId} ${initialNotes ?? ""}`);
+  const notesKey = `${conversationId} ${initialNotes ?? ""}`;
   if (notesKey !== prevNotesKey) {
     setPrevNotesKey(notesKey);
     setValue(initialNotes ?? "");
