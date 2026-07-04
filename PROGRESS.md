@@ -19,15 +19,15 @@
 - [ ] **Mig 089** (lembretes de tarefas) corrida? + secret **`CRON_SECRET`** criado no GitHub (repo fbr-admin → Settings → Secrets → Actions, mesmo valor da Vercel)?
 - [ ] **Smoke sessão 131:** botão "Etiquetas" na aba WhatsApp (mudar cor/nome, criar nova, atribuir a conversa); ✓ cinza em vez de 📱 nas mensagens enviadas
 - [ ] **Smoke sessão 130:** sino na sidebar da PWA no telemóvel → "Notificações ligadas" (só funciona em produção)
-- [ ] **fbr-website:** merge develop→main ainda pendente? (sessão 126 ficou em develop 2365e8d à espera de aprovação do preview — caixinha cookies, keywords fora, UltraVue)
+- [x] **fbr-website:** merge develop→main FEITO na sessão 133 (`711ca4b`) — segurança + sessão 126 (cookies/keywords/UltraVue) + perf em produção
 
 ### Próximo passo concreto
 Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_roadmap_124]]):
-1. **Varrimento `formatDateTimeLisbon`** (pendente da 129): substituir `format(…HH:mm)` sobre timestamptz em metricas-client, healthchecks-client, financas/painel-tab, chat-client, workbenches parcerias + figura, recipe-detail (export-csv.ts fica — é server-only)
-2. **Item 4 restante:** tipos gerados do Supabase no preflight
+1. ~~Varrimento `formatDateTimeLisbon`~~ ✅ FEITO na 133 (todos os HH:mm sobre timestamptz; export-csv.ts fica, é server-only)
+2. **Item 4 restante:** tipos gerados do Supabase no preflight (precisa do access token da Maria — por isso a 124 usou o schema-drift offline)
 3. **Item 8:** vista "Hoje" no Dashboard (experimental, fácil de remover) + relatório mensal interno
 4. **2c:** expurgar conversas WhatsApp do histórico git (sessão DEDICADA: filter-repo + force push, coordenar com sessões paralelas)
-5. Retomar cadência de comunicação (sessão 104)
+5. **Motor de cadência de comunicação** (sessão 104): lembretes internos de follow-up por fase da encomenda (nunca envia ao cliente — só lembra a equipa). Melhor começar por desenhar a spec.
 
 ---
 
@@ -71,7 +71,9 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 - **Correcções aplicadas e EM PRODUÇÃO (admin `1114903` + voucher `37488f8` pushed):** m4 helper `isAuthorizedCron` timing-safe ([lib/auth/cron.ts](src/lib/auth/cron.ts)) nas 3 rotas de cron; m1 proxy só isenta `/api/whatsapp/webhook/` (media/suggest/retry voltam ao gate, têm auth própria); m3 callback Google não põe `detail` do erro no URL; **C1** Ideias + Livro de Receitas passam a `requireAdmin` (Maria confirmou: Ana edita só Tarefas/Parcerias/Chat — reverter = requireUser); m2 rate limit 30/min/IP no lookup de vales (fbr-voucher).
 - **fbr-website (develop `1cdc431`, NÃO em produção — entra no merge pendente):** M1 `isVercelPreview` só aceita `fbr-website-*.vercel.app`; M2 `verifyTurnstile` fail-closed em produção + alarme no `monitor-forms` se `TURNSTILE_SECRET` sumir. **C2 confirmado:** `TURNSTILE_SECRET` existe em Production na Vercel do site (screenshot da Maria).
 - **Não corrigido de propósito:** M3 webhook WhatsApp sem HMAC (limitação Dualhook, risco aceite — rodar path token 1x/ano); m5 CLAUDE.md diz "11 estados públicos" (são 13). Ver [[project_auditoria_133_pendentes]].
-- **Ecossistema:** plataformas todas adequadas; Monday/Sheets/Excel eliminados. Recomendação a prazo: absorver fbr-tracking no fbr-website (lógica de fases duplicada, hoje em sincronia). **Preflight admin OK + build website OK.**
+- **Ecossistema:** plataformas todas adequadas; Monday/Sheets/Excel eliminados. Recomendação a prazo: absorver fbr-tracking no fbr-website (lógica de fases duplicada, hoje em sincronia).
+- **Ganhos pequenos (mesma sessão, admin `8c566bd`):** varrimento `formatDateTimeLisbon` completo (metricas/healthchecks/chat/audit/parcerias×2/receitas/painel; novos helpers `formatTimeLisbon` e `...WithSeconds`); CLAUDE.md 11→13 fases.
+- **fbr-website merge→main `711ca4b` + perf `074b08a` (EM PRODUÇÃO):** correcções de segurança + sessão 126 foram live; **performance:** imagens de origem sobredimensionadas reduzidas 60MB→8MB (sharp, 1920px/q82 — [scripts/downsize-images.mjs](../fbr-website/fbr-website/scripts/downsize-images.mjs)) + removidos 5 vídeos mortos sem referências (~60MB). Causa da lentidão: fotos da equipa a 12MP/10MB e vídeos gigantes no deploy. **Preflight admin OK + build website OK.**
 
 ### Sessão 132 (2026-07-04) — Arrumação do workflow (sem código da plataforma)
 - **O quê:** PROGRESS.md 180 KB→compacto (histórico integral movido para [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md)); secções "Próximas frentes"/"Ideias" dessincronizadas actualizadas (Gmail/WhatsApp/AI/push/backup/filtros já estavam FEITOS); permissões duráveis em [.claude/settings.json](.claude/settings.json) e `settings.local.json` esvaziado + gitignored (estava tracked com 60 KB de histórico); CLAUDE.md corrigido (login é password, não Google OAuth) + secção "Como trabalhar neste repo"; skills novas `/fechar-sessao` e `/nova-migracao` em `.claude/skills/`; memórias do PROGRESS fundidas.
