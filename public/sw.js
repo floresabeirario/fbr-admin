@@ -12,7 +12,7 @@
  * Bump CACHE_VERSION sempre que quiseres invalidar todos os caches.
  */
 
-const CACHE_VERSION = "fbr-admin-v6";
+const CACHE_VERSION = "fbr-admin-v7";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 self.addEventListener("install", (event) => {
@@ -115,7 +115,10 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+  const rawUrl = (event.notification.data && event.notification.data.url) || "/";
+  // Resolver para URL absoluta: tanto `navigate` como `openWindow` são mais
+  // fiáveis no Android com o href completo do que com um caminho relativo.
+  const targetUrl = new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
     (async () => {
@@ -123,21 +126,28 @@ self.addEventListener("notificationclick", (event) => {
         type: "window",
         includeUncontrolled: true,
       });
-      // Se a app já está aberta nalgum separador, foca-o e navega lá dentro.
+
+      // Se a app já está aberta nalguma janela, reutiliza-a: navega-a para a
+      // rota certa e depois foca-a. A ORDEM importa (navegar → focar) e cada
+      // passo vai dentro de try/catch: no Android o focus() pode falhar quando
+      // a app está em segundo plano, e sem isto o handler morria a meio sem
+      // nunca abrir nada — a notificação fechava e não acontecia mais nada.
       for (const client of allClients) {
-        if ("focus" in client) {
-          await client.focus();
+        try {
           if ("navigate" in client) {
-            try {
-              await client.navigate(targetUrl);
-            } catch {
-              // navegação cross-origin bloqueada — ignorar; o focus já ajudou
-            }
+            await client.navigate(targetUrl);
+          }
+          if ("focus" in client) {
+            await client.focus();
           }
           return;
+        } catch {
+          // Esta janela não colaborou — tenta a próxima e, se nenhuma servir,
+          // cai para abrir uma janela nova lá em baixo.
         }
       }
-      // Caso contrário, abre uma janela nova.
+
+      // Nenhuma janela reutilizável (app fechada): abre uma nova.
       if (self.clients.openWindow) {
         await self.clients.openWindow(targetUrl);
       }
