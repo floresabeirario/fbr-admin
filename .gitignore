@@ -47,3 +47,6 @@ next-env.d.ts
 
 # ficheiros de trabalho locais (nunca para o repo nem para o public/)
 /_privado/
+
+# permissões locais do Claude Code (por máquina; as duráveis vivem em .claude/settings.json)
+.claude/settings.local.json

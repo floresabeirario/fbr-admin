@@ -2,8 +2,28 @@
 
 # IMPORTANTE — Início de cada sessão
 Lê sempre o ficheiro `PROGRESS.md` na raiz do projecto antes de qualquer coisa.
-Ele diz exactamente onde ficámos e o próximo passo concreto.
-Actualiza-o no fim de cada sessão de trabalho.
+Ele diz exactamente onde ficámos e o próximo passo concreto. É compacto de propósito
+(estado actual + últimas 5 sessões); o histórico integral vive em `PROGRESS-ARQUIVO.md`,
+que só se consulta quando é preciso o detalhe de uma sessão antiga.
+Actualiza o `PROGRESS.md` em tempo real durante a sessão (não só no fim) e usa a skill
+`/fechar-sessao` antes de terminar.
+
+# Como trabalhar neste repo (regras operacionais)
+- **Preflight obrigatório** antes de fechar qualquer sessão que toque em código: `npm run preflight`
+  (tsc + testes + build). Se não der para fazer smoke no browser, alertar a Maria para testar antes do push.
+- **Migrações Supabase**: escrever o ficheiro em `supabase/migrations/` NÃO as aplica — é a Maria que as
+  corre à mão no SQL Editor. Nunca assumir que uma migração descrita como "feita" chegou a produção;
+  registar sempre no `PROGRESS.md` como passo manual pendente. Usa a skill `/nova-migracao`.
+- **Sessões paralelas**: pode haver outra sessão Claude a trabalhar no mesmo working tree.
+  `git status` antes de commitar e committar só os ficheiros desta sessão.
+- **Nada entra em `public/`** que não seja para servir na app — tudo aí é público no deploy
+  (ficheiros de trabalho vão para `_privado/`, gitignored).
+- **Nada de envio automático a clientes** — toda a comunicação é manual; a plataforma só lembra.
+- **Datas**: dd/MM/yyyy (timestamps dd/MM/yyyy HH:mm, sempre em hora de Lisboa via `formatDateTimeLisbon`
+  para timestamptz em componentes hidratados). Euros com vírgula decimal, alinhados à direita.
+- **Desktop é prioridade**: correcções mobile só com overrides responsivos; nunca tocar em `lg:`/`xl:`.
+- **Permissões do Claude Code**: as duráveis vivem em `.claude/settings.json` (commitado);
+  `.claude/settings.local.json` é local e gitignored — não o committar.
 
 ---
 
@@ -23,7 +43,7 @@ Actualiza-o no fim de cada sessão de trabalho.
 - Idioma da plataforma: Português
 
 ## Utilizadores (3 no total)
-- 2 Admin (Google OAuth via Supabase) — acesso total
+- 2 Admin (email+password via Supabase Auth; login estilo Netflix com fotos) — acesso total
 - 1 Viewer — só pode editar tarefas (dashboard) e aba Parcerias; resto é só leitura
 - Admins podem gerir permissões facilmente
 
@@ -197,14 +217,14 @@ Métricas:
 - Retenção de dados: 10 anos para encomendas concluídas (fiscal), alerta automático após prazo
 
 ## Segurança e RGPD
-- Auth via Supabase (Google OAuth)
+- Auth via Supabase (email+password; signups desligados; gate de equipa no proxy)
 - Passwords encriptadas (nativo Supabase)
 - Dados sensíveis nunca expostos em URLs/logs públicos
 - Terceiro utilizador só vê o estritamente necessário
 - Direito ao esquecimento implementado
 
 ## Integrações
-- Supabase Auth (Google OAuth)
+- Supabase Auth (email+password)
 - Google Drive API (pastas por cliente)
 - Gmail API (histórico emails por encomenda)
 - Google Calendar API (eventos de pagamento)
