@@ -24,7 +24,10 @@
 
 ---
 
-## Sessões 91-125 — resumos comprimidos (um parágrafo por sessão, em comentários HTML)
+## Resumos compactos movidos do PROGRESS.md (o texto integral destas sessões está acima)
+
+### Sessão 128 (2026-07-03) — Refactor do workbench de Preservação
+- **O quê:** [workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) 2473→436 linhas (orquestrador puro: autosave debounce 900ms + `pendingRef`, 5 diálogos, transições de estado/pagamento em cadeia); apresentação em 12 componentes novos em [_components/](src/app/(admin)/preservacao/[id]/_components/) (header, hero, comms-card, flowers-card, shipping-card, finance-card, partnership-card, closing-cards, dialogs, …). Zero mudanças de comportamento. Padrão: cada cartão recebe `local`+`update
 
 <!-- Sessão 125 (FASE 6 parte 69 — Picker de templates: "Sugeridos para esta fase" mostrava ~18 com contradições [tamanho escolhido+indeciso, funeral num casamento, vale sem vale, PT+EN duplicado]; causa = rankTemplatesForStatus em lib/templates.ts juntava fieldSuggestionBases com TODAS as templates de suggested_statuses sem filtro; fix 2 mecanismos [nada some, desce para "Todos"]: mapa RELEVANCIA_POR_CAMPOS [template só sugerida se os campos não a contradisserem] + soIdiomaPreferido [gémea no outro idioma desce para "Todos" quando se sabe form_language]; mesmo dedupe em rankTemplatesForLead; ~18→4 no caso da Melanie; +5 testes [58 total]; sem migração) comprimida. -->
 

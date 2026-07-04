@@ -10,10 +10,12 @@
 
 ## Onde estamos
 
-**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **132** (2026-07-04, arrumação do workflow).
+**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **133** (2026-07-04, auditoria de segurança + ecossistema com o Fable).
 
 ### ⚠️ Pendentes de confirmação da Maria (verificar antes de assumir)
-- [ ] **Mig 091** corrida no Supabase? (o deploy das etiquetas WhatsApp — commit 2463ea4 — precisa dela primeiro; sem ela, gravar etiqueta nova viola o CHECK antigo da 090)
+- [ ] **Smoke sessão 133 (correcções de segurança já em produção):** login dos 3 perfis OK; aba WhatsApp abre e as imagens carregam (proxy passou a gated para /media|/suggest|/retry — só o /webhook é isento); confirmar que a Ana já NÃO edita Ideias nem Livro de Receitas (só Tarefas/Parcerias/Chat)
+- [ ] **fbr-website:** as correcções M1/M2 estão no develop (commit 1cdc431) — entram quando fizeres o merge develop→main que já estava pendente
+- [x] **Mig 091** corrida no Supabase ✅ (confirmado pela Maria, 04/07 — deploy das etiquetas WhatsApp desbloqueado)
 - [ ] **Mig 089** (lembretes de tarefas) corrida? + secret **`CRON_SECRET`** criado no GitHub (repo fbr-admin → Settings → Secrets → Actions, mesmo valor da Vercel)?
 - [ ] **Smoke sessão 131:** botão "Etiquetas" na aba WhatsApp (mudar cor/nome, criar nova, atribuir a conversa); ✓ cinza em vez de 📱 nas mensagens enviadas
 - [ ] **Smoke sessão 130:** sino na sidebar da PWA no telemóvel → "Notificações ligadas" (só funciona em produção)
@@ -64,6 +66,13 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 
 ## Últimas sessões (detalhe compacto)
 
+### Sessão 133 (2026-07-04) — Auditoria de segurança + ecossistema + correcções aplicadas
+- **Auditoria (Fable):** 4 repos + RLS/GRANTs das 91 migrações + lógica financeira. **0 críticos, 3 moderados, 5 menores.** Relatório: https://claude.ai/code/artifact/eca9f339-da8e-4fa5-944d-e9a3fbc27403
+- **Correcções aplicadas e EM PRODUÇÃO (admin `1114903` + voucher `37488f8` pushed):** m4 helper `isAuthorizedCron` timing-safe ([lib/auth/cron.ts](src/lib/auth/cron.ts)) nas 3 rotas de cron; m1 proxy só isenta `/api/whatsapp/webhook/` (media/suggest/retry voltam ao gate, têm auth própria); m3 callback Google não põe `detail` do erro no URL; **C1** Ideias + Livro de Receitas passam a `requireAdmin` (Maria confirmou: Ana edita só Tarefas/Parcerias/Chat — reverter = requireUser); m2 rate limit 30/min/IP no lookup de vales (fbr-voucher).
+- **fbr-website (develop `1cdc431`, NÃO em produção — entra no merge pendente):** M1 `isVercelPreview` só aceita `fbr-website-*.vercel.app`; M2 `verifyTurnstile` fail-closed em produção + alarme no `monitor-forms` se `TURNSTILE_SECRET` sumir. **C2 confirmado:** `TURNSTILE_SECRET` existe em Production na Vercel do site (screenshot da Maria).
+- **Não corrigido de propósito:** M3 webhook WhatsApp sem HMAC (limitação Dualhook, risco aceite — rodar path token 1x/ano); m5 CLAUDE.md diz "11 estados públicos" (são 13). Ver [[project_auditoria_133_pendentes]].
+- **Ecossistema:** plataformas todas adequadas; Monday/Sheets/Excel eliminados. Recomendação a prazo: absorver fbr-tracking no fbr-website (lógica de fases duplicada, hoje em sincronia). **Preflight admin OK + build website OK.**
+
 ### Sessão 132 (2026-07-04) — Arrumação do workflow (sem código da plataforma)
 - **O quê:** PROGRESS.md 180 KB→compacto (histórico integral movido para [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md)); secções "Próximas frentes"/"Ideias" dessincronizadas actualizadas (Gmail/WhatsApp/AI/push/backup/filtros já estavam FEITOS); permissões duráveis em [.claude/settings.json](.claude/settings.json) e `settings.local.json` esvaziado + gitignored (estava tracked com 60 KB de histórico); CLAUDE.md corrigido (login é password, não Google OAuth) + secção "Como trabalhar neste repo"; skills novas `/fechar-sessao` e `/nova-migracao` em `.claude/skills/`; memórias do PROGRESS fundidas.
 - **Limpeza de ficheiros:** `public/` só pode ter o que é para servir — saíram para `_privado/` (gitignored): `plataforma admin.pdf` (a spec interna estava **servida publicamente** no deploy!), 1 extracção .txt (a duplicada foi apagada) e o xlsx do GSC de 26/05; apagados os 5 SVGs boilerplate do create-next-app (sem referências). ⚠️ Estes ficheiros continuam no **histórico** do git — a sessão de expurgo (item 2c, filter-repo) deve removê-los junto com as conversas WhatsApp.
@@ -87,13 +96,7 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 - **O quê:** timestamptz formatados com date-fns `format(…HH:mm)` usam a hora da máquina → SSR em UTC ≠ browser em Lisboa → mismatch de hidratação #418 (apanhado pela monitorização de erros da 124; a página nunca partiu, o React recupera). Helper novo **`formatDateTimeLisbon`** em [format-date.ts](src/lib/format-date.ts) (Intl, sempre Europe/Lisbon, sem dependência nova), aplicado nos 5 sítios do workbench de Preservação. Commit c319638.
 - **Pendente:** o mesmo padrão existe em metricas, healthchecks, financas/painel, chat, workbenches parcerias/figura, livro-receitas → é o passo 1 do "Próximo passo concreto" no topo.
 
-### Sessão 128 (2026-07-03) — Refactor do workbench de Preservação
-- **O quê:** [workbench-client.tsx](src/app/(admin)/preservacao/[id]/workbench-client.tsx) 2473→436 linhas (orquestrador puro: autosave debounce 900ms + `pendingRef`, 5 diálogos, transições de estado/pagamento em cadeia); apresentação em 12 componentes novos em [_components/](src/app/(admin)/preservacao/[id]/_components/) (header, hero, comms-card, flowers-card, shipping-card, finance-card, partnership-card, closing-cards, dialogs, …). Zero mudanças de comportamento. Padrão: cada cartão recebe `local`+`update`(+`clientUpdate`).
-- **Nota:** `types/database.ts` ganhou `isStatusAtOrAfter` (veio de sessão paralela, mantido).
-
-### Sessão 127 (2026-07-03) — Templates: snippet + pesquisa no picker, pares PT/EN
-- **O quê:** `templateSnippet` em [lib/templates.ts](src/lib/templates.ts) (salta a linha de saudação — `isGreetingLine` unicode-safe — e mostra a 1ª frase útil); campo de pesquisa no picker (nome+conteúdo); gestão com vista emparelhada PT/EN por slug base + slot "Falta a versão X — criar a partir desta"; fix dialogs mobile (min-w-0, rodapé em coluna). Commits 69e4379, 9f9323b.
-- **Em reserva:** picker de 2 painéis com preview ao vivo SE a Maria ainda sentir fricção; contador de utilizações.
+> Sessões 127-128 movidas para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md) (secção "Sessões 126-131 — texto integral").
 
 ---
 
