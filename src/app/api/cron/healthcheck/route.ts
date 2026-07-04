@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAuthorizedCron } from "@/lib/auth/cron";
 import { runHealthchecks, type HealthCheck } from "@/lib/healthchecks";
 import {
   HEALTHCHECK_STATUS_KEY,
@@ -15,19 +16,8 @@ import type { Task } from "@/types/tasks";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Vercel Cron envia automaticamente `Authorization: Bearer <CRON_SECRET>` em
-// produção. Em development, o secret é opcional (deixa correr o endpoint
-// manualmente para testar). Em produção sem CRON_SECRET, o endpoint rejeita.
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  const isProd = process.env.NODE_ENV === "production";
-  if (!secret) return !isProd;
-  const auth = request.headers.get("authorization") ?? "";
-  return auth === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

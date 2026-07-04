@@ -2,11 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireUser, getCurrentEmail } from "@/lib/auth/server";
+import { requireAdmin, getCurrentEmail } from "@/lib/auth/server";
 import type { Recipe, RecipeInsert, RecipeUpdate } from "@/types/recipe";
 
+// Só admins criam/editam receitas. A Ana (viewer) edita apenas Tarefas,
+// Parcerias e Chat (decisão Maria, 04/07/2026). Reverter = trocar
+// requireAdmin por requireUser nas 3 actions.
+
 export async function createRecipeAction(input: RecipeInsert): Promise<Recipe> {
-  await requireUser();
+  await requireAdmin();
   const email = await getCurrentEmail();
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -20,7 +24,7 @@ export async function createRecipeAction(input: RecipeInsert): Promise<Recipe> {
 }
 
 export async function updateRecipeAction(id: string, updates: RecipeUpdate): Promise<Recipe> {
-  await requireUser();
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("recipes")
@@ -35,7 +39,7 @@ export async function updateRecipeAction(id: string, updates: RecipeUpdate): Pro
 }
 
 export async function archiveRecipeAction(id: string): Promise<void> {
-  await requireUser();
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase
     .from("recipes")

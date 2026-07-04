@@ -77,7 +77,9 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(settingsUrl(origin, { ok: "1" }));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.redirect(settingsUrl(origin, { error: "exchange_failed", detail: msg }));
+    // O detalhe fica no log do servidor, não no URL de redirect (que vai
+    // parar ao histórico do browser e a logs de proxy).
+    console.error("[google-callback] troca de código falhou", err);
+    return NextResponse.redirect(settingsUrl(origin, { error: "exchange_failed" }));
   }
 }

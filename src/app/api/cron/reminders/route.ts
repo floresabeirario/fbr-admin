@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAuthorizedCron } from "@/lib/auth/cron";
 import { reminderItemFor } from "@/lib/push/daily";
 import { sendPushToAdmins, sendPushToEmails } from "@/lib/push/send";
 import type { Task } from "@/types/tasks";
@@ -11,16 +12,8 @@ import type { Task } from "@/types/tasks";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  const isProd = process.env.NODE_ENV === "production";
-  if (!secret) return !isProd; // em dev sem secret, deixa correr à mão
-  const auth = request.headers.get("authorization") ?? "";
-  return auth === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
