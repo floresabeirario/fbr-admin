@@ -170,26 +170,49 @@ function Avatar({
 //   lead    = pré-reserva ou sem encomenda.
 // Manual (guardada na BD) sobrepõe-se — é por aqui que entra "operacional".
 // ──────────────────────────────────────────────────────────────
-type Category = "cliente" | "lead" | "operacional";
+type Category = "cliente" | "lead" | "operacional" | "cancelado";
+// Subconjunto que pode ser gravado à mão na BD (o CHECK da mig 090). "cancelado"
+// é só automático/exibição e nunca é persistido.
+type StoredCategory = Exclude<Category, "cancelado">;
 
 const CATEGORY_META: Record<Category, { label: string; chip: string; dot: string }> = {
   cliente: { label: "Cliente", chip: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
   lead: { label: "Lead", chip: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
   operacional: { label: "Operacional", chip: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
+  cancelado: { label: "Cancelado", chip: "bg-cream-200 text-cocoa-500", dot: "bg-cocoa-400" },
 };
 
-const CATEGORY_ORDER: Category[] = ["cliente", "lead", "operacional"];
+// Opções que a Maria pode escolher à mão no seletor. "cancelado" fica de fora
+// (é só automático, derivado do estado da encomenda) e não é gravado na BD, por
+// isso não precisa de estar no CHECK da mig 090.
+const CATEGORY_ORDER: StoredCategory[] = ["cliente", "lead", "operacional"];
+
+// Prioridade quando uma pessoa tem várias encomendas: uma reserva activa
+// (cliente) ganha a uma pré-reserva (lead), que ganha a um cancelamento.
+const CATEGORY_PRIORITY: Record<Category, number> = {
+  cliente: 3,
+  lead: 2,
+  cancelado: 1,
+  operacional: 0, // nunca inferido automaticamente
+};
+
+// Categoria automática de UMA encomenda a partir do seu estado.
+function orderAutoCategory(status: OrderStatus): Category {
+  if (isStatusAtOrAfter(status, "entrega_agendada")) return "cliente";
+  if (status === "cancelado") return "cancelado";
+  return "lead"; // pré-reserva ("Entrega de flores por agendar")
+}
 
 // Categoria automática a partir das encomendas que fazem match por telefone.
-// SÓ infere quando existe encomenda: Cliente assim que UMA delas chega a
-// "Entrega agendada" (Reservas+); senão (pré-reserva) Lead. Sem encomenda
-// nenhuma → null (sem etiqueta) — a Maria põe à mão se quiser (ex.: Operacional).
+// SÓ infere quando existe encomenda; sem encomenda nenhuma → null (sem
+// etiqueta) — a Maria põe à mão se quiser (ex.: Operacional).
 function autoCategoryFromOrders(matched: OrderLite[]): Category | null {
-  if (matched.length === 0) return null;
-  const isClient = matched.some((o) =>
-    isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada"),
-  );
-  return isClient ? "cliente" : "lead";
+  let best: Category | null = null;
+  for (const o of matched) {
+    const cat = orderAutoCategory(o.status as OrderStatus);
+    if (best === null || CATEGORY_PRIORITY[cat] > CATEGORY_PRIORITY[best]) best = cat;
+  }
+  return best;
 }
 
 function CategoryChip({ category }: { category: Category }) {
@@ -212,9 +235,9 @@ function CategoryPicker({
   auto,
   onChange,
 }: {
-  stored: Category | null; // valor gravado (null = automático)
+  stored: StoredCategory | null; // valor gravado (null = automático)
   auto: Category | null; // derivado das encomendas (null = sem encomenda)
-  onChange: (v: Category | null) => void;
+  onChange: (v: StoredCategory | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const effective = stored ?? auto; // pode ser null (sem etiqueta)
@@ -334,10 +357,10 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
     for (const o of orders) {
       const tail = digitsOnly(o.phone).slice(-9);
       if (tail.length !== 9) continue;
-      const isClient = isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada");
-      // cliente ganha sobre lead se a pessoa tiver várias encomendas.
-      if (isClient) tailCat.set(tail, "cliente");
-      else if (tailCat.get(tail) !== "cliente") tailCat.set(tail, "lead");
+      const cat = orderAutoCategory(o.status as OrderStatus);
+      const cur = tailCat.get(tail);
+      // cliente > lead > cancelado se a pessoa tiver várias encomendas.
+      if (!cur || CATEGORY_PRIORITY[cat] > CATEGORY_PRIORITY[cur]) tailCat.set(tail, cat);
     }
     const map = new Map<string, Category>();
     for (const c of conversations) {
@@ -348,7 +371,7 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
   }, [conversations, orders]);
 
   // Muda a categoria: optimista no estado local + persiste na BD.
-  function handleSetCategory(convId: string, category: Category | null) {
+  function handleSetCategory(convId: string, category: StoredCategory | null) {
     setConversations((prev) =>
       prev.map((c) => (c.id === convId ? { ...c, category } : c)),
     );
@@ -587,7 +610,7 @@ function ConversationViewer({
   orders: OrderLite[];
   onBack: () => void;
   onMarkUnread: () => void;
-  onSetCategory: (category: Category | null) => void;
+  onSetCategory: (category: StoredCategory | null) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<WhatsappMessage[]>([]);
