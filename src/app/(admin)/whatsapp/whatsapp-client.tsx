@@ -12,6 +12,8 @@ import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { isStatusAtOrAfter, type OrderStatus } from "@/types/database";
 import TemplatePicker from "@/components/template-picker";
 import type {
   WhatsappConversation,
@@ -22,6 +24,7 @@ import {
   markConversationUnreadAction,
   archiveConversationAction,
   updateConversationNotesAction,
+  setConversationCategoryAction,
 } from "./actions";
 
 type OrderLite = {
@@ -160,6 +163,102 @@ function Avatar({
   );
 }
 
+// ──────────────────────────────────────────────────────────────
+// CATEGORIA — etiqueta da conversa (à WhatsApp Business).
+// Automática quando a conversa não tem categoria manual gravada:
+//   cliente = encomenda ligada em "Entrega agendada" ou mais à frente;
+//   lead    = pré-reserva ou sem encomenda.
+// Manual (guardada na BD) sobrepõe-se — é por aqui que entra "operacional".
+// ──────────────────────────────────────────────────────────────
+type Category = "cliente" | "lead" | "operacional";
+
+const CATEGORY_META: Record<Category, { label: string; chip: string; dot: string }> = {
+  cliente: { label: "Cliente", chip: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+  lead: { label: "Lead", chip: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+  operacional: { label: "Operacional", chip: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
+};
+
+const CATEGORY_ORDER: Category[] = ["cliente", "lead", "operacional"];
+
+// Categoria automática a partir das encomendas que fazem match por telefone.
+// Cliente assim que UMA delas chega a "Entrega agendada" (Reservas+); senão Lead.
+function autoCategoryFromOrders(matched: OrderLite[]): Category {
+  const isClient = matched.some((o) =>
+    isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada"),
+  );
+  return isClient ? "cliente" : "lead";
+}
+
+function CategoryChip({ category }: { category: Category }) {
+  const m = CATEGORY_META[category];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+        m.chip,
+      )}
+    >
+      {m.label}
+    </span>
+  );
+}
+
+// Chip clicável no cabeçalho que abre o seletor de categoria.
+function CategoryPicker({
+  stored,
+  auto,
+  onChange,
+}: {
+  stored: Category | null; // valor gravado (null = automático)
+  auto: Category; // derivado das encomendas
+  onChange: (v: Category | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const effective = stored ?? auto;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        className="inline-flex items-center gap-1 rounded hover:opacity-80"
+        title="Mudar categoria desta conversa"
+      >
+        <CategoryChip category={effective} />
+        {stored === null && <span className="text-[8px] text-cocoa-400 lowercase">auto</span>}
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-1" align="start">
+        <div className="px-2 py-1 text-[10px] text-cocoa-400">Categoria da conversa</div>
+        {CATEGORY_ORDER.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => {
+              onChange(k);
+              setOpen(false);
+            }}
+            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-left hover:bg-cream-100"
+          >
+            <CategoryChip category={k} />
+            {stored === k && <span className="text-emerald-600 text-xs">✓</span>}
+          </button>
+        ))}
+        <div className="my-1 border-t border-cream-100" />
+        <button
+          type="button"
+          onClick={() => {
+            onChange(null);
+            setOpen(false);
+          }}
+          className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded text-left hover:bg-cream-100"
+        >
+          <span className="text-xs text-cocoa-700">
+            Automático <span className="text-cocoa-400">({CATEGORY_META[auto].label})</span>
+          </span>
+          {stored === null && <span className="text-emerald-600 text-xs">✓</span>}
+        </button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 type InboxFilter = "todas" | "nao_lidas" | "com_encomenda" | "sem_encomenda";
 
 export default function WhatsappClient({ initialConversations, orders }: Props) {
@@ -211,6 +310,31 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
     }
     return map;
   }, [conversations, orders]);
+
+  // Categoria automática por conversa (cliente se alguma encomenda ligada
+  // já está em "Entrega agendada" ou mais à frente; senão lead).
+  const convAutoCategory = useMemo(() => {
+    const clientTails = new Set<string>();
+    for (const o of orders) {
+      if (isStatusAtOrAfter(o.status as OrderStatus, "entrega_agendada")) {
+        const tail = digitsOnly(o.phone).slice(-9);
+        if (tail.length === 9) clientTails.add(tail);
+      }
+    }
+    const map = new Map<string, Category>();
+    for (const c of conversations) {
+      map.set(c.id, clientTails.has(digitsOnly(c.phone_e164).slice(-9)) ? "cliente" : "lead");
+    }
+    return map;
+  }, [conversations, orders]);
+
+  // Muda a categoria: optimista no estado local + persiste na BD.
+  function handleSetCategory(convId: string, category: Category | null) {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, category } : c)),
+    );
+    setConversationCategoryAction(convId, category);
+  }
 
   // Realtime: conversas (UPDATE de sumario/unread/archive + INSERT de nova conversa)
   useEffect(() => {
@@ -387,6 +511,9 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
                           </span>
                         )}
                       </div>
+                      <div className="mt-1">
+                        <CategoryChip category={c.category ?? convAutoCategory.get(c.id) ?? "lead"} />
+                      </div>
                     </div>
                   </button>
                 </li>
@@ -407,6 +534,7 @@ export default function WhatsappClient({ initialConversations, orders }: Props) 
               markConversationUnreadAction(selectedConv.id);
               setSelectedId(null);
             }}
+            onSetCategory={(cat) => handleSetCategory(selectedConv.id, cat)}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-cocoa-400 text-sm">
@@ -432,11 +560,13 @@ function ConversationViewer({
   orders,
   onBack,
   onMarkUnread,
+  onSetCategory,
 }: {
   conversation: WhatsappConversation;
   orders: OrderLite[];
   onBack: () => void;
   onMarkUnread: () => void;
+  onSetCategory: (category: Category | null) => void;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<WhatsappMessage[]>([]);
@@ -474,6 +604,9 @@ function ConversationViewer({
     const withPhoto = linkedOrders.find((o) => o.flowers_photo_url);
     return withPhoto ? toEmbeddableImageUrl(withPhoto.flowers_photo_url) : null;
   }, [linkedOrders]);
+
+  // Categoria automática desta conversa (usada quando não há categoria manual).
+  const autoCategory = useMemo(() => autoCategoryFromOrders(linkedOrders), [linkedOrders]);
 
   // Fetch mensagens da conversa + subscrever Realtime.
   // (reset de loading/messages ao mudar de conversa é feito no render, acima)
@@ -564,6 +697,11 @@ function ConversationViewer({
             {conversation.contact_name && (
               <span className="text-xs text-cocoa-500 truncate">{conversation.display_phone}</span>
             )}
+            <CategoryPicker
+              stored={conversation.category}
+              auto={autoCategory}
+              onChange={onSetCategory}
+            />
           </div>
           {linkedOrders.length > 0 && (
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
@@ -1002,7 +1140,14 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
       </span>
     );
   }
-  return <span title="Enviada pelo telemóvel">📱</span>;
+  // Sem estado da Meta (típico das mensagens enviadas pelo telemóvel: a Meta
+  // nem sempre manda os recibos de entrega/leitura para a API). Mostramos um
+  // ✓ cinza discreto ("enviada"), à WhatsApp, em vez de um ícone estranho.
+  return (
+    <span title="Enviada pelo telemóvel" className="text-cocoa-400">
+      ✓
+    </span>
+  );
 }
 
 function MessageContent({ message }: { message: WhatsappMessage }) {

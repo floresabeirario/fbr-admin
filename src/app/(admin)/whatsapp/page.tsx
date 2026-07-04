@@ -10,7 +10,7 @@ export default async function WhatsappPage() {
   const { data: convs } = await supabase
     .from("whatsapp_conversations")
     .select(
-      "id, phone_e164, display_phone, contact_name, last_message_at, last_message_preview, last_message_direction, unread_count, archived, notes, created_at, updated_at",
+      "id, phone_e164, display_phone, contact_name, last_message_at, last_message_preview, last_message_direction, unread_count, archived, notes, category, created_at, updated_at",
     )
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(500);

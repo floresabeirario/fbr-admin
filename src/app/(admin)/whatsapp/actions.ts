@@ -39,6 +39,20 @@ export async function archiveConversationAction(
   revalidatePath("/whatsapp");
 }
 
+export async function setConversationCategoryAction(
+  conversationId: string,
+  category: "cliente" | "lead" | "operacional" | null,
+): Promise<void> {
+  await requireAdmin();
+  const supabase = await createClient();
+  // null = volta ao automático (derivado do estado da encomenda no cliente).
+  await supabase
+    .from("whatsapp_conversations")
+    .update({ category })
+    .eq("id", conversationId);
+  revalidatePath("/whatsapp");
+}
+
 export async function updateConversationNotesAction(
   conversationId: string,
   notes: string,
