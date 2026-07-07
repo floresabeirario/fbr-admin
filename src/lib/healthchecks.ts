@@ -26,6 +26,62 @@ const ENV_CHECKS: Array<{ name: string; required: boolean }> = [
   { name: "NEXT_PUBLIC_TURNSTILE_SITE_KEY", required: false },
 ];
 
+// Plataformas públicas alimentadas por esta admin. Um deploy em baixo é
+// uma falha visível para clientes — daí valer um check. Domínios
+// sobreponíveis por env caso mudem.
+const PUBLIC_SITES: Array<{ id: string; label: string; url: string }> = [
+  {
+    id: "site-voucher",
+    label: "Site voucher.floresabeirario.pt",
+    url: process.env.VOUCHER_SITE_URL || "https://voucher.floresabeirario.pt",
+  },
+  {
+    id: "site-status",
+    label: "Site status.floresabeirario.pt",
+    url: process.env.STATUS_SITE_URL || "https://status.floresabeirario.pt",
+  },
+];
+
+// GET com timeout que nunca lança — devolve sempre um HealthCheck.
+async function checkPublicSite(
+  { id, label, url }: { id: string; label: string; url: string },
+): Promise<HealthCheck> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: { "user-agent": "fbr-admin-healthcheck" },
+    });
+    // 2xx/3xx = de pé (o voucher responde 200; um redirect ainda é "vivo").
+    const ok = res.status >= 200 && res.status < 400;
+    return {
+      id,
+      label,
+      category: "integrations",
+      status: ok ? "ok" : "error",
+      details: ok ? `Online (HTTP ${res.status})` : `Respondeu HTTP ${res.status}`,
+      hint: ok ? undefined : "Verifica o deploy na Vercel",
+    };
+  } catch (e) {
+    const aborted = e instanceof Error && e.name === "AbortError";
+    return {
+      id,
+      label,
+      category: "integrations",
+      status: "error",
+      details: aborted
+        ? "Sem resposta em 8s (timeout)"
+        : `Inacessível: ${e instanceof Error ? e.message : String(e)}`,
+      hint: "Verifica o deploy na Vercel e o DNS",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const TABLES = [
   "orders",
   "vouchers",
@@ -291,6 +347,46 @@ export async function runHealthchecks(
     details: backupDetails,
     hint: backupHint,
   });
+
+  // ── Plataformas públicas + RPC do voucher ──────────────────────
+  // O site voucher.* faz o lookup via RPC get_voucher_by_code; se a RPC
+  // partir (ou o SELECT directo tiver sido revogado sem a RPC no lugar),
+  // o site mostra "vale não encontrado" para todos. Este check valida
+  // exactamente esse caminho, mais a disponibilidade dos dois sites.
+  const siteChecks = await Promise.all(PUBLIC_SITES.map(checkPublicSite));
+  checks.push(...siteChecks);
+
+  {
+    let status: HealthCheck["status"] = "ok";
+    let details = "RPC responde (lookup do site voucher funciona)";
+    let hint: string | undefined;
+    try {
+      // Código impossível → devolve 0 linhas sem erro. Se a RPC não
+      // existir ou não tiver GRANT, vem erro.
+      const { error } = await supabase.rpc("get_voucher_by_code", {
+        p_code: "__healthcheck__",
+      });
+      if (error) {
+        status = "error";
+        details = `RPC falhou: ${error.message}`;
+        hint =
+          error.code === "PGRST202" || /function.*does not exist/i.test(error.message ?? "")
+            ? "get_voucher_by_code não existe — corre a mig 039"
+            : "O site voucher.* não consegue ler vales até isto resolver";
+      }
+    } catch (e) {
+      status = "error";
+      details = `RPC inacessível: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    checks.push({
+      id: "integration-voucher-rpc",
+      label: "RPC get_voucher_by_code (site voucher)",
+      category: "integrations",
+      status,
+      details,
+      hint,
+    });
+  }
 
   return checks;
 }
