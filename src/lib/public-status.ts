@@ -7,6 +7,14 @@
 // Mensagens default extraídas do PDF "plataforma admin"
 // (em PT e EN). Podem ser sobrescritas globalmente em
 // /status/mensagens-default ou por encomenda na aba /status.
+//
+// ⚠️ FONTE ÚNICA EM RUNTIME: os sites públicos (fbr-tracking) já NÃO
+// usam este ficheiro — consomem a RPC `get_public_order_status`
+// (migração 092), que espelha estes valores. Este módulo serve só a
+// UI síncrona do admin (badges/selects/cores/edição). Se mudares o
+// mapeamento, labels ou mensagens default aqui, tens de actualizar a
+// migração 092 — o teste public-status-sync.test.ts falha se divergirem.
+// Ver docs/ECOSYSTEM.md #1.
 // ============================================================
 
 import type { OrderStatus } from "@/types/database";
