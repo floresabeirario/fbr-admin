@@ -537,7 +537,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="flex flex-col lg:flex-row h-screen overflow-hidden bg-cream-50">
       {/* Top bar — só mobile */}
-      <header className="lg:hidden flex items-center justify-between h-14 px-3 border-b border-cream-200 bg-surface shrink-0">
+      <header className="lg:hidden relative flex items-center justify-between h-14 px-3 border-b border-cream-200 bg-surface shrink-0">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
@@ -546,9 +546,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           <Menu className="h-5 w-5" />
         </button>
+        {/* Centrado em absoluto: os lados têm larguras diferentes (1 botão vs 2),
+            por isso o justify-between sozinho deixava o título fora do centro. */}
         <Link
           href="/"
-          className="font-['TanMemories'] text-lg text-cocoa-900 hover:opacity-80 transition-opacity"
+          className="absolute left-1/2 -translate-x-1/2 font-['TanMemories'] text-lg text-cocoa-900 hover:opacity-80 transition-opacity"
           title="Ir para o Dashboard"
         >
           FBR Admin

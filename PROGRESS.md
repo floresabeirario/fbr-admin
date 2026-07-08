@@ -10,13 +10,15 @@
 
 ## Onde estamos
 
-**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **133** (2026-07-04, auditoria de segurança + ecossistema com o Fable).
+**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **136** (2026-07-08, fonte única das fases públicas + docs cross-repo do ecossistema).
 
 ### ⚠️ Pendentes de confirmação da Maria (verificar antes de assumir)
+- [ ] **Smoke fbr-voucher (07/07, TUDO já em produção):** abrir voucher.floresabeirario.pt com um código real → cartão carrega (muito mais rápido) e dados certos; código errado (ex.: XXXXXX) → volta à pesquisa com erro simpático (já não mostra "Joana"); botão **PT/EN** no canto superior direito troca a página toda; verificar a nova secção **Integrações** em /healthchecks (2 sites + RPC do voucher a verde)
+- [ ] **Smoke sessão 135 (07/07):** no telemóvel, título "FBR Admin" do header de topo agora centrado (estava puxado à esquerda — lados assimétricos com justify-between; passou a centragem absoluta em [layout.tsx](src/app/(admin)/layout.tsx), só mobile, desktop intocado)
 - [ ] **Smoke sessão 133 (correcções de segurança já em produção):** login dos 3 perfis OK; aba WhatsApp abre e as imagens carregam (proxy passou a gated para /media|/suggest|/retry — só o /webhook é isento); confirmar que a Ana já NÃO edita Ideias nem Livro de Receitas (só Tarefas/Parcerias/Chat)
 - [ ] **fbr-website:** as correcções M1/M2 estão no develop (commit 1cdc431) — entram quando fizeres o merge develop→main que já estava pendente
 - [x] **Mig 091** corrida no Supabase ✅ (confirmado pela Maria, 04/07 — deploy das etiquetas WhatsApp desbloqueado)
-- [ ] **Mig 089** (lembretes de tarefas) corrida? + secret **`CRON_SECRET`** criado no GitHub (repo fbr-admin → Settings → Secrets → Actions, mesmo valor da Vercel)?
+- [x] **Mig 089** (lembretes de tarefas) corrida + secret **`CRON_SECRET`** criado no GitHub ✅ (confirmado pela Maria, 05/07)
 - [ ] **Smoke sessão 131:** botão "Etiquetas" na aba WhatsApp (mudar cor/nome, criar nova, atribuir a conversa); ✓ cinza em vez de 📱 nas mensagens enviadas
 - [ ] **Smoke sessão 130:** sino na sidebar da PWA no telemóvel → "Notificações ligadas" (só funciona em produção)
 - [x] **fbr-website:** merge develop→main FEITO na sessão 133 (`711ca4b`) — segurança + sessão 126 (cookies/keywords/UltraVue) + perf em produção
@@ -66,6 +68,14 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 
 ## Últimas sessões (detalhe compacto)
 
+### Sessão 136 (2026-07-08) — Fonte única das fases públicas + docs cross-repo do ecossistema
+- **O quê:** eliminada a duplicação estado→fase pública (o footgun cross-repo: dois repos, dois mapas para manter em sincronia). Nova RPC **`get_public_order_status`** (mig 092, `SECURITY INVOKER`) é a fonte única em runtime; o **fbr-tracking** deixou de ter mapas (−142 linhas, só chama a RPC e formata). `public-status.ts` fica só para a UI síncrona do admin, com teste `public-status-sync.test.ts` a garantir que não diverge da SQL. Docs cross-repo novos em `docs/`: **ECOSYSTEM** (contrato + teste `ecosystem-contract.test.ts`), **SECRETS** (registo + rotação — inclui webhook WhatsApp 1×/ano), **MIGRATIONS-STATUS**, **REPOS** (build dos 4 repos). Contexto: pergunta da Maria sobre como melhorar a comunicação entre os 4 repos.
+- **Ficheiros:** [mig 092](supabase/migrations/092_public_phase_defs.sql), [public-status.ts](src/lib/public-status.ts), 2 testes novos, `docs/`×4; fbr-tracking [utils/supabase.js](../fbr-tracking/fbr-tracking/fbr-tracking/utils/supabase.js).
+- **Migrações + passos manuais:** mig 092 ✅ **aplicada** (08/07). Nenhum passo manual pendente.
+- **Deploys:** admin→`master` (`e532463`+`651cd88`); fbr-tracking merge `develop→main`, **em produção**. Também committado o [layout.tsx](src/app/(admin)/layout.tsx) (fix mobile do título centrado, sessão 135, estava por commitar).
+- **Smoke:** ✅ FEITO por script contra dados reais (RPC + `getEncomendaById`): fases 0-12/cancelada, PT/EN, datas — tudo certo; status.floresabeirario.pt 200. **Nada por smokar.** (Fica só o smoke visual mobile da sessão 135, no pendente.)
+- **Pendente:** CI dos repos website/tracking/voucher (só documentada em REPOS.md, não criada).
+
 ### Sessão 133 (2026-07-04) — Auditoria de segurança + ecossistema + correcções aplicadas
 - **Auditoria (Fable):** 4 repos + RLS/GRANTs das 91 migrações + lógica financeira. **0 críticos, 3 moderados, 5 menores.** Relatório: https://claude.ai/code/artifact/eca9f339-da8e-4fa5-944d-e9a3fbc27403
 - **Correcções aplicadas e EM PRODUÇÃO (admin `1114903` + voucher `37488f8` pushed):** m4 helper `isAuthorizedCron` timing-safe ([lib/auth/cron.ts](src/lib/auth/cron.ts)) nas 3 rotas de cron; m1 proxy só isenta `/api/whatsapp/webhook/` (media/suggest/retry voltam ao gate, têm auth própria); m3 callback Google não põe `detail` do erro no URL; **C1** Ideias + Livro de Receitas passam a `requireAdmin` (Maria confirmou: Ana edita só Tarefas/Parcerias/Chat — reverter = requireUser); m2 rate limit 30/min/IP no lookup de vales (fbr-voucher).
@@ -94,18 +104,20 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 - **Migrações:** [088](supabase/migrations/088_push_subscriptions.sql) (corrida) + [089](supabase/migrations/089_task_reminders.sql) (ver pendentes no topo). Env: 4 VAPID_* (a NEXT_PUBLIC antes do build!) + INTERNAL_NOTIFY_SECRET nos 2 repos + CRON_SECRET no GitHub — [[project_push_notifications]].
 - **Regra:** nada de envio automático a clientes — tudo interno [[feedback_nada_de_envio_automatico]]. 92 testes ✅. Só funciona em produção (SW).
 
-### Sessão 129 (2026-07-03) — Fix React #418 (horas UTC no servidor vs Lisboa no browser)
-- **O quê:** timestamptz formatados com date-fns `format(…HH:mm)` usam a hora da máquina → SSR em UTC ≠ browser em Lisboa → mismatch de hidratação #418 (apanhado pela monitorização de erros da 124; a página nunca partiu, o React recupera). Helper novo **`formatDateTimeLisbon`** em [format-date.ts](src/lib/format-date.ts) (Intl, sempre Europe/Lisbon, sem dependência nova), aplicado nos 5 sítios do workbench de Preservação. Commit c319638.
-- **Pendente:** o mesmo padrão existe em metricas, healthchecks, financas/painel, chat, workbenches parcerias/figura, livro-receitas → é o passo 1 do "Próximo passo concreto" no topo.
-
-> Sessões 127-128 movidas para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md) (secção "Sessões 126-131 — texto integral").
+> Sessões 127-129 movidas para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md) (secção "Sessões 126-131 — texto integral").
 
 ---
 
 ## Pendências externas (outros repos)
 
 - **fbr-website** — develop com trabalho por fazer merge para main (sessão 126: cookies/keywords/UltraVue — Maria aprova o preview primeiro). Decisões em aberto da auditoria 122: aggregateRating? subtítulo no hero? data nas páginas legais? + vídeo `tracking.mp4` (Maria ainda não tem).
-- **Relatório mensal de analytics (Clarity)** — recolha automática já corre (cron no fbr-website → `analytics_snapshots`); falta a compilação mensal + envio por email via Resend — [[project_website_analytics]].
+- **Relatório mensal de analytics (Clarity)** — ✅ FEITO (sessão 134): compilação mensal + email via Resend ligados ao cron `clarity-snapshot` (fbr-website `82d0f60`, main+develop sincronizados, EM PRODUÇÃO). 1.º email (Julho) chega no início de Agosto. Umami continua manual (API paga) — [[project_website_analytics]].
+- **fbr-voucher — análise completa + 2 levas de melhorias, TUDO em produção (07/07/2026):**
+  - **Leva 1 (`6a0d4b4`):** **(a)** código errado/expirado mostrava o cartão com os nomes-exemplo "Joana/Guilherme e Alexandra" — agora reencaminha para a pesquisa com erro e código pré-preenchido; **(b)** cartão 3D passou de `voucher_azul.pdf` 12,4 MB + pdf.js do cdnjs para 2 WebP pré-renderizados (`img/`, 0,8 MB, −94%; PDF fica como fonte de design, fora do deploy via `.vercelignore`; regenerar com `scripts/render-pdf.mjs`); **(c)** rate limit também no `/api/share` (helper partilhado `api/_ratelimit.js`); **(d)** menores: 500 sem `err.message`, favicon.svg 393 KB removido, `settings.local.json` destracked, OG tags por regex, README.
+  - **Leva 2 (`f57d98a`):** **fontes Jost+Homemade Apple servidas localmente** (woff2 em `fonts/`, RGPD: sem pedidos à Google; CSP sem hosts externos); **Cache-Control** no vercel.json (fonts/favicon imutáveis 1 ano, img/ 7 dias SWR); **versão EN completa** com selector PT/EN no canto (motor i18n mínimo `data-i18n`/`-html`/`-ph`, persiste em localStorage, `?lang=` prioritário, default por navigator.language); **smoke movido para o repo** (`scripts/smoke.mjs` auto-contido com mock, 29 verificações).
+  - **Admin (`936001e`):** healthcheck novo — categoria Integrações passa a testar voucher.* + status.* alcançáveis e a RPC `get_voucher_by_code` (o caminho de que o site depende). Corre na página e no cron 7h. Preflight OK; sites live a 200.
+  - **Arquitectura (sã):** estático + 2 fns serverless, RPC só devolve vales pagos/não-arquivados, XSS ok, headers fortes. **Smoke:** 29/29 verdes (Playwright+Edge), cartão e páginas PT+EN inspeccionados por screenshot; deploy live confirmado (0 refs cdnjs/googleapis, cache imutável nas fontes).
+  - **Não feito de propósito (esperam palavra da Maria):** vale **expirado** ainda abre normalmente (decisão de produto); **Umami no voucher** (analytics anónimos, opcional).
 
 ---
 
