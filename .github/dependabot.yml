@@ -1,0 +1,16 @@
+# Dependências desactualizadas acumulam-se em silêncio; isto abre 1 PR
+# mensal agrupado (npm) + 1 para as actions. Ver docs/REPOS.md.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      npm-mensal:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

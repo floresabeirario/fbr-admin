@@ -15,17 +15,31 @@
 
 > Nota PowerShell: caminhos com `[locale]` precisam de `-LiteralPath` (os `[]` são wildcards).
 
+## Branches e deploy (⚠️ NÃO é igual nos 4!)
+
+| Repo | Fluxo | Produção deploya de |
+|------|-------|---------------------|
+| **admin** | push directo a `master` | `master` |
+| **website** | `develop` → preview; merge `develop→main` (Maria aprova o preview primeiro) | `main` |
+| **tracking** | `develop` → merge `develop→main` | `main` |
+| **voucher** | push directo a `main` | `main` |
+
+**Armadilha real (sessão 136):** fazer push do tracking e assumir que foi para produção —
+foi para `develop`, e o site só muda no merge para `main`. Verificar sempre `git branch --show-current`
+antes de dar um deploy como feito. No website, o merge `develop→main` é decisão da Maria.
+
 ## CI (GitHub Actions)
 
-| Repo | CI actual | Sugestão |
-|------|-----------|----------|
-| **admin** | ✅ `ci.yml` corre `npm run preflight` | — (referência) |
-| **website** | build no deploy da Vercel | Adicionar workflow que corra `npm run build` no PR |
-| **tracking** | nenhum | Adicionar build com env dummy (ver acima) |
-| **voucher** | nenhum | Adicionar `node scripts/smoke.mjs` (o smoke já vive no repo) |
+| Repo | CI |
+|------|-----|
+| **admin** | ✅ `ci.yml` — `npm run preflight` (tsc + testes + build) |
+| **website** | ✅ `ci.yml` — `npm run build` (env dummy) + `test-forms.yml` (health 2×/mês) |
+| **tracking** | ✅ `ci.yml` — build com env dummy |
+| **voucher** | ✅ `ci.yml` — `scripts/smoke.mjs` (29 checks; `SMOKE_CHANNEL=bundled` na CI, Edge local) |
 
-**Meta:** que nenhum repo possa regredir sem um check verde. O admin já lá está; os outros três
-ganham um workflow mínimo de ~15 linhas cada. Padrão a copiar: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+Todos os repos têm também **Dependabot** (PR mensal agrupado de npm + actions).
+Nota: um workflow só corre nas branches onde o ficheiro existe — nos repos develop/main,
+entra em produção de CI quando chega a `main`.
 
 ## Regras transversais (valem para os 4)
 - **Migrações** aplica a Maria à mão — ver [MIGRATIONS-STATUS.md](MIGRATIONS-STATUS.md).
