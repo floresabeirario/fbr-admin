@@ -1,0 +1,13 @@
+-- ============================================================
+-- 006_import_monday.sql (STUB)
+-- O ficheiro original importava as encomendas históricas do
+-- Monday.com com dados pessoais reais de clientes (nomes,
+-- emails, telemóveis) inline.
+-- Foi expurgado do repositório e de TODO o histórico git na
+-- sessão 138 (11/07/2026) por razões de RGPD/minimização.
+-- A migração foi aplicada no Supabase uma única vez em 2026;
+-- os dados vivem na base de dados (+ backup diário no Drive).
+-- Este stub existe só para preservar a numeração das migrações.
+-- NÃO EXECUTAR — não faz nada.
+-- ============================================================
+SELECT 1; -- no-op
