@@ -968,3 +968,17 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
 - **2** — Login Netflix com fotos no Vercel (email+password+subendereços Gmail)
 - **1** — Leitura PDF spec, plano por fases definido
 
+
+### Sessão 130 (2026-07-03) — Notificações push internas da PWA
+- **O quê:** Web Push + VAPID próprio (sem serviço externo). **Na hora:** 🌸 nova encomenda do form (admins), ✅ tarefa atribuída (ao próprio), 📅 data de entrega das flores preenchida, 💬 WhatsApp de cliente recebido (SÓ António, colapsado por conversa), 🎁 novo vale-presente. **Diárias (cron 7h, 1 push por evento — Maria recusou digest):** 📦 recolha amanhã, 💐 flores amanhã/em mãos, 🧊 congelador 120h completas, 🚑 healthcheck→vermelho, prazos de tarefa (3d e 1d antes, aos assignees). **Lembrete pontual data+hora** em tarefas (`tasks.reminder_at`, badge 🔔): GitHub Actions [reminders.yml](.github/workflows/reminders.yml) toca em [/api/cron/reminders](src/app/api/cron/reminders/route.ts) de 10/10min (marca `reminder_sent_at` ANTES de enviar; editar data repõe NULL).
+- **Ficheiros-chave:** [lib/push/send.ts](src/lib/push/send.ts) + [daily.ts](src/lib/push/daily.ts) (lógica pura testável), [push-toggle.tsx](src/components/push-toggle.tsx) (sino na sidebar, por dispositivo), [sw.js](public/sw.js) v6, rotas `/api/internal/notify-order` + `notify-voucher` (Bearer `INTERNAL_NOTIFY_SECRET`, chamadas pelo fbr-website).
+- **Migrações:** [088](supabase/migrations/088_push_subscriptions.sql) (corrida) + [089](supabase/migrations/089_task_reminders.sql). Env: 4 VAPID_* (a NEXT_PUBLIC antes do build!) + INTERNAL_NOTIFY_SECRET nos 2 repos + CRON_SECRET no GitHub.
+- **Regra:** nada de envio automático a clientes — tudo interno. 92 testes ✅. Só funciona em produção (SW).
+
+### Sessão 131 (2026-07-04) — WhatsApp: avatares, etiquetas geríveis, vistos
+- **O quê:** aba `/whatsapp` com layout à WhatsApp mas cores da marca. **Avatares** (iniciais + cor determinística; foto do quadro da encomenda ligada como foto de perfil — match últimos 9 dígitos do telefone, `toEmbeddableImageUrl`, fallback com `onError`). **Vistos** ✓/✓✓/✓✓ azul (o antigo 📱 passou a ✓ cinza "enviada"). **Etiquetas:** de 3 fixas evoluiu para sistema gerível pela Maria — recolorir/renomear/criar (paleta pronta de 14 cores, classes Tailwind literais), definições em `system_settings["whatsapp_labels"]`; etiquetas automáticas Cliente/Lead/Cancelado derivadas do estado da encomenda ligada (prioridade cliente>lead>cancelado; sem encomenda → sem chip; "Cancelado" nunca é gravado), manual sobrepõe.
+- **Ficheiros:** [whatsapp-client.tsx](src/app/(admin)/whatsapp/whatsapp-client.tsx), [page.tsx](src/app/(admin)/whatsapp/page.tsx), [actions.ts](src/app/(admin)/whatsapp/actions.ts), novo [lib/whatsapp/labels.ts](src/lib/whatsapp/labels.ts). Removidos 2 NUL bytes pré-existentes no `NotesArea` (faziam o grep tratar o ficheiro como binário).
+- **Migrações:** [090](supabase/migrations/090_whatsapp_category.sql) (corrida) + [091](supabase/migrations/091_whatsapp_category_freeform.sql) (**correr ANTES do deploy** — drop do CHECK).
+- **Limitação Meta (não insistir):** a Cloud API NÃO dá fotos de perfil, labels do Business nem vistos de mensagens enviadas pelo telemóvel — [[project_whatsapp_cloud_api_limits]].
+- **Commits:** bc73f8e, 55a098f, bdbf9c7, 35391ce, 2463ea4. Preflight + lint OK.
+- **Smoke (Maria):** gerir etiquetas (cor/nome/nova), atribuir a conversa, chips na lista, ✓ nas enviadas.
