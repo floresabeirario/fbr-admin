@@ -982,3 +982,8 @@ Maria observou que (1) o "tipo de moldura interno" estava sempre vazio em encome
 - **Limitação Meta (não insistir):** a Cloud API NÃO dá fotos de perfil, labels do Business nem vistos de mensagens enviadas pelo telemóvel — [[project_whatsapp_cloud_api_limits]].
 - **Commits:** bc73f8e, 55a098f, bdbf9c7, 35391ce, 2463ea4. Preflight + lint OK.
 - **Smoke (Maria):** gerir etiquetas (cor/nome/nova), atribuir a conversa, chips na lista, ✓ nas enviadas.
+
+### Sessão 132 (2026-07-04) — Arrumação do workflow (sem código da plataforma)
+- **O quê:** PROGRESS.md 180 KB→compacto (histórico integral movido para [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md)); secções "Próximas frentes"/"Ideias" dessincronizadas actualizadas (Gmail/WhatsApp/AI/push/backup/filtros já estavam FEITOS); permissões duráveis em [.claude/settings.json](.claude/settings.json) e `settings.local.json` esvaziado + gitignored (estava tracked com 60 KB de histórico); CLAUDE.md corrigido (login é password, não Google OAuth) + secção "Como trabalhar neste repo"; skills novas `/fechar-sessao` e `/nova-migracao` em `.claude/skills/`; memórias do PROGRESS fundidas.
+- **Limpeza de ficheiros:** `public/` só pode ter o que é para servir — saíram para `_privado/` (gitignored): `plataforma admin.pdf` (a spec interna estava **servida publicamente** no deploy!), 1 extracção .txt (a duplicada foi apagada) e o xlsx do GSC de 26/05; apagados os 5 SVGs boilerplate do create-next-app (sem referências). ⚠️ Estes ficheiros continuam no **histórico** do git — a sessão de expurgo (item 2c, filter-repo) deve removê-los junto com as conversas WhatsApp. *(Nota da sessão 139: expurgo FEITO a 11/07/2026.)*
+- **Migrações:** nenhuma. **Smoke:** n/a (só ficheiros de processo; zero código tocado).

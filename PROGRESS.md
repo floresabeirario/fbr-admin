@@ -4,20 +4,22 @@
 > **Regras deste ficheiro:** máximo ~30 KB. Só as últimas 5 sessões ficam aqui, em formato compacto
 > (template: O quê / Ficheiros / Migrações + passos manuais / Smoke / Pendente, máx ~15 linhas).
 > Ao entrar a 6ª sessão, a mais antiga move-se **na íntegra** para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md)
-> (que NÃO é lido por defeito — todo o histórico das sessões 1-131 está lá). O detalhe fino vive nos commits do git.
+> (que NÃO é lido por defeito — todo o histórico das sessões 1-132 está lá). O detalhe fino vive nos commits do git.
+> ⚠️ Hashes de commits do fbr-admin anteriores a 11/07/2026 foram reescritos no expurgo RGPD (sessão 139) — já não existem.
 
 ---
 
 ## Onde estamos
 
-**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **138** (2026-07-08, melhorias de design/UX do fbr-voucher: envelope personalizado, pétalas, copiar código, partilhar, aviso de expirado, OG image, acessibilidade).
+**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **139** (2026-07-11, expurgo RGPD do histórico git — item 2c do roadmap FEITO; histórico reescrito + force push).
 
 ### ⚠️ Pendentes de confirmação da Maria (verificar antes de assumir)
 - [ ] **Smoke sessão 138 (fbr-voucher, 08/07):** abrir um vale real no telemóvel → envelope diz "Para {nome do destinatário}" e caem pétalas douradas ao abrir; no resumo, tocar no código → "Copiado ✓"; botão "Partilhar este vale" abre a partilha do telemóvel; enviar o link a si própria no WhatsApp → o preview mostra a capa do cartão (a Meta pode demorar a renovar previews antigos em cache)
 - [ ] **Smoke fbr-voucher (07/07, TUDO já em produção):** abrir voucher.floresabeirario.pt com um código real → cartão carrega (muito mais rápido) e dados certos; código errado (ex.: XXXXXX) → volta à pesquisa com erro simpático (já não mostra "Joana"); botão **PT/EN** no canto superior direito troca a página toda; verificar a nova secção **Integrações** em /healthchecks (2 sites + RPC do voucher a verde)
 - [ ] **Smoke sessão 135 (07/07):** no telemóvel, título "FBR Admin" do header de topo agora centrado (estava puxado à esquerda — lados assimétricos com justify-between; passou a centragem absoluta em [layout.tsx](src/app/(admin)/layout.tsx), só mobile, desktop intocado)
 - [ ] **Smoke sessão 133 (correcções de segurança já em produção):** login dos 3 perfis OK; aba WhatsApp abre e as imagens carregam (proxy passou a gated para /media|/suggest|/retry — só o /webhook é isento); confirmar que a Ana já NÃO edita Ideias nem Livro de Receitas (só Tarefas/Parcerias/Chat)
-- [ ] **fbr-website:** as correcções M1/M2 estão no develop (commit 1cdc431) — entram quando fizeres o merge develop→main que já estava pendente
+- [x] **fbr-website:** correcções M1/M2 EM PRODUÇÃO ✅ (verificado na sessão 139: `1cdc431` é antepassado de `main` — entrou no merge `711ca4b` da 133; este pendente estava obsoleto)
+- [ ] **Backup pré-expurgo (sessão 139):** `_privado/backup-pre-expurgo/fbr-admin-completo-2026-07-11.bundle` CONTÉM o histórico antigo com PII — guardar até teres confiança total (umas semanas) e depois **apagar**
 - [x] **Mig 091** corrida no Supabase ✅ (confirmado pela Maria, 04/07 — deploy das etiquetas WhatsApp desbloqueado)
 - [x] **Mig 089** (lembretes de tarefas) corrida + secret **`CRON_SECRET`** criado no GitHub ✅ (confirmado pela Maria, 05/07)
 - [ ] **Smoke sessão 131:** botão "Etiquetas" na aba WhatsApp (mudar cor/nome, criar nova, atribuir a conversa); ✓ cinza em vez de 📱 nas mensagens enviadas
@@ -29,8 +31,8 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 1. ~~Varrimento `formatDateTimeLisbon`~~ ✅ FEITO na 133 (todos os HH:mm sobre timestamptz; export-csv.ts fica, é server-only)
 2. **Item 4 restante:** tipos gerados do Supabase no preflight (precisa do access token da Maria — por isso a 124 usou o schema-drift offline)
 3. **Item 8:** vista "Hoje" no Dashboard (experimental, fácil de remover) + relatório mensal interno
-4. **2c:** expurgar conversas WhatsApp do histórico git (sessão DEDICADA: filter-repo + force push, coordenar com sessões paralelas)
-5. **Motor de cadência de comunicação** (sessão 104): lembretes internos de follow-up por fase da encomenda (nunca envia ao cliente — só lembra a equipa). Melhor começar por desenhar a spec.
+4. ~~**2c:** expurgar histórico git~~ ✅ FEITO na 139 (filter-repo + force push; 14 paths, incl. conteúdo das migs 006/014)
+5. ~~Motor de cadência de comunicação (104)~~ e ~~absorver fbr-tracking no fbr-website~~ — a Maria disse **NÃO por agora** (11/07/2026); fora do roadmap activo
 
 ---
 
@@ -63,11 +65,18 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 - **RGPD**: exportação JSON+PDF, retenção 10 anos com anonimização, audit log UI
 - **Backup diário da BD → Drive** (sessão 124: cron 05:00 UTC, 22 tabelas, rotação 14d + mensais + Janeiros; healthcheck próprio)
 - **Forms públicos fechados de ponta a ponta** (mig 084 + service role no site; Turnstile server-side) · **CI** GitHub Actions corre `npm run preflight` · anti-drift tipos↔BD no preflight ([lib/schema-drift.ts](src/lib/schema-drift.ts))
-- 91 migrações; 92 testes vitest; smoke Playwright (`npm run smoke`)
+- 92 migrações (006/014 são stubs — conteúdo com PII expurgado do histórico na sessão 139); 100 testes vitest; smoke Playwright (`npm run smoke`)
 
 ---
 
 ## Últimas sessões (detalhe compacto)
+
+### Sessão 139 (2026-07-11) — Expurgo RGPD do histórico git (item 2c) + verificações
+- **O quê:** histórico do fbr-admin reescrito com **git-filter-repo** (clone-espelho + force push; Python 3.12 + filter-repo instalados via winget/pip). Removidos de **TODO o histórico** 14 paths: `public/conversas whatsapp/` (16 clientes + 1 .vcf), `mondayexport.xlsx`, 4 xlsx de parcerias, `scripts/_monday-parceiros-parsed.json` (PII de parceiros — apanhado na verificação, não estava no inventário da 132), spec interna (pdf + 2 txt), export GSC, `.claude/settings.local.json`, e o **conteúdo das migs 006/014** (17 clientes + 171 parceiros com emails/telemóveis inline — decisão da Maria) → substituídas por **stubs no-op** que preservam a numeração. 267→265 commits.
+- **Verificação:** diff de árvore (com hashes de blobs) HEAD antigo vs novo = **exactamente** as 2 migrações; grep ao histórico inteiro limpo; preflight completo ✅ (tsc + 100 testes + build) — schema-drift e contrato do website não dependiam do conteúdo expurgado.
+- **⚠️ Hashes antigos do fbr-admin citados neste ficheiro/ARQUIVO já não existem** (histórico reescrito); branches do dependabot também foram reescritos (PRs continuam válidos). Objectos antigos podem persistir em caches do GitHub até ao gc deles — repo privado, risco baixo; remoção imediata só via GitHub Support.
+- **Backup:** bundle completo PRÉ-expurgo em `_privado/backup-pre-expurgo/` (gitignored) — **contém o PII**, apagar quando houver confiança (pendente no topo).
+- **Também:** confirmado que M1/M2 do fbr-website já estavam em produção (pendente obsoleto fechado); PROGRESS da 137/138 estava por commitar — committado antes da reescrita. **Migrações:** nenhuma nova (só stubs). **Smoke:** nada visual a testar (zero mudanças de comportamento; preflight cobre).
 
 ### Sessão 138 (2026-07-08) — fbr-voucher: melhorias de design/UX do vale (9 aprovadas pela Maria)
 - **O quê:** sugestões de melhoria pedidas pela Maria, aprovadas em bloco ("faz tudo, sem estragar nada"). **(1) Envelope personalizado:** "Um presente para si" → **"Para {destinatário}"** quando os dados da API chegam (classe `env-brand--nome` com quebra para nomes longos; testado com 37 chars em 390px). **(2) Pétalas a cair** ao abrir o envelope (7 SVGs assimétricos estilo botânico, família ouro, animação única ~3s). **(3) Nomes-exemplo fora do HTML** — overlays começam vazios até a API responder (ligações lentas já não mostram "Joana"). **(4) Copiar código:** célula do código no resumo é botão (clique/Enter → clipboard, label "Copiado ✓" 1,6s, ícone; fallback execCommand) e o CTA "Reservar agora" passa a levar **`?vale=CODIGO`**. **(5) Aviso de vale expirado** (validade MM/YYYY → fim do mês; caixa terracota discreta + validade a terracota; o vale continua a abrir — fecha o pendente "decisão de produto" da leva 2). **(6) Botão "Partilhar este vale"** (navigator.share; fallback copia o link + "Link copiado ✓"). **(7) Imagem OG dedicada** `img/og-voucher.jpg` 1200×630 (capa fechada do cartão sobre creme; novo [render-og.mjs](../fbr-voucher/fbr-voucher/scripts/render-og.mjs), Edge headless; `api/share.js` aponta para ela + og:image:width/height/alt — antes era o favicon 512px). **(8) prefers-reduced-motion:** CSS desliga os loops decorativos; JS abre o cartão sem mola (com troca manual dos canvases da capa) e sem pétalas. **(9) Zoom do browser permitido** (acessibilidade): viewport sem `user-scalable=no`; o pinch custom do cartão fica protegido por `touch-action: pan-y` no `.hero-section` + handler limitado a alvos dentro do hero — fora do hero o pinch volta a ser do browser.
@@ -103,18 +112,13 @@ Roadmap aprovado (sessão 124, prioridades da Maria — [[project_prioridades_ro
 - **Ganhos pequenos (mesma sessão, admin `8c566bd`):** varrimento `formatDateTimeLisbon` completo (metricas/healthchecks/chat/audit/parcerias×2/receitas/painel; novos helpers `formatTimeLisbon` e `...WithSeconds`); CLAUDE.md 11→13 fases.
 - **fbr-website merge→main `711ca4b` + perf `074b08a` (EM PRODUÇÃO):** correcções de segurança + sessão 126 foram live; **performance:** imagens de origem sobredimensionadas reduzidas 60MB→8MB (sharp, 1920px/q82 — [scripts/downsize-images.mjs](../fbr-website/fbr-website/scripts/downsize-images.mjs)) + removidos 5 vídeos mortos sem referências (~60MB). Causa da lentidão: fotos da equipa a 12MP/10MB e vídeos gigantes no deploy. **Preflight admin OK + build website OK.**
 
-### Sessão 132 (2026-07-04) — Arrumação do workflow (sem código da plataforma)
-- **O quê:** PROGRESS.md 180 KB→compacto (histórico integral movido para [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md)); secções "Próximas frentes"/"Ideias" dessincronizadas actualizadas (Gmail/WhatsApp/AI/push/backup/filtros já estavam FEITOS); permissões duráveis em [.claude/settings.json](.claude/settings.json) e `settings.local.json` esvaziado + gitignored (estava tracked com 60 KB de histórico); CLAUDE.md corrigido (login é password, não Google OAuth) + secção "Como trabalhar neste repo"; skills novas `/fechar-sessao` e `/nova-migracao` em `.claude/skills/`; memórias do PROGRESS fundidas.
-- **Limpeza de ficheiros:** `public/` só pode ter o que é para servir — saíram para `_privado/` (gitignored): `plataforma admin.pdf` (a spec interna estava **servida publicamente** no deploy!), 1 extracção .txt (a duplicada foi apagada) e o xlsx do GSC de 26/05; apagados os 5 SVGs boilerplate do create-next-app (sem referências). ⚠️ Estes ficheiros continuam no **histórico** do git — a sessão de expurgo (item 2c, filter-repo) deve removê-los junto com as conversas WhatsApp.
-- **Migrações:** nenhuma. **Smoke:** n/a (só ficheiros de processo; zero código tocado).
-
-> Sessões 127-131 movidas para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md).
+> Sessões 127-132 movidas para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md).
 
 ---
 
 ## Pendências externas (outros repos)
 
-- **fbr-website** — develop com trabalho por fazer merge para main (sessão 126: cookies/keywords/UltraVue — Maria aprova o preview primeiro). Decisões em aberto da auditoria 122: aggregateRating? subtítulo no hero? data nas páginas legais? + vídeo `tracking.mp4` (Maria ainda não tem).
+- **fbr-website** — sessão 126 (cookies/keywords/UltraVue) já foi live no merge da 133; develop e main sincronizados desde a 137. Continuam em aberto as decisões da auditoria 122: aggregateRating? subtítulo no hero? data nas páginas legais? + vídeo `tracking.mp4` (Maria ainda não tem) + ler `?vale=` no form de reserva (pendente da 138).
 - **Relatório mensal de analytics (Clarity)** — ✅ FEITO (sessão 134): compilação mensal + email via Resend ligados ao cron `clarity-snapshot` (fbr-website `82d0f60`, main+develop sincronizados, EM PRODUÇÃO). 1.º email (Julho) chega no início de Agosto. Umami continua manual (API paga) — [[project_website_analytics]].
 - **fbr-voucher — análise completa + 2 levas de melhorias, TUDO em produção (07/07/2026):**
   - **Leva 1 (`6a0d4b4`):** **(a)** código errado/expirado mostrava o cartão com os nomes-exemplo "Joana/Guilherme e Alexandra" — agora reencaminha para a pesquisa com erro e código pré-preenchido; **(b)** cartão 3D passou de `voucher_azul.pdf` 12,4 MB + pdf.js do cdnjs para 2 WebP pré-renderizados (`img/`, 0,8 MB, −94%; PDF fica como fonte de design, fora do deploy via `.vercelignore`; regenerar com `scripts/render-pdf.mjs`); **(c)** rate limit também no `/api/share` (helper partilhado `api/_ratelimit.js`); **(d)** menores: 500 sem `err.message`, favicon.svg 393 KB removido, `settings.local.json` destracked, OG tags por regex, README.
