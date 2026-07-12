@@ -25,7 +25,7 @@ export default async function PartnerWorkbenchPage({
       .single(),
     supabase
       .from("orders")
-      .select("id, order_id, client_name, event_date, status, budget, created_at")
+      .select("id, order_id, client_name, event_date, status, budget, created_at, partner_commission, partner_commission_status")
       .eq("partner_id", id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
@@ -40,7 +40,7 @@ export default async function PartnerWorkbenchPage({
   if (partnerRes.error || !partnerRes.data) notFound();
 
   const partner = partnerRes.data as Partner;
-  const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "client_name" | "event_date" | "status" | "budget" | "created_at">[];
+  const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "client_name" | "event_date" | "status" | "budget" | "created_at" | "partner_commission" | "partner_commission_status">[];
   const vouchers = (vouchersRes.data ?? []) as Pick<Voucher, "id" | "code" | "sender_name" | "recipient_name" | "amount" | "payment_status" | "usage_status" | "created_at">[];
 
   return (

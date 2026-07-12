@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -44,6 +45,8 @@ export function Card({
   children,
   badge,
   className,
+  autoCollapsed,
+  summary,
 }: {
   title: string;
   icon?: React.ReactNode;
@@ -52,24 +55,88 @@ export function Card({
   children: React.ReactNode;
   badge?: React.ReactNode;
   className?: string;
+  /** Colapso automático derivado do estado da encomenda. `undefined` =
+   *  card não colapsável (comportamento antigo). O utilizador pode
+   *  sempre abrir/fechar por clique no cabeçalho; esse override manual
+   *  é descartado quando o estado da encomenda volta a mudar. */
+  autoCollapsed?: boolean;
+  /** Resumo de uma linha mostrado no lugar do corpo quando colapsado. */
+  summary?: React.ReactNode;
 }) {
   const a = accent ? ACCENTS[accent] : null;
+  const collapsible = autoCollapsed !== undefined;
+
+  // Override manual do colapso automático. Reset quando `autoCollapsed`
+  // muda (o estado da encomenda avançou) — padrão "store info from
+  // previous renders", não useEffect+setState.
+  const [override, setOverride] = React.useState<boolean | null>(null);
+  const [trackedAuto, setTrackedAuto] = React.useState(autoCollapsed);
+  if (autoCollapsed !== trackedAuto) {
+    setTrackedAuto(autoCollapsed);
+    setOverride(null);
+  }
+  const collapsed = collapsible && (override ?? autoCollapsed);
+
+  function toggle() {
+    if (!collapsible) return;
+    setOverride(!collapsed);
+  }
+
   return (
     // `w-full min-w-0` força largura cheia e permite encolher quando o Card
     // é grid item (caso do mobile com `display: contents` nas colunas).
     // Sem isto, o min-width: auto default expandia o Card para min-content
     // e os Fields dentro acabavam em colunas desiguais → labels sobrepostas.
     <div className={`w-full min-w-0 rounded-2xl border border-cream-200 bg-surface overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] ${a ? `border-l-4 ${a.border}` : ""} ${className ?? ""}`}>
-      <div className={`flex items-center justify-between gap-2 px-3 py-2 lg:px-5 lg:py-3 border-b border-cream-100 ${a ? a.bgSoft : ""}`}>
-        <div className="flex items-center gap-2">
-          {icon && <span className={a?.icon ?? "text-cocoa-500"}>{icon}</span>}
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700">{title}</p>
+      <div
+        className={`flex items-center justify-between gap-2 px-3 py-2 lg:px-5 lg:py-3 ${collapsed && !summary ? "" : "border-b border-cream-100"} ${a ? a.bgSoft : ""} ${collapsible ? "cursor-pointer select-none" : ""}`}
+        onClick={toggle}
+        role={collapsible ? "button" : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (!collapsible) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+        aria-expanded={collapsible ? !collapsed : undefined}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {icon && <span className={`shrink-0 ${a?.icon ?? "text-cocoa-500"}`}>{icon}</span>}
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cocoa-700 truncate">{title}</p>
           {badge}
         </div>
-        {action}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Cliques nas acções do cabeçalho não devem colapsar o card */}
+          {action && <span onClick={(e) => e.stopPropagation()}>{action}</span>}
+          {collapsible && (
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-cocoa-500 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+            />
+          )}
+        </div>
       </div>
-      <div className="p-3 lg:p-5 space-y-3 lg:space-y-4">{children}</div>
+      {collapsed ? (
+        summary != null && (
+          <div className="px-3 py-2 lg:px-5 lg:py-2.5 text-xs text-cocoa-700">{summary}</div>
+        )
+      ) : (
+        <div className="p-3 lg:p-5 space-y-3 lg:space-y-4">{children}</div>
+      )}
     </div>
+  );
+}
+
+/** Linha de resumo para cards colapsados: rótulos à esquerda, valor €
+ *  (quando existe) num slot próprio alinhado à direita — regra da casa:
+ *  euros nunca inline no texto. */
+export function CardSummary({ children, amount }: { children: React.ReactNode; amount?: string }) {
+  return (
+    <span className="flex items-center gap-2 min-w-0">
+      <span className="truncate">{children}</span>
+      {amount && <span className="ml-auto shrink-0 text-right tabular-nums font-medium text-cocoa-900">{amount}</span>}
+    </span>
   );
 }
 

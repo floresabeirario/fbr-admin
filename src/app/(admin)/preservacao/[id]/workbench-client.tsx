@@ -39,6 +39,8 @@ import {
   type DuplicateOrderInfo,
 } from "./_components/shared";
 import { WorkbenchHeader, DuplicatesBanner } from "./_components/header";
+import { NextActionBanner } from "./_components/next-action";
+import { ChecklistCard } from "./_components/checklist-card";
 import { CommsCard } from "./_components/comms-card";
 import { InventoryCard, GalleryCard } from "./_components/gallery-cards";
 import { HeroSection } from "./_components/hero";
@@ -58,6 +60,8 @@ import {
   ClientEditDialog,
   PaymentReminderDialog,
   DeliveryDateDialog,
+  FrameShippedDialog,
+  FlowersPhotoReminderDialog,
   ArchiveDialog,
   type ClientEditRequest,
 } from "./_components/dialogs";
@@ -114,6 +118,14 @@ export default function WorkbenchClient({
   // Diálogo de "Quadro recebido" — pede data de entrega
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryDateDraft, setDeliveryDateDraft] = useState("");
+
+  // Diálogo de "Quadro enviado" por CTT — pede tracking + data de envio
+  const [frameShippedOpen, setFrameShippedOpen] = useState(false);
+  const [trackingDraft, setTrackingDraft] = useState("");
+  const [shippedDateDraft, setShippedDateDraft] = useState("");
+
+  // Lembrete de foto das flores ao passar para "Flores recebidas"
+  const [flowersPhotoOpen, setFlowersPhotoOpen] = useState(false);
 
   // Diálogos de lembrete de pagamento (40% / 30%) — abrem quando se passa
   // para "flores_recebidas"/"flores_na_prensa" (40%) ou "a_ser_fotografado"/
@@ -225,7 +237,45 @@ export default function WorkbenchClient({
       setDeliveryDateDraft(toDateInput(new Date().toISOString()));
       setDeliveryDialogOpen(true);
     }
+
+    // "Quadro enviado" por CTT sem tracking → pedir registo + data.
+    // O estado só é aplicado na resposta ("Mais tarde" também aplica —
+    // o diálogo nunca bloqueia a transição).
+    if (
+      newStatus === "quadro_enviado" &&
+      local.frame_delivery_method === "ctt" &&
+      !local.frame_tracking_code
+    ) {
+      setTrackingDraft("");
+      setShippedDateDraft(toDateInput(new Date().toISOString()));
+      setFrameShippedOpen(true);
+      return;
+    }
+
+    // "Flores recebidas" sem foto → lembrete para fotografar (só quando
+    // não há diálogo dos 40% primeiro; esse caso encadeia no confirm).
+    if (newStatus === "flores_recebidas" && !local.flowers_photo_url) {
+      setFlowersPhotoOpen(true);
+    }
     update("status", newStatus);
+  }
+
+  function confirmFrameShipped() {
+    const updates: OrderUpdate = { status: "quadro_enviado" };
+    const code = trackingDraft.trim();
+    if (code) updates.frame_tracking_code = code;
+    if (shippedDateDraft) updates.frame_shipped_date = shippedDateDraft;
+    setLocal((prev) => ({ ...prev, ...updates }));
+    pendingRef.current = { ...pendingRef.current, ...updates };
+    clearTimeout(timerRef.current);
+    setFrameShippedOpen(false);
+    flush();
+  }
+
+  function skipFrameShipped() {
+    // "Mais tarde" / fechar: aplica o estado na mesma, sem tracking.
+    update("status", "quadro_enviado");
+    setFrameShippedOpen(false);
   }
 
   function confirmPaymentReminder(alreadyAsked: boolean) {
@@ -246,6 +296,11 @@ export default function WorkbenchClient({
     if (nextStatus === "quadro_recebido" && !local.frame_delivery_date) {
       setDeliveryDateDraft(toDateInput(new Date().toISOString()));
       setDeliveryDialogOpen(true);
+    }
+    // Cadeia do "Flores recebidas": depois do diálogo dos 40%, lembrar
+    // a foto das flores se ainda não existir.
+    if (nextStatus === "flores_recebidas" && !local.flowers_photo_url) {
+      setFlowersPhotoOpen(true);
     }
   }
 
@@ -360,6 +415,9 @@ export default function WorkbenchClient({
 
       <DuplicatesBanner duplicateOrders={duplicateOrders} />
 
+      {/* Próxima acção — uma linha derivada de estado+pagamentos+datas */}
+      <NextActionBanner local={local} />
+
       {/* ── Corpo: 3 colunas em desktop, lista plana em mobile ──
           As 3 colunas usam `display: contents` em mobile (<lg) para deixar
           os cards individuais ficarem como filhos directos da grid. Cada
@@ -391,6 +449,7 @@ export default function WorkbenchClient({
               <HeroSection local={local} setLocal={setLocal} update={update} clientUpdate={clientUpdate} />
               <MissingInvoiceAlert local={local} />
               <ApprovalPendingAlert local={local} update={update} />
+              <ChecklistCard local={local} update={update} />
               <FlowersCard local={local} update={update} clientUpdate={clientUpdate} />
               <ShippingCard local={local} update={update} clientUpdate={clientUpdate} />
               <OriginCard local={local} update={update} clientUpdate={clientUpdate} linkedVoucherCode={linkedVoucherCode} />
@@ -465,6 +524,22 @@ export default function WorkbenchClient({
         draft={deliveryDateDraft}
         setDraft={setDeliveryDateDraft}
         onConfirm={confirmDeliveryDialog}
+      />
+
+      <FrameShippedDialog
+        open={frameShippedOpen}
+        onOpenChange={setFrameShippedOpen}
+        trackingDraft={trackingDraft}
+        setTrackingDraft={setTrackingDraft}
+        dateDraft={shippedDateDraft}
+        setDateDraft={setShippedDateDraft}
+        onConfirm={confirmFrameShipped}
+        onSkip={skipFrameShipped}
+      />
+
+      <FlowersPhotoReminderDialog
+        open={flowersPhotoOpen}
+        onOpenChange={setFlowersPhotoOpen}
       />
 
       <ArchiveDialog

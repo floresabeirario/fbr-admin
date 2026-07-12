@@ -7,20 +7,30 @@ import { useState } from "react";
 import { Flower2, Heart, Plus, Link2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { Order, InspirationItem } from "@/types/database";
+import { isStatusAtOrAfter } from "@/types/database";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
-import { Card, PlaceholderBox, inp } from "./layout";
+import { Card, CardSummary, PlaceholderBox, inp } from "./layout";
 import { InventorySection, safeHostname } from "./fields";
 import type { UpdateFn } from "./shared";
 
 /* Inventário das flores — secção dedicada na coluna esquerda
    (anteriormente vivia dentro do card "Flores, quadro e extras") */
 export function InventoryCard({ local, update }: { local: Order; update: UpdateFn }) {
+  // Só pede acção com as flores cá dentro e até o design fechar:
+  // fora da janela [Flores recebidas, A ser emoldurado) fica colapsado.
+  const inWindow =
+    isStatusAtOrAfter(local.status, "flores_recebidas") &&
+    !isStatusAtOrAfter(local.status, "a_ser_emoldurado");
+  const autoCollapsed = local.status === "cancelado" || !inWindow;
+  const n = local.inventory?.length ?? 0;
   return (
     <Card
       title="Inventário das flores"
       icon={<Flower2 className="h-3.5 w-3.5" />}
       accent="green"
       className="order-9 lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={<CardSummary>{n === 0 ? "Sem inventário registado" : `${n} tipo${n === 1 ? "" : "s"} de flores`}</CardSummary>}
       badge={
         (local.inventory?.length ?? 0) > 0 ? (
           <span className="text-[10px] text-green-700 font-semibold bg-green-100 px-1.5 py-0.5 rounded-full">
@@ -55,6 +65,11 @@ export function GalleryCard({ local, update }: { local: Order; update: UpdateFn 
     update("inspiration_gallery", gallery.filter((_, i) => i !== idx));
   }
 
+  // Inspiração interessa até o design estar aprovado; de "A ser
+  // emoldurado" em diante fica colapsada.
+  const autoCollapsed =
+    local.status === "cancelado" || isStatusAtOrAfter(local.status, "a_ser_emoldurado");
+
   return (
     <Card
       title="Galeria de inspiração"
@@ -62,6 +77,8 @@ export function GalleryCard({ local, update }: { local: Order; update: UpdateFn 
       accent="pink"
       className="order-10 lg:order-none"
       badge={gallery.length > 0 ? <span className="text-[10px] text-pink-700 font-semibold bg-pink-100 px-1.5 py-0.5 rounded-full">{gallery.length}</span> : undefined}
+      autoCollapsed={autoCollapsed}
+      summary={<CardSummary>{gallery.length === 0 ? "Sem inspirações" : `${gallery.length} inspiraç${gallery.length === 1 ? "ão" : "ões"}`}</CardSummary>}
     >
       <div className="space-y-3">
         <div className="flex gap-2">

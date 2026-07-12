@@ -20,7 +20,8 @@ import {
   HOW_FOUND_FBR_COLORS,
 } from "@/types/database";
 import { HowFoundFbrLabel } from "@/components/ui/how-found-fbr-label";
-import { Card, Field, inp, sel } from "./layout";
+import { isStatusAtOrAfter } from "@/types/database";
+import { Card, CardSummary, Field, inp, sel } from "./layout";
 import type { UpdateFn, ClientUpdateFn } from "./shared";
 
 export function OriginCard({
@@ -34,8 +35,25 @@ export function OriginCard({
   clientUpdate: ClientUpdateFn;
   linkedVoucherCode: string | null;
 }) {
+  // ── Colapso automático por estado ────────────────────────────
+  // "Como conheceu" + notas do formulário são administrativo inicial;
+  // com as flores cá dentro deixa de pedir atenção.
+  const autoCollapsed =
+    local.status === "cancelado" || isStatusAtOrAfter(local.status, "flores_recebidas");
+  const summaryParts: string[] = [];
+  if (local.how_found_fbr) summaryParts.push(HOW_FOUND_FBR_LABELS[local.how_found_fbr]);
+  if (local.gift_voucher_code) summaryParts.push(`Vale ${local.gift_voucher_code}`);
+  if (local.additional_notes) summaryParts.push("com notas do cliente");
+
   return (
-    <Card title="Origem e notas" icon={<StickyNote className="h-3.5 w-3.5" />} accent="slate" className="order-12 lg:order-none">
+    <Card
+      title="Origem e notas"
+      icon={<StickyNote className="h-3.5 w-3.5" />}
+      accent="slate"
+      className="order-12 lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={<CardSummary>{summaryParts.length > 0 ? summaryParts.join(" · ") : "Sem origem registada"}</CardSummary>}
+    >
       <div className="space-y-3">
         <Field label="Como conheceu a FBR">
           <Select value={local.how_found_fbr ?? ""} onValueChange={(v) => clientUpdate("how_found_fbr", v as Order["how_found_fbr"], "Como conheceu a FBR", (val) => val ? HOW_FOUND_FBR_LABELS[val] : "—")}>

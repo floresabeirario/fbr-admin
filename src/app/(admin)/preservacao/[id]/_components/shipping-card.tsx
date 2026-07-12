@@ -4,8 +4,8 @@
 // custos, detalhes de recolha/entrega em mãos e prazo "Entregar até".
 // Extraído do workbench-client.tsx (refactor sessão 128).
 
-import { differenceInCalendarDays, parseISO } from "date-fns";
-import { Truck, MapPin } from "lucide-react";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { Truck, MapPin, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -16,10 +16,17 @@ import {
   FLOWER_DELIVERY_METHOD_COLORS,
   FRAME_DELIVERY_METHOD_LABELS,
   FRAME_DELIVERY_METHOD_COLORS,
+  isStatusAtOrAfter,
 } from "@/types/database";
-import { Card, Grid2, Field, inp } from "./layout";
+import { formatEUR } from "@/lib/format";
+import { Card, CardSummary, Grid2, Field, inp } from "./layout";
 import { ShippingRow } from "./fields";
 import { toDateInput, type UpdateFn, type ClientUpdateFn } from "./shared";
+
+/** Link público de tracking dos CTT para um código de registo. */
+export function cttTrackingUrl(code: string): string {
+  return `https://appserver.ctt.pt/CustomerArea/PublicArea_Detail?ObjectCodeInput=${encodeURIComponent(code.trim())}&SearchInput=${encodeURIComponent(code.trim())}`;
+}
 
 export function ShippingCard({
   local,
@@ -38,8 +45,52 @@ export function ShippingCard({
   const showFlowerShippingPaid = hasFlowerShippingCost;
   const showFrameShippingPaid  = hasFrameShippingCost;
 
+  // Campos de tracking CTT do quadro: aparecem quando o quadro segue por
+  // CTT e a encomenda já está na recta final (ou quando já há valores —
+  // p.ex. preenchidos pelo diálogo do "Quadro enviado").
+  const showFrameTracking =
+    local.frame_delivery_method === "ctt" &&
+    (isStatusAtOrAfter(local.status, "quadro_pronto") ||
+      !!local.frame_tracking_code ||
+      !!local.frame_shipped_date);
+
+  // ── Colapso automático por estado ────────────────────────────
+  // Com as flores cá (Flores recebidas em diante) a parte do envio já
+  // não pede acção; o card volta a abrir quando o quadro está pronto a
+  // sair (Quadro pronto/enviado) e fecha de vez no fim.
+  const framePhaseHot = ["quadro_pronto", "quadro_enviado"].includes(local.status);
+  const autoCollapsed =
+    local.status === "cancelado" ||
+    local.status === "quadro_recebido" ||
+    (isStatusAtOrAfter(local.status, "flores_recebidas") && !framePhaseHot);
+
+  const totalPortes = (local.flower_shipping_cost ?? 0) + (local.frame_shipping_cost ?? 0);
+  const summaryParts: string[] = [];
+  if (local.flower_delivery_method) {
+    const portesPorPagar = hasFlowerShippingCost && (local.flower_shipping_cost ?? 0) > 0 && !local.flower_shipping_paid;
+    summaryParts.push(`Flores: ${FLOWER_DELIVERY_METHOD_LABELS[local.flower_delivery_method]}${portesPorPagar ? " (portes por pagar)" : ""}`);
+  }
+  if (local.frame_delivery_method) {
+    summaryParts.push(`Quadro: ${FRAME_DELIVERY_METHOD_LABELS[local.frame_delivery_method]}`);
+  }
+  if (local.delivery_deadline) {
+    summaryParts.push(`Entregar até ${format(parseISO(local.delivery_deadline), "dd/MM/yyyy")}`);
+  }
+  const summary = (
+    <CardSummary amount={totalPortes > 0 ? formatEUR(totalPortes) : undefined}>
+      {summaryParts.length > 0 ? summaryParts.join(" · ") : "Sem métodos de envio definidos"}
+    </CardSummary>
+  );
+
   return (
-    <Card title="Envio das flores e receção do quadro" icon={<Truck className="h-3.5 w-3.5" />} accent="orange" className="order-5 lg:order-none">
+    <Card
+      title="Envio das flores e receção do quadro"
+      icon={<Truck className="h-3.5 w-3.5" />}
+      accent="orange"
+      className="order-5 lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={summary}
+    >
       <div className="space-y-2">
         <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-orange-700">Envio das flores (cliente → FBR)</p>
         <ShippingRow
@@ -227,6 +278,43 @@ export function ShippingCard({
             ["nao_sei", "Não sei"],
           ]}
         />
+
+        {/* Tracking CTT do quadro (mig 093) — preenchido no diálogo ao
+            passar para "Quadro enviado", editável aqui. */}
+        {showFrameTracking && (
+          <Grid2>
+            <Field label="Registo CTT do quadro">
+              <div className="flex gap-1.5">
+                <Input
+                  className={inp + " flex-1 min-w-0 font-mono"}
+                  value={local.frame_tracking_code ?? ""}
+                  onChange={(e) => update("frame_tracking_code", e.target.value || null)}
+                  placeholder="Ex: RR123456789PT"
+                />
+                {local.frame_tracking_code && (
+                  <a
+                    href={cttTrackingUrl(local.frame_tracking_code)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-9 items-center gap-1 shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-2.5 text-[11px] font-medium text-sky-800 hover:bg-sky-100 transition-colors"
+                    title="Seguir o objecto no site dos CTT"
+                  >
+                    Seguir
+                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  </a>
+                )}
+              </div>
+            </Field>
+            <Field label="Data de envio do quadro">
+              <Input
+                className={inp}
+                type="date"
+                value={toDateInput(local.frame_shipped_date)}
+                onChange={(e) => update("frame_shipped_date", e.target.value || null)}
+              />
+            </Field>
+          </Grid2>
+        )}
 
         {/* "Entregar até" — data-limite pedida pelo cliente (mig 082).
             Alimenta a pill ⏰ na tabela e o alerta do Dashboard. */}

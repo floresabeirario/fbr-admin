@@ -6,6 +6,7 @@ import { differenceInDays, parseISO } from "date-fns";
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import { isExpiringSoon } from "@/lib/supabase/vouchers";
+import { formatEUR } from "@/lib/format";
 
 // ── Recolhas e entregas no horizonte próximo ─────────────────
 
@@ -113,6 +114,9 @@ export interface DashboardAlert {
   label: string;
   detail: string;
   href?: string;
+  /** Valor em € já formatado — mostrado num slot próprio alinhado à
+   *  direita (regra da casa: euros nunca inline no texto). */
+  amount?: string;
 }
 
 const EVENT_HORIZON_DAYS = 7;
@@ -201,6 +205,34 @@ export function getDashboardAlerts(
       label: `Pré-reserva sem contacto há ${days} dias`,
       detail: `${o.client_name} — ${o.email ?? o.phone ?? "sem contacto"}`,
       href: `/preservacao/${o.order_id ?? o.id}`,
+    });
+  }
+
+  // 2b. Comissões de parceria por pagar — agregado único (sessão 140).
+  // "Por pagar" = estados intermédios (informado / a aguardar / a aguardar
+  // resposta) com valor definido; na/paga/não aceita ficam fora.
+  const pendingCommissions = orders.filter(
+    (o) =>
+      !o.deleted_at &&
+      o.status !== "cancelado" &&
+      (o.partner_commission ?? 0) > 0 &&
+      ["parceiro_informado", "a_aguardar", "a_aguardar_resposta"].includes(
+        o.partner_commission_status,
+      ),
+  );
+  if (pendingCommissions.length > 0) {
+    const totalCommission = pendingCommissions.reduce(
+      (s, o) => s + (o.partner_commission ?? 0),
+      0,
+    );
+    const partnerIds = new Set(pendingCommissions.map((o) => o.partner_id).filter(Boolean));
+    alerts.push({
+      id: "commissions-pending",
+      severity: "warn",
+      label: `Comissões de parceria por pagar (${pendingCommissions.length})`,
+      detail: `${pendingCommissions.length} encomenda${pendingCommissions.length === 1 ? "" : "s"} · ${partnerIds.size} parceiro${partnerIds.size === 1 ? "" : "s"}`,
+      amount: formatEUR(totalCommission),
+      href: "/parcerias",
     });
   }
 

@@ -83,6 +83,7 @@ import {
 } from "@/types/partner";
 import {
   STATUS_LABELS as ORDER_STATUS_LABELS,
+  PARTNER_COMMISSION_STATUS_LABELS,
   type OrderStatus,
   type Order,
 } from "@/types/database";
@@ -123,7 +124,7 @@ function formatDateTime(d: string | null): string {
 
 // ── Tipos ────────────────────────────────────────────────────
 
-type RecommendedOrder = Pick<Order, "id" | "order_id" | "client_name" | "event_date" | "status" | "budget" | "created_at">;
+type RecommendedOrder = Pick<Order, "id" | "order_id" | "client_name" | "event_date" | "status" | "budget" | "created_at" | "partner_commission" | "partner_commission_status">;
 type RecommendedVoucher = Pick<Voucher, "id" | "code" | "sender_name" | "recipient_name" | "amount" | "payment_status" | "usage_status" | "created_at">;
 
 interface Props {
@@ -1062,6 +1063,17 @@ function RecommendedClients({
       .filter((v) => v.payment_status === "100_pago")
       .reduce((s, v) => s + (v.amount ?? 0), 0);
 
+  // Comissões deste parceiro (sessão 140): pagas vs por pagar.
+  // "Por pagar" = qualquer estado intermédio (informado / a aguardar /
+  // a aguardar resposta) com valor definido; na/não aceita ficam fora.
+  const withCommission = orders.filter((o) => (o.partner_commission ?? 0) > 0);
+  const paidCommissions = withCommission.filter((o) => o.partner_commission_status === "paga");
+  const pendingCommissions = withCommission.filter((o) =>
+    ["parceiro_informado", "a_aguardar", "a_aguardar_resposta"].includes(o.partner_commission_status),
+  );
+  const paidTotal = paidCommissions.reduce((s, o) => s + (o.partner_commission ?? 0), 0);
+  const pendingTotal = pendingCommissions.reduce((s, o) => s + (o.partner_commission ?? 0), 0);
+
   return (
     <div className="rounded-xl border border-cream-200 bg-surface border-l-4 border-l-emerald-400 overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-cream-100 bg-cream-50">
@@ -1085,6 +1097,50 @@ function RecommendedClients({
               <span className="text-sm font-medium text-emerald-700">{formatEUR(totalRevenue)}</span>
             </div>
           </div>
+
+          {/* Comissões — pagas vs por pagar, com lista das pendentes (sessão 140) */}
+          {withCommission.length > 0 && (
+            <div className="border-b border-cream-100">
+              <div className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-cocoa-700 bg-cream-50">
+                Comissões
+              </div>
+              <div className="px-4 py-2.5 space-y-1 text-xs">
+                <div className="flex items-center justify-between gap-2 text-cocoa-700">
+                  <span>Pagas ({paidCommissions.length})</span>
+                  <span className="text-right tabular-nums font-medium text-emerald-700">{formatEUR(paidTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-cocoa-700">
+                  <span>Por pagar ({pendingCommissions.length})</span>
+                  <span className={`text-right tabular-nums font-medium ${pendingTotal > 0 ? "text-amber-700" : "text-cocoa-700"}`}>
+                    {formatEUR(pendingTotal)}
+                  </span>
+                </div>
+              </div>
+              {pendingCommissions.length > 0 && (
+                <ul className="divide-y divide-cream-100 border-t border-cream-100">
+                  {pendingCommissions.map((o) => (
+                    <li key={o.id}>
+                      <Link
+                        href={`/preservacao/${o.order_id}`}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-cream-50 group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-cocoa-900 truncate">{o.client_name}</div>
+                          <div className="text-[10px] text-cocoa-700">
+                            {PARTNER_COMMISSION_STATUS_LABELS[o.partner_commission_status]}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-right tabular-nums text-xs font-medium text-amber-700">
+                          {formatEUR(o.partner_commission ?? 0)}
+                        </span>
+                        <ExternalLink className="h-3 w-3 text-cocoa-500 opacity-0 group-hover:opacity-100 shrink-0" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {orders.length > 0 && (
             <div className="border-b border-cream-100">

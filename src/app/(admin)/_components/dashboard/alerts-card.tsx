@@ -30,6 +30,12 @@ export function AlertsCard({ alerts }: { alerts: DashboardAlert[] }) {
                   <div className="text-sm font-semibold leading-snug">{a.label}</div>
                   <div className="text-xs opacity-80 leading-snug">{a.detail}</div>
                 </div>
+                {/* Valor € num slot próprio, alinhado à direita (regra da casa) */}
+                {a.amount && (
+                  <div className="shrink-0 text-right text-sm font-semibold tabular-nums mt-0.5">
+                    {a.amount}
+                  </div>
+                )}
                 {a.href && <ChevronRight className="h-4 w-4 mt-0.5 opacity-60 shrink-0" />}
               </div>
             );

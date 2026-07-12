@@ -18,7 +18,7 @@ import type { Order, PaymentStatus } from "@/types/database";
 import { PAYMENT_STATUS_LABELS, SIM_NAO_LABELS } from "@/types/database";
 import { formatEUR } from "@/lib/format";
 import { computeBudgetAdjustment } from "@/lib/budget-adjustment";
-import { Card, Field, CheckRow, inp, sel } from "./layout";
+import { Card, CardSummary, Field, CheckRow, inp, sel } from "./layout";
 import { BudgetSnapshotBadge } from "./budget-badges";
 import { computeInvoiceFlags, type UpdateFn } from "./shared";
 
@@ -40,7 +40,7 @@ export function FinanceCard({
   update: UpdateFn;
   onPaymentStatusChange: (s: PaymentStatus) => void;
 }) {
-  const { hasAnyPayment, invoiceSlotsVisible } = computeInvoiceFlags(local);
+  const { hasAnyPayment, invoiceSlotsVisible, missingInvoice } = computeInvoiceFlags(local);
 
   // Acerto de pagamento: o orçamento subiu depois do sinal (normalmente
   // porque o tamanho da moldura foi decidido na fase de design e ficou
@@ -51,8 +51,27 @@ export function FinanceCard({
     local.payment_status,
   );
 
+  // ── Colapso automático ───────────────────────────────────────
+  // Só quando não resta nada por fazer: 100% pago, sem fatura em falta
+  // e sem acerto pendente. Cancelado também colapsa.
+  const autoCollapsed =
+    local.status === "cancelado" ||
+    (local.payment_status === "100_pago" && !missingInvoice && !budgetAdjustment);
+  const summary = (
+    <CardSummary amount={local.budget != null ? formatEUR(local.budget) : undefined}>
+      {PAYMENT_STATUS_LABELS[local.payment_status]}
+    </CardSummary>
+  );
+
   return (
-    <Card title="Finanças" icon={<Wallet className="h-3.5 w-3.5" />} accent="green" className="order-3 lg:order-none">
+    <Card
+      title="Finanças"
+      icon={<Wallet className="h-3.5 w-3.5" />}
+      accent="green"
+      className="order-3 lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={summary}
+    >
       <div className="space-y-3">
         <div className="grid grid-cols-[2fr_3fr] gap-3">
           <Field label="Orçamento">

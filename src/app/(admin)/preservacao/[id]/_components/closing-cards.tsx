@@ -4,7 +4,7 @@
 // de Quadro pronto), "Cupão 5%" e o rodapé com as datas de criação.
 // Extraídos do workbench-client.tsx (refactor sessão 128).
 
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { formatDateTimeLisbon } from "@/lib/format-date";
 import { Package, Ticket, CalendarPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,9 @@ import {
   COUPON_STATUS_COLORS,
   CLIENT_FEEDBACK_STATUS_LABELS,
   CLIENT_FEEDBACK_STATUS_COLORS,
+  isStatusAtOrAfter,
 } from "@/types/database";
-import { Card, Field, inp, sel } from "./layout";
+import { Card, CardSummary, Field, inp, sel } from "./layout";
 import { CouponCodeField } from "./fields";
 import { toDateInput, type UpdateFn } from "./shared";
 
@@ -30,8 +31,28 @@ import { toDateInput, type UpdateFn } from "./shared";
    não faz sentido editar data de entrega ou feedback do cliente. */
 export function DeliveryFeedbackCard({ local, update }: { local: Order; update: UpdateFn }) {
   if (!["quadro_pronto", "quadro_enviado", "quadro_recebido"].includes(local.status)) return null;
+
+  // Colapsa quando já está tudo tratado: quadro recebido, data registada
+  // e feedback resolvido (deu feedback ou N/A).
+  const autoCollapsed =
+    local.status === "quadro_recebido" &&
+    !!local.frame_delivery_date &&
+    ["deu_feedback", "na"].includes(local.client_feedback_status);
+  const summaryParts: string[] = [];
+  if (local.frame_delivery_date) {
+    summaryParts.push(`Entregue a ${format(parseISO(local.frame_delivery_date), "dd/MM/yyyy")}`);
+  }
+  summaryParts.push(CLIENT_FEEDBACK_STATUS_LABELS[local.client_feedback_status]);
+
   return (
-    <Card title="Entrega e feedback" icon={<Package className="h-3.5 w-3.5" />} accent="purple" className="order-[13] lg:order-none">
+    <Card
+      title="Entrega e feedback"
+      icon={<Package className="h-3.5 w-3.5" />}
+      accent="purple"
+      className="order-[13] lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={<CardSummary>{summaryParts.join(" · ")}</CardSummary>}
+    >
       <div className="space-y-3">
         <Field label="Data entrega do quadro">
           <Input className={inp} type="date" value={toDateInput(local.frame_delivery_date)} onChange={(e) => update("frame_delivery_date", e.target.value || null)} />
@@ -65,8 +86,29 @@ export function CouponCard({ local, update }: { local: Order; update: UpdateFn }
     update("coupon_expiry", format(d, "yyyy-MM-dd"));
   }
 
+  // O cupão só nasce ao passar para "A ser emoldurado" — antes disso o
+  // card fica colapsado; depois de utilizado também já não pede acção.
+  const autoCollapsed =
+    local.status === "cancelado" ||
+    !isStatusAtOrAfter(local.status, "a_ser_emoldurado") ||
+    local.coupon_status === "utilizado";
+  const summary = (
+    <CardSummary>
+      {local.coupon_code
+        ? `${local.coupon_code}${local.coupon_expiry ? ` · até ${format(parseISO(local.coupon_expiry), "dd/MM/yyyy")}` : ""} · ${COUPON_STATUS_LABELS[local.coupon_status]}`
+        : "Gerado ao passar para “A ser emoldurado”"}
+    </CardSummary>
+  );
+
   return (
-    <Card title="Cupão 5%" icon={<Ticket className="h-3.5 w-3.5" />} accent="yellow" className="order-[14] lg:order-none">
+    <Card
+      title="Cupão 5%"
+      icon={<Ticket className="h-3.5 w-3.5" />}
+      accent="yellow"
+      className="order-[14] lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={summary}
+    >
       <div className="space-y-3">
         <CouponCodeField
           code={local.coupon_code}

@@ -125,6 +125,14 @@ export interface ExtrasInFrame {
   notes: string;
 }
 
+// Estado da checklist por fase de uma encomenda (mig 093).
+// `done` guarda ids de itens standard (src/lib/phase-checklist.ts)
+// já feitos; `custom` são itens escritos à mão nesta encomenda.
+export interface PhaseChecklistState {
+  done?: string[];
+  custom?: { id: string; label: string; done: boolean }[];
+}
+
 // Item do inventário de flores em cada encomenda
 export interface InventoryItem {
   qty: number;
@@ -316,6 +324,19 @@ export interface Order {
   // Array de entradas { id, timestamp, direction, content, screenshot_urls[] }.
   // Sem API oficial — a Maria cola/importa conversas manualmente.
   whatsapp_log: WhatsAppEntry[];
+
+  // ── Checklist por fase (mig 093) ────────────────────────────
+  // Estado da mini-checklist do workbench: itens standard feitos
+  // (ids definidos em src/lib/phase-checklist.ts) + itens custom
+  // adicionados à mão nesta encomenda.
+  phase_checklist: PhaseChecklistState;
+
+  // ── Envio do quadro por CTT (mig 093) ───────────────────────
+  // Código de registo CTT + data em que o quadro seguiu (pedidos no
+  // diálogo ao passar para "Quadro enviado"). frame_shipped_date é a
+  // data de ENVIO; frame_delivery_date continua a ser a de receção.
+  frame_tracking_code: string | null;
+  frame_shipped_date: string | null;
 
   // ── Marcador "lida" per-user (mig 047) ─────────────────────
   // Array de emails que já abriram o workbench desta encomenda

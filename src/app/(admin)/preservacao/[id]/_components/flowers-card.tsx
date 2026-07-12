@@ -25,7 +25,7 @@ import {
   SIM_NAO_LABELS,
   isStatusAtOrAfter,
 } from "@/types/database";
-import { Card, Grid2, Field, CheckRow, inp, sel } from "./layout";
+import { Card, CardSummary, Grid2, Field, CheckRow, inp, sel } from "./layout";
 import { ExtraPieceRow } from "./fields";
 import type { UpdateFn, ClientUpdateFn } from "./shared";
 
@@ -77,8 +77,26 @@ export function FlowersCard({
     update("extras_in_frame", { options: extras.options, notes: v });
   }
 
+  // ── Colapso automático por estado ────────────────────────────
+  // A partir de "Quadro pronto" a produção acabou — os detalhes das
+  // flores/moldura/extras deixam de pedir acção.
+  const autoCollapsed =
+    local.status === "cancelado" || isStatusAtOrAfter(local.status, "quadro_pronto");
+  const extrasCount = extras.options.filter((o) => o !== EXTRAS_NONE && o !== EXTRAS_OTHER).length;
+  const summaryParts: string[] = [];
+  if (local.frame_size) summaryParts.push(FRAME_SIZE_LABELS[local.frame_size]);
+  if (local.frame_background) summaryParts.push(`Fundo: ${FRAME_BACKGROUND_LABELS[local.frame_background]}`);
+  summaryParts.push(extrasCount === 0 ? "sem extras" : `${extrasCount} extra${extrasCount === 1 ? "" : "s"}`);
+
   return (
-    <Card title="Flores, quadro e extras" icon={<Flower2 className="h-3.5 w-3.5" />} accent="emerald" className="order-6 lg:order-none">
+    <Card
+      title="Flores, quadro e extras"
+      icon={<Flower2 className="h-3.5 w-3.5" />}
+      accent="emerald"
+      className="order-6 lg:order-none"
+      autoCollapsed={autoCollapsed}
+      summary={<CardSummary>{summaryParts.join(" · ")}</CardSummary>}
+    >
       {/* Congelador — 5 dias para eliminar insectos (mig 079).
           Marcação manual: nem todas as encomendas passam pelo
           congelador ao mesmo ritmo. Só aparece de "Flores na prensa"

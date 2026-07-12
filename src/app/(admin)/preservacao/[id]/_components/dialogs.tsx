@@ -10,6 +10,7 @@ import {
   Loader2,
   ExternalLink,
   AlertTriangle,
+  Camera,
   FolderOpen,
   Paperclip,
   Receipt,
@@ -317,6 +318,119 @@ export function DeliveryDateDialog({
             disabled={!draft}
           >
             Guardar data
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Diálogo "Quadro enviado" → pede registo CTT + data de envio ──
+   Só abre quando o quadro segue por CTT e ainda não há tracking
+   (mig 093). "Mais tarde" muda o estado na mesma — nunca bloqueia. */
+export function FrameShippedDialog({
+  open,
+  onOpenChange,
+  trackingDraft,
+  setTrackingDraft,
+  dateDraft,
+  setDateDraft,
+  onConfirm,
+  onSkip,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  trackingDraft: string;
+  setTrackingDraft: (v: string) => void;
+  dateDraft: string;
+  setDateDraft: (v: string) => void;
+  onConfirm: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onSkip(); onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-cocoa-900">
+            <Package className="h-4 w-4 text-sky-600" />
+            Quadro enviado por CTT
+          </DialogTitle>
+          <DialogDescription className="text-cocoa-700">
+            Regista já o código de tracking e a data de envio — ficam no cartão
+            de envios e alimentam a página Entregas e Recolhas.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div>
+            <Label className="text-xs font-medium text-cocoa-700">Registo CTT</Label>
+            <Input
+              className={inp + " mt-1.5 font-mono"}
+              value={trackingDraft}
+              onChange={(e) => setTrackingDraft(e.target.value)}
+              placeholder="Ex: RR123456789PT"
+              autoFocus
+            />
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-cocoa-700">Data de envio</Label>
+            <Input
+              className={inp + " mt-1.5"}
+              type="date"
+              value={dateDraft}
+              onChange={(e) => setDateDraft(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <button
+            onClick={() => { onSkip(); onOpenChange(false); }}
+            className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
+          >
+            Mais tarde
+          </button>
+          <button
+            onClick={onConfirm}
+            className="h-9 px-4 rounded-lg bg-btn-primary text-sm text-btn-primary-fg font-medium hover:bg-btn-primary-hover transition-colors"
+          >
+            Guardar
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Lembrete "Flores recebidas" → fotografar as flores ────────────
+   Informativo, não bloqueia: o estado já foi (ou vai ser) aplicado. */
+export function FlowersPhotoReminderDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-cocoa-900">
+            <Camera className="h-4 w-4 text-emerald-600" />
+            Fotografar as flores
+          </DialogTitle>
+          <DialogDescription className="text-cocoa-700">
+            As flores chegaram e esta encomenda ainda não tem foto. Tira a foto
+            do estado em que chegaram e anexa-a no topo do workbench — é a
+            referência para a reconstrução e para qualquer conversa com o cliente.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="h-9 px-4 rounded-lg bg-btn-primary text-sm text-btn-primary-fg font-medium hover:bg-btn-primary-hover transition-colors"
+          >
+            Entendido
           </button>
         </DialogFooter>
       </DialogContent>
