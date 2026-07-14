@@ -39,8 +39,6 @@ import {
   type DuplicateOrderInfo,
 } from "./_components/shared";
 import { WorkbenchHeader, DuplicatesBanner } from "./_components/header";
-import { NextActionBanner } from "./_components/next-action";
-import { ChecklistCard } from "./_components/checklist-card";
 import { CommsCard } from "./_components/comms-card";
 import { InventoryCard, GalleryCard } from "./_components/gallery-cards";
 import { HeroSection } from "./_components/hero";
@@ -415,9 +413,6 @@ export default function WorkbenchClient({
 
       <DuplicatesBanner duplicateOrders={duplicateOrders} />
 
-      {/* Próxima acção — uma linha derivada de estado+pagamentos+datas */}
-      <NextActionBanner local={local} />
-
       {/* ── Corpo: 3 colunas em desktop, lista plana em mobile ──
           As 3 colunas usam `display: contents` em mobile (<lg) para deixar
           os cards individuais ficarem como filhos directos da grid. Cada
@@ -449,7 +444,6 @@ export default function WorkbenchClient({
               <HeroSection local={local} setLocal={setLocal} update={update} clientUpdate={clientUpdate} />
               <MissingInvoiceAlert local={local} />
               <ApprovalPendingAlert local={local} update={update} />
-              <ChecklistCard local={local} update={update} />
               <FlowersCard local={local} update={update} clientUpdate={clientUpdate} />
               <ShippingCard local={local} update={update} clientUpdate={clientUpdate} />
               <OriginCard local={local} update={update} clientUpdate={clientUpdate} linkedVoucherCode={linkedVoucherCode} />
