@@ -478,9 +478,9 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 };
 
 export const DRIED_APPROACH_LABELS: Record<DriedApproach, string> = {
-  ramo_original: "Emoldurar as flores originais, tal como estão",
-  recriacao: "Recriar o arranjo com flores novas e preservá-las",
-  combinacao: "Combinar as flores originais com algumas novas",
+  ramo_original: "Emoldurar as flores secas originais",
+  recriacao: "Recriar todo o arranjo com flores frescas e preservá-las",
+  combinacao: "Combinar: manter as originais e substituir as danificadas por flores frescas preservadas",
   nao_sei: "Não sei / pediu aconselhamento",
 };
 
