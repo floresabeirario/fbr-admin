@@ -57,7 +57,7 @@ export function DriedFlowersCard({
         <Field label="Abordagem que prefere" span2>
           <p className="text-sm text-cocoa-900">{approach ?? <span className="text-cocoa-400 italic">Não indicado</span>}</p>
         </Field>
-        <Field label="Estado actual das flores" span2>
+        <Field label="Estado atual das flores" span2>
           <p className="text-sm text-cocoa-900">{condition ?? <span className="text-cocoa-400 italic">Não indicado</span>}</p>
         </Field>
       </div>
