@@ -50,7 +50,7 @@ export const ORDER_SUBFOLDERS = [
 // Subpastas da pasta de cada cliente de "Emoldurar Flores Secas". Como as
 // flores já vêm secas, não há fases de Preservação/Reconstrução. Tem uma
 // subpasta própria para as fotos que o cliente submeteu no form.
-export const DRIED_CLIENT_PHOTOS_SUBFOLDER = "Fotos do cliente (do ramo)";
+export const DRIED_CLIENT_PHOTOS_SUBFOLDER = "Fotos do cliente";
 export const DRIED_ORDER_SUBFOLDERS = [
   "Comprovativos de pagamento",
   "Faturas",

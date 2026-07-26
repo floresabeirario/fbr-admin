@@ -65,7 +65,7 @@ export function DriedFlowersCard({
       {/* Fotos do ramo submetidas pelo cliente */}
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-cocoa-600 mb-1.5">
-          Fotos do ramo (do cliente)
+          Fotos das flores (do cliente)
         </p>
 
         {photoUrls.length > 0 ? (
