@@ -33,6 +33,8 @@ export const DRIVE_ROOT_NAME = "FBR — Encomendas";
 export const DRIVE_ORDERS_NAME = "Preservação de Flores";
 export const DRIVE_VOUCHERS_NAME = "Vale-Presente";
 export const DRIVE_EXPENSES_NAME = "Despesas";
+// 3ª categoria (mig 094): serviço "Emoldurar Flores Secas".
+export const DRIVE_DRIED_NAME = "Emoldurar Flores Secas";
 
 export const ORDER_SUBFOLDERS = [
   "Comprovativos de pagamento",
@@ -43,6 +45,20 @@ export const ORDER_SUBFOLDERS = [
   "4. Composição e colagem",
   "5. Emolduramento",
   "6. Resultado final",
+] as const;
+
+// Subpastas da pasta de cada cliente de "Emoldurar Flores Secas". Como as
+// flores já vêm secas, não há fases de Preservação/Reconstrução. Tem uma
+// subpasta própria para as fotos que o cliente submeteu no form.
+export const DRIED_CLIENT_PHOTOS_SUBFOLDER = "Fotos do cliente (do ramo)";
+export const DRIED_ORDER_SUBFOLDERS = [
+  "Comprovativos de pagamento",
+  "Faturas",
+  DRIED_CLIENT_PHOTOS_SUBFOLDER,
+  "1. Receção das flores",
+  "2. Composição e colagem",
+  "3. Emolduramento",
+  "4. Resultado final",
 ] as const;
 
 export const VOUCHER_SUBFOLDERS = [
@@ -206,6 +222,65 @@ export async function ensureOrderFolder(params: {
   }
 
   return { id: orderFolderId, url: folderUrl(orderFolderId) };
+}
+
+/**
+ * Cria a pasta de uma encomenda de "Emoldurar Flores Secas" sob a categoria
+ * própria (DRIVE_DRIED_NAME) + subpastas. Reutiliza se já existir. Devolve
+ * { id, url } e ainda o ID da subpasta "Fotos do cliente" para lá se
+ * moverem as fotos submetidas no form.
+ *
+ * A categoria "Emoldurar Flores Secas" não é cacheada em google_integration
+ * (não há coluna para ela) — ensureFolder resolve-a por nome sob a raiz, o
+ * que é idempotente. É uma chamada extra à API, mas isto só corre ao 1º
+ * pagamento (raro).
+ */
+export async function ensureDriedOrderFolder(params: {
+  customerName: string;
+  eventDate: string | null;
+}): Promise<CreatedFolder & { clientPhotosFolderId: string }> {
+  const { rootId } = await ensureRootFolders();
+  const drive = await getDrive();
+
+  const driedRootId = await ensureFolder(drive, DRIVE_DRIED_NAME, rootId);
+  const yearId = await ensureFolder(drive, yearFolderName(params.eventDate), driedRootId);
+
+  const folderName = `${sanitize(params.customerName)} | ${formatDateForFolder(params.eventDate)}`;
+  const orderFolderId = await ensureFolder(drive, folderName, yearId);
+
+  let clientPhotosFolderId = orderFolderId;
+  for (const sub of DRIED_ORDER_SUBFOLDERS) {
+    const subId = await ensureFolder(drive, sub, orderFolderId);
+    if (sub === DRIED_CLIENT_PHOTOS_SUBFOLDER) clientPhotosFolderId = subId;
+  }
+
+  return { id: orderFolderId, url: folderUrl(orderFolderId), clientPhotosFolderId };
+}
+
+/**
+ * Faz upload de um ficheiro (Buffer) para uma pasta arbitrária da Drive.
+ * Usado para mover as fotos do ramo do Storage para a pasta do cliente.
+ */
+export async function uploadToDriveFolder(
+  folderId: string,
+  file: { filename: string; mimeType: string; buffer: Buffer },
+): Promise<{ id: string; url: string }> {
+  const drive = await getDrive();
+  const { Readable } = await import("node:stream");
+  const stream = Readable.from(file.buffer);
+
+  const res = await drive.files.create({
+    requestBody: { name: sanitize(file.filename), parents: [folderId] },
+    media: { mimeType: file.mimeType, body: stream },
+    fields: "id, webViewLink",
+    supportsAllDrives: true,
+  });
+
+  if (!res.data.id) throw new Error("Falhou ao criar o ficheiro na Drive.");
+  return {
+    id: res.data.id,
+    url: res.data.webViewLink ?? `https://drive.google.com/file/d/${res.data.id}/view`,
+  };
 }
 
 /**

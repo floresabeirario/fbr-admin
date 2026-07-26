@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import {
   ArrowLeft,
@@ -59,7 +60,20 @@ export function WorkbenchHeader({
   saveState: "idle" | "saving" | "saved";
   onArchive: () => void;
 }) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
+
+  // Seta de voltar: se viemos de dentro da app (a lista de preservação),
+  // usa o histórico do browser para RESTAURAR a vista/filtros/scroll onde
+  // estávamos. Antes era um Link fixo para "/preservacao" que recarregava a
+  // lista no estado inicial (parecia ir para a "página inicial"). Só cai no
+  // href quando não há histórico (workbench aberto directamente por link).
+  function handleBack(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      e.preventDefault();
+      router.back();
+    }
+  }
 
   // Edição do ID curto da encomenda (popover no header)
   const [orderIdDraft, setOrderIdDraft] = useState("");
@@ -86,10 +100,11 @@ export function WorkbenchHeader({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-2.5 py-1.5 sm:gap-x-3 sm:gap-y-2 sm:px-6 sm:py-3">
         <Link
           href="/preservacao"
+          onClick={handleBack}
           className="flex items-center gap-1.5 text-sm text-cocoa-700 hover:text-cocoa-900 transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Preservação</span>
+          <span className="hidden sm:inline">Voltar</span>
         </Link>
 
         <WorkbenchNavigator

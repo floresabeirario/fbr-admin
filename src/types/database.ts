@@ -111,6 +111,26 @@ export type ClientFeedbackStatus = "deu_feedback" | "ja_pedido" | "nao_disse_nad
 
 export type FormLanguage = "pt" | "en";
 
+// ── Emoldurar Flores Secas (mig 094) ─────────────────────────
+// Serviço distinto (flores que já vêm secas) que vive na MESMA tabela
+// orders, distinguido por service_type. Ver src/lib/pricing.ts e
+// src/lib/google/order-drive-trigger.ts.
+export type ServiceType = "preservacao" | "emoldurar_secas";
+
+// Abordagem escolhida pelo cliente (as 3 opções da página do serviço).
+export type DriedApproach = "ramo_original" | "recriacao" | "combinacao" | "nao_sei";
+
+// Estado actual das flores já secas (informa a abordagem e o orçamento).
+export type DriedCondition = "bom_estado" | "frageis" | "danificadas" | "avaliar";
+
+// Foto do ramo submetida pelo cliente no form. Aponta para um objecto no
+// bucket `bouquet-photos` do Storage (TEMPORÁRIO — movido para o Drive ao
+// 1º pagamento). O admin mostra-a via signed URL.
+export interface ClientPhoto {
+  path: string;   // caminho dentro do bucket bouquet-photos
+  name: string;   // nome original do ficheiro (para download)
+}
+
 // Idioma a mostrar ao cliente no site público de status.
 export type PublicStatusLanguage = "pt" | "en" | "ambos";
 
@@ -170,6 +190,15 @@ export interface Order {
   gift_voucher_code: string | null;
   additional_notes: string | null;
   form_language: FormLanguage;
+
+  // ── Emoldurar Flores Secas (mig 094) ────────────────────────
+  // service_type = 'preservacao' em todas as encomendas antigas (default
+  // da BD). Os campos dried_* e client_photos só são preenchidos quando
+  // service_type = 'emoldurar_secas'.
+  service_type: ServiceType;
+  dried_approach: DriedApproach | null;
+  dried_condition: DriedCondition | null;
+  client_photos: ClientPhoto[];
 
   // Campos admin
   status: OrderStatus;
@@ -440,6 +469,26 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   quadro_enviado: "Quadro enviado",
   quadro_recebido: "Quadro recebido",
   cancelado: "Cancelado",
+};
+
+// ── Emoldurar Flores Secas (mig 094) ─────────────────────────
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  preservacao: "Preservação de flores",
+  emoldurar_secas: "Emoldurar flores secas",
+};
+
+export const DRIED_APPROACH_LABELS: Record<DriedApproach, string> = {
+  ramo_original: "Emoldurar o ramo original seco",
+  recriacao: "Recriar o ramo com flores frescas",
+  combinacao: "Combinação das duas",
+  nao_sei: "Não sei / prefere aconselhamento",
+};
+
+export const DRIED_CONDITION_LABELS: Record<DriedCondition, string> = {
+  bom_estado: "Em bom estado, mantêm a forma e a cor",
+  frageis: "Com algumas partes frágeis, partidas ou desbotadas",
+  danificadas: "Bastante danificadas ou desfeitas",
+  avaliar: "Prefere que a FBR avalie",
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {

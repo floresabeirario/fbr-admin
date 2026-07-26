@@ -42,6 +42,7 @@ import { WorkbenchHeader, DuplicatesBanner } from "./_components/header";
 import { CommsCard } from "./_components/comms-card";
 import { InventoryCard, GalleryCard } from "./_components/gallery-cards";
 import { HeroSection } from "./_components/hero";
+import { DriedFlowersCard, type ClientPhotoUrl } from "./_components/dried-flowers-card";
 import { MissingInvoiceAlert, ApprovalPendingAlert } from "./_components/alerts";
 import { FlowersCard } from "./_components/flowers-card";
 import { ShippingCard } from "./_components/shipping-card";
@@ -76,6 +77,7 @@ export default function WorkbenchClient({
   currentEmail = "",
   linkedVoucherCode = null,
   duplicateOrders = [],
+  clientPhotoUrls = [],
 }: {
   order: Order;
   canEdit: boolean;
@@ -86,6 +88,8 @@ export default function WorkbenchClient({
   /** Código de vale existente quando `gift_voucher_code` corresponde a um vale activo. */
   linkedVoucherCode?: string | null;
   duplicateOrders?: DuplicateOrderInfo[];
+  /** Signed URLs das fotos do ramo (só serviço "emoldurar_secas"). */
+  clientPhotoUrls?: ClientPhotoUrl[];
 }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
@@ -442,6 +446,7 @@ export default function WorkbenchClient({
             ═══════════════════════════════ */}
             <main className="contents lg:block lg:col-span-6 lg:space-y-4 lg:space-y-5">
               <HeroSection local={local} setLocal={setLocal} update={update} clientUpdate={clientUpdate} />
+              <DriedFlowersCard local={local} canEdit={canEdit} photoUrls={clientPhotoUrls} />
               <MissingInvoiceAlert local={local} />
               <ApprovalPendingAlert local={local} update={update} />
               <FlowersCard local={local} update={update} clientUpdate={clientUpdate} />

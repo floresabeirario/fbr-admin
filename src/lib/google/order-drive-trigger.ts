@@ -1,8 +1,17 @@
 import "server-only";
-import { ensureOrderFolder, ensureVoucherFolder } from "./drive";
+import {
+  ensureOrderFolder,
+  ensureDriedOrderFolder,
+  ensureVoucherFolder,
+  uploadToDriveFolder,
+} from "./drive";
 import { loadIntegration } from "./oauth";
 import { createClient } from "@/lib/supabase/server";
-import type { PaymentStatus, Order } from "@/types/database";
+import {
+  downloadBouquetPhoto,
+  deleteBouquetPhotos,
+} from "@/lib/storage/bouquet-photos";
+import type { PaymentStatus, Order, ClientPhoto } from "@/types/database";
 import type { VoucherPaymentStatus } from "@/types/voucher";
 
 /**
@@ -46,17 +55,53 @@ async function isGoogleConnected(): Promise<boolean> {
  * a Maria poder retentar manualmente do workbench.
  */
 export async function createOrderDriveFolderIfNeeded(
-  order: Pick<Order, "id" | "client_name" | "event_date" | "drive_folder_id">,
+  order: Pick<
+    Order,
+    | "id"
+    | "client_name"
+    | "event_date"
+    | "drive_folder_id"
+    | "service_type"
+    | "client_photos"
+  >,
 ): Promise<{ id: string; url: string } | null> {
   if (order.drive_folder_id) return null;
   if (!(await isGoogleConnected())) return null;
 
   try {
+    const supabase = await createClient();
+
+    // Serviço "Emoldurar Flores Secas": pasta na categoria própria + mover
+    // as fotos do ramo (Storage → Drive) para dentro dela.
+    if (order.service_type === "emoldurar_secas") {
+      const folder = await ensureDriedOrderFolder({
+        customerName: order.client_name || "Sem nome",
+        eventDate: order.event_date,
+      });
+
+      const remaining = await moveClientPhotosToDrive(
+        order.client_photos ?? [],
+        folder.clientPhotosFolderId,
+      );
+
+      await supabase
+        .from("orders")
+        .update({
+          drive_folder_id: folder.id,
+          drive_folder_url: folder.url,
+          // Se todas moveram, esvazia; se alguma falhou, guarda as que
+          // sobraram para retentar (nunca as perdemos silenciosamente).
+          client_photos: remaining,
+        })
+        .eq("id", order.id);
+      return { id: folder.id, url: folder.url };
+    }
+
+    // Preservação (default).
     const folder = await ensureOrderFolder({
       customerName: order.client_name || "Sem nome",
       eventDate: order.event_date,
     });
-    const supabase = await createClient();
     await supabase
       .from("orders")
       .update({ drive_folder_id: folder.id, drive_folder_url: folder.url })
@@ -66,6 +111,43 @@ export async function createOrderDriveFolderIfNeeded(
     console.error("[drive] Erro a criar pasta da encomenda:", err);
     return null;
   }
+}
+
+/**
+ * Move as fotos do ramo do Storage para a pasta "Fotos do cliente" na Drive.
+ * Cada foto: descarrega do Storage → sobe para a Drive → apaga do Storage.
+ * Devolve a lista das fotos que NÃO conseguiram mover (para retentar) — em
+ * condições normais é vazia. Best-effort: uma falha numa foto não trava as
+ * outras nem a criação da pasta.
+ */
+async function moveClientPhotosToDrive(
+  photos: ClientPhoto[],
+  driveFolderId: string,
+): Promise<ClientPhoto[]> {
+  const failed: ClientPhoto[] = [];
+  const movedPaths: string[] = [];
+
+  for (const photo of photos) {
+    try {
+      const file = await downloadBouquetPhoto(photo.path);
+      if (!file) {
+        failed.push(photo);
+        continue;
+      }
+      await uploadToDriveFolder(driveFolderId, {
+        filename: photo.name,
+        mimeType: file.mimeType,
+        buffer: file.buffer,
+      });
+      movedPaths.push(photo.path);
+    } catch (err) {
+      console.error("[drive] Falha a mover foto do ramo:", photo.path, err);
+      failed.push(photo);
+    }
+  }
+
+  if (movedPaths.length) await deleteBouquetPhotos(movedPaths);
+  return failed;
 }
 
 export async function createVoucherDriveFolderIfNeeded(

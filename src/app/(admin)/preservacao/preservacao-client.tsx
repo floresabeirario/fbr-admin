@@ -71,6 +71,7 @@ import {
   type Order,
   type OrderStatus,
   type PaymentStatus,
+  type ServiceType,
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   EVENT_TYPE_LABELS,
@@ -550,6 +551,14 @@ function OrderRow({
                   {EVENT_TYPE_LABELS[order.event_type]}
                 </span>
               )}
+              {order.service_type === "emoldurar_secas" && (
+                <span
+                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide shrink-0"
+                  title="Serviço: emoldurar flores já secas"
+                >
+                  Secas
+                </span>
+              )}
               {isNew && (
                 <span
                   className="inline-flex items-center rounded-full bg-sky-100 border border-sky-300 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 uppercase tracking-wide shrink-0"
@@ -938,6 +947,9 @@ export default function PreservacaoClient({
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
   const [showArchived, setShowArchived] = useState(false);
+  // Filtro por tipo de serviço (só relevante quando há encomendas de flores
+  // secas). "todos" = comportamento antigo.
+  const [serviceFilter, setServiceFilter] = useState<"todos" | ServiceType>("todos");
   const [draggingOrder, setDraggingOrder] = useState<Order | null>(null);
   const [, startDropTransition] = useTransition();
   // Override óptico por encomenda: movimento visual imediato no drop, antes
@@ -1108,14 +1120,18 @@ export default function PreservacaoClient({
           o.event_location?.toLowerCase().includes(search.toLowerCase())
       )
     : ordersWithOptimistic;
-  const filteredOrders = activeFiltersCount > 0
+  const baseFiltered = activeFiltersCount > 0
     ? applyFilters(searchedOrders, filters)
     : searchedOrders;
+  const filteredOrders =
+    serviceFilter === "todos"
+      ? baseFiltered
+      : baseFiltered.filter((o) => (o.service_type ?? "preservacao") === serviceFilter);
 
-  // Quando há overrides ópticos, pesquisa OU filtros activos, reagrupamos
-  // local; caso contrário usamos o grouped já feito no servidor.
+  // Quando há overrides ópticos, pesquisa, filtros activos OU filtro de
+  // serviço, reagrupamos local; caso contrário usamos o grouped do servidor.
   const grouped =
-    search.trim() || optimisticMoves.size > 0 || activeFiltersCount > 0
+    search.trim() || optimisticMoves.size > 0 || activeFiltersCount > 0 || serviceFilter !== "todos"
       ? groupOrders(filteredOrders)
       : initialGrouped;
 
@@ -1281,6 +1297,34 @@ export default function PreservacaoClient({
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto p-3 sm:p-6">
+        {/* Filtro por tipo de serviço — só aparece quando há encomendas de
+            flores secas (senão é ruído para quem só tem preservação). */}
+        {!showArchived && initialOrders.some((o) => (o.service_type ?? "preservacao") === "emoldurar_secas") && (
+          <div className="mb-4 inline-flex rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
+            {([
+              ["todos", "Todos"],
+              ["preservacao", "Preservação"],
+              ["emoldurar_secas", "Flores secas"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setServiceFilter(value)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md font-medium transition-colors",
+                  serviceFilter === value
+                    ? value === "emoldurar_secas"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-surface text-cocoa-900 shadow-sm"
+                    : "text-cocoa-500 hover:text-cocoa-800",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Rede de segurança: aviso global se houver encomendas com estado
             desconhecido. Aparece em todas as vistas (tabela, cards, calendário,
             timeline) para a Maria notar imediatamente que algo está fora do

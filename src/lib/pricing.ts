@@ -12,6 +12,9 @@ import type { Order } from "@/types/database";
 // Campos da encomenda usados no cálculo (subconjunto para minimizar
 // acoplamento — server actions só precisam de garantir estes campos).
 export interface OrderForPricing {
+  // Opcional para retro-compatibilidade: ausente = preservação. Só as
+  // encomendas 'emoldurar_secas' usam a tabela de preços própria (secas_*).
+  service_type?: Order["service_type"];
   frame_size: Order["frame_size"];
   frame_background: Order["frame_background"];
   pyramid_frame: Order["pyramid_frame"];
@@ -68,9 +71,15 @@ export function computePricingSnapshot(
 
   const lines: PricingSnapshotLine[] = [];
 
+  // Prefixo da chave base conforme o serviço: 'emoldurar_secas' usa a
+  // tabela própria (secas_30x40 = 200€…), tudo o resto usa a base normal
+  // da preservação (30x40 = 300€…). Só o preço-base difere — os
+  // suplementos de fundo e os extras são partilhados.
+  const baseKeyPrefix = order.service_type === "emoldurar_secas" ? "secas_" : "";
+
   // 1. Base por tamanho
-  const base = findItem(pricing, "base_frame", effectiveSize);
-  // Sem base 30x40 sequer → tabela mal configurada, não dá para calcular.
+  const base = findItem(pricing, "base_frame", `${baseKeyPrefix}${effectiveSize}`);
+  // Sem base sequer → tabela mal configurada, não dá para calcular.
   if (sizeUndecided && !base) return null;
   if (base) {
     lines.push({

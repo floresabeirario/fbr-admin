@@ -9,6 +9,7 @@ import {
   type HealthcheckSummary,
 } from "@/lib/healthcheck-cache";
 import { computeDailyPushItems, computeTaskDeadlineItems } from "@/lib/push/daily";
+import { cleanupOrphanBouquetPhotos } from "@/lib/storage/bouquet-photos";
 import { claimDedupKey, sendPushToAdmins, sendPushToEmails } from "@/lib/push/send";
 import type { Order } from "@/types/database";
 import type { Task } from "@/types/tasks";
@@ -63,6 +64,14 @@ export async function GET(request: Request) {
     await supabase.from("push_dedup").delete().lt("sent_at", sixtyDaysAgo);
   } catch {
     // silêncio
+  }
+
+  // Limpeza das fotos do ramo (mig 094): flores secas canceladas/arquivadas
+  // ou por pagar há +90 dias. Poupa o Storage gratuito. Best-effort.
+  try {
+    await cleanupOrphanBouquetPhotos(supabase);
+  } catch (err) {
+    console.error("[cron/healthcheck] limpeza de fotos do ramo falhou", err);
   }
 
   // Notificações push diárias (recolha/flores amanhã, congelador 5 dias) +

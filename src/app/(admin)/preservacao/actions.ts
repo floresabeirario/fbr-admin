@@ -16,6 +16,7 @@ import {
   createOrderDriveFolderIfNeeded,
   isFirstOrderPayment,
 } from "@/lib/google/order-drive-trigger";
+import { clearOrderClientPhotos } from "@/lib/storage/bouquet-photos";
 import {
   calendarFieldsChanged,
   deleteOrderCalendarEvent,
@@ -88,6 +89,7 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
     if (pricingRows && pricingRows.length > 0) {
       computedSnapshot = computePricingSnapshot(
         {
+          service_type: order.service_type ?? "preservacao",
           frame_size: order.frame_size ?? null,
           frame_background: order.frame_background ?? null,
           pyramid_frame: order.pyramid_frame ?? false,
@@ -156,7 +158,7 @@ export async function recomputeOrderBudgetAction(
     supabase
       .from("orders")
       .select(
-        "frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+        "service_type, frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single(),
@@ -375,7 +377,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, pricing_snapshot, frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+        "payment_status, status, service_type, client_photos, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, pricing_snapshot, frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single();
@@ -462,6 +464,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
             ? u[key]
             : (prev[key as keyof typeof prev] as unknown)) as Order[K];
         recomputeFromFields = {
+          service_type: pick("service_type"),
           frame_size: pick("frame_size"),
           frame_background: pick("frame_background"),
           pyramid_frame: pick("pyramid_frame") ?? false,
@@ -643,6 +646,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       client_name: updatedOrder.client_name,
       event_date: updatedOrder.event_date,
       drive_folder_id: updatedOrder.drive_folder_id,
+      service_type: updatedOrder.service_type,
+      client_photos: updatedOrder.client_photos,
     });
   }
 
@@ -774,7 +779,7 @@ export async function createOrderDriveFolderAction(id: string): Promise<{
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("orders")
-    .select("id, client_name, event_date, drive_folder_id")
+    .select("id, client_name, event_date, drive_folder_id, service_type, client_photos")
     .eq("id", id)
     .single();
   if (error) throw new Error(error.message);
@@ -784,10 +789,32 @@ export async function createOrderDriveFolderAction(id: string): Promise<{
     client_name: data.client_name as string,
     event_date: data.event_date as string | null,
     drive_folder_id: null, // forçar criação mesmo se já existia (idempotente: reutiliza)
+    service_type: data.service_type as Order["service_type"],
+    client_photos: (data.client_photos ?? []) as Order["client_photos"],
   });
   revalidatePath("/preservacao");
   revalidatePath(`/preservacao/${id}`);
   return folder ? { url: folder.url } : null;
+}
+
+/**
+ * Remove as fotos do ramo (flores secas) do Storage e limpa o array —
+ * botão manual no workbench. Só admin.
+ */
+export async function clearOrderClientPhotosAction(id: string): Promise<void> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("orders")
+    .select("client_photos")
+    .eq("id", id)
+    .single();
+  await clearOrderClientPhotos(
+    supabase,
+    id,
+    (data?.client_photos ?? []) as Order["client_photos"],
+  );
+  revalidatePath(`/preservacao/${id}`);
 }
 
 /**

@@ -79,17 +79,23 @@ describe.skipIf(!hasWebsite)("contrato: payloads do form do website ↔ schema d
   it("todas as colunas que o website insere existem em orders/vouchers", () => {
     const schema = schemaFromDisk();
     const source = readFileSync(MAPPINGS_PATH, "utf8");
-    const [orderKeys, voucherKeys] = payloadKeyBlocks(source);
+    // Há vários payloads de `orders` (reserva + emoldurar flores secas) e um
+    // de `vouchers`. Classificamos cada bloco pela sua assinatura em vez de
+    // por posição: só o payload de vale tem `sender_name`.
+    const blocks = payloadKeyBlocks(source);
+    const voucherBlocks = blocks.filter((keys) => keys.includes("sender_name"));
+    const orderBlocks = blocks.filter((keys) => !keys.includes("sender_name"));
 
     // Sanidade: se o parsing partir (refactor no website), queremos saber.
-    expect(orderKeys?.length).toBeGreaterThan(10);
-    expect(voucherKeys?.length).toBeGreaterThan(10);
+    expect(orderBlocks.length).toBeGreaterThanOrEqual(2); // reserva + emoldurar
+    expect(voucherBlocks.length).toBe(1);
+    for (const keys of blocks) expect(keys.length).toBeGreaterThan(10);
 
     const orders = schema.get("orders") ?? new Set();
     const vouchers = schema.get("vouchers") ?? new Set();
 
-    const missingOrders = orderKeys.filter((k) => !orders.has(k));
-    const missingVouchers = voucherKeys.filter((k) => !vouchers.has(k));
+    const missingOrders = orderBlocks.flat().filter((k) => !orders.has(k));
+    const missingVouchers = voucherBlocks.flat().filter((k) => !vouchers.has(k));
 
     expect(missingOrders, "colunas do payload de orders sem coluna na BD").toEqual([]);
     expect(missingVouchers, "colunas do payload de vouchers sem coluna na BD").toEqual([]);

@@ -7,6 +7,7 @@ import type { Task, TaskTemplate } from "@/types/tasks";
 import { loadIntegration } from "@/lib/google/oauth";
 import { computeEventHtmlLink } from "@/lib/google/calendar";
 import { findDuplicates } from "@/lib/duplicates";
+import { getBouquetPhotoUrls } from "@/lib/storage/bouquet-photos";
 import { markOrderSeenAction } from "../actions";
 import WorkbenchClient, { type DuplicateOrderInfo } from "./workbench-client";
 
@@ -93,6 +94,13 @@ export default async function WorkbenchPage({
     );
   }
 
+  // Fotos do ramo (só serviço "emoldurar_secas"): signed URLs para o bucket
+  // privado, geradas no server. Vazio para preservação normal.
+  const clientPhotoUrls =
+    order.service_type === "emoldurar_secas"
+      ? await getBouquetPhotoUrls(order.client_photos)
+      : [];
+
   // Marcar como vista pelo utilizador actual (acrescenta email ao seen_by[]).
   // Fire-and-forget — não bloqueia o render se a RPC falhar. Idempotente
   // a partir da segunda visita (a RPC verifica NOT email = ANY(seen_by)).
@@ -128,6 +136,7 @@ export default async function WorkbenchPage({
       currentEmail={currentEmail}
       linkedVoucherCode={linkedVoucherCode}
       duplicateOrders={duplicateOrders}
+      clientPhotoUrls={clientPhotoUrls}
     />
   );
 }
