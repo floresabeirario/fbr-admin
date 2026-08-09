@@ -9,5 +9,10 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // O pool paralelo do vitest v4 rebenta ("Cannot read properties of
+    // undefined (reading 'config')") ao carregar vários ficheiros de teste
+    // ao mesmo tempo — falha no CI (ubuntu) e no preflight local (Windows).
+    // Correr em série é fiável e rápido o suficiente (100 testes ~9s).
+    fileParallelism: false,
   },
 });
