@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { fieldSuggestionBases, rankTemplatesForStatus, templateSnippet } from "../templates";
-import type { MessageTemplate, TemplateLanguage } from "@/types/message-template";
-import type { OrderStatus } from "@/types/database";
+import {
+  fieldSuggestionBases,
+  rankTemplatesForStatus,
+  renderOrderTemplate,
+  templateSnippet,
+} from "../templates";
+import type { MessageTemplate, TemplateLanguage, SystemSettingsMap } from "@/types/message-template";
+import type { Order, OrderStatus } from "@/types/database";
+import type { PricingSnapshot } from "@/types/pricing";
 
 // Regras de sugestão de templates por campos da encomenda (sessão 118).
 // O objectivo: a Maria não escolhe — se o cliente disse "não sei" no
@@ -301,5 +307,75 @@ describe("templateSnippet", () => {
     const longa = "Relativamente ao envio do quadro final, ".repeat(6);
     expect(templateSnippet(longa).length).toBeLessThanOrEqual(121);
     expect(templateSnippet(longa).endsWith("…")).toBe(true);
+  });
+});
+
+// Render de valores monetários (sessão 148): quando a Maria edita o
+// orçamento à mão (ex.: desconto de família), o sinal/parcelas/valor do
+// quadro nas mensagens têm de seguir o orçamento editado — não o snapshot
+// original. Antes o snapshot ganhava e a mensagem ignorava o desconto.
+
+describe("renderOrderTemplate — valores seguem o orçamento editável", () => {
+  const settings = {
+    payment_mbway: "934 680 300",
+    payment_iban: "PT50 0000",
+    payment_account_holder: "Maria João Brito",
+    payment_bic: "XXXX",
+    payment_bank_name: "Banco",
+    review_link: "",
+    studio_address_url: "",
+    studio_address_text: "",
+  } as unknown as SystemSettingsMap;
+
+  function order(over: Partial<Order>): Order {
+    return {
+      id: "o1",
+      order_id: "ABCD1234",
+      client_name: "Ana Silva",
+      event_date: "2026-05-15",
+      frame_size: "30x40",
+      status: "entrega_flores_agendar",
+      payment_status: "100_por_pagar",
+      budget: null,
+      budget_at_first_payment: null,
+      pricing_snapshot: null,
+      ...over,
+    } as unknown as Order;
+  }
+
+  const snap300: PricingSnapshot = {
+    computed_at: "2026-01-01",
+    total: 300,
+    lines: [
+      { category: "base_frame", key: "30x40", label: "Moldura 30x40", qty: 1, unit_price: 300, subtotal: 300 },
+    ],
+  };
+
+  const tplBody = (b: string): MessageTemplate =>
+    ({ language: "pt", body: b } as MessageTemplate);
+
+  it("orçamento editado (desconto) manda sobre o snapshot no sinal e no valor do quadro", () => {
+    const out = renderOrderTemplate(
+      tplBody("quadro {valor_quadro}, sinal {valor_sinal}, total {valor_total}"),
+      { order: order({ budget: 270, pricing_snapshot: snap300 }), settings },
+    );
+    // 30% de 270 = 81€ (não 90€ do snapshot); quadro absorve o desconto → 270€
+    expect(out).toBe("quadro 270€, sinal 81€, total 270€");
+  });
+
+  it("sem edição (orçamento == snapshot) mantém os valores do snapshot", () => {
+    const out = renderOrderTemplate(
+      tplBody("quadro {valor_quadro}, sinal {valor_sinal}"),
+      { order: order({ budget: 300, pricing_snapshot: snap300 }), settings },
+    );
+    expect(out).toBe("quadro 300€, sinal 90€");
+  });
+
+  it("encomenda antiga sem budget cai no snapshot", () => {
+    const out = renderOrderTemplate(
+      tplBody("sinal {valor_sinal}"),
+      { order: order({ budget: null, pricing_snapshot: snap300 }), settings },
+    );
+    expect(out).toBe("sinal 90€");
   });
 });

@@ -153,11 +153,13 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
   const { order, settings, now = new Date() } = ctx;
   const lang = template.language;
 
-  // Total / parcelas a partir do pricing_snapshot (fallback ao budget manual)
-  let total: number | null = order.pricing_snapshot?.total ?? null;
-  if (total === null && order.budget !== null) {
-    total = order.budget;
-  }
+  // Total / parcelas: o orçamento (editável, autoritativo) manda; o
+  // pricing_snapshot é só fallback para encomendas antigas sem budget.
+  // Assim um desconto/acréscimo manual no orçamento (ex.: desconto de
+  // família) reflecte-se logo no sinal e nas parcelas das mensagens —
+  // antes o snapshot ganhava e a mensagem ignorava a edição.
+  const total: number | null =
+    order.budget ?? order.pricing_snapshot?.total ?? null;
 
   const sinal30 = total !== null ? Math.round(total * 0.3 * 100) / 100 : null;
   const parcela40 = total !== null ? Math.round(total * 0.4 * 100) / 100 : null;
@@ -187,13 +189,22 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
       : null;
 
   // Valor do quadro base (sem extras) — útil para mensagens de pré-reserva
-  // onde só queremos mostrar o preço da moldura escolhida.
+  // onde só queremos mostrar o preço da moldura escolhida. Se o orçamento
+  // foi ajustado à mão face ao snapshot (desconto/acréscimo), reflecte essa
+  // diferença aqui para a mensagem continuar a bater certo (moldura +
+  // extras = orçamento; sem extras, valor_quadro = orçamento).
   let valorQuadro: number | null = null;
   if (order.pricing_snapshot) {
     const baseLine = order.pricing_snapshot.lines.find(
       (l) => l.category === "base_frame",
     );
-    if (baseLine) valorQuadro = baseLine.subtotal;
+    if (baseLine) {
+      valorQuadro = baseLine.subtotal;
+      const snapTotal = order.pricing_snapshot.total;
+      if (total !== null && Math.abs(total - snapTotal) >= 0.01) {
+        valorQuadro = Math.round((valorQuadro + (total - snapTotal)) * 100) / 100;
+      }
+    }
   }
 
   const saudacao = saudacaoPorHora(lang, now);
