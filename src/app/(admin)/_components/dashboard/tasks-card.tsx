@@ -552,11 +552,11 @@ export function TasksCard({
         if (res.ok) {
           toast.success(
             res.notified === 1
-              ? "Toque enviado 👋"
-              : `Toque enviado a ${res.notified} pessoas 👋`,
+              ? "Cutucão enviado 👉"
+              : `Cutucão enviado a ${res.notified} pessoas 👉`,
           );
         } else {
-          toast.info("Esta tarefa não tem outro responsável para tocar.");
+          toast.info("Esta tarefa não tem outro responsável para cutucar.");
         }
       } catch (err) {
         toast.error("Erro ao dar o toque: " + (err as Error).message);
@@ -1481,7 +1481,7 @@ function DraggableTaskTile({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={onPoke}
                 className="text-[#C4A882] hover:text-indigo-600"
-                title="Dar um toque ao responsável (notificação)"
+                title="Cutucar o responsável (notificação)"
               >
                 <Pointer className="h-3 w-3" />
               </button>

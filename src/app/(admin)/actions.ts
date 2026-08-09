@@ -158,8 +158,8 @@ export async function pokeTaskAction(
     try {
       const admin = createAdminClient();
       await sendPushToEmails(admin, targets, {
-        title: "👉 Toque numa tarefa",
-        body: `${actorName} deu-te um toque: ${task.title}`,
+        title: "👉 Cutucão numa tarefa",
+        body: `${actorName} cutucou-te: ${task.title}`,
         url: "/",
         tag: `poke-${task.id}`,
       });
