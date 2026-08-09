@@ -127,11 +127,23 @@ export interface SavedView {
 
 const STORAGE_KEY = "fbr.preservacao.views.v1";
 
+// Vista activa (Tabela / Cards / Calendário / Timeline). Persistida para
+// sobreviver à navegação — abrir uma encomenda e voltar tem de trazer de
+// volta a MESMA vista, não recair sempre na tabela.
+export type PreservacaoView = "tabela" | "cards" | "calendario" | "timeline";
+const PRESERVACAO_VIEWS: readonly PreservacaoView[] = [
+  "tabela",
+  "cards",
+  "calendario",
+  "timeline",
+];
+
 interface StorageShape {
   activeColumns: ColumnKey[];
   filters: FilterConfig;
   views: SavedView[];
   activeViewId: string | null;
+  activeView: PreservacaoView;
 }
 
 function emptyShape(): StorageShape {
@@ -140,6 +152,7 @@ function emptyShape(): StorageShape {
     filters: { ...EMPTY_FILTERS },
     views: [],
     activeViewId: null,
+    activeView: "tabela",
   };
 }
 
@@ -156,6 +169,9 @@ function parseStorage(raw: string | null): StorageShape {
       filters: { ...EMPTY_FILTERS, ...(parsed.filters ?? {}) },
       views: Array.isArray(parsed.views) ? parsed.views : [],
       activeViewId: typeof parsed.activeViewId === "string" ? parsed.activeViewId : null,
+      activeView: PRESERVACAO_VIEWS.includes(parsed.activeView as PreservacaoView)
+        ? (parsed.activeView as PreservacaoView)
+        : "tabela",
     };
   } catch {
     return emptyShape();

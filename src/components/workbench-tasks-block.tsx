@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Square,
   Calendar as CalendarIcon,
+  ChevronDown,
   ListTodo,
   Receipt,
   X,
@@ -92,6 +93,7 @@ export default function WorkbenchTasksBlock({
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [pending, startTransition] = useTransition();
   const [showPicker, setShowPicker] = useState(false);
+  const [showDone, setShowDone] = useState(false);
 
   // Dois passos:
   //  1. amountDraft (set quando template tem needs_amount) — preenche o
@@ -121,6 +123,13 @@ export default function WorkbenchTasksBlock({
       if (!a.due_date && b.due_date) return 1;
       return b.created_at.localeCompare(a.created_at);
     });
+
+  // Concluídas: mais recentes primeiro (por done_at, fallback created_at).
+  const doneTasks = tasks
+    .filter((t) => t.done)
+    .sort((a, b) =>
+      (b.done_at ?? b.created_at).localeCompare(a.done_at ?? a.created_at),
+    );
 
   function openTemplate(template: TaskTemplate | null) {
     setShowPicker(false);
@@ -206,13 +215,44 @@ export default function WorkbenchTasksBlock({
 
   function handleDone(task: Task) {
     const prevDone = task.done;
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: !prevDone } : t)));
+    const nextDone = !prevDone;
+    const optimisticDoneAt = nextDone ? new Date().toISOString() : null;
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id ? { ...t, done: nextDone, done_at: optimisticDoneAt } : t,
+      ),
+    );
     startTransition(async () => {
       try {
-        await updateTaskAction(task.id, { done: !prevDone });
+        await updateTaskAction(task.id, { done: nextDone });
       } catch (err) {
-        setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: prevDone } : t)));
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, done: prevDone, done_at: task.done_at } : t,
+          ),
+        );
         toast.error("Erro: " + (err as Error).message);
+        return;
+      }
+      // Ao concluir, oferecer "Anular" durante alguns segundos (a tarefa
+      // sai da lista de pendentes; fica sempre em "concluídas" para histórico).
+      if (nextDone) {
+        toast.success(`Feita: “${task.title}”`, {
+          duration: 5000,
+          action: {
+            label: "Anular",
+            onClick: () => {
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === task.id ? { ...t, done: false, done_at: null } : t,
+                ),
+              );
+              void updateTaskAction(task.id, { done: false }).catch((e) =>
+                toast.error("Erro ao anular: " + (e as Error).message),
+              );
+            },
+          },
+        });
       }
     });
   }
@@ -409,6 +449,35 @@ export default function WorkbenchTasksBlock({
             </PopoverContent>
           </Popover>
         )}
+
+        {doneTasks.length > 0 && (
+          <div className="pt-0.5">
+            <button
+              type="button"
+              onClick={() => setShowDone((s) => !s)}
+              className="flex items-center gap-1 text-[11px] text-cocoa-500 hover:text-cocoa-800"
+              aria-expanded={showDone}
+            >
+              <ChevronDown
+                className={"h-3 w-3 transition-transform " + (showDone ? "rotate-180" : "")}
+              />
+              {doneTasks.length} concluída{doneTasks.length === 1 ? "" : "s"}
+            </button>
+            {showDone && (
+              <div className="mt-1.5 space-y-1">
+                {doneTasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onDone={() => handleDone(task)}
+                    onDelete={() => handleDelete(task)}
+                    canEdit={canEdit}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Dialog open={!!amountDraft} onOpenChange={(open) => !open && setAmountDraft(null)}>
@@ -481,7 +550,12 @@ function TaskRow({
           {task.done ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] text-cocoa-900 leading-snug break-words">
+          <p
+            className={
+              "text-[12px] leading-snug break-words " +
+              (task.done ? "text-cocoa-400 line-through" : "text-cocoa-900")
+            }
+          >
             {task.title}
           </p>
           {task.description && (

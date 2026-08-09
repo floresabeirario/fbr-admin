@@ -22,7 +22,7 @@ import type { OrderStatus, PaymentStatus } from "@/types/database";
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
   entrega_flores_agendar: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900",
-  entrega_agendada:       "bg-pink-100 text-pink-900 border-pink-300 dark:bg-pink-950/40 dark:text-pink-200 dark:border-pink-900",
+  entrega_agendada:       "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900",
   flores_enviadas:        "bg-fuchsia-100 text-fuchsia-900 border-fuchsia-300 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-900",
   flores_recebidas:       "bg-purple-100 text-purple-900 border-purple-300 dark:bg-purple-950/40 dark:text-purple-200 dark:border-purple-900",
   flores_na_prensa:       "bg-violet-100 text-violet-900 border-violet-300 dark:bg-violet-950/40 dark:text-violet-200 dark:border-violet-900",
@@ -43,7 +43,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
 // usar classes Tailwind). Espelha o tom 400/500 dos `STATUS_DOT_COLORS`.
 export const STATUS_HEX: Record<OrderStatus, string> = {
   entrega_flores_agendar: "#fb7185", // rose-400
-  entrega_agendada:       "#f472b6", // pink-400
+  entrega_agendada:       "#fbbf24", // amber-400
   flores_enviadas:        "#e879f9", // fuchsia-400
   flores_recebidas:       "#c084fc", // purple-400
   flores_na_prensa:       "#a78bfa", // violet-400
@@ -63,7 +63,7 @@ export const STATUS_HEX: Record<OrderStatus, string> = {
 // Variante "dot" para usar como bolinha colorida (pequena, sem borda)
 export const STATUS_DOT_COLORS: Record<OrderStatus, string> = {
   entrega_flores_agendar: "bg-rose-400",
-  entrega_agendada:       "bg-pink-400",
+  entrega_agendada:       "bg-amber-400",
   flores_enviadas:        "bg-fuchsia-400",
   flores_recebidas:       "bg-purple-400",
   flores_na_prensa:       "bg-violet-400",

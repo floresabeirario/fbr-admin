@@ -18,6 +18,7 @@ import {
   FileText,
   Flower2,
   Globe,
+  Hand,
   Link2,
   ListTodo,
   Loader2,
@@ -98,6 +99,7 @@ import {
   createTaskAction,
   updateTaskAction,
   deleteTaskAction,
+  pokeTaskAction,
 } from "../../actions";
 
 import { SectionCard } from "./section-card";
@@ -539,6 +541,25 @@ export function TasksCard({
         await deleteTaskAction(task.id);
       } catch (err) {
         toast.error("Erro ao apagar: " + (err as Error).message);
+      }
+    });
+  }
+
+  function handlePoke(task: Task) {
+    startTransition(async () => {
+      try {
+        const res = await pokeTaskAction(task.id);
+        if (res.ok) {
+          toast.success(
+            res.notified === 1
+              ? "Toque enviado 👋"
+              : `Toque enviado a ${res.notified} pessoas 👋`,
+          );
+        } else {
+          toast.info("Esta tarefa não tem outro responsável para tocar.");
+        }
+      } catch (err) {
+        toast.error("Erro ao dar o toque: " + (err as Error).message);
       }
     });
   }
@@ -990,6 +1011,8 @@ export function TasksCard({
                 setEditingId={setEditingId}
                 onToggle={handleToggle}
                 onDelete={handleDelete}
+                onPoke={handlePoke}
+                currentEmail={currentEmail}
                 onToggleAssignee={toggleAssignee}
                 onChangePriority={handlePriorityChange}
                 onChangeStatus={handleStatusChange}
@@ -1064,6 +1087,8 @@ function CategoryColumn({
   setEditingId,
   onToggle,
   onDelete,
+  onPoke,
+  currentEmail,
   onToggleAssignee,
   onChangePriority,
   onChangeStatus,
@@ -1080,6 +1105,8 @@ function CategoryColumn({
   setEditingId: (id: string | null) => void;
   onToggle: (t: Task) => void;
   onDelete: (t: Task) => void;
+  onPoke: (t: Task) => void;
+  currentEmail: string;
   onToggleAssignee: (t: Task, email: string) => void;
   onChangePriority: (t: Task, p: TaskPriority) => void;
   onChangeStatus: (t: Task, s: TaskStatus) => void;
@@ -1176,6 +1203,8 @@ function CategoryColumn({
               leftAccent={meta.leftAccent}
               onToggle={() => onToggle(task)}
               onDelete={() => onDelete(task)}
+              onPoke={() => onPoke(task)}
+              canPoke={task.assignee_emails.some((e) => e !== currentEmail)}
               onToggleAssignee={(email) => onToggleAssignee(task, email)}
               onChangePriority={(p) => onChangePriority(task, p)}
               onChangeStatus={(s) => onChangeStatus(task, s)}
@@ -1228,6 +1257,8 @@ function DraggableTaskTile({
   leftAccent,
   onToggle,
   onDelete,
+  onPoke,
+  canPoke,
   onToggleAssignee,
   onChangePriority,
   onChangeStatus,
@@ -1243,6 +1274,8 @@ function DraggableTaskTile({
   leftAccent: string;
   onToggle: () => void;
   onDelete: () => void;
+  onPoke: () => void;
+  canPoke: boolean;
   onToggleAssignee: (email: string) => void;
   onChangePriority: (p: TaskPriority) => void;
   onChangeStatus: (s: TaskStatus) => void;
@@ -1439,8 +1472,20 @@ function DraggableTaskTile({
             {formatCreatedAgo(task.created_at)}
           </span>
 
-          {/* Edit/trash icons — bottom-right, só no hover */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {/* Edit/trash icons — bottom-right. No telemóvel (sem hover) ficam
+              sempre visíveis; no desktop só aparecem no hover do cartão. */}
+          <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+            {canPoke && (
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={onPoke}
+                className="text-[#C4A882] hover:text-indigo-600"
+                title="Dar um toque ao responsável (notificação)"
+              >
+                <Hand className="h-3 w-3" />
+              </button>
+            )}
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}

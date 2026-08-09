@@ -37,11 +37,13 @@ export function ShippingCard({
   update: UpdateFn;
   clientUpdate: ClientUpdateFn;
 }) {
-  // Esconder custo e "pago" quando entrega/recolha é em mãos (sem custo) ou
-  // "não sei" (ainda indefinido). Só faz sentido pedir o custo quando o método
-  // implica transporte pago (CTT, recolha presencial).
-  const hasFlowerShippingCost = local.flower_delivery_method === "ctt" || local.flower_delivery_method === "recolha_evento";
-  const hasFrameShippingCost  = local.frame_delivery_method  === "ctt";
+  // Esconder custo e "pago" quando não há transporte pago pela FBR:
+  //  • Em mãos → sem custo;  • Não sei → indefinido;
+  //  • CTT → os portes são pagos directamente pelo cliente nos CTT, não é
+  //    um custo que a FBR adiante/controle.
+  // Só a recolha presencial das flores tem custo de transporte para a FBR.
+  const hasFlowerShippingCost = local.flower_delivery_method === "recolha_evento";
+  const hasFrameShippingCost  = false; // quadro só vai por mãos/CTT/não sei — nenhum com custo FBR
   const showFlowerShippingPaid = hasFlowerShippingCost;
   const showFrameShippingPaid  = hasFrameShippingCost;
 
@@ -133,6 +135,9 @@ export function ShippingCard({
                 <Input
                   className={inp}
                   type="date"
+                  // Nunca antes do evento: as flores só existem a partir da
+                  // data do evento (recolha no próprio dia ou depois).
+                  min={local.event_date ? toDateInput(local.event_date) : undefined}
                   value={toDateInput(local.pickup_date)}
                   onChange={(e) => update("pickup_date", e.target.value || null)}
                 />
@@ -201,6 +206,9 @@ export function ShippingCard({
                 <Input
                   className={inp}
                   type="date"
+                  // Nunca antes do evento: a entrega em mãos das flores é no
+                  // dia do evento ou depois.
+                  min={local.event_date ? toDateInput(local.event_date) : undefined}
                   value={toDateInput(local.hand_delivery_date)}
                   onChange={(e) => update("hand_delivery_date", e.target.value || null)}
                 />

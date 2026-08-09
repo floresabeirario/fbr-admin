@@ -721,7 +721,7 @@ export default function WhatsappClient({ initialConversations, initialLabels, or
       </aside>
 
       {/* COLUNA DIREITA — conversa seleccionada */}
-      <main className={cn("flex-1 flex flex-col bg-cream-50", !selectedId && "hidden lg:flex")}>
+      <main className={cn("flex-1 flex flex-col min-h-0 bg-cream-50", !selectedId && "hidden lg:flex")}>
         {selectedConv ? (
           <ConversationViewer
             conversation={selectedConv}
@@ -1002,7 +1002,7 @@ function ConversationViewer({
       />
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-1.5">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1.5">
         {loading ? (
           <div className="text-center text-xs text-cocoa-400 py-6">A carregar...</div>
         ) : messages.length === 0 ? (

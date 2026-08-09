@@ -623,7 +623,15 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
 
   // Push aos admins: data de entrega das flores acabou de ser marcada.
   // Best-effort, fora do caminho crítico — nunca atrasa/falha o UPDATE.
-  if (flowerDateFilledPush) {
+  // Só quando a entrega já é real: numa pré-reserva a data é só um
+  // apontamento do que o cliente disse ("posso passar no dia X"), ainda não
+  // confirmada — não faz sentido notificar. Cancelado também fica de fora.
+  // (Mesmo critério do cron diário em lib/push/daily.ts.)
+  if (
+    flowerDateFilledPush &&
+    updatedOrder.status !== "entrega_flores_agendar" &&
+    updatedOrder.status !== "cancelado"
+  ) {
     const flowerDate = flowerDateFilledPush;
     after(async () => {
       try {

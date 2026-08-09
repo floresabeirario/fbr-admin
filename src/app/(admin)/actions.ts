@@ -130,6 +130,45 @@ export async function deleteTaskAction(id: string): Promise<void> {
   revalidatePath("/");
 }
 
+// "Dar um toque": lembra à mão o(s) responsável(is) de uma tarefa via
+// notificação push interna. Só o próprio actor fica de fora (não faz
+// sentido dar um toque a mim mesmo). Devolve quantas pessoas foram
+// tocadas para a UI dar feedback ("Toque enviado a 1 pessoa").
+export async function pokeTaskAction(
+  id: string,
+): Promise<{ ok: boolean; notified: number; reason?: string }> {
+  const actor = await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, title, assignee_emails")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  const task = data as Pick<Task, "id" | "title" | "assignee_emails">;
+
+  const targets = (task.assignee_emails ?? []).filter((e) => e && e !== actor);
+  if (targets.length === 0) {
+    return { ok: false, notified: 0, reason: "sem_outros_responsaveis" };
+  }
+
+  const actorName = actor.split("@")[0];
+  after(async () => {
+    try {
+      const admin = createAdminClient();
+      await sendPushToEmails(admin, targets, {
+        title: "👋 Toque numa tarefa",
+        body: `${actorName} deu-te um toque: ${task.title}`,
+        url: "/",
+        tag: `poke-${task.id}`,
+      });
+    } catch (err) {
+      console.error("[push] pokeTaskAction falhou", err);
+    }
+  });
+  return { ok: true, notified: targets.length };
+}
+
 // Marca um conjunto de tarefas como "vistas" pelo utilizador actual.
 // Usa a RPC mark_tasks_seen (mig 044): SECURITY DEFINER cirúrgica que
 // só consegue acrescentar o email do JWT ao array seen_by, e só se

@@ -924,7 +924,6 @@ export default function PreservacaoClient({
 }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [activeView, setActiveView] = useState<ViewType>("tabela");
   // Grupos vazios começam colapsados por default; o utilizador pode abrir.
   // "Concluídos" e "Cancelamentos" começam SEMPRE colapsados (mesmo com
   // encomendas dentro) — são grupos de fim-de-linha, raramente precisam
@@ -971,10 +970,14 @@ export default function PreservacaoClient({
   const filters = viewsState.filters;
   const savedViews = viewsState.views;
   const activeViewId = viewsState.activeViewId;
+  // Vista activa persistida: abrir uma encomenda e voltar traz de volta a
+  // mesma vista (Cards continua Cards), em vez de recair sempre na tabela.
+  const activeView = viewsState.activeView;
   const setExtraColumns = (v: ColumnKey[]) => updateViewsStorage({ activeColumns: v });
   const setFilters = (f: FilterConfig) => updateViewsStorage({ filters: f });
   const setSavedViews = (v: SavedView[]) => updateViewsStorage({ views: v });
   const setActiveViewId = (id: string | null) => updateViewsStorage({ activeViewId: id });
+  const setActiveView = (v: ViewType) => updateViewsStorage({ activeView: v });
 
   // Sensores: activação por distância (8px) deixa o click do row continuar a
   // funcionar normalmente; KeyboardSensor dá acessibilidade básica (Space para
@@ -1399,9 +1402,9 @@ export default function PreservacaoClient({
             {grouped.orfas.length > 0 && (
               <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} />
             )}
-            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} />
-            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} />
-            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} />
+            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} collapsible defaultCollapsed />
+            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
+            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
             <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
             <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
             <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
@@ -1450,6 +1453,8 @@ function CardGroup({
   currentEmail,
   alert = false,
   showPhoto = true,
+  collapsible = false,
+  defaultCollapsed = false,
 }: {
   title: string;
   orders: Order[];
@@ -1459,21 +1464,49 @@ function CardGroup({
   currentEmail: string | null;
   alert?: boolean;
   showPhoto?: boolean;
+  // Grupos colapsáveis na vista de cards (Sem resposta / Pré-reservas /
+  // Reservas): começam fechados para reduzir ruído; abrem-se ao clicar no
+  // cabeçalho. Estado local — reabre-se sempre que se volta à vista.
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }) {
   const isEmpty = orders.length === 0;
+  const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
+  const showGrid = !collapsed && !isEmpty;
+
+  const header = (
+    <>
+      {alert && !isEmpty && <AlertTriangle className="h-4 w-4 text-red-500" />}
+      <h2 className={`text-sm font-semibold ${colorClass}`}>{title}</h2>
+      <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
+        {orders.length}
+      </span>
+      {isEmpty && (
+        <span className="ml-1 text-[11px] text-cocoa-500 italic">sem encomendas</span>
+      )}
+    </>
+  );
+
   return (
     <section className={isEmpty ? "opacity-60" : ""}>
-      <div className="flex items-center gap-2 mb-3">
-        {alert && !isEmpty && <AlertTriangle className="h-4 w-4 text-red-500" />}
-        <h2 className={`text-sm font-semibold ${colorClass}`}>{title}</h2>
-        <span className="rounded-full bg-cream-100 px-2 py-0.5 text-xs font-medium text-cocoa-700">
-          {orders.length}
-        </span>
-        {isEmpty && (
-          <span className="ml-1 text-[11px] text-cocoa-500 italic">sem encomendas</span>
-        )}
-      </div>
-      {!isEmpty && (
+      {collapsible && !isEmpty ? (
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex items-center gap-2 mb-3 w-full text-left group/hdr"
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4 text-cocoa-500 shrink-0" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-cocoa-500 shrink-0" />
+          )}
+          {header}
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 mb-3">{header}</div>
+      )}
+      {showGrid && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {orders.map((o) => (
             <OrderCard

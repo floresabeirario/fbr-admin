@@ -65,6 +65,7 @@ export function dadosPagamento(language: TemplateLanguage, settings: SystemSetti
   return [
     `MB Way: ${settings.payment_mbway}`,
     `IBAN: ${settings.payment_iban}`,
+    `Titular: ${settings.payment_account_holder}`,
   ].join("\n");
 }
 
@@ -99,6 +100,26 @@ function dataCurta(iso: string | null): string {
   } catch {
     return iso;
   }
+}
+
+// Resumo do que o cliente encomendou (moldura + extras pagos), a partir do
+// snapshot de preços guardado na encomenda. Uma linha por item, no estilo
+// "• Moldura 30x40 (300€)". Salta linhas sem custo (ex.: fundo preto a 0€).
+// Sem travessão, por regra das mensagens da FBR.
+function resumoEncomenda(order: Order): string {
+  const snap = order.pricing_snapshot;
+  if (!snap || !snap.lines || snap.lines.length === 0) return "";
+  return snap.lines
+    .filter((l) => l.subtotal > 0)
+    .map((l) => {
+      if (l.qty > 1) {
+        // Com quantidade, mostra também o unitário:
+        // "• 2× Mini-quadro 20x25 (2 × 90€ = 180€)".
+        return `• ${l.qty}× ${l.label} (${l.qty} × ${fmtEurMsg(l.unit_price)} = ${fmtEurMsg(l.subtotal)})`;
+      }
+      return `• ${l.label} (${fmtEurMsg(l.subtotal)})`;
+    })
+    .join("\n");
 }
 
 function statusUrl(orderId: string): string {
@@ -188,6 +209,7 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     nome_completo: order.client_name ?? "",
     tamanho_quadro: tamanho,
     valor_quadro: valorQuadro !== null ? fmtEurMsg(valorQuadro) : "",
+    resumo_encomenda: resumoEncomenda(order),
     valor_total: total !== null ? fmtEurMsg(total) : "",
     valor_sinal: sinal30 !== null ? fmtEurMsg(sinal30) : "",
     valor_2a_parcela: parcela40 !== null ? fmtEurMsg(parcela40) : "",
@@ -256,6 +278,7 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   { key: "nome_completo", description: "Nome completo do cliente", scope: "order" },
   { key: "tamanho_quadro", description: 'Tamanho do quadro escolhido (ex: "30x40 cm")', scope: "order" },
   { key: "valor_quadro", description: "Preço da moldura escolhida (ex: 300€)", scope: "order" },
+  { key: "resumo_encomenda", description: 'Resumo do que o cliente encomendou, uma linha por item com preço; com quantidade mostra o unitário (ex: "• Moldura 30x40 (300€)" + "• 2× Mini-quadro 20x25 (2 × 90€ = 180€)")', scope: "order" },
   { key: "valor_total", description: "Valor total da encomenda", scope: "order" },
   { key: "valor_sinal", description: "30% do total (sinal)", scope: "order" },
   { key: "valor_2a_parcela", description: "40% do total (após recepção das flores)", scope: "order" },

@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
+import {
+  subscribeParcerias,
+  getParceriasSnapshot,
+  getServerParceriasSnapshot,
+  updateParceriasStorage,
+  type ParceriasViewMode,
+} from "@/lib/parcerias-views";
 import {
   Search,
   Plus,
@@ -390,28 +397,56 @@ interface Props {
   commissions: CommissionItem[];
 }
 
-type ViewMode = "tabela" | "mapa" | "comissoes";
+type ViewMode = ParceriasViewMode;
+
+// Conjunto de grupos (estados) a colapsar por default numa categoria: os
+// vazios + "rejeitado" (fim-de-linha). Extraído para reutilizar no
+// arranque e ao mudar/restaurar a categoria.
+function computeEmptyCollapse(
+  partners: Partner[],
+  category: PartnerCategory,
+): Set<string> {
+  const byStatus = groupByStatus(filterByCategory(partners, category));
+  const empty = new Set<string>();
+  for (const s of PARTNER_STATUS_ORDER) {
+    if (byStatus[s].length === 0) empty.add(s);
+  }
+  empty.add("rejeitado");
+  return empty;
+}
 
 export default function ParceriasClient({ initialPartners, ordersCount, vouchersCount, commissions }: Props) {
   const router = useRouter();
-  const [activeCategory, setActiveCategory] = useState<PartnerCategory>("wedding_planners");
-  const [viewMode, setViewMode] = useState<ViewMode>("tabela");
+  // Sub-categoria e modo de vista PERSISTIDOS (sobrevivem à navegação:
+  // abrir um parceiro e voltar traz de volta a mesma sub-aba e vista, em
+  // vez de recair sempre em "Wedding Planners / tabela").
+  const parceriasView = useSyncExternalStore(
+    subscribeParcerias,
+    getParceriasSnapshot,
+    getServerParceriasSnapshot,
+  );
+  const activeCategory = parceriasView.activeCategory;
+  const viewMode = parceriasView.viewMode;
+  const setViewMode = (v: ViewMode) => updateParceriasStorage({ viewMode: v });
   const [search, setSearch] = useState("");
   // Grupos vazios começam colapsados por default (o utilizador pode abrir).
   // "rejeitado" também começa colapsado mesmo quando tem parceiros: é o
   // fim-de-linha desta vista — só interessa quando especificamente
   // procurado. Mesmo princípio que "Cancelamentos"/"Concluídos" na
   // Preservação e na Vale-Presente.
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
-    const inThisCategory = filterByCategory(initialPartners, "wedding_planners");
-    const byStatus = groupByStatus(inThisCategory);
-    const empty = new Set<string>();
-    for (const s of PARTNER_STATUS_ORDER) {
-      if (byStatus[s].length === 0) empty.add(s);
-    }
-    empty.add("rejeitado");
-    return empty;
-  });
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() =>
+    computeEmptyCollapse(initialPartners, "wedding_planners"),
+  );
+  // A categoria persistida só chega DEPOIS da hidratação (o servidor usa o
+  // default "wedding_planners"). Quando ela muda — restaurada da navegação
+  // ou trocada pela utilizadora — recalcula os grupos colapsados para essa
+  // categoria. Padrão "informação do render anterior" (sem setState em
+  // useEffect, que o ESLint proíbe [[feedback_react_set_state_in_effect]]).
+  const [prevCategory, setPrevCategory] = useState<PartnerCategory>("wedding_planners");
+  if (activeCategory !== prevCategory) {
+    setPrevCategory(activeCategory);
+    setCollapsedGroups(computeEmptyCollapse(initialPartners, activeCategory));
+  }
   const [sheetOpen, setSheetOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startNavTransition] = useTransition();
@@ -424,15 +459,8 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   // Cada categoria tem distribuição diferente de estados, e o open/close da
   // anterior já não faz sentido. Recalcula o set de vazios para colapsar.
   function changeCategory(c: PartnerCategory) {
-    const inNewCategory = filterByCategory(initialPartners, c);
-    const byStatus = groupByStatus(inNewCategory);
-    const empty = new Set<string>();
-    for (const s of PARTNER_STATUS_ORDER) {
-      if (byStatus[s].length === 0) empty.add(s);
-    }
-    empty.add("rejeitado");
-    setActiveCategory(c);
-    setCollapsedGroups(empty);
+    // Persiste a categoria; o ajuste por render acima recalcula o colapso.
+    updateParceriasStorage({ activeCategory: c });
   }
 
   function toggleGroup(id: string) {
