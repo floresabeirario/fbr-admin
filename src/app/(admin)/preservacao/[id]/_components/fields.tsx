@@ -336,7 +336,7 @@ export function StatusSelect({
   const colorClass = STATUS_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
   return (
     <Select value={value} onValueChange={(v) => onChange(v as keyof typeof STATUS_LABELS)}>
-      <SelectTrigger className={`h-8 text-xs font-semibold border rounded-md ${colorClass} hover:brightness-95 transition`}>
+      <SelectTrigger className={`h-8 min-w-0 text-xs font-semibold border rounded-md ${colorClass} hover:brightness-95 transition`}>
         <SelectValue>
           {(v) => {
             if (typeof v !== "string" || !(v in STATUS_LABELS)) return null;
@@ -345,7 +345,9 @@ export function StatusSelect({
             return (
               <>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
-                {STATUS_LABELS[key]}
+                {/* truncate para o estado poder encolher em espaços apertados
+                    (ex.: cabeçalho do workbench em mobile) sem forçar overflow */}
+                <span className="truncate">{STATUS_LABELS[key]}</span>
               </>
             );
           }}

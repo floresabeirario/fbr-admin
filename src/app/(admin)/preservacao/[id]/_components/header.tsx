@@ -174,23 +174,30 @@ export function WorkbenchHeader({
           </div>
         </div>
 
+        {/* Quebra só em mobile: o nome fica sozinho na linha do topo (com a seta
+            e o navegador ◀ n/N ▶); estado, alertas e Contactada/Nota descem para
+            a linha de baixo, para o nome não ser espremido. */}
+        <div className="basis-full h-0 sm:hidden" aria-hidden />
+
+        {/* Alertas de evento: escondidos no cabeçalho em mobile (o hero já mostra
+            o mesmo aviso a vermelho por baixo da data) para poupar espaço. */}
         {overdueEvent && (
-          <div className="flex items-center gap-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1 text-xs text-red-600 font-medium shrink-0">
+          <div className="hidden sm:flex items-center gap-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1 text-xs text-red-600 font-medium shrink-0">
             <AlertTriangle className="h-3.5 w-3.5" />
             Evento há {Math.abs(daysUntilEvent!)}d
           </div>
         )}
         {soonEvent && (
-          <div className="flex items-center gap-1 rounded-lg bg-amber-200 border border-amber-400 px-2 py-1 text-xs text-amber-900 font-bold shrink-0">
+          <div className="hidden sm:flex items-center gap-1 rounded-lg bg-amber-200 border border-amber-400 px-2 py-1 text-xs text-amber-900 font-bold shrink-0">
             <Clock className="h-3.5 w-3.5" />
             {daysUntilEvent === 0 ? "Evento hoje" : `Evento em ${daysUntilEvent}d`}
           </div>
         )}
 
-        {/* Em mobile o estado desce para a linha de baixo (o nome flex-1 enche a
-            linha do topo) e fica com a largura do seu conteúdo — sem scroll
+        {/* Em mobile o estado fica na linha de baixo e cresce para preencher o
+            espaço livre (flex-1), truncando o texto se preciso — sem scroll
             horizontal. Em sm+ é fixo (w-56) como antes. */}
-        <div className="sm:w-56 sm:flex-none">
+        <div className="flex-1 min-w-0 sm:flex-none sm:w-56">
           <StatusSelect value={local.status} onChange={onStatusChange} />
         </div>
 
