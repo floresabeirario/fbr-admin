@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth/server";
 import { sendPushToEmails } from "@/lib/push/send";
+import { memberName } from "@/app/(admin)/_components/dashboard/team-members";
 import type {
   Task,
   TaskInsert,
@@ -152,12 +153,12 @@ export async function pokeTaskAction(
     return { ok: false, notified: 0, reason: "sem_outros_responsaveis" };
   }
 
-  const actorName = actor.split("@")[0];
+  const actorName = memberName(actor).split(" ")[0];
   after(async () => {
     try {
       const admin = createAdminClient();
       await sendPushToEmails(admin, targets, {
-        title: "👋 Toque numa tarefa",
+        title: "👉 Toque numa tarefa",
         body: `${actorName} deu-te um toque: ${task.title}`,
         url: "/",
         tag: `poke-${task.id}`,
