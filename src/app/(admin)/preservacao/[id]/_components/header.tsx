@@ -115,10 +115,12 @@ export function WorkbenchHeader({
 
         <Separator orientation="vertical" className="h-5 bg-cream-200 hidden sm:block" />
 
-        {/* Nome + ID — em mobile toma a linha toda (basis-full) para o nome
-            não ser truncado para "Soni..." quando "Contactada"/"Nota" o
-            espremem; em sm+ partilha a linha (flex-1) como antes. */}
-        <div className="basis-full sm:basis-auto sm:flex-1 min-w-0">
+        {/* Nome + ID. Em mobile partilha a linha do topo com o estado (à direita):
+            o nome encolhe/trunca até 45% da largura e o estado fica ao lado. Um
+            elemento de quebra (a seguir ao estado) empurra Contactada/Nota/Arquivar
+            para a linha de baixo, por isso o nome já não é espremido por eles.
+            Em sm+ ocupa flex-1 como antes. */}
+        <div className="min-w-0 max-w-[45%] shrink sm:max-w-none sm:flex-1">
           <h1 className="text-sm sm:text-base font-semibold text-cocoa-900 truncate leading-tight">
             {local.client_name}
           </h1>
@@ -186,9 +188,14 @@ export function WorkbenchHeader({
           </div>
         )}
 
-        <div className="flex-1 basis-full sm:basis-auto sm:flex-none sm:w-56 order-last sm:order-none">
+        <div className="flex-1 min-w-0 sm:flex-none sm:w-56">
           <StatusSelect value={local.status} onChange={onStatusChange} />
         </div>
+
+        {/* Quebra de linha só em mobile: mantém nome + estado juntos na linha do
+            topo e empurra Contactada/Nota/Arquivar para a linha seguinte. */}
+        <div className="basis-full h-0 sm:hidden" aria-hidden />
+
 
         {showContactadaPrompt && (
           <CheckRow
