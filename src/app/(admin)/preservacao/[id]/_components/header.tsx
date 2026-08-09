@@ -115,12 +115,11 @@ export function WorkbenchHeader({
 
         <Separator orientation="vertical" className="h-5 bg-cream-200 hidden sm:block" />
 
-        {/* Nome + ID. Em mobile partilha a linha do topo com o estado (à direita):
-            o nome encolhe/trunca até 45% da largura e o estado fica ao lado. Um
-            elemento de quebra (a seguir ao estado) empurra Contactada/Nota/Arquivar
-            para a linha de baixo, por isso o nome já não é espremido por eles.
-            Em sm+ ocupa flex-1 como antes. */}
-        <div className="min-w-0 max-w-[45%] shrink sm:max-w-none sm:flex-1">
+        {/* Nome + ID — em mobile ocupa o resto da linha do topo (ao lado da seta
+            de voltar e do navegador ◀ n/N ▶) e trunca com "…" se for comprido; o
+            estado e Contactada/Nota descem para a linha de baixo. Em sm+ é flex-1
+            como antes. */}
+        <div className="flex-1 min-w-0">
           <h1 className="text-sm sm:text-base font-semibold text-cocoa-900 truncate leading-tight">
             {local.client_name}
           </h1>
@@ -188,13 +187,12 @@ export function WorkbenchHeader({
           </div>
         )}
 
-        <div className="flex-1 min-w-0 sm:flex-none sm:w-56">
+        {/* Em mobile o estado desce para a linha de baixo (o nome flex-1 enche a
+            linha do topo) e fica com a largura do seu conteúdo — sem scroll
+            horizontal. Em sm+ é fixo (w-56) como antes. */}
+        <div className="sm:w-56 sm:flex-none">
           <StatusSelect value={local.status} onChange={onStatusChange} />
         </div>
-
-        {/* Quebra de linha só em mobile: mantém nome + estado juntos na linha do
-            topo e empurra Contactada/Nota/Arquivar para a linha seguinte. */}
-        <div className="basis-full h-0 sm:hidden" aria-hidden />
 
 
         {showContactadaPrompt && (
@@ -247,7 +245,7 @@ export function WorkbenchHeader({
           <button
             type="button"
             onClick={onArchive}
-            className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-surface text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
+            className="shrink-0 hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-surface text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
             title="Arquivar esta encomenda"
           >
             <Trash2 className="h-3.5 w-3.5" />

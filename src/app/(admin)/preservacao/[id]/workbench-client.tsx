@@ -25,7 +25,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
-import { AlertTriangle, CheckSquare } from "lucide-react";
+import { AlertTriangle, CheckSquare, Trash2 } from "lucide-react";
 import { updateOrderAction, deleteOrderAction } from "../actions";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
@@ -491,6 +491,21 @@ export default function WorkbenchClient({
             </aside>
 
           </div>
+
+          {/* Arquivar — no fundo da página só em mobile (no desktop vive no
+              cabeçalho). Menos "conveniente" para evitar cliques acidentais. */}
+          {canEdit && (
+            <div className="sm:hidden mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setArchiveDialogOpen(true)}
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-lg border border-red-200 bg-surface text-sm font-medium text-red-700 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Arquivar encomenda
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
