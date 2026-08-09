@@ -6,9 +6,14 @@
 //
 // Esta funcao corre logo de seguida via Next.js `after()` (background,
 // nao bloqueia a resposta). Pega nas mensagens pendentes, fetch ao
-// graph.facebook.com para obter URL temporario (5min validade), download
-// dos bytes, upload para a Drive (FBR Root/WhatsApp media/<phone>/file)
+// Dualhook Runtime API (api.dualhook.com) para os metadados e para o
+// download dos bytes, upload para a Drive (FBR Root/WhatsApp media/<phone>/file)
 // e actualiza a linha com media_url_drive + media_pending=false.
+//
+// Migracao 09/08/2026: a partir de 12/08/2026 os pedidos de SAIDA que usam
+// a autorizacao Meta do Dualhook tem de ir por api.dualhook.com com a chave
+// dh_live_ (em WHATSAPP_ACCESS_TOKEN), senao a Meta rejeita-os. Os webhooks
+// de ENTRADA continuam a chegar directamente da Meta e nao sao afectados.
 //
 // Em caso de falha, marca media_pending=false (nao retentamos a mesma
 // mensagem para sempre — os URLs da Meta expiram em ~5min).
@@ -19,6 +24,9 @@ import { uploadWhatsappMedia } from "@/lib/google/drive";
 
 const BATCH_SIZE = 10;
 const META_GRAPH_VERSION = "v25.0";
+// Runtime API do Dualhook: mesmas rotas/payloads que a Graph API, mas assina
+// os pedidos com a proteccao ao nivel-app da Meta. Ver migracao acima.
+const WHATSAPP_API_BASE = "https://api.dualhook.com";
 
 type PendingMessage = {
   id: string;
@@ -84,9 +92,9 @@ async function fetchOne(
   phoneE164: string,
   accessToken: string,
 ): Promise<void> {
-  // 1. Metadados da media (incluindo URL temporario)
+  // 1. Metadados da media (mime_type / tamanho) via Runtime API do Dualhook.
   const metaRes = await fetch(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${msg.media_id}`,
+    `${WHATSAPP_API_BASE}/${META_GRAPH_VERSION}/${msg.media_id}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!metaRes.ok) {
@@ -98,12 +106,15 @@ async function fetchOne(
     mime_type?: string;
     file_size?: number;
   };
-  if (!metaData.url) throw new Error("Meta nao devolveu URL");
 
-  // 2. Download bytes
-  const fileRes = await fetch(metaData.url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  // 2. Download dos bytes pela rota /content do Dualhook. NAO seguimos o
+  // `url` temporario devolvido pela Meta: esse aponta para o CDN dela e
+  // exige o token Meta original, que ja nao temos com a chave dh_live_.
+  // A rota /content faz o download atraves do relay, com a mesma chave.
+  const fileRes = await fetch(
+    `${WHATSAPP_API_BASE}/${META_GRAPH_VERSION}/${msg.media_id}/content`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
   if (!fileRes.ok) throw new Error(`Download ${fileRes.status}`);
   const arrayBuffer = await fileRes.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
