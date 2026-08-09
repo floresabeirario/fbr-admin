@@ -18,7 +18,6 @@ import {
   FileText,
   Flower2,
   Globe,
-  Hand,
   Link2,
   ListTodo,
   Loader2,
@@ -27,6 +26,7 @@ import {
   Palette,
   Pencil,
   Plus,
+  Pointer,
   Square,
   Trash2,
   type LucideIcon,
@@ -1483,7 +1483,7 @@ function DraggableTaskTile({
                 className="text-[#C4A882] hover:text-indigo-600"
                 title="Dar um toque ao responsável (notificação)"
               >
-                <Hand className="h-3 w-3" />
+                <Pointer className="h-3 w-3" />
               </button>
             )}
             <button
