@@ -107,11 +107,16 @@ export function WorkbenchHeader({
           <span className="hidden sm:inline">Voltar</span>
         </Link>
 
-        <WorkbenchNavigator
-          navKey="orders"
-          currentId={local.order_id}
-          basePath="/preservacao"
-        />
+        {/* Setas anterior/próximo. Em mobile descem para o fim da linha de baixo
+            (order-last) para não roubar largura ao nome — a prioridade no topo é
+            o nome. Em sm+ ficam aqui, logo a seguir à seta de voltar. */}
+        <div className="order-last sm:order-none shrink-0">
+          <WorkbenchNavigator
+            navKey="orders"
+            currentId={local.order_id}
+            basePath="/preservacao"
+          />
+        </div>
 
         <Separator orientation="vertical" className="h-5 bg-cream-200 hidden sm:block" />
 
