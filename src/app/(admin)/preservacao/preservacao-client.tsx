@@ -32,6 +32,7 @@ import {
   Hand,
   Package,
   HelpCircle,
+  Wind,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -120,6 +121,7 @@ type ShippingColumn = "flores" | "quadro";
 import NovaEncomendaSheet from "./nova-encomenda-sheet";
 import {
   updateOrderAction,
+  setOrderInDehydratorAction,
   restoreOrderAction,
   hardDeleteOrderAction,
 } from "./actions";
@@ -1436,10 +1438,10 @@ export default function PreservacaoClient({
             <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} collapsible defaultCollapsed />
             <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
             <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
-            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
+            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto canEdit={canEdit} showDehydrator />
             <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
-            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
-            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} />
+            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto collapsible defaultCollapsed />
+            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
           </div>
         )}
 
@@ -1486,6 +1488,8 @@ function CardGroup({
   showPhoto = true,
   collapsible = false,
   defaultCollapsed = false,
+  showDehydrator = false,
+  canEdit = false,
 }: {
   title: string;
   orders: Order[];
@@ -1496,10 +1500,15 @@ function CardGroup({
   alert?: boolean;
   showPhoto?: boolean;
   // Grupos colapsáveis na vista de cards (Sem resposta / Pré-reservas /
-  // Reservas): começam fechados para reduzir ruído; abrem-se ao clicar no
-  // cabeçalho. Estado local — reabre-se sempre que se volta à vista.
+  // Reservas / Concluídos / Cancelamentos): começam fechados para reduzir
+  // ruído; abrem-se ao clicar no cabeçalho. Estado local — reabre-se sempre
+  // que se volta à vista.
   collapsible?: boolean;
   defaultCollapsed?: boolean;
+  // Sinal "no desidratador" nos cards — só na categoria "Preservação e
+  // design". Requer canEdit para o toggle (admins); viewer vê só o sinal.
+  showDehydrator?: boolean;
+  canEdit?: boolean;
 }) {
   const isEmpty = orders.length === 0;
   const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
@@ -1547,6 +1556,8 @@ function CardGroup({
               isLoading={loadingOrderId === o.id}
               showPhoto={showPhoto}
               currentEmail={currentEmail}
+              showDehydrator={showDehydrator}
+              canEdit={canEdit}
             />
           ))}
         </div>
@@ -1557,13 +1568,21 @@ function CardGroup({
 
 function OrderCard({
   order, onOpen, isLoading, showPhoto = true, currentEmail,
+  showDehydrator = false, canEdit = false,
 }: {
   order: Order;
   onOpen: (o: Order) => void;
   isLoading: boolean;
   showPhoto?: boolean;
   currentEmail: string | null;
+  showDehydrator?: boolean;
+  canEdit?: boolean;
 }) {
+  const router = useRouter();
+  const [dehydratorPending, startDehydratorTransition] = useTransition();
+  const [optimisticDehydrator, setOptimisticDehydrator] = useState<boolean | null>(null);
+  const inDehydrator = optimisticDehydrator ?? order.in_dehydrator ?? false;
+
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
   const eventAlertRelevant = isEventAlertRelevant(order.status);
@@ -1579,6 +1598,19 @@ function OrderCard({
   // workbench desta encomenda. Mensagem lida/não lida (mig 047).
   const isNew = !!currentEmail && !(order.seen_by ?? []).includes(currentEmail);
 
+  function toggleDehydrator() {
+    const next = !inDehydrator;
+    setOptimisticDehydrator(next);
+    startDehydratorTransition(async () => {
+      try {
+        await setOrderInDehydratorAction(order.id, next);
+        router.refresh();
+      } catch {
+        setOptimisticDehydrator(null);
+      }
+    });
+  }
+
   return (
     <button
       onClick={() => onOpen(order)}
@@ -1586,7 +1618,9 @@ function OrderCard({
         "group text-left rounded-2xl border overflow-hidden shadow-[0_1px_2px_rgba(61,43,31,0.04)] hover:shadow-md active:scale-[0.99] transition-all",
         isLoading
           ? "border-cocoa-500 ring-2 ring-[#C4A882]/30 bg-surface"
-          : "border-cream-200 bg-surface hover:border-cocoa-500",
+          : inDehydrator
+            ? "border-orange-300 ring-2 ring-orange-200 bg-orange-50/40 hover:border-orange-400"
+            : "border-cream-200 bg-surface hover:border-cocoa-500",
       )}
     >
       {showPhoto && (
@@ -1615,6 +1649,12 @@ function OrderCard({
             <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-amber-200 border border-amber-400 px-2 py-0.5 text-[10px] font-bold text-amber-900 shadow-sm">
               <Clock className="h-2.5 w-2.5" />
               {daysUntilEvent === 0 ? "Hoje" : `em ${daysUntilEvent}d`}
+            </div>
+          )}
+          {showDehydrator && inDehydrator && (
+            <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-orange-500/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+              <Wind className="h-2.5 w-2.5" />
+              Desidratador
             </div>
           )}
           {isLoading && (
@@ -1657,6 +1697,48 @@ function OrderCard({
           {order.event_date ? formatDate(order.event_date) : "Sem data"}
           {order.event_type && ` · ${EVENT_TYPE_LABELS[order.event_type]}`}
         </p>
+        {showDehydrator && (
+          canEdit ? (
+            // `<button>` dentro de `<button>` é HTML inválido — este toggle é
+            // um `<span role="button">` com stopPropagation para não abrir o
+            // workbench ao carregar. Só admins (canEdit) o vêem clicável.
+            <span
+              role="button"
+              tabIndex={0}
+              aria-pressed={inDehydrator}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!dehydratorPending) toggleDehydrator();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!dehydratorPending) toggleDehydrator();
+                }
+              }}
+              className={cn(
+                "mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-colors",
+                dehydratorPending && "opacity-50",
+                inDehydrator
+                  ? "border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-200"
+                  : "border-cream-200 bg-cream-50 text-cocoa-600 hover:bg-cream-100 hover:text-cocoa-800",
+              )}
+            >
+              {dehydratorPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Wind className="h-3 w-3" />
+              )}
+              {inDehydrator ? "Tirar do desidratador" : "Pôr no desidratador"}
+            </span>
+          ) : inDehydrator ? (
+            <span className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1 text-[10px] font-semibold text-orange-800">
+              <Wind className="h-3 w-3" />
+              No desidratador
+            </span>
+          ) : null
+        )}
       </div>
     </button>
   );

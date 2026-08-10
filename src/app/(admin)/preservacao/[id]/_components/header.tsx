@@ -16,6 +16,7 @@ import {
   Clock,
   Pencil,
   Trash2,
+  Wind,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ import {
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import type { Order } from "@/types/database";
-import { STATUS_LABELS } from "@/types/database";
+import { STATUS_LABELS, isPreservacaoDesignStatus } from "@/types/database";
 import { CheckRow, inp } from "./layout";
 import { StatusSelect } from "./fields";
 import type { UpdateFn, DuplicateOrderInfo } from "./shared";
@@ -228,6 +229,32 @@ export function WorkbenchHeader({
         <div className="order-1 sm:order-none flex-1 min-w-0 sm:flex-none sm:w-56">
           <StatusSelect value={local.status} onChange={onStatusChange} serviceType={local.service_type} />
         </div>
+
+        {/* Sinal "no desidratador" — só na fase Preservação e design. Só
+            interno; liga/desliga à mão. Admins alternam; viewer vê o selo. */}
+        {isPreservacaoDesignStatus(local.status) && (
+          canEdit ? (
+            <button
+              type="button"
+              aria-pressed={local.in_dehydrator}
+              onClick={() => update("in_dehydrator", !local.in_dehydrator)}
+              title={local.in_dehydrator ? "Tirar do desidratador" : "Pôr no desidratador"}
+              className={`order-1 sm:order-none inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold transition-colors shrink-0 ${
+                local.in_dehydrator
+                  ? "border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-200"
+                  : "border-cream-200 bg-cream-50 text-cocoa-600 hover:bg-cream-100 hover:text-cocoa-800"
+              }`}
+            >
+              <Wind className="h-3.5 w-3.5" />
+              {local.in_dehydrator ? "No desidratador" : "Desidratador"}
+            </button>
+          ) : local.in_dehydrator ? (
+            <span className="order-1 sm:order-none inline-flex items-center gap-1 rounded-lg border border-orange-300 bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800 shrink-0">
+              <Wind className="h-3.5 w-3.5" />
+              No desidratador
+            </span>
+          ) : null
+        )}
 
         {/* Prompts (Contactada / 40% / 30%): em mobile ficam na linha 2 (order-1);
             em sm+ `contents` dissolve o grupo e voltam a ser filhos directos na

@@ -54,6 +54,23 @@ export function isStatusAtOrAfter(status: OrderStatus, ref: OrderStatus): boolea
   return si >= ri;
 }
 
+// Estados que compõem a categoria "Preservação e design" — os únicos em que
+// a sinalização "no desidratador" faz sentido (as flores estão na prensa /
+// em reconstrução / a compor). Pura (sem ícones) para poder ser importada em
+// server actions sem arrastar dependências de UI. Espelha o agrupamento em
+// _styles.ts (STATUS_TO_GROUP_LABEL); manter em sincronia.
+export const PRESERVACAO_DESIGN_STATUSES: ReadonlySet<OrderStatus> = new Set<OrderStatus>([
+  "flores_na_prensa",
+  "reconstrucao_botanica",
+  "a_compor_design",
+  "a_aguardar_aprovacao",
+  "a_finalizar_quadro",
+]);
+
+export function isPreservacaoDesignStatus(status: OrderStatus): boolean {
+  return PRESERVACAO_DESIGN_STATUSES.has(status);
+}
+
 export type PaymentStatus =
   | "100_pago"
   | "70_pago"
@@ -209,6 +226,9 @@ export interface Order {
   status: OrderStatus;
   contacted: boolean;
   manually_no_response: boolean;
+  // Sinalização interna: encomenda está neste momento no desidratador
+  // (fase Preservação e design). Ligada/desligada à mão; sem site público.
+  in_dehydrator: boolean;
   budget: number | null;
   payment_status: PaymentStatus;
   nif: string | null;

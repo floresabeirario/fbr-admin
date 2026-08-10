@@ -25,6 +25,7 @@ import {
   upsertOrderCalendarEvent,
 } from "@/lib/google/order-calendar-trigger";
 import type { OrderInsert, OrderUpdate, OrderStatus, Order, PaymentStatus } from "@/types/database";
+import { isPreservacaoDesignStatus } from "@/types/database";
 import {
   detectTriggeredMoments,
   dueDateFromOffset,
@@ -306,6 +307,18 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       updates.coupon_code = await generateUniqueCouponCode(supabase);
       updates.coupon_status = "nao_utilizado";
     }
+  }
+
+  // "No desidratador" é um sinal que só vive na fase "Preservação e design".
+  // Se a encomenda sai dessa fase (avança para Finalização, é cancelada,
+  // etc.), o sinal deixa de fazer sentido — limpa-se para não ficar um flag
+  // fantasma escondido. Só quando o próprio update não está a mexer no flag.
+  if (
+    updates.status !== undefined &&
+    !isPreservacaoDesignStatus(updates.status) &&
+    updates.in_dehydrator === undefined
+  ) {
+    updates.in_dehydrator = false;
   }
 
   // Fetch ANTES do update para podermos detectar transições (1º pagamento,
@@ -929,6 +942,26 @@ export async function markOrderSeenAction(id: string): Promise<void> {
   } catch (err) {
     console.error("[markOrderSeenAction] Excepção:", err);
   }
+}
+
+/**
+ * Liga/desliga o sinal "no desidratador" de uma encomenda (cards e
+ * workbench). Sinalização SÓ interna da fase "Preservação e design";
+ * sem efeitos secundários (nada de push, calendário, cadência). Só admin.
+ */
+export async function setOrderInDehydratorAction(
+  id: string,
+  value: boolean,
+): Promise<void> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("orders")
+    .update({ in_dehydrator: value })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/preservacao");
+  revalidatePath(`/preservacao/${id}`);
 }
 
 export async function restoreOrderAction(id: string): Promise<void> {
