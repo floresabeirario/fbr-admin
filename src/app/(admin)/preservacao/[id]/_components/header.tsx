@@ -120,13 +120,23 @@ export function WorkbenchHeader({
             estado e Contactada/Nota descem para a linha de baixo. Em sm+ é flex-1
             como antes. */}
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm sm:text-base font-semibold text-cocoa-900 truncate leading-tight">
-            {local.client_name}
-          </h1>
+          {/* Em mobile o nome é tocável para copiar o ID (a linha do #ID fica
+              escondida para poupar altura); em desktop o #ID continua visível
+              por baixo. */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h1
+              onClick={copyId}
+              title="Tocar para copiar o ID da encomenda"
+              className="text-sm sm:text-base font-semibold text-cocoa-900 truncate leading-tight cursor-pointer"
+            >
+              {local.client_name}
+            </h1>
+            {copied && <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />}
+          </div>
           <div className="flex items-center gap-2 leading-tight">
             <button
               onClick={copyId}
-              className="font-mono text-[10px] text-cocoa-500 hover:text-cocoa-900 transition-colors flex items-center gap-1"
+              className="hidden sm:flex font-mono text-[10px] text-cocoa-500 hover:text-cocoa-900 transition-colors items-center gap-1"
               title="Copiar ID"
             >
               #{local.order_id}
@@ -137,7 +147,7 @@ export function WorkbenchHeader({
               onOpenChange={(v) => { setOrderIdPopoverOpen(v); if (v) setOrderIdDraft(local.order_id); }}
             >
               <PopoverTrigger
-                className="text-cocoa-500 hover:text-cocoa-900 transition-colors"
+                className="hidden sm:inline text-cocoa-500 hover:text-cocoa-900 transition-colors"
                 title="Editar ID"
               >
                 <Pencil className="h-3 w-3" />
@@ -171,6 +181,18 @@ export function WorkbenchHeader({
                 </div>
               </PopoverContent>
             </Popover>
+            {/* Tag do serviço — sempre visível quando não é preservação
+                normal. A troca faz-se no rodapé do workbench (MetaFooter). */}
+            {local.service_type === "recriacao" && (
+              <span className="inline-flex items-center rounded-full bg-violet-100 border border-violet-300 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800 uppercase tracking-wide shrink-0">
+                Recriação
+              </span>
+            )}
+            {local.service_type === "emoldurar_secas" && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide shrink-0">
+                Secas
+              </span>
+            )}
           </div>
         </div>
 
@@ -198,7 +220,7 @@ export function WorkbenchHeader({
             espaço livre (flex-1), truncando o texto se preciso — sem scroll
             horizontal. Em sm+ é fixo (w-56) como antes. */}
         <div className="flex-1 min-w-0 sm:flex-none sm:w-56">
-          <StatusSelect value={local.status} onChange={onStatusChange} />
+          <StatusSelect value={local.status} onChange={onStatusChange} serviceType={local.service_type} />
         </div>
 
 
