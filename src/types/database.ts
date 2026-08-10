@@ -71,6 +71,45 @@ export function isPreservacaoDesignStatus(status: OrderStatus): boolean {
   return PRESERVACAO_DESIGN_STATUSES.has(status);
 }
 
+// Janela do desidratador: as flores estão no desidratador só no ~1º mês
+// após entrarem na prensa. Passado esse mês o sinal deixa de fazer sentido
+// e o botão esconde-se. `floresNaPrensaAt` = timestamp da transição (trigger
+// BD, mig 100). Null (encomenda nunca esteve na prensa) → fora da janela.
+const DEHYDRATOR_WINDOW_MONTHS = 1;
+export function isWithinDehydratorWindow(
+  floresNaPrensaAt: string | null,
+  now: Date = new Date(),
+): boolean {
+  if (!floresNaPrensaAt) return false;
+  const start = new Date(floresNaPrensaAt);
+  if (Number.isNaN(start.getTime())) return false;
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + DEHYDRATOR_WINDOW_MONTHS);
+  return now.getTime() <= end.getTime();
+}
+
+// "Na prensa há 3 dias e 5 horas" — tempo decorrido desde a entrada na
+// prensa (`floresNaPrensaAt`). Devolve o texto pronto ("3 dias e 5 horas",
+// "5 horas", "1 dia"), ou null se não houver timestamp / for no futuro.
+export function formatTimeInPress(
+  floresNaPrensaAt: string | null,
+  now: Date = new Date(),
+): string | null {
+  if (!floresNaPrensaAt) return null;
+  const start = new Date(floresNaPrensaAt);
+  if (Number.isNaN(start.getTime())) return null;
+  const ms = now.getTime() - start.getTime();
+  if (ms < 0) return null;
+  const totalHours = Math.floor(ms / 3_600_000);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const dPart = days > 0 ? `${days} ${days === 1 ? "dia" : "dias"}` : null;
+  const hPart = `${hours} ${hours === 1 ? "hora" : "horas"}`;
+  if (dPart && hours > 0) return `${dPart} e ${hPart}`;
+  if (dPart) return dPart;
+  return hPart;
+}
+
 export type PaymentStatus =
   | "100_pago"
   | "70_pago"
@@ -229,6 +268,9 @@ export interface Order {
   // Sinalização interna: encomenda está neste momento no desidratador
   // (fase Preservação e design). Ligada/desligada à mão; sem site público.
   in_dehydrator: boolean;
+  // Momento em que entrou em "flores_na_prensa" (carimbado por trigger BD).
+  // Usado para a janela de 1 mês em que o sinal do desidratador aparece.
+  flores_na_prensa_at: string | null;
   budget: number | null;
   payment_status: PaymentStatus;
   nif: string | null;

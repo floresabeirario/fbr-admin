@@ -81,6 +81,8 @@ import {
   HOW_FOUND_FBR_LABELS,
   COUPON_STATUS_LABELS,
   COUPON_STATUS_COLORS,
+  isWithinDehydratorWindow,
+  formatTimeInPress,
 } from "@/types/database";
 import {
   applyFilters,
@@ -1582,6 +1584,13 @@ function OrderCard({
   const [dehydratorPending, startDehydratorTransition] = useTransition();
   const [optimisticDehydrator, setOptimisticDehydrator] = useState<boolean | null>(null);
   const inDehydrator = optimisticDehydrator ?? order.in_dehydrator ?? false;
+  // O controlo do desidratador só aparece na janela de ~1 mês após entrar na
+  // prensa. Fora dela mantém-se visível só se ainda estiver marcado (para a
+  // Maria o poder desligar); caso contrário desaparece.
+  const showDehydratorControl =
+    showDehydrator &&
+    (isWithinDehydratorWindow(order.flores_na_prensa_at) || inDehydrator);
+  const pressElapsed = formatTimeInPress(order.flores_na_prensa_at);
 
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
@@ -1651,7 +1660,7 @@ function OrderCard({
               {daysUntilEvent === 0 ? "Hoje" : `em ${daysUntilEvent}d`}
             </div>
           )}
-          {showDehydrator && inDehydrator && (
+          {showDehydratorControl && inDehydrator && (
             <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-orange-500/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
               <Wind className="h-2.5 w-2.5" />
               Desidratador
@@ -1697,7 +1706,13 @@ function OrderCard({
           {order.event_date ? formatDate(order.event_date) : "Sem data"}
           {order.event_type && ` · ${EVENT_TYPE_LABELS[order.event_type]}`}
         </p>
-        {showDehydrator && (
+        {showDehydrator && pressElapsed && (
+          <p className="text-[10px] text-cocoa-500 truncate mt-0.5 flex items-center gap-1">
+            <Clock className="h-2.5 w-2.5 shrink-0" />
+            Na prensa há {pressElapsed}
+          </p>
+        )}
+        {showDehydratorControl && (
           canEdit ? (
             // `<button>` dentro de `<button>` é HTML inválido — este toggle é
             // um `<span role="button">` com stopPropagation para não abrir o

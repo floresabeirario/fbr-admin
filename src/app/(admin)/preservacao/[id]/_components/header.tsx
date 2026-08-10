@@ -29,7 +29,12 @@ import {
 import WorkbenchNavigator from "@/components/workbench-navigator";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import type { Order } from "@/types/database";
-import { STATUS_LABELS, isPreservacaoDesignStatus } from "@/types/database";
+import {
+  STATUS_LABELS,
+  isPreservacaoDesignStatus,
+  isWithinDehydratorWindow,
+  formatTimeInPress,
+} from "@/types/database";
 import { CheckRow, inp } from "./layout";
 import { StatusSelect } from "./fields";
 import type { UpdateFn, DuplicateOrderInfo } from "./shared";
@@ -230,9 +235,11 @@ export function WorkbenchHeader({
           <StatusSelect value={local.status} onChange={onStatusChange} serviceType={local.service_type} />
         </div>
 
-        {/* Sinal "no desidratador" — só na fase Preservação e design. Só
-            interno; liga/desliga à mão. Admins alternam; viewer vê o selo. */}
-        {isPreservacaoDesignStatus(local.status) && (
+        {/* Sinal "no desidratador" — só na fase Preservação e design e na
+            janela de ~1 mês após entrar na prensa (mantém-se se ainda estiver
+            marcado, para se poder desligar). Só interno; liga/desliga à mão. */}
+        {isPreservacaoDesignStatus(local.status) &&
+          (isWithinDehydratorWindow(local.flores_na_prensa_at) || local.in_dehydrator) && (
           canEdit ? (
             <button
               type="button"
@@ -254,6 +261,14 @@ export function WorkbenchHeader({
               No desidratador
             </span>
           ) : null
+        )}
+
+        {/* "Na prensa há X dias e X horas" — enquanto está na fase de design. */}
+        {isPreservacaoDesignStatus(local.status) && formatTimeInPress(local.flores_na_prensa_at) && (
+          <span className="order-1 sm:order-none inline-flex items-center gap-1 text-[11px] text-cocoa-500 shrink-0" title="Tempo desde que entrou na prensa">
+            <Clock className="h-3 w-3" />
+            Na prensa há {formatTimeInPress(local.flores_na_prensa_at)}
+          </span>
         )}
 
         {/* Prompts (Contactada / 40% / 30%): em mobile ficam na linha 2 (order-1);
