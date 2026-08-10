@@ -88,26 +88,28 @@ export function isWithinDehydratorWindow(
   return now.getTime() <= end.getTime();
 }
 
-// "Na prensa há 3 dias e 5 horas" — tempo decorrido desde a entrada na
-// prensa (`floresNaPrensaAt`). Devolve o texto pronto ("3 dias e 5 horas",
-// "5 horas", "1 dia"), ou null se não houver timestamp / for no futuro.
-export function formatTimeInPress(
-  floresNaPrensaAt: string | null,
+// Tempo decorrido desde `iso` em texto pronto: "3 dias e 5 horas", "5 horas",
+// "1 dia", "34 minutos". Devolve null se não houver timestamp / for no futuro.
+// Usado para "No desidratador há X" (mede desde in_dehydrator_at).
+export function formatElapsedSince(
+  iso: string | null,
   now: Date = new Date(),
 ): string | null {
-  if (!floresNaPrensaAt) return null;
-  const start = new Date(floresNaPrensaAt);
+  if (!iso) return null;
+  const start = new Date(iso);
   if (Number.isNaN(start.getTime())) return null;
   const ms = now.getTime() - start.getTime();
   if (ms < 0) return null;
-  const totalHours = Math.floor(ms / 3_600_000);
+  const totalMinutes = Math.floor(ms / 60_000);
+  const totalHours = Math.floor(totalMinutes / 60);
   const days = Math.floor(totalHours / 24);
   const hours = totalHours % 24;
-  const dPart = days > 0 ? `${days} ${days === 1 ? "dia" : "dias"}` : null;
-  const hPart = `${hours} ${hours === 1 ? "hora" : "horas"}`;
-  if (dPart && hours > 0) return `${dPart} e ${hPart}`;
-  if (dPart) return dPart;
-  return hPart;
+  if (days > 0) {
+    const dPart = `${days} ${days === 1 ? "dia" : "dias"}`;
+    return hours > 0 ? `${dPart} e ${hours} ${hours === 1 ? "hora" : "horas"}` : dPart;
+  }
+  if (totalHours > 0) return `${totalHours} ${totalHours === 1 ? "hora" : "horas"}`;
+  return `${totalMinutes} ${totalMinutes === 1 ? "minuto" : "minutos"}`;
 }
 
 export type PaymentStatus =
@@ -268,6 +270,9 @@ export interface Order {
   // Sinalização interna: encomenda está neste momento no desidratador
   // (fase Preservação e design). Ligada/desligada à mão; sem site público.
   in_dehydrator: boolean;
+  // Momento em que foi posta no desidratador (carimbado por trigger BD).
+  // NULL quando não está. Usado para "no desidratador há X".
+  in_dehydrator_at: string | null;
   // Momento em que entrou em "flores_na_prensa" (carimbado por trigger BD).
   // Usado para a janela de 1 mês em que o sinal do desidratador aparece.
   flores_na_prensa_at: string | null;

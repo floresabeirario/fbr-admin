@@ -82,7 +82,7 @@ import {
   COUPON_STATUS_LABELS,
   COUPON_STATUS_COLORS,
   isWithinDehydratorWindow,
-  formatTimeInPress,
+  formatElapsedSince,
 } from "@/types/database";
 import {
   applyFilters,
@@ -1590,7 +1590,8 @@ function OrderCard({
   const showDehydratorControl =
     showDehydrator &&
     (isWithinDehydratorWindow(order.flores_na_prensa_at) || inDehydrator);
-  const pressElapsed = formatTimeInPress(order.flores_na_prensa_at);
+  // "No desidratador há X" — só quando está marcada e temos o carimbo.
+  const dehydratorElapsed = inDehydrator ? formatElapsedSince(order.in_dehydrator_at) : null;
 
   const daysUntilEvent =
     order.event_date ? differenceInCalendarDays(parseISO(order.event_date), new Date()) : null;
@@ -1706,10 +1707,10 @@ function OrderCard({
           {order.event_date ? formatDate(order.event_date) : "Sem data"}
           {order.event_type && ` · ${EVENT_TYPE_LABELS[order.event_type]}`}
         </p>
-        {showDehydrator && pressElapsed && (
-          <p className="text-[10px] text-cocoa-500 truncate mt-0.5 flex items-center gap-1">
+        {dehydratorElapsed && (
+          <p className="text-[10px] text-orange-700 truncate mt-0.5 flex items-center gap-1">
             <Clock className="h-2.5 w-2.5 shrink-0" />
-            Na prensa há {pressElapsed}
+            No desidratador há {dehydratorElapsed}
           </p>
         )}
         {showDehydratorControl && (

@@ -33,7 +33,7 @@ import {
   STATUS_LABELS,
   isPreservacaoDesignStatus,
   isWithinDehydratorWindow,
-  formatTimeInPress,
+  formatElapsedSince,
 } from "@/types/database";
 import { CheckRow, inp } from "./layout";
 import { StatusSelect } from "./fields";
@@ -263,11 +263,11 @@ export function WorkbenchHeader({
           ) : null
         )}
 
-        {/* "Na prensa há X dias e X horas" — enquanto está na fase de design. */}
-        {isPreservacaoDesignStatus(local.status) && formatTimeInPress(local.flores_na_prensa_at) && (
-          <span className="order-1 sm:order-none inline-flex items-center gap-1 text-[11px] text-cocoa-500 shrink-0" title="Tempo desde que entrou na prensa">
+        {/* "No desidratador há X dias e X horas" — só quando está marcada. */}
+        {local.in_dehydrator && formatElapsedSince(local.in_dehydrator_at) && (
+          <span className="order-1 sm:order-none inline-flex items-center gap-1 text-[11px] text-orange-700 shrink-0" title="Tempo desde que foi posta no desidratador">
             <Clock className="h-3 w-3" />
-            Na prensa há {formatTimeInPress(local.flores_na_prensa_at)}
+            No desidratador há {formatElapsedSince(local.in_dehydrator_at)}
           </span>
         )}
 
