@@ -1549,11 +1549,9 @@ function CardGroup({
   const isEmpty = orders.length === 0;
   const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
   const showGrid = !collapsed && !isEmpty;
-  // Mais recentes em cima (por data de criação) quando ligado; caso
-  // contrário mantém a ordem que veio (por data do evento).
-  const displayOrders = newestFirst
-    ? [...orders].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
-    : orders;
+  // Inverte a ordem em que o grupo veio (por data do evento, ascendente):
+  // como os eventos já passaram, inverter põe os mais recentes em cima.
+  const displayOrders = newestFirst ? [...orders].reverse() : orders;
 
   const header = (
     <>
