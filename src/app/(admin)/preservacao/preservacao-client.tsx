@@ -1335,7 +1335,10 @@ export default function PreservacaoClient({
           if (showArchived) return null;
           const hasSecas = initialOrders.some((o) => (o.service_type ?? "preservacao") === "emoldurar_secas");
           const hasRecriacao = initialOrders.some((o) => (o.service_type ?? "preservacao") === "recriacao");
-          if (!hasSecas && !hasRecriacao) return null;
+          const hasServiceFilter = hasSecas || hasRecriacao;
+          // O botão de ordenação só faz sentido na vista Cards.
+          const showOrderBtn = activeView === "cards";
+          if (!hasServiceFilter && !showOrderBtn) return null;
           const options: Array<["todos" | ServiceType, string]> = [
             ["todos", "Todos"],
             ["preservacao", "Preservação"],
@@ -1343,26 +1346,49 @@ export default function PreservacaoClient({
             ...(hasSecas ? [["emoldurar_secas", "Flores secas"] as ["emoldurar_secas", string]] : []),
           ];
           return (
-            <div className="mb-4 inline-flex rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
-              {options.map(([value, label]) => (
+            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+              {hasServiceFilter ? (
+                <div className="inline-flex rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
+                  {options.map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setServiceFilter(value)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md font-medium transition-colors",
+                        serviceFilter === value
+                          ? value === "emoldurar_secas"
+                            ? "bg-amber-100 text-amber-800"
+                            : value === "recriacao"
+                            ? "bg-violet-100 text-violet-800"
+                            : "bg-surface text-cocoa-900 shadow-sm"
+                          : "text-cocoa-500 hover:text-cocoa-800",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span />
+              )}
+              {showOrderBtn && (
                 <button
-                  key={value}
                   type="button"
-                  onClick={() => setServiceFilter(value)}
+                  onClick={() => setCardsNewestFirst(!cardsNewestFirst)}
+                  aria-pressed={cardsNewestFirst}
+                  title={cardsNewestFirst ? "A mostrar os mais recentes primeiro" : "Ordenar com os mais recentes primeiro"}
                   className={cn(
-                    "px-3 py-1.5 rounded-md font-medium transition-colors",
-                    serviceFilter === value
-                      ? value === "emoldurar_secas"
-                        ? "bg-amber-100 text-amber-800"
-                        : value === "recriacao"
-                        ? "bg-violet-100 text-violet-800"
-                        : "bg-surface text-cocoa-900 shadow-sm"
-                      : "text-cocoa-500 hover:text-cocoa-800",
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors shrink-0",
+                    cardsNewestFirst
+                      ? "border-cocoa-500 bg-cream-100 text-cocoa-900"
+                      : "border-cream-200 bg-surface text-cocoa-700 hover:bg-cream-50",
                   )}
                 >
-                  {label}
+                  <ArrowDownUp className="h-3.5 w-3.5" />
+                  {cardsNewestFirst ? "Mais recentes primeiro" : "Ordem por defeito"}
                 </button>
-              ))}
+              )}
             </div>
           );
         })()}
@@ -1438,23 +1464,6 @@ export default function PreservacaoClient({
 
         {!showArchived && activeView === "cards" && (
           <div className="space-y-6">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setCardsNewestFirst(!cardsNewestFirst)}
-                aria-pressed={cardsNewestFirst}
-                title={cardsNewestFirst ? "A mostrar os mais recentes primeiro" : "Ordenar com os mais recentes primeiro"}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
-                  cardsNewestFirst
-                    ? "border-cocoa-500 bg-cream-100 text-cocoa-900"
-                    : "border-cream-200 bg-surface text-cocoa-700 hover:bg-cream-50",
-                )}
-              >
-                <ArrowDownUp className="h-3.5 w-3.5" />
-                {cardsNewestFirst ? "Mais recentes primeiro" : "Ordem por defeito"}
-              </button>
-            </div>
             {grouped.orfas.length > 0 && (
               <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} newestFirst={cardsNewestFirst} />
             )}
