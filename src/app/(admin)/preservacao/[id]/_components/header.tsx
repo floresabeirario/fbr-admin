@@ -201,10 +201,11 @@ export function WorkbenchHeader({
           </div>
         </div>
 
-        {/* Quebra só em mobile: o nome fica sozinho na linha do topo (com a seta
-            e o navegador ◀ n/N ▶); estado, alertas e Contactada/Nota descem para
-            a linha de baixo, para o nome não ser espremido. */}
-        <div className="basis-full h-0 sm:hidden" aria-hidden />
+        {/* Quebra só em mobile: linha 1 = seta + nome + Nota (ícone); estado,
+            Contactada e setas descem para a linha 2. É `order-1` para vir depois
+            da Nota (order-0) na ordenação do flex-wrap. sm:order-none é inócuo
+            (o elemento é sm:hidden). */}
+        <div className="order-1 sm:order-none basis-full h-0 sm:hidden" aria-hidden />
 
         {/* Alertas de evento: escondidos no cabeçalho em mobile (o hero já mostra
             o mesmo aviso a vermelho por baixo da data) para poupar espaço. */}
@@ -221,34 +222,40 @@ export function WorkbenchHeader({
           </div>
         )}
 
-        {/* Em mobile o estado fica na linha de baixo e cresce para preencher o
-            espaço livre (flex-1), truncando o texto se preciso — sem scroll
-            horizontal. Em sm+ é fixo (w-56) como antes. */}
-        <div className="flex-1 min-w-0 sm:flex-none sm:w-56">
+        {/* Em mobile o estado fica na linha 2 (order-1, depois da quebra) e cresce
+            para preencher o espaço livre (flex-1), truncando o texto se preciso —
+            sem scroll horizontal. Em sm+ é fixo (w-56) e volta à ordem natural. */}
+        <div className="order-1 sm:order-none flex-1 min-w-0 sm:flex-none sm:w-56">
           <StatusSelect value={local.status} onChange={onStatusChange} serviceType={local.service_type} />
         </div>
 
-
-        {showContactadaPrompt && (
-          <CheckRow
-            label="Contactada"
-            checked={local.contacted}
-            onChange={(v) => update("contacted", v)}
-          />
-        )}
-        {show40Prompt && (
-          <CheckRow
-            label="40% pedidos?"
-            checked={local.payment_40_requested}
-            onChange={(v) => update("payment_40_requested", v)}
-          />
-        )}
-        {show30Prompt && (
-          <CheckRow
-            label="30% pedidos?"
-            checked={local.payment_30_requested}
-            onChange={(v) => update("payment_30_requested", v)}
-          />
+        {/* Prompts (Contactada / 40% / 30%): em mobile ficam na linha 2 (order-1);
+            em sm+ `contents` dissolve o grupo e voltam a ser filhos directos na
+            ordem natural. */}
+        {(showContactadaPrompt || show40Prompt || show30Prompt) && (
+          <div className="order-1 sm:order-none sm:contents flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            {showContactadaPrompt && (
+              <CheckRow
+                label="Contactada"
+                checked={local.contacted}
+                onChange={(v) => update("contacted", v)}
+              />
+            )}
+            {show40Prompt && (
+              <CheckRow
+                label="40% pedidos?"
+                checked={local.payment_40_requested}
+                onChange={(v) => update("payment_40_requested", v)}
+              />
+            )}
+            {show30Prompt && (
+              <CheckRow
+                label="30% pedidos?"
+                checked={local.payment_30_requested}
+                onChange={(v) => update("payment_30_requested", v)}
+              />
+            )}
+          </div>
         )}
 
         <div className="hidden sm:block w-24 shrink-0 text-right text-xs">
