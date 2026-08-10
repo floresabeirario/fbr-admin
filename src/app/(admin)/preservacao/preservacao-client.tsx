@@ -33,6 +33,7 @@ import {
   Package,
   HelpCircle,
   Wind,
+  ArrowDownUp,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -996,6 +997,9 @@ export default function PreservacaoClient({
   // Vista activa persistida: abrir uma encomenda e voltar traz de volta a
   // mesma vista (Cards continua Cards), em vez de recair sempre na tabela.
   const activeView = viewsState.activeView;
+  // Ordem dos cards: mais recentes (por criação) em cima quando ligado.
+  const cardsNewestFirst = viewsState.cardsNewestFirst;
+  const setCardsNewestFirst = (v: boolean) => updateViewsStorage({ cardsNewestFirst: v });
   const setExtraColumns = (v: ColumnKey[]) => updateViewsStorage({ activeColumns: v });
   const setFilters = (f: FilterConfig) => updateViewsStorage({ filters: f });
   const setSavedViews = (v: SavedView[]) => updateViewsStorage({ views: v });
@@ -1434,16 +1438,33 @@ export default function PreservacaoClient({
 
         {!showArchived && activeView === "cards" && (
           <div className="space-y-6">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCardsNewestFirst(!cardsNewestFirst)}
+                aria-pressed={cardsNewestFirst}
+                title={cardsNewestFirst ? "A mostrar os mais recentes primeiro" : "Ordenar com os mais recentes primeiro"}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  cardsNewestFirst
+                    ? "border-cocoa-500 bg-cream-100 text-cocoa-900"
+                    : "border-cream-200 bg-surface text-cocoa-700 hover:bg-cream-50",
+                )}
+              >
+                <ArrowDownUp className="h-3.5 w-3.5" />
+                {cardsNewestFirst ? "Mais recentes primeiro" : "Ordem por defeito"}
+              </button>
+            </div>
             {grouped.orfas.length > 0 && (
-              <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} />
+              <CardGroup title="Sem grupo (estado desconhecido)" orders={grouped.orfas} colorClass="text-red-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} newestFirst={cardsNewestFirst} />
             )}
-            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} collapsible defaultCollapsed />
-            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
-            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
-            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto canEdit={canEdit} showDehydrator />
-            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto />
-            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto collapsible defaultCollapsed />
-            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed />
+            <CardGroup title="Sem resposta"         orders={grouped.sem_resposta}        colorClass="text-red-600"    onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} alert showPhoto={false} collapsible defaultCollapsed newestFirst={cardsNewestFirst} />
+            <CardGroup title="Pré-reservas"         orders={grouped.pre_reservas}        colorClass="text-amber-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed newestFirst={cardsNewestFirst} />
+            <CardGroup title="Reservas"             orders={grouped.reservas}            colorClass="text-blue-700"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed newestFirst={cardsNewestFirst} />
+            <CardGroup title="Preservação e design" orders={grouped.preservacao_design}  colorClass="text-purple-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto canEdit={canEdit} showDehydrator newestFirst={cardsNewestFirst} />
+            <CardGroup title="Finalização"          orders={grouped.finalizacao}         colorClass="text-orange-700" onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto newestFirst={cardsNewestFirst} />
+            <CardGroup title="Concluídos"           orders={grouped.concluidos}          colorClass="text-green-700"  onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto collapsible defaultCollapsed newestFirst={cardsNewestFirst} />
+            <CardGroup title="Cancelamentos"        orders={grouped.cancelamentos}       colorClass="text-gray-500"   onOpenOrder={openOrder} loadingOrderId={navigatingId} currentEmail={currentEmail} showPhoto={false} collapsible defaultCollapsed newestFirst={cardsNewestFirst} />
           </div>
         )}
 
@@ -1492,6 +1513,7 @@ function CardGroup({
   defaultCollapsed = false,
   showDehydrator = false,
   canEdit = false,
+  newestFirst = false,
 }: {
   title: string;
   orders: Order[];
@@ -1501,6 +1523,9 @@ function CardGroup({
   currentEmail: string | null;
   alert?: boolean;
   showPhoto?: boolean;
+  // Ordena os items deste grupo com os mais recentes (por data de criação)
+  // em cima. Só a ordem interna muda — os grupos ficam na mesma ordem.
+  newestFirst?: boolean;
   // Grupos colapsáveis na vista de cards (Sem resposta / Pré-reservas /
   // Reservas / Concluídos / Cancelamentos): começam fechados para reduzir
   // ruído; abrem-se ao clicar no cabeçalho. Estado local — reabre-se sempre
@@ -1515,6 +1540,11 @@ function CardGroup({
   const isEmpty = orders.length === 0;
   const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
   const showGrid = !collapsed && !isEmpty;
+  // Mais recentes em cima (por data de criação) quando ligado; caso
+  // contrário mantém a ordem que veio (por data do evento).
+  const displayOrders = newestFirst
+    ? [...orders].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+    : orders;
 
   const header = (
     <>
@@ -1550,7 +1580,7 @@ function CardGroup({
       )}
       {showGrid && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {orders.map((o) => (
+          {displayOrders.map((o) => (
             <OrderCard
               key={o.id}
               order={o}
@@ -1664,7 +1694,7 @@ function OrderCard({
           {showDehydratorControl && inDehydrator && (
             <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-orange-500/95 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
               <Wind className="h-2.5 w-2.5" />
-              Desidratador
+              No desidratador
             </div>
           )}
           {isLoading && (

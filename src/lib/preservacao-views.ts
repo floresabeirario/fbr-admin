@@ -144,6 +144,9 @@ interface StorageShape {
   views: SavedView[];
   activeViewId: string | null;
   activeView: PreservacaoView;
+  // Vista Cards: ordenar os items de cada grupo com os mais recentes em cima
+  // (por data de criação, descendente) em vez da ordem por defeito. Persistido.
+  cardsNewestFirst: boolean;
 }
 
 function emptyShape(): StorageShape {
@@ -153,6 +156,7 @@ function emptyShape(): StorageShape {
     views: [],
     activeViewId: null,
     activeView: "tabela",
+    cardsNewestFirst: false,
   };
 }
 
@@ -172,6 +176,7 @@ function parseStorage(raw: string | null): StorageShape {
       activeView: PRESERVACAO_VIEWS.includes(parsed.activeView as PreservacaoView)
         ? (parsed.activeView as PreservacaoView)
         : "tabela",
+      cardsNewestFirst: parsed.cardsNewestFirst === true,
     };
   } catch {
     return emptyShape();
