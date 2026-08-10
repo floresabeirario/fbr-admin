@@ -12,14 +12,18 @@ import {
 
 // ============================================================
 // Guarda de drift: a fase pública tem uma fonte única em runtime
-// (a RPC get_public_order_status, migração 092) que o fbr-tracking
-// consome. O admin mantém public-status.ts para a sua UI síncrona.
-// Este teste garante que os dois NÃO divergem — se editares um sem
-// o outro, o preflight apita. Ver docs/ECOSYSTEM.md #1.
+// (a RPC get_public_order_status) que o fbr-tracking consome. O admin
+// mantém public-status.ts para a sua UI síncrona. Este teste garante
+// que os dois NÃO divergem — se editares um sem o outro, o preflight
+// apita. Ver docs/ECOSYSTEM.md #1.
+//
+// Aponta para a migração mais recente que (re)define a RPC. A 092
+// criou-a; a 097 redefiniu-a (acrescentou service_type ao output) e é
+// agora a definição VIVA — os labels/mensagens continuam idênticos.
 // ============================================================
 
 const SQL = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "092_public_phase_defs.sql"),
+  join(process.cwd(), "supabase", "migrations", "097_public_status_service_type.sql"),
   "utf8",
 );
 

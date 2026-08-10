@@ -130,6 +130,7 @@ import {
   PAYMENT_COLORS,
   PAYMENT_DOT_COLORS,
   isEventAlertRelevant,
+  isStatusHiddenForService,
 } from "./_styles";
 import CalendarView from "./calendar-view";
 import TimelineView from "./timeline-view";
@@ -153,12 +154,16 @@ export function StatusSelect({
   busy,
   size = "sm",
   disabled = false,
+  serviceType,
 }: {
   value: OrderStatus;
   onChange: (s: OrderStatus) => void;
   busy?: boolean;
   size?: "sm" | "md";
   disabled?: boolean;
+  // Esconde estados que não se aplicam ao serviço (ex.: "Flores na prensa"
+  // nas flores já secas). Ausente → preservação, nada escondido.
+  serviceType?: string | null;
 }) {
   const colorClass = STATUS_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
   const heightClass = size === "md" ? "h-8 text-xs" : "h-7 text-[11px]";
@@ -192,7 +197,12 @@ export function StatusSelect({
         onClick={(e) => e.stopPropagation()}
         className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-cream-200"
       >
-        {STATUS_GROUPS.map((group, gi) => (
+        {STATUS_GROUPS.map((g) => ({
+          ...g,
+          statuses: g.statuses.filter((s) => !isStatusHiddenForService(s, serviceType)),
+        }))
+          .filter((g) => g.statuses.length > 0)
+          .map((group, gi) => (
           <div key={group.label}>
             {gi > 0 && <SelectSeparator className="bg-cream-200 my-0" />}
             <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-cocoa-500">
@@ -559,6 +569,14 @@ function OrderRow({
                   Secas
                 </span>
               )}
+              {order.service_type === "recriacao" && (
+                <span
+                  className="inline-flex items-center rounded-full bg-violet-100 border border-violet-300 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800 uppercase tracking-wide shrink-0"
+                  title="Serviço: recriação"
+                >
+                  Recriação
+                </span>
+              )}
               {isNew && (
                 <span
                   className="inline-flex items-center rounded-full bg-sky-100 border border-sky-300 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 uppercase tracking-wide shrink-0"
@@ -692,6 +710,7 @@ function OrderRow({
           onChange={changeStatus}
           busy={isPending && optimisticStatus !== null}
           disabled={!canEdit}
+          serviceType={order.service_type}
         />
       </td>
       {extraColumns.map((c) => (
@@ -1301,32 +1320,44 @@ export default function PreservacaoClient({
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto p-3 sm:p-6">
         {/* Filtro por tipo de serviço — só aparece quando há encomendas de
-            flores secas (senão é ruído para quem só tem preservação). */}
-        {!showArchived && initialOrders.some((o) => (o.service_type ?? "preservacao") === "emoldurar_secas") && (
-          <div className="mb-4 inline-flex rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
-            {([
-              ["todos", "Todos"],
-              ["preservacao", "Preservação"],
-              ["emoldurar_secas", "Flores secas"],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setServiceFilter(value)}
-                className={cn(
-                  "px-3 py-1.5 rounded-md font-medium transition-colors",
-                  serviceFilter === value
-                    ? value === "emoldurar_secas"
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-surface text-cocoa-900 shadow-sm"
-                    : "text-cocoa-500 hover:text-cocoa-800",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
+            outro serviço além da preservação (senão é ruído). As abas dos
+            serviços especiais só surgem se existir pelo menos uma encomenda
+            desse tipo. */}
+        {(() => {
+          if (showArchived) return null;
+          const hasSecas = initialOrders.some((o) => (o.service_type ?? "preservacao") === "emoldurar_secas");
+          const hasRecriacao = initialOrders.some((o) => (o.service_type ?? "preservacao") === "recriacao");
+          if (!hasSecas && !hasRecriacao) return null;
+          const options: Array<["todos" | ServiceType, string]> = [
+            ["todos", "Todos"],
+            ["preservacao", "Preservação"],
+            ...(hasRecriacao ? [["recriacao", "Recriação"] as ["recriacao", string]] : []),
+            ...(hasSecas ? [["emoldurar_secas", "Flores secas"] as ["emoldurar_secas", string]] : []),
+          ];
+          return (
+            <div className="mb-4 inline-flex rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
+              {options.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setServiceFilter(value)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md font-medium transition-colors",
+                    serviceFilter === value
+                      ? value === "emoldurar_secas"
+                        ? "bg-amber-100 text-amber-800"
+                        : value === "recriacao"
+                        ? "bg-violet-100 text-violet-800"
+                        : "bg-surface text-cocoa-900 shadow-sm"
+                      : "text-cocoa-500 hover:text-cocoa-800",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Rede de segurança: aviso global se houver encomendas com estado
             desconhecido. Aparece em todas as vistas (tabela, cards, calendário,

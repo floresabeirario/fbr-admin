@@ -21,6 +21,7 @@ import {
   COUPON_STATUS_COLORS,
   CLIENT_FEEDBACK_STATUS_LABELS,
   CLIENT_FEEDBACK_STATUS_COLORS,
+  SERVICE_TYPE_LABELS,
   isStatusAtOrAfter,
 } from "@/types/database";
 import { Card, CardSummary, Field, inp, sel } from "./layout";
@@ -153,18 +154,59 @@ export function CouponCard({ local, update }: { local: Order; update: UpdateFn }
   );
 }
 
-export function MetaFooter({ local }: { local: Order }) {
+export function MetaFooter({
+  local,
+  canEdit,
+  update,
+}: {
+  local: Order;
+  canEdit: boolean;
+  update: UpdateFn;
+}) {
+  // Flores secas têm form/campos/fotos próprios — não se convertem aqui à
+  // mão (mostra-se só o selo). Preservação ↔ Recriação é uma etiqueta
+  // interna livre (mesmos preços, estados e status público).
+  const isDried = local.service_type === "emoldurar_secas";
   return (
-    <div className="order-[15] lg:order-none rounded-xl border border-cream-200 bg-surface px-4 py-3 space-y-1">
-      <p className="text-[10px] text-cocoa-500">
-        Criada em {formatDateTimeLisbon(local.created_at)}
-      </p>
-      {local.updated_at && local.updated_at !== local.created_at && (
+    <div className="order-[15] lg:order-none rounded-xl border border-cream-200 bg-surface px-4 py-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-cocoa-500">
+          Tipo de serviço
+        </span>
+        {isDried ? (
+          <span className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+            Flores secas
+          </span>
+        ) : canEdit ? (
+          <Select
+            value={local.service_type ?? "preservacao"}
+            onValueChange={(v) => update("service_type", v as Order["service_type"])}
+          >
+            <SelectTrigger className="h-7 w-40 text-xs border-cream-200 bg-cream-50 text-cocoa-900 rounded-lg">
+              <SelectValue labels={SERVICE_TYPE_LABELS} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="preservacao">{SERVICE_TYPE_LABELS.preservacao}</SelectItem>
+              <SelectItem value="recriacao">{SERVICE_TYPE_LABELS.recriacao}</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-[11px] font-medium text-cocoa-700">
+            {SERVICE_TYPE_LABELS[local.service_type ?? "preservacao"]}
+          </span>
+        )}
+      </div>
+      <div className="space-y-1 pt-1 border-t border-cream-100">
         <p className="text-[10px] text-cocoa-500">
-          Actualizada em {formatDateTimeLisbon(local.updated_at)}
+          Criada em {formatDateTimeLisbon(local.created_at)}
         </p>
-      )}
-      <p className="font-mono text-[10px] text-[#D0C4B8]">{local.order_id}</p>
+        {local.updated_at && local.updated_at !== local.created_at && (
+          <p className="text-[10px] text-cocoa-500">
+            Actualizada em {formatDateTimeLisbon(local.updated_at)}
+          </p>
+        )}
+        <p className="font-mono text-[10px] text-[#D0C4B8]">{local.order_id}</p>
+      </div>
     </div>
   );
 }

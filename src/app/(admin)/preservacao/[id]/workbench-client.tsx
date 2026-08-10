@@ -486,7 +486,7 @@ export default function WorkbenchClient({
               <PartnershipCard local={local} partners={partners} update={update} onPartnerChange={onPartnerChange} />
               <DeliveryFeedbackCard local={local} update={update} />
               <CouponCard local={local} update={update} />
-              <MetaFooter local={local} />
+              <MetaFooter local={local} canEdit={canEdit} update={update} />
 
             </aside>
 

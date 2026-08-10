@@ -48,6 +48,7 @@ import {
   SIM_NAO_LABELS,
 } from "@/types/database";
 import { Field, inp, sel } from "./layout";
+import { isStatusHiddenForService } from "../../_styles";
 
 // ── Cores e ícones por estado ─────────────────────────────────
 // (Sincronizar com preservacao-client.tsx — devem coincidir.)
@@ -329,9 +330,13 @@ export function CalendarEventShortcut({
 export function StatusSelect({
   value,
   onChange,
+  serviceType,
 }: {
   value: keyof typeof STATUS_LABELS;
   onChange: (v: keyof typeof STATUS_LABELS) => void;
+  // Esconde estados que não se aplicam ao serviço (ex.: "Flores na prensa"
+  // nas flores já secas). Ausente → preservação, nada escondido.
+  serviceType?: string | null;
 }) {
   const colorClass = STATUS_COLORS[value] ?? "bg-gray-100 text-gray-700 border-gray-300";
   return (
@@ -354,7 +359,12 @@ export function StatusSelect({
         </SelectValue>
       </SelectTrigger>
       <SelectContent className="max-h-[420px] min-w-[280px] p-0 rounded-md border border-cream-200">
-        {STATUS_GROUPS.map((group, gi) => (
+        {STATUS_GROUPS.map((g) => ({
+          ...g,
+          statuses: g.statuses.filter((s) => !isStatusHiddenForService(s, serviceType)),
+        }))
+          .filter((g) => g.statuses.length > 0)
+          .map((group, gi) => (
           <div key={group.label}>
             {gi > 0 && <SelectSeparator className="bg-cream-200 my-0" />}
             <div className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-cocoa-500">

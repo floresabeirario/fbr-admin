@@ -151,6 +151,25 @@ export const STATUS_GROUPS: Array<{ label: StatusGroupLabel; statuses: OrderStat
     ),
   }));
 
+// Estados que não fazem sentido para certos tipos de serviço e por isso
+// não aparecem no selector de estado. Ex.: "Emoldurar Flores Já Secas" —
+// as flores chegam já secas, logo NÃO passam pela prensa (fase "Flores na
+// prensa"). O site público já esconde este passo da timeline (mig 097);
+// aqui esconde-se também a opção no admin, para não se escolher por engano.
+const HIDDEN_STATUSES_BY_SERVICE: Record<string, readonly OrderStatus[]> = {
+  emoldurar_secas: ["flores_na_prensa"],
+};
+
+// True se este estado não deve ser oferecido para o tipo de serviço dado.
+// serviceType null/desconhecido → trata-se como preservação (nada escondido).
+export function isStatusHiddenForService(
+  status: OrderStatus,
+  serviceType: string | null | undefined,
+): boolean {
+  const hidden = HIDDEN_STATUSES_BY_SERVICE[serviceType ?? "preservacao"];
+  return hidden ? hidden.includes(status) : false;
+}
+
 // Estados em que o aviso de "evento próximo / passado" ainda faz sentido.
 // A partir de `flores_recebidas` já temos as flores em mãos — o evento
 // torna-se metadado, não acção. Esconder evita ansiedade desnecessária.

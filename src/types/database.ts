@@ -111,11 +111,16 @@ export type ClientFeedbackStatus = "deu_feedback" | "ja_pedido" | "nao_disse_nad
 
 export type FormLanguage = "pt" | "en";
 
-// ── Emoldurar Flores Secas (mig 094) ─────────────────────────
-// Serviço distinto (flores que já vêm secas) que vive na MESMA tabela
-// orders, distinguido por service_type. Ver src/lib/pricing.ts e
-// src/lib/google/order-drive-trigger.ts.
-export type ServiceType = "preservacao" | "emoldurar_secas";
+// ── Serviços dentro da tabela orders ─────────────────────────
+// Vários serviços vivem na MESMA tabela orders, distinguidos por
+// service_type. Ver src/lib/pricing.ts e src/lib/google/order-drive-trigger.ts.
+//   • preservacao (default) — preservação de flores frescas.
+//   • emoldurar_secas (mig 094) — flores que já vêm secas; form próprio no
+//     site, preços próprios (secas_*), esconde "Flores na prensa" no status.
+//   • recriacao (mig 098) — recriação; a cliente preenche o form normal de
+//     preservação e a Maria carimba à mão no admin. Mesmos preços, estados e
+//     acompanhamento público da preservação — só um rótulo interno.
+export type ServiceType = "preservacao" | "emoldurar_secas" | "recriacao";
 
 // Abordagem escolhida pelo cliente (as 3 opções da página do serviço).
 export type DriedApproach = "ramo_original" | "recriacao" | "combinacao" | "nao_sei";
@@ -471,10 +476,10 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelado: "Cancelado",
 };
 
-// ── Emoldurar Flores Secas (mig 094) ─────────────────────────
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   preservacao: "Preservação de flores",
   emoldurar_secas: "Emoldurar flores secas",
+  recriacao: "Recriação",
 };
 
 export const DRIED_APPROACH_LABELS: Record<DriedApproach, string> = {
