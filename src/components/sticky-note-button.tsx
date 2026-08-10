@@ -50,17 +50,20 @@ export function StickyNoteButton({
     >
       <PopoverTrigger
         title={hasContent ? title : `Adicionar ${title.toLowerCase()}`}
-        className={`shrink-0 inline-flex items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
+        className={`shrink-0 inline-flex items-center sm:items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
           hasContent
             ? "bg-yellow-200 border-yellow-400 text-yellow-950"
             : "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100"
         }`}
       >
-        <StickyNote className="h-3 w-3 mt-0.5 shrink-0" />
+        {/* Em mobile mostra só o ícone (o preview de 2 linhas ocupava demasiado
+            e sobrepunha-se ao estado/Contactada); toca para abrir e ler/editar.
+            Em sm+ mantém o preview / label "Nota" como antes. */}
+        <StickyNote className="h-3.5 w-3.5 shrink-0 sm:h-3 sm:w-3 sm:mt-0.5" />
         {hasContent ? (
-          <span className="text-left line-clamp-2 break-words">{preview}</span>
+          <span className="hidden sm:block text-left line-clamp-2 break-words">{preview}</span>
         ) : (
-          <span className="font-medium">Nota</span>
+          <span className="hidden sm:inline font-medium">Nota</span>
         )}
       </PopoverTrigger>
       <PopoverContent

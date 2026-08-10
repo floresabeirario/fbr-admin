@@ -119,7 +119,9 @@ export default function WorkbenchNavigator({ navKey, currentId, basePath }: Prop
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <span className="font-mono text-[10px] text-cocoa-500 tabular-nums px-1 select-none">
+      {/* Contador escondido em mobile (só as setas) para poupar espaço ao nome
+          no cabeçalho do workbench; reaparece em sm+. */}
+      <span className="hidden sm:inline-block font-mono text-[10px] text-cocoa-500 tabular-nums px-1 select-none">
         {ctx.index + 1} / {ctx.total}
       </span>
       <button
