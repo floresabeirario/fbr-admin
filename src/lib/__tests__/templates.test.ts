@@ -3,6 +3,7 @@ import {
   fieldSuggestionBases,
   rankTemplatesForStatus,
   renderOrderTemplate,
+  requiredContentPoints,
   templateSnippet,
 } from "../templates";
 import type { MessageTemplate, TemplateLanguage, SystemSettingsMap } from "@/types/message-template";
@@ -165,6 +166,101 @@ function tpl(
 function par(base: string, statuses: OrderStatus[]): MessageTemplate[] {
   return [tpl(base, "pt", statuses), tpl(base, "en", statuses)];
 }
+
+// Conteúdos obrigatórios da próxima mensagem (sessão 152). O que o
+// cliente deixou em "Mais info" no formulário tem de ser explicado —
+// sem preços, por decisão da Maria.
+
+describe("requiredContentPoints", () => {
+  const preReserva = {
+    status: "entrega_flores_agendar",
+    payment_status: "100_por_pagar",
+    flower_delivery_method: "maos",
+  };
+  const keys = (o: Parameters<typeof requiredContentPoints>[0]) =>
+    requiredContentPoints(o).map((p) => p.key);
+
+  it("ornamentos de Natal em 'mais info' → ponto obrigatório com a quantidade", () => {
+    const points = requiredContentPoints({
+      ...preReserva,
+      christmas_ornaments: "mais_info",
+      christmas_ornaments_qty: 3,
+    });
+    const ornamentos = points.find((p) => p.key === "ornamentos_natal_info");
+    expect(ornamentos).toBeDefined();
+    expect(ornamentos!.text).toContain("indicou 3");
+    // A Maria decidiu que os extras se explicam sem falar de valores.
+    expect(ornamentos!.text).toContain("NÃO indicar preços");
+  });
+
+  it("pendentes e quadros extra em 'mais info' → um ponto cada", () => {
+    expect(
+      keys({
+        ...preReserva,
+        necklace_pendants: "mais_info",
+        extra_small_frames: "mais_info",
+      }),
+    ).toEqual(
+      expect.arrayContaining(["pendentes_colares_info", "quadros_extra_info"]),
+    );
+  });
+
+  it("'sim' ou 'não' não geram pendência — só 'mais info'", () => {
+    expect(
+      keys({
+        ...preReserva,
+        christmas_ornaments: "sim",
+        necklace_pendants: "nao",
+        extra_small_frames: null,
+      }),
+    ).toEqual([]);
+  });
+
+  it("envio das flores 'não sei' → obriga a apresentar as 3 opções", () => {
+    expect(
+      keys({ ...preReserva, flower_delivery_method: "nao_sei" }),
+    ).toContain("opcoes_envio_flores");
+    // Campo por preencher conta como "não sei"
+    expect(
+      keys({ ...preReserva, flower_delivery_method: null }),
+    ).toContain("opcoes_envio_flores");
+  });
+
+  it("recolha no evento sem morada → obriga a pedir a morada", () => {
+    expect(
+      keys({ ...preReserva, flower_delivery_method: "recolha_evento" }),
+    ).toContain("morada_recolha");
+    // Com morada já preenchida deixa de ser pendência
+    expect(
+      keys({
+        ...preReserva,
+        flower_delivery_method: "recolha_evento",
+        pickup_address: "Rua das Flores 1, Coimbra",
+      }),
+    ).not.toContain("morada_recolha");
+  });
+
+  it("encomendas fechadas não geram pendências", () => {
+    for (const status of ["quadro_recebido", "cancelado"]) {
+      expect(
+        keys({
+          ...preReserva,
+          status,
+          christmas_ornaments: "mais_info",
+          necklace_pendants: "mais_info",
+        }),
+      ).toEqual([]);
+    }
+  });
+
+  it("fundo do quadro não gera ponto obrigatório (decisão da Maria: B6 não)", () => {
+    // Sem campo de fundo na interface — garantimos que nada aparece por
+    // outras vias quando o resto está resolvido.
+    expect(
+      keys({ ...preReserva, frame_size: "nao_sei" }),
+    ).toEqual([]);
+  });
+});
 
 describe("rankTemplatesForStatus — filtro por campos e idioma", () => {
   const preReserva: OrderStatus[] = ["entrega_flores_agendar"];

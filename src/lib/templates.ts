@@ -329,6 +329,16 @@ export interface OrderFieldsForSuggestion {
   cash_on_delivery?: boolean;
   // Encomenda paga com vale-presente
   gift_voucher_code?: string | null;
+  // Escolhas do cliente que podem ficar em "Mais info" no formulário.
+  // Enquanto lá estiverem, a próxima mensagem tem de as explicar
+  // (requiredContentPoints). Tipos soltos (string) de propósito: este
+  // módulo não importa os tipos da BD, espelha-os.
+  christmas_ornaments?: string | null;
+  christmas_ornaments_qty?: number | null;
+  necklace_pendants?: string | null;
+  necklace_pendants_qty?: number | null;
+  extra_small_frames?: string | null;
+  extra_small_frames_qty?: number | null;
 }
 
 const STATUSES_FASE_DESIGN = new Set([
@@ -415,6 +425,90 @@ export function fieldSuggestionBases(order: OrderFieldsForSuggestion): string[] 
   if (st === "quadro_enviado") bases.push("quadro_enviado_tracking");
 
   return bases;
+}
+
+// ─── Conteúdos obrigatórios da próxima mensagem ────────────
+// Enquanto `fieldSuggestionBases` SUGERE templates, isto diz o que a
+// mensagem TEM de conter, olhando para o que o cliente deixou pendente
+// no formulário. O assistente recebe esta lista como obrigação (não
+// como dica), para nunca esquecer o que a cliente pediu.
+//
+// Decisões da Maria (sessão 152): explicar os extras SEM falar de
+// preços (o valor é conversa à parte, caso a caso); fundo do quadro
+// "não sei" não gera ponto obrigatório.
+
+export interface RequiredContentPoint {
+  /** Chave estável — usada para testes e para a UI marcar ✓/✗ */
+  key: string;
+  /** Instrução para o assistente, em português */
+  text: string;
+}
+
+// Encomendas fechadas não geram pendências: a informação já não é
+// accionável e só poluiria a sugestão.
+const STATUSES_FECHADOS = new Set(["quadro_recebido", "cancelado"]);
+
+// "Mais info" = o cliente marcou no formulário que quer saber mais.
+// Fica pendente até a Maria resolver o campo para Sim ou Não.
+function pedeMaisInfo(valor: string | null | undefined): boolean {
+  return valor === "mais_info";
+}
+
+// "(pediu info sobre 3)" quando o cliente chegou a indicar quantidade.
+function sufixoQuantidade(qty: number | null | undefined): string {
+  return typeof qty === "number" && qty > 0 ? ` (indicou ${qty})` : "";
+}
+
+export function requiredContentPoints(
+  order: OrderFieldsForSuggestion,
+): RequiredContentPoint[] {
+  const points: RequiredContentPoint[] = [];
+  if (STATUSES_FECHADOS.has(order.status)) return points;
+
+  const st = order.status;
+  const preReserva = st === "entrega_flores_agendar";
+  const agendada = st === "entrega_agendada";
+  const metodo = order.flower_delivery_method ?? null;
+
+  // B1/B2/B3 — extras marcados como "Mais info" no formulário.
+  // Sem preços, por decisão da Maria.
+  if (pedeMaisInfo(order.christmas_ornaments)) {
+    points.push({
+      key: "ornamentos_natal_info",
+      text: `Explicar o que são os ornamentos de Natal${sufixoQuantidade(order.christmas_ornaments_qty)} e perguntar se quer incluí-los. NÃO indicar preços.`,
+    });
+  }
+  if (pedeMaisInfo(order.necklace_pendants)) {
+    points.push({
+      key: "pendentes_colares_info",
+      text: `Explicar o que são os pendentes para colares${sufixoQuantidade(order.necklace_pendants_qty)} e perguntar se quer incluí-los. NÃO indicar preços.`,
+    });
+  }
+  if (pedeMaisInfo(order.extra_small_frames)) {
+    points.push({
+      key: "quadros_extra_info",
+      text: `Explicar o que são os quadros extra pequenos${sufixoQuantidade(order.extra_small_frames_qty)} e perguntar se quer incluí-los. NÃO indicar preços.`,
+    });
+  }
+
+  // B4 — envio das flores por decidir: apresentar as 3 opções.
+  // Mesma janela que a sugestão de template equivalente.
+  if ((preReserva || agendada) && (metodo === null || metodo === "nao_sei")) {
+    points.push({
+      key: "opcoes_envio_flores",
+      text: "Apresentar as 3 opções de envio das flores (em mãos, CTT, recolha no evento), porque o cliente respondeu «Não sei» no formulário.",
+    });
+  }
+
+  // B5 — recolha escolhida mas sem morada: sem ela não há orçamento.
+  if ((preReserva || agendada) && metodo === "recolha_evento" && !order.pickup_address) {
+    points.push({
+      key: "morada_recolha",
+      text: "Pedir a morada exacta da recolha, necessária para orçamentar o transporte.",
+    });
+  }
+
+  return points;
 }
 
 // ─── Relevância das sugestões por estado face aos campos ───

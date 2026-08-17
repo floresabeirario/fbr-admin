@@ -8,7 +8,12 @@ import {
   calculateClaudeCostUsd,
   type ClaudeUsage,
 } from "@/lib/claude";
-import { dadosPagamento, fieldSuggestionBases } from "@/lib/templates";
+import {
+  dadosPagamento,
+  fieldSuggestionBases,
+  requiredContentPoints,
+} from "@/lib/templates";
+import { pickVoiceExamples, voiceExamplesBlock } from "@/lib/whatsapp/voice-examples";
 import type { SystemSettingsMap } from "@/types/message-template";
 import {
   STATUS_LABELS,
@@ -18,6 +23,9 @@ import {
   FRAME_DELIVERY_METHOD_LABELS,
   FRAME_BACKGROUND_LABELS,
   FRAME_SIZE_LABELS,
+  YES_NO_INFO_LABELS,
+  type ExtrasInFrame,
+  type YesNoInfo,
   type OrderStatus,
   type PaymentStatus,
   type EventType,
@@ -70,14 +78,56 @@ type LinkedOrder = {
   form_language: "pt" | "en";
   estimated_delivery_date: string | null;
   phone: string | null;
+  // Escolhas do cliente no formulário que o assistente tem de conhecer
+  // para não responder às cegas (sessão 152). Os "Mais info" viram
+  // pontos obrigatórios via requiredContentPoints().
+  flower_type: string | null;
+  extras_in_frame: ExtrasInFrame | null;
+  christmas_ornaments: YesNoInfo | null;
+  christmas_ornaments_qty: number | null;
+  necklace_pendants: YesNoInfo | null;
+  necklace_pendants_qty: number | null;
+  extra_small_frames: YesNoInfo | null;
+  extra_small_frames_qty: number | null;
 };
 
 const LINKED_ORDER_COLUMNS =
-  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone";
+  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty";
 
 function labelOr(value: string | null, labels: Record<string, string>): string {
   if (!value) return "não preenchido";
   return labels[value] ?? value;
+}
+
+// "Extras no quadro": opções escolhidas + texto livre do cliente.
+function extrasLine(extras: ExtrasInFrame | null): string {
+  if (!extras) return "";
+  const partes: string[] = [];
+  if (extras.options?.length) partes.push(extras.options.join(", "));
+  if (extras.notes?.trim()) partes.push(`nota do cliente: "${extras.notes.trim()}"`);
+  return partes.join(" | ");
+}
+
+// Ornamentos / pendentes / quadros extra. "Mais info" fica marcado como
+// PENDENTE porque é uma pergunta do cliente ainda por responder — é o
+// sinal que alimenta requiredContentPoints().
+function escolhasExtraLines(o: LinkedOrder): string[] {
+  const campos: Array<[string, YesNoInfo | null, number | null]> = [
+    ["Quadros extra pequenos", o.extra_small_frames, o.extra_small_frames_qty],
+    ["Ornamentos de Natal", o.christmas_ornaments, o.christmas_ornaments_qty],
+    ["Pendentes para colares", o.necklace_pendants, o.necklace_pendants_qty],
+  ];
+  const out: string[] = [];
+  for (const [label, valor, qty] of campos) {
+    if (!valor) continue;
+    const qtyTxt = typeof qty === "number" && qty > 0 ? `, quantidade ${qty}` : "";
+    const pendente =
+      valor === "mais_info"
+        ? " ← PENDENTE: o cliente pediu mais informação sobre isto no formulário"
+        : "";
+    out.push(`  ${label}: ${YES_NO_INFO_LABELS[valor]}${qtyTxt}${pendente}`);
+  }
+  return out;
 }
 
 function orderToBlock(o: LinkedOrder): string {
@@ -102,6 +152,10 @@ function orderToBlock(o: LinkedOrder): string {
   }
   if (o.gift_voucher_code) lines.push(`  Paga com vale-presente: ${o.gift_voucher_code}`);
   if (o.estimated_delivery_date) lines.push(`  Previsão de entrega: ${o.estimated_delivery_date}`);
+  if (o.flower_type) lines.push(`  Tipo de flores (dito pelo cliente): ${o.flower_type}`);
+  const extras = extrasLine(o.extras_in_frame);
+  if (extras) lines.push(`  Extras no quadro: ${extras}`);
+  for (const l of escolhasExtraLines(o)) lines.push(l);
   if (o.additional_notes) lines.push(`  Notas do cliente no formulário: ${o.additional_notes}`);
   lines.push(`  Link de acompanhamento: https://status.floresabeirario.pt/${o.order_id}`);
   return lines.join("\n");
@@ -225,7 +279,36 @@ export async function POST(request: NextRequest) {
     ? `\n\n## Templates mais prováveis para esta fase (pelas regras da FBR)\n\n${suggestionBases.map((b) => `- ${b}`).join("\n")}`
     : "";
 
+  // Pontos que a mensagem TEM de cobrir (o cliente deixou-os pendentes no
+  // formulário). Ao contrário dos templates acima, isto não é uma dica.
+  const required = linkedOrders.length
+    ? requiredContentPoints(linkedOrders[0])
+    : [];
+  const requiredBlock = required.length
+    ? `\n\n## OBRIGATÓRIO — esta mensagem TEM de cobrir todos estes pontos\n\nO cliente deixou estas questões pendentes no formulário. A mensagem só está correcta se as tratar todas, de forma natural e integrada no texto (não como lista):\n\n${required.map((p) => `- ${p.text}`).join("\n")}`
+    : "";
+
   const notesBlock = conv.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
+
+  // Amostra de voz: mensagens reais da Maria em situações parecidas.
+  // A "situação" é o que a cliente escreveu + o estado da encomenda —
+  // é isso que faz vir exemplos do assunto certo (pagamentos, atrasos,
+  // recolha…) em vez de exemplos ao calhas. Vai no bloco do utilizador
+  // (não no system) para não estragar o cache dos templates/persona.
+  const situacao = [
+    lastReceived.map((m) => m.text ?? "").join(" "),
+    body.instruction ?? "",
+    linkedOrders[0] ? STATUS_LABELS[linkedOrders[0].status] ?? "" : "",
+    required.map((p) => p.text).join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const voiceBlock = voiceExamplesBlock(
+    await pickVoiceExamples(supabase, {
+      situacao,
+      excludeConversationId: body.conversationId,
+    }),
+  );
 
   // ─── System prompt (cacheable) ───
   // Persona vem de system_settings.claude_persona; se vazio, fallback hardcoded.
@@ -265,7 +348,7 @@ ${conversationTranscript || "(ainda sem mensagens)"}
 
 ## Encomendas ligadas a este número
 
-${ordersBlock}${suggestionsBlock}${notesBlock}
+${ordersBlock}${requiredBlock}${suggestionsBlock}${notesBlock}${voiceBlock}
 
 ## Instrução da Maria
 

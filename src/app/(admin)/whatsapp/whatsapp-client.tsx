@@ -6,7 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check, Send } from "lucide-react";
+import { phoneToWaMe } from "@/lib/format-phone";
 import { linkify } from "@/lib/linkify";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Input } from "@/components/ui/input";
@@ -1056,6 +1057,7 @@ function ConversationViewer({
       <SuggestComposer
         conversationId={conversation.id}
         contactName={conversation.contact_name}
+        phone={conversation.phone_e164}
       />
     </>
   );
@@ -1064,16 +1066,38 @@ function ConversationViewer({
 // ──────────────────────────────────────────────────────────────
 // COMPOSER — "Sugerir resposta" com Claude
 // ──────────────────────────────────────────────────────────────
+// Faz a caixa crescer com o texto em vez de ficar presa a `rows`. No
+// telemóvel, com o teclado aberto, uma caixa de 6 linhas fixas mostrava
+// só uma nesga da mensagem. Cresce até 320px e depois faz scroll.
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+}
+
 function SuggestComposer({
   conversationId,
   contactName,
+  phone,
 }: {
   conversationId: string;
   contactName?: string | null;
+  phone: string;
 }) {
   const [instruction, setInstruction] = useState("");
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  // Confirmação de "copiado" no próprio botão. Era um toast, mas no
+  // telemóvel o toast aparecia por cima destes botões e não saía mais
+  // (o toque conta como hover e o sonner pausa o auto-fechar).
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
 
   // Reset quando muda de conversa — durante o render, sem setState em effect.
   const [prevSuggestConvId, setPrevSuggestConvId] = useState(conversationId);
@@ -1082,6 +1106,7 @@ function SuggestComposer({
     setInstruction("");
     setSuggestion(null);
     setLoading(false);
+    setCopied(false);
   }
 
   async function handleSuggest() {
@@ -1110,7 +1135,9 @@ function SuggestComposer({
     if (!suggestion) return;
     try {
       await navigator.clipboard.writeText(suggestion);
-      toast.success("Copiado. Cola no telemóvel.");
+      setCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Não consegui copiar — selecciona manualmente.");
     }
@@ -1119,33 +1146,75 @@ function SuggestComposer({
   function handleClose() {
     setSuggestion(null);
     setInstruction("");
+    setCopied(false);
   }
+
+  // Abre o WhatsApp já na conversa certa e com a mensagem na caixa de
+  // escrita — só falta carregar em enviar. Poupa o ciclo
+  // copiar → sair da app → procurar a conversa → colar.
+  // Continua a ser a Maria a enviar: não enviamos nada por ela.
+  const waNumero = phoneToWaMe(phone);
+  const waHref =
+    waNumero && suggestion
+      ? `https://wa.me/${waNumero}?text=${encodeURIComponent(suggestion)}`
+      : null;
 
   if (suggestion !== null) {
     return (
       <footer className="p-3 border-t border-cream-200 bg-surface space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-cocoa-700 flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-indigo-500" /> Sugestão (edita antes de copiar)
+            <Sparkles className="h-3 w-3 text-indigo-500" /> Sugestão (edita antes de enviar)
           </span>
           <button
             type="button"
             onClick={handleClose}
-            className="p-1 text-cocoa-400 hover:text-cocoa-700"
+            className="p-2 -m-1 text-cocoa-400 hover:text-cocoa-700"
             aria-label="Fechar"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
           </button>
         </div>
         <Textarea
           value={suggestion}
-          onChange={(e) => setSuggestion(e.target.value)}
-          rows={6}
-          className="text-sm"
+          ref={autoGrow}
+          onChange={(e) => {
+            setSuggestion(e.target.value);
+            autoGrow(e.currentTarget);
+          }}
+          rows={4}
+          className="text-sm resize-none"
         />
+        {/* Acção principal no telemóvel: abre o WhatsApp com o texto já
+            escrito. Copiar fica como alternativa (desktop, ou colar noutro
+            sítio). */}
+        {waHref && (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-11 lg:h-9 w-full items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition-colors hover:bg-green-700 active:bg-green-800"
+          >
+            <Send className="h-4 w-4" /> Abrir no WhatsApp
+          </a>
+        )}
         <div className="flex gap-2">
-          <Button type="button" size="sm" onClick={handleCopy} className="flex-1">
-            <Copy className="h-3.5 w-3.5 mr-1.5" /> Copiar
+          <Button
+            type="button"
+            size="sm"
+            variant={waHref ? "outline" : "default"}
+            onClick={handleCopy}
+            className="flex-1 h-11 lg:h-8"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 mr-1.5 text-green-600" /> Copiado
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5 mr-1.5" /> Copiar
+              </>
+            )}
           </Button>
           <Button
             type="button"
@@ -1153,8 +1222,10 @@ function SuggestComposer({
             variant="outline"
             onClick={handleSuggest}
             disabled={loading}
+            className="h-11 lg:h-8"
           >
-            <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Refazer
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            {loading ? "A pensar…" : "Refazer"}
           </Button>
         </div>
       </footer>
@@ -1168,10 +1239,13 @@ function SuggestComposer({
       </div>
       <Textarea
         value={instruction}
-        onChange={(e) => setInstruction(e.target.value)}
+        onChange={(e) => {
+          setInstruction(e.target.value);
+          autoGrow(e.currentTarget);
+        }}
         placeholder='Diz ao Claude o que queres comunicar (opcional). Ex: "responde que sim, conseguimos fazer mas o prazo é mais longo"'
         rows={2}
-        className="text-sm"
+        className="text-sm resize-none"
       />
       <div className="flex items-center gap-2">
         {/* Templates prontos a copiar/colar (leads: 1º contacto, preços, 3 opções de entrega, …) */}
@@ -1181,7 +1255,7 @@ function SuggestComposer({
           size="sm"
           onClick={handleSuggest}
           disabled={loading}
-          className="flex-1"
+          className="flex-1 h-11 lg:h-8"
         >
           <Sparkles className="h-3.5 w-3.5 mr-1.5" />
           {loading ? "A pensar…" : "Sugerir resposta"}
