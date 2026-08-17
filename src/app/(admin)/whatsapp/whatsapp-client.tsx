@@ -1080,6 +1080,17 @@ function ConversationViewer({
 // ──────────────────────────────────────────────────────────────
 // COMPOSER — "Sugerir resposta" com Claude
 // ──────────────────────────────────────────────────────────────
+// Afinações de um toque. São as que a Maria pede mais vezes; para o
+// resto há o campo livre ao lado. Curtas de propósito: têm de caber numa
+// linha do telemóvel sem obrigar a scroll horizontal logo à partida.
+const REFINAMENTOS = [
+  "Mais curta",
+  "Mais calorosa",
+  "Mais directa",
+  "Sem emojis",
+  "Mais formal",
+];
+
 // Faz a caixa crescer com o texto em vez de ficar presa a `rows`. No
 // telemóvel, com o teclado aberto, uma caixa de 6 linhas fixas mostrava
 // só uma nesga da mensagem. Cresce até 320px e depois faz scroll.
@@ -1101,6 +1112,10 @@ function SuggestComposer({
   orderId?: string | null;
 }) {
   const [loading, setLoading] = useState(false);
+  // O que ela quer mudar na versão actual ("mais curta", "diz que só
+  // depois de Agosto"). Local: é uma intenção do momento, não vale a
+  // pena sobreviver ao reload como o rascunho.
+  const [refine, setRefine] = useState("");
   // Confirmação de "copiado" no próprio botão. Era um toast, mas no
   // telemóvel o toast aparecia por cima destes botões e não saía mais
   // (o toque conta como hover e o sonner pausa o auto-fechar).
@@ -1136,6 +1151,7 @@ function SuggestComposer({
     setPrevSuggestConvId(conversationId);
     setLoading(false);
     setCopied(false);
+    setRefine("");
   }
 
   // Guarda o par sugestão-gerada / texto-usado. Silencioso e
@@ -1159,14 +1175,22 @@ function SuggestComposer({
     }).catch(() => {});
   }
 
-  async function handleSuggest() {
+  // `refineWith` presente = reescrever a versao actual em vez de gerar do
+  // zero. O resultado empilha como rascunho novo, por isso a versao
+  // anterior fica sempre a um toque de distancia no historico.
+  async function handleSuggest(refineWith?: string) {
     if (loading) return;
     setLoading(true);
     try {
       const res = await fetch("/api/whatsapp/suggest", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ conversationId, instruction }),
+        body: JSON.stringify({
+          conversationId,
+          instruction,
+          refineFrom: refineWith ? suggestion : undefined,
+          refineWith: refineWith || undefined,
+        }),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -1269,6 +1293,51 @@ function SuggestComposer({
           rows={4}
           className="text-sm resize-none"
         />
+        {/* Construir sobre a sugestão em vez de aceitar ou refazer do
+            zero. Cada afinação empilha um rascunho novo, por isso a
+            versão anterior fica sempre no histórico ‹ ›. */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
+          {REFINAMENTOS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => handleSuggest(r)}
+              disabled={loading}
+              className="shrink-0 rounded-full border border-cream-300 bg-cream-50 px-3 py-1.5 text-xs text-cocoa-700 hover:bg-cream-100 active:bg-cream-200 disabled:opacity-40"
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={refine}
+            onChange={(e) => setRefine(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && refine.trim() && !loading) {
+                e.preventDefault();
+                handleSuggest(refine.trim());
+                setRefine("");
+              }
+            }}
+            placeholder="Ou escreve o que mudar…"
+            className="flex-1 h-11 lg:h-8 text-sm"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={loading || !refine.trim()}
+            onClick={() => {
+              handleSuggest(refine.trim());
+              setRefine("");
+            }}
+            className="h-11 lg:h-8"
+          >
+            {loading ? "…" : "Aplicar"}
+          </Button>
+        </div>
+
         {/* Acção principal no telemóvel: abre o WhatsApp com o texto já
             escrito. Copiar fica como alternativa (desktop, ou colar noutro
             sítio). */}
@@ -1305,7 +1374,7 @@ function SuggestComposer({
             type="button"
             size="sm"
             variant="outline"
-            onClick={handleSuggest}
+            onClick={() => handleSuggest()}
             disabled={loading}
             className="h-11 lg:h-8"
           >
@@ -1338,7 +1407,7 @@ function SuggestComposer({
         <Button
           type="button"
           size="sm"
-          onClick={handleSuggest}
+          onClick={() => handleSuggest()}
           disabled={loading}
           className="flex-1 h-11 lg:h-8"
         >

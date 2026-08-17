@@ -54,6 +54,11 @@ const PERSONA_FALLBACK = `És a Maria João da Flores à Beira-Rio (FBR), estúd
 type ReqBody = {
   conversationId: string;
   instruction?: string; // ex: "diz que sim, conseguimos fazer"
+  // Afinação: a Maria já tem uma versão e quer mudá-la ("mais curta",
+  // "sem emojis", "diz que só depois de Agosto"). Sem isto ela só podia
+  // aceitar o que saiu ou mandar refazer do zero e perder o que estava bom.
+  refineFrom?: string; // a versão actual, tal como está na caixa dela
+  refineWith?: string; // o que quer mudar
 };
 
 // Campos da encomenda que passamos ao Claude (nomes reais das colunas —
@@ -298,6 +303,29 @@ export async function POST(request: NextRequest) {
 
   const notesBlock = conv.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
 
+  // Afinação sobre a versão que ela já tem. Reescrever é diferente de
+  // gerar do zero: o que já está bom tem de sobreviver, e só muda o que
+  // ela pediu. Sem isto, "quero mais curta" obrigava a refazer tudo e a
+  // perder as frases que ela queria manter.
+  const refineFrom = body.refineFrom?.trim() ?? "";
+  const refineWith = body.refineWith?.trim() ?? "";
+  const refinar = Boolean(refineFrom && refineWith);
+  const refineBlock = refinar
+    ? `
+## REESCRITA (é isto que a Maria quer agora)
+
+Ela já tem esta versão e quer mudá-la. NÃO comeces do zero.
+
+<versao_actual>
+${refineFrom}
+</versao_actual>
+
+Mudança pedida: **${refineWith}**
+
+Aplica só essa mudança. Mantém tudo o resto como está: os factos, valores, datas, links e os pontos obrigatórios acima continuam todos lá. Não acrescentes assuntos novos, não reordenes o que já estava bem, não mudes o tom se não foi isso que ela pediu.
+`
+    : "";
+
   // Amostra de voz: mensagens reais da Maria em situações parecidas.
   // A "situação" é o que a cliente escreveu + o estado da encomenda —
   // é isso que faz vir exemplos do assunto certo (pagamentos, atrasos,
@@ -379,12 +407,12 @@ ${ordersBlock}${requiredBlock}${suggestionsBlock}${notesBlock}${voiceBlock}
 ## Instrução da Maria
 
 ${body.instruction?.trim() ? body.instruction.trim() : "(sem instrução específica — interpreta o contexto e responde como a Maria responderia)"}
-
+${refineBlock}
 ## Língua
 
 Responde na língua das últimas mensagens do CLIENTE (não da FBR). Se o cliente escrever em francês, espanhol ou outra língua, responde nessa língua. Se a conversa ainda não permitir perceber, usa: **${probableLang === "en" ? "inglês" : "português europeu"}**.
 
-Gera a próxima mensagem da FBR (pronta a copiar):`;
+${refinar ? "Devolve a mensagem reescrita (pronta a copiar), e mais nada:" : "Gera a próxima mensagem da FBR (pronta a copiar):"}`;
 
   // ─── Chamada Claude ───
   const anthropic = createAnthropicClient();
