@@ -21,6 +21,7 @@ const SETTING_DEFAULTS: SystemSettingsMap = {
   review_link: "",
   claude_persona: "",
   claude_facts: "",
+  claude_voice_rules: "",
 };
 
 export default async function TemplatesPage() {

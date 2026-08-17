@@ -113,7 +113,8 @@ export type SystemSettingKey =
   | "studio_address_text"
   | "review_link"
   | "claude_persona"
-  | "claude_facts";
+  | "claude_facts"
+  | "claude_voice_rules";
 
 export const SYSTEM_SETTING_LABELS: Record<SystemSettingKey, string> = {
   payment_account_holder: "Titular da conta",
@@ -126,6 +127,7 @@ export const SYSTEM_SETTING_LABELS: Record<SystemSettingKey, string> = {
   review_link: "Link de opinião / avaliação",
   claude_persona: "Tom / Persona do Claude",
   claude_facts: "Factos & contexto adicional",
+  claude_voice_rules: "Regras de voz aprendidas das tuas edições",
 };
 
 export const SYSTEM_SETTING_KEYS: SystemSettingKey[] = [
@@ -139,6 +141,7 @@ export const SYSTEM_SETTING_KEYS: SystemSettingKey[] = [
   "review_link",
   "claude_persona",
   "claude_facts",
+  "claude_voice_rules",
 ];
 
 export interface SystemSetting {

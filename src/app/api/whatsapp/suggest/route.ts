@@ -225,6 +225,10 @@ export async function POST(request: NextRequest) {
   ) as Partial<SystemSettingsMap>;
   const personaFromDb = (settingsMap.claude_persona ?? "").trim();
   const factsFromDb = (settingsMap.claude_facts ?? "").trim();
+  // Regras destiladas das edições reais da Maria e aprovadas por ela
+  // uma a uma no Cérebro do Claude (mig 102). Separadas da persona:
+  // a persona é escrita por ela, isto é aprendido do uso.
+  const voiceRulesFromDb = (settingsMap.claude_voice_rules ?? "").trim();
 
   // 3. Encomendas associadas a esta pessoa (por telefone)
   // O matching e por digitos last 9 — espelhada do client side.
@@ -332,6 +336,12 @@ export async function POST(request: NextRequest) {
   const systemFacts = factsFromDb
     ? `\n\n## Factos e contexto adicional da FBR (sabe sempre)\n\n${factsFromDb}`
     : "";
+  // Regras aprendidas: vêm depois dos factos e antes dos templates, e
+  // ganham a qualquer instrução de estilo mais acima — foram tiradas do
+  // que a Maria REALMENTE escreve, não do que alguém supôs.
+  const systemVoiceRules = voiceRulesFromDb
+    ? `\n\n## Regras de voz da Maria (aprendidas das correcções dela — obedece-lhes acima de tudo o resto)\n\n${voiceRulesFromDb}`
+    : "";
 
   // Dados de pagamento reais (variavel {dados_pagamento} dos templates).
   // Merge com defaults vazios para nunca imprimir "undefined".
@@ -346,6 +356,7 @@ export async function POST(request: NextRequest) {
     review_link: "",
     claude_persona: "",
     claude_facts: "",
+    claude_voice_rules: "",
     ...settingsMap,
   };
   const paymentBlock =
@@ -387,7 +398,7 @@ Gera a próxima mensagem da FBR (pronta a copiar):`;
       system: [
         {
           type: "text",
-          text: systemPersona + systemFacts + paymentBlock,
+          text: systemPersona + systemFacts + systemVoiceRules + paymentBlock,
           cache_control: { type: "ephemeral" },
         },
         {

@@ -18,7 +18,7 @@ export default async function AiSettingsPage() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [settingsRes, tplCountRes, convsCountRes, monthUsageRes, weekUsageRes] = await Promise.all([
+  const [settingsRes, tplCountRes, convsCountRes, monthUsageRes, weekUsageRes, pendingEditsRes] = await Promise.all([
     supabase.from("system_settings").select("key, value, updated_at, updated_by"),
     supabase
       .from("message_templates")
@@ -36,6 +36,12 @@ export default async function AiSettingsPage() {
       .from("claude_usage")
       .select("cost_usd")
       .gte("called_at", sevenDaysAgo),
+    // Pares por analisar (mig 102). Falha em silêncio enquanto a
+    // migração não estiver corrida: a página abre na mesma.
+    supabase
+      .from("suggestion_edits")
+      .select("edited", { count: "exact" })
+      .is("analysed_at", null),
   ]);
 
   const settings = (settingsRes.data ?? []) as SystemSetting[];
@@ -53,10 +59,21 @@ export default async function AiSettingsPage() {
   const monthUsd = monthRows.reduce((sum, r) => sum + Number(r.cost_usd), 0);
   const weekUsd = weekRows.reduce((sum, r) => sum + Number(r.cost_usd), 0);
 
+  const pendingRows = (pendingEditsRes.data ?? []) as Array<{ edited: boolean }>;
+
   return (
     <ClaudioClient
       initialPersona={settingsMap.claude_persona ?? ""}
       initialFacts={settingsMap.claude_facts ?? ""}
+      initialVoiceRules={settingsMap.claude_voice_rules ?? ""}
+      learning={{
+        // `migrationMissing` distingue "ainda não há edições" de "a
+        // tabela não existe" — sem isto a Maria via 0 e não sabia que
+        // faltava correr a migração.
+        migrationMissing: Boolean(pendingEditsRes.error),
+        pending: pendingEditsRes.count ?? 0,
+        pendingEdited: pendingRows.filter((r) => r.edited).length,
+      }}
       templatesCount={templatesCount}
       conversationsWithNotes={conversationsWithNotes}
       cost={{

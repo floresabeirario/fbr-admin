@@ -1058,6 +1058,7 @@ function ConversationViewer({
         conversationId={conversation.id}
         contactName={conversation.contact_name}
         phone={conversation.phone_e164}
+        orderId={linkedOrders[0]?.order_id ?? null}
       />
     </>
   );
@@ -1079,14 +1080,26 @@ function SuggestComposer({
   conversationId,
   contactName,
   phone,
+  orderId,
 }: {
   conversationId: string;
   contactName?: string | null;
   phone: string;
+  orderId?: string | null;
 }) {
   const [instruction, setInstruction] = useState("");
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  // Texto tal como o Claude o gerou, antes das correcções da Maria. É
+  // metade do par que alimenta a aprendizagem (mig 102): o que ele
+  // escreveu vs o que ela realmente usou.
+  const [original, setOriginal] = useState<string | null>(null);
+  const [language, setLanguage] = useState<string | null>(null);
+  // Guarda-se uma vez por sugestão: se ela copiar e depois abrir no
+  // WhatsApp, é a mesma mensagem, não duas. Estado e não ref: o reset
+  // por mudança de conversa corre DURANTE o render, e aí um ref não
+  // pode ser tocado (regra react-hooks/refs).
+  const [registado, setRegistado] = useState(false);
   // Confirmação de "copiado" no próprio botão. Era um toast, mas no
   // telemóvel o toast aparecia por cima destes botões e não saía mais
   // (o toque conta como hover e o sonner pausa o auto-fechar).
@@ -1107,6 +1120,30 @@ function SuggestComposer({
     setSuggestion(null);
     setLoading(false);
     setCopied(false);
+    setOriginal(null);
+    setLanguage(null);
+    setRegistado(false);
+  }
+
+  // Guarda o par sugestão-gerada / texto-usado. Silencioso e
+  // best-effort: se falhar, a Maria nem dá por isso e a mensagem sai na
+  // mesma. Nunca `await`-ado no caminho do clique.
+  function registarUso(usedVia: "copiar" | "whatsapp") {
+    if (registado || !original || !suggestion) return;
+    setRegistado(true);
+    void fetch("/api/whatsapp/suggest-edit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        conversationId,
+        orderId: orderId ?? null,
+        instruction: instruction || null,
+        original,
+        final: suggestion,
+        usedVia,
+        language,
+      }),
+    }).catch(() => {});
   }
 
   async function handleSuggest() {
@@ -1124,6 +1161,9 @@ function SuggestComposer({
       }
       const data = await res.json();
       setSuggestion(data.suggestion || "");
+      setOriginal(data.suggestion || "");
+      setLanguage(data.language ?? null);
+      setRegistado(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro a gerar sugestão");
     } finally {
@@ -1135,6 +1175,7 @@ function SuggestComposer({
     if (!suggestion) return;
     try {
       await navigator.clipboard.writeText(suggestion);
+      registarUso("copiar");
       setCopied(true);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), 2000);
@@ -1193,6 +1234,7 @@ function SuggestComposer({
             href={waHref}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => registarUso("whatsapp")}
             className="flex h-11 lg:h-9 w-full items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition-colors hover:bg-green-700 active:bg-green-800"
           >
             <Send className="h-4 w-4" /> Abrir no WhatsApp
