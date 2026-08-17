@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check, Send, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check, Send, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { phoneToWaMe } from "@/lib/format-phone";
 import {
   subscribeComposer,
@@ -1082,11 +1082,19 @@ function ConversationViewer({
 // ──────────────────────────────────────────────────────────────
 // Faz a caixa crescer com o texto em vez de ficar presa a `rows`. No
 // telemóvel, com o teclado aberto, uma caixa de 6 linhas fixas mostrava
-// só uma nesga da mensagem. Cresce até 320px e depois faz scroll.
+// só uma nesga da mensagem.
+//
+// O tecto é relativo ao ecrã, não fixo: 320px num portátil é razoável,
+// mas num telemóvel é quase metade da altura e empurrava a conversa toda
+// para fora. Fica-se por ~30% do ecrã, com um mínimo utilizável.
 function autoGrow(el: HTMLTextAreaElement | null) {
   if (!el) return;
+  const tecto = Math.max(
+    112,
+    Math.min(320, Math.round((window.innerHeight || 800) * 0.3)),
+  );
   el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+  el.style.height = `${Math.min(el.scrollHeight, tecto)}px`;
 }
 
 function SuggestComposer({
@@ -1105,6 +1113,11 @@ function SuggestComposer({
   // depois de Agosto"). Local: é uma intenção do momento, não vale a
   // pena sobreviver ao reload como o rascunho.
   const [refine, setRefine] = useState("");
+  // Encolher a sugestão para ler a conversa por trás. O rodapé cresceu
+  // com o histórico, a afinação e o botão do WhatsApp, e no telemóvel
+  // tapava as mensagens do cliente — que é justamente o que ela precisa
+  // de ver enquanto responde.
+  const [compacta, setCompacta] = useState(false);
   // Confirmação de "copiado" no próprio botão. Era um toast, mas no
   // telemóvel o toast aparecia por cima destes botões e não saía mais
   // (o toque conta como hover e o sonner pausa o auto-fechar).
@@ -1141,6 +1154,7 @@ function SuggestComposer({
     setLoading(false);
     setCopied(false);
     setRefine("");
+    setCompacta(false);
   }
 
   // Guarda o par sugestão-gerada / texto-usado. Silencioso e
@@ -1264,6 +1278,19 @@ function SuggestComposer({
             )}
             <button
               type="button"
+              onClick={() => setCompacta((v) => !v)}
+              className="p-2 -m-1 text-cocoa-400 hover:text-cocoa-700"
+              aria-label={compacta ? "Expandir sugestão" : "Encolher para ver a conversa"}
+              title={compacta ? "Expandir sugestão" : "Encolher para ver a conversa"}
+            >
+              {compacta ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            <button
+              type="button"
               onClick={handleClose}
               className="p-2 -m-1 text-cocoa-400 hover:text-cocoa-700"
               aria-label="Fechar"
@@ -1277,10 +1304,15 @@ function SuggestComposer({
           ref={autoGrow}
           onChange={(e) => {
             updateDraftText(conversationId, e.target.value);
-            autoGrow(e.currentTarget);
+            if (!compacta) autoGrow(e.currentTarget);
           }}
           rows={4}
-          className="text-sm resize-none"
+          // `!h-16` vence a altura inline do autoGrow (o !important do
+          // Tailwind ganha a estilos inline sem !important).
+          className={cn(
+            "text-sm resize-none",
+            compacta && "!h-16 overflow-auto",
+          )}
         />
         {/* Construir sobre a sugestão em vez de aceitar ou refazer do
             zero. Cada afinação empilha um rascunho novo, por isso a

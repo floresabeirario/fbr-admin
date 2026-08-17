@@ -14,6 +14,13 @@
 **Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **153** (2026-08-17, assistente do WhatsApp passa a ler os campos da encomenda + a escrever na voz real da Maria + UX no telemóvel — detalhe no bloco abaixo). A 152 correu **em paralelo** no mesmo dia (converter encomenda para "flores secas"); ambas em produção. Sessão 145 (Emoldurar Flores Secas) já em produção desde 26/07.
 
 ### ⚠️ Pendentes de confirmação da Maria (verificar antes de assumir)
+- [ ] **Sessão 153e — Sugestão tapava a conversa no telemóvel (SEM migração):**
+  - **Reportado:** *"não consigo ver o chat pois a sugestão está à frente"*. Causa: fui **empilhando linhas no rodapé** ao longo da sessão (histórico `‹ ›`, campo de afinação, botão verde do WhatsApp, Copiar/Refazer) e a caixa da sugestão tinha tecto **fixo de 320px** — quase metade de um ecrã de telemóvel. Somado, o rodapé passava dos 500px e não sobrava conversa para ler.
+  - **Correcção 1 — tecto relativo ao ecrã:** `autoGrow` passa de 320px fixos para `min(320, 30% da altura do ecrã)` com mínimo de 112px. Num portátil não muda nada; num telemóvel liberta ~200px.
+  - **Correcção 2 — encolher a sugestão:** chevron novo no cabeçalho da sugestão (ao lado do X) que encolhe a caixa para ~2 linhas e volta a expandir. Serve para ler a mensagem da cliente sem fechar nem perder o rascunho. Implementado com `!h-16` (o `!important` do Tailwind vence a altura inline do `autoGrow`) e `autoGrow` desligado enquanto está compacta.
+  - **Ficheiros:** [whatsapp-client.tsx](src/app/(admin)/whatsapp/whatsapp-client.tsx). **Preflight:** ✅ tsc + 146 testes + build + ESLint limpo.
+  - **Smoke (Maria):** com sugestão aberta no telemóvel, tocar no chevron → a caixa encolhe e vê-se a conversa por trás; tocar outra vez → volta ao tamanho; o texto do rascunho não se perde em nenhum dos casos.
+  - **Lição:** cada linha nova no rodapé custa conversa visível. Antes de acrescentar mais alguma coisa ali, ver o que sai ([[feedback_simplificar_antes_de_redesenhar]]).
 - [ ] **Sessão 153d — Construir sobre a sugestão em vez de aceitar ou refazer do zero (SEM migração):**
   - **Pedido da Maria:** *"quero conseguir construir sobre a sugestão. Imagina que ele gera algo e eu quero mais curto. Não dá neste momento."* Tinha razão: só havia aceitar o que saiu ou "Refazer" do zero, que perdia as frases que já estavam boas.
   - **API:** [suggest/route.ts](src/app/api/whatsapp/suggest/route.ts) aceita `refineFrom` (a versão actual, tal como está na caixa dela) + `refineWith` (o que mudar). Com os dois presentes, o prompt ganha um bloco **REESCRITA** que manda aplicar SÓ essa mudança e manter factos/valores/datas/links e os pontos obrigatórios; sem eles, comportamento igual ao de antes.
