@@ -1080,17 +1080,6 @@ function ConversationViewer({
 // ──────────────────────────────────────────────────────────────
 // COMPOSER — "Sugerir resposta" com Claude
 // ──────────────────────────────────────────────────────────────
-// Afinações de um toque. São as que a Maria pede mais vezes; para o
-// resto há o campo livre ao lado. Curtas de propósito: têm de caber numa
-// linha do telemóvel sem obrigar a scroll horizontal logo à partida.
-const REFINAMENTOS = [
-  "Mais curta",
-  "Mais calorosa",
-  "Mais directa",
-  "Sem emojis",
-  "Mais formal",
-];
-
 // Faz a caixa crescer com o texto em vez de ficar presa a `rows`. No
 // telemóvel, com o teclado aberto, uma caixa de 6 linhas fixas mostrava
 // só uma nesga da mensagem. Cresce até 320px e depois faz scroll.
@@ -1296,19 +1285,6 @@ function SuggestComposer({
         {/* Construir sobre a sugestão em vez de aceitar ou refazer do
             zero. Cada afinação empilha um rascunho novo, por isso a
             versão anterior fica sempre no histórico ‹ ›. */}
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-0.5 px-0.5">
-          {REFINAMENTOS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handleSuggest(r)}
-              disabled={loading}
-              className="shrink-0 rounded-full border border-cream-300 bg-cream-50 px-3 py-1.5 text-xs text-cocoa-700 hover:bg-cream-100 active:bg-cream-200 disabled:opacity-40"
-            >
-              {r}
-            </button>
-          ))}
-        </div>
         <div className="flex gap-2">
           <Input
             value={refine}
@@ -1320,7 +1296,7 @@ function SuggestComposer({
                 setRefine("");
               }
             }}
-            placeholder="Ou escreve o que mudar…"
+            placeholder="O que queres mudar? Ex: mais curta"
             className="flex-1 h-11 lg:h-8 text-sm"
           />
           <Button
