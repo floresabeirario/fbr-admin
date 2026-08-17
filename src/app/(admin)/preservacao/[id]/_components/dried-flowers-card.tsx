@@ -3,10 +3,11 @@
 // Secção exclusiva das encomendas "Emoldurar Flores Secas" (mig 094).
 // Só aparece quando order.service_type === 'emoldurar_secas'. Tem um tom
 // verde bem marcado para se distinguir do resto do workbench (que é de
-// preservação) — é a cor do serviço em toda a plataforma (selo na lista,
-// tag no cabeçalho, aba do filtro) e a do form de secas no site. Mostra a
-// abordagem e o estado que o cliente indicou + as fotos do ramo submetidas
-// no form (signed URLs geradas no server).
+// preservação) — é a cor do form de secas no site. Nota: o SELO "Secas" (na
+// lista e no cabeçalho) é castanho da marca, não verde: nas linhas da lista
+// competia com a pílula verde "Contactada" (pedido da Maria, sessão 152).
+// Mostra a abordagem e o estado que o cliente indicou + as fotos do ramo
+// submetidas no form (signed URLs geradas no server).
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
