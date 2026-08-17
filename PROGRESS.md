@@ -11,10 +11,10 @@
 
 ## Onde estamos
 
-**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **152** (2026-08-17, converter uma encomenda de preservação para "flores secas" no workbench, com recálculo do orçamento, + cor verde própria do serviço — detalhe no bloco abaixo). Sessão 145 (Emoldurar Flores Secas) já em produção desde 26/07.
+**Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **153** (2026-08-17, assistente do WhatsApp passa a ler os campos da encomenda + a escrever na voz real da Maria + UX no telemóvel — detalhe no bloco abaixo). A 152 correu **em paralelo** no mesmo dia (converter encomenda para "flores secas"); ambas em produção. Sessão 145 (Emoldurar Flores Secas) já em produção desde 26/07.
 
 ### ⚠️ Pendentes de confirmação da Maria (verificar antes de assumir)
-- [ ] **Sessão 152 — Assistente lê a encomenda + escreve na voz da Maria (SEM migração, por committar):**
+- [ ] **Sessão 153 — Assistente lê a encomenda + escreve na voz da Maria + UX no telemóvel (SEM migração, EM PRODUÇÃO 17/08, `cac50e6`, deploy Vercel READY — falta só o smoke da Maria):**
   - **Porquê:** a Maria não se relacionava com o que o assistente escrevia ("não conhece a minha voz") e continuava a reescrever tudo à mão. Diagnóstico: (a) o prompt nunca teve uma única mensagem real dela, só a persona escrita à mão + os 29 templates; (b) a query do `suggest` só passava 22 colunas e **omitia** ornamentos/pendentes/quadros extra/extras/tipo de flores, logo respondia às cegas a quem tinha marcado "Mais info" no formulário.
   - **Parte 1 — o assistente vê a encomenda (A1-A5 aprovados; A6 fundo NÃO):** [suggest/route.ts](src/app/api/whatsapp/suggest/route.ts) passa a ler `flower_type`, `extras_in_frame` (opções + texto livre), `christmas_ornaments(_qty)`, `necklace_pendants(_qty)`, `extra_small_frames(_qty)`. Valores "Mais info" vão marcados `← PENDENTE`.
   - **Parte 2 — conteúdos obrigatórios (B1-B5 aprovados; B6 fundo NÃO; SEM preços por decisão da Maria):** `requiredContentPoints()` NOVO em [templates.ts](src/lib/templates.ts). Diferente do `fieldSuggestionBases` (que *sugere* templates): isto diz o que a mensagem **TEM** de conter e entra no prompt como secção "OBRIGATÓRIO". Regras: ornamentos/pendentes/quadros extra em "mais_info" → explicar + perguntar se quer incluir (nunca preços); envio das flores "não sei"/vazio → 3 opções; recolha sem morada → pedir morada. Estados `quadro_recebido`/`cancelado` não geram pendências.
