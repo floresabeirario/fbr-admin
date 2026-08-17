@@ -568,7 +568,7 @@ function OrderRow({
               )}
               {order.service_type === "emoldurar_secas" && (
                 <span
-                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide shrink-0"
+                  className="inline-flex items-center rounded-full bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 uppercase tracking-wide shrink-0"
                   title="Serviço: emoldurar flores já secas"
                 >
                   Secas
@@ -1358,7 +1358,7 @@ export default function PreservacaoClient({
                         "px-3 py-1.5 rounded-md font-medium transition-colors",
                         serviceFilter === value
                           ? value === "emoldurar_secas"
-                            ? "bg-amber-100 text-amber-800"
+                            ? "bg-emerald-100 text-emerald-800"
                             : value === "recriacao"
                             ? "bg-violet-100 text-violet-800"
                             : "bg-surface text-cocoa-900 shadow-sm"

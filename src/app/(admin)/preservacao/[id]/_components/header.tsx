@@ -200,7 +200,7 @@ export function WorkbenchHeader({
               </span>
             )}
             {local.service_type === "emoldurar_secas" && (
-              <span className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 uppercase tracking-wide shrink-0">
+              <span className="inline-flex items-center rounded-full bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 uppercase tracking-wide shrink-0">
                 Secas
               </span>
             )}

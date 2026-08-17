@@ -354,7 +354,10 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.invoice_url_intermedio !== undefined ||
     updates.invoice_url_final !== undefined ||
     // Campos que afectam o preço — para recalcular o orçamento automático
-    // quando o tamanho da moldura (etc.) é decidido na fase de design.
+    // quando o tamanho da moldura (etc.) é decidido na fase de design, ou
+    // quando o serviço muda (preservação ↔ flores secas têm tabelas de
+    // preços diferentes).
+    updates.service_type !== undefined ||
     updates.frame_size !== undefined ||
     updates.frame_background !== undefined ||
     updates.pyramid_frame !== undefined ||
@@ -451,10 +454,13 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
 
       // Recálculo automático do orçamento quando um campo de preço muda
       // (ex.: tamanho da moldura passa de "não sei" para 50x70 na fase de
-      // design) E o orçamento ainda é o automático (== ao snapshot, ou
-      // seja, não foi editado à mão) E a Maria não está a editar o
-      // orçamento neste mesmo update. Concretiza "300 provisório → 500".
+      // design, ou o serviço passa a "emoldurar flores secas", que tem
+      // tabela de preços própria) E o orçamento ainda é o automático (== ao
+      // snapshot, ou seja, não foi editado à mão) E a Maria não está a
+      // editar o orçamento neste mesmo update. Concretiza "300 → 200".
       const pricingFieldChanged =
+        (updates.service_type !== undefined &&
+          updates.service_type !== prev.service_type) ||
         updates.frame_size !== undefined ||
         updates.frame_background !== undefined ||
         updates.pyramid_frame !== undefined ||

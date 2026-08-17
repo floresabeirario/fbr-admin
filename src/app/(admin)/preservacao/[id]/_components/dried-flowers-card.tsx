@@ -2,9 +2,11 @@
 
 // Secção exclusiva das encomendas "Emoldurar Flores Secas" (mig 094).
 // Só aparece quando order.service_type === 'emoldurar_secas'. Tem um tom
-// âmbar bem marcado para se distinguir do resto do workbench (que é de
-// preservação). Mostra a abordagem e o estado que o cliente indicou + as
-// fotos do ramo submetidas no form (signed URLs geradas no server).
+// verde bem marcado para se distinguir do resto do workbench (que é de
+// preservação) — é a cor do serviço em toda a plataforma (selo na lista,
+// tag no cabeçalho, aba do filtro) e a do form de secas no site. Mostra a
+// abordagem e o estado que o cliente indicou + as fotos do ramo submetidas
+// no form (signed URLs geradas no server).
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -50,8 +52,8 @@ export function DriedFlowersCard({
     <Card
       title="Emoldurar flores secas"
       icon={<Flower2 className="h-3.5 w-3.5" />}
-      accent="amber"
-      className="order-1 lg:order-none ring-1 ring-amber-200 dark:ring-amber-800/60 bg-amber-50/40 dark:bg-amber-950/20"
+      accent="emerald"
+      className="order-1 lg:order-none ring-1 ring-emerald-200 dark:ring-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20"
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Abordagem que prefere" span2>
@@ -77,7 +79,7 @@ export function DriedFlowersCard({
                   href={p.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group relative block aspect-square overflow-hidden rounded-lg border border-amber-200 bg-cream-50"
+                  className="group relative block aspect-square overflow-hidden rounded-lg border border-emerald-200 bg-cream-50"
                   title={p.name}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -130,7 +132,7 @@ export function DriedFlowersCard({
             href={local.drive_folder_url ?? "#"}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-amber-700 hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline"
           >
             <ExternalLink className="h-3 w-3" /> Fotos movidas para a pasta do Drive
           </a>

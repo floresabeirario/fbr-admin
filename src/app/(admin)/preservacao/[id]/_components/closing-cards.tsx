@@ -4,10 +4,19 @@
 // de Quadro pronto), "Cupão 5%" e o rodapé com as datas de criação.
 // Extraídos do workbench-client.tsx (refactor sessão 128).
 
+import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { formatDateTimeLisbon } from "@/lib/format-date";
-import { Package, Ticket, CalendarPlus } from "lucide-react";
+import { Package, Ticket, CalendarPlus, Flower2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -15,15 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Order } from "@/types/database";
+import type { Order, ServiceType } from "@/types/database";
 import {
   COUPON_STATUS_LABELS,
   COUPON_STATUS_COLORS,
   CLIENT_FEEDBACK_STATUS_LABELS,
   CLIENT_FEEDBACK_STATUS_COLORS,
   SERVICE_TYPE_LABELS,
+  STATUS_LABELS,
   isStatusAtOrAfter,
 } from "@/types/database";
+import { formatEUR } from "@/lib/format";
 import { Card, CardSummary, Field, inp, sel } from "./layout";
 import { CouponCodeField } from "./fields";
 import { toDateInput, type UpdateFn } from "./shared";
@@ -154,6 +165,110 @@ export function CouponCard({ local, update }: { local: Order; update: UpdateFn }
   );
 }
 
+/* ── Confirmação da troca de/para "Emoldurar flores secas" ────────
+   Ex.: a noiva reservou preservação mas o ramo já vinha quase todo seco —
+   não faz sentido cobrar preços de preservação. Converter mexe no preço e
+   no acompanhamento público, por isso mostra-se antes o que vai acontecer. */
+function ServiceChangeDialog({
+  from,
+  to,
+  order,
+  onClose,
+  onConfirm,
+}: {
+  from: ServiceType;
+  to: ServiceType | null;
+  order: Order;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const toDried = to === "emoldurar_secas";
+
+  // O orçamento só se recalcula sozinho quando ainda é o automático (igual
+  // ao snapshot). Editado à mão fica intocado — o valor é decisão da Maria.
+  const snapshotTotal = order.pricing_snapshot?.total ?? null;
+  const budgetIsAuto =
+    snapshotTotal !== null &&
+    order.budget !== null &&
+    Math.abs(order.budget - snapshotTotal) < 0.01;
+
+  // "Flores na prensa" não existe nas secas (as flores já vêm secas).
+  const stuckInPress = toDried && order.status === "flores_na_prensa";
+
+  return (
+    <Dialog open={!!to} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-cocoa-900">
+            <Flower2 className="h-4 w-4 text-emerald-600" />
+            {toDried ? "Passar a flores secas?" : "Deixar de ser flores secas?"}
+          </DialogTitle>
+          <DialogDescription className="text-cocoa-700">
+            De <strong className="text-cocoa-900">{SERVICE_TYPE_LABELS[from]}</strong> para{" "}
+            <strong className="text-cocoa-900">{to ? SERVICE_TYPE_LABELS[to] : ""}</strong>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ul className="space-y-2 py-1 text-xs text-cocoa-800">
+          <li className="rounded-lg border border-cream-200 bg-cream-50 px-3 py-2">
+            <strong className="text-cocoa-900">Preços.</strong>{" "}
+            {toDried
+              ? "Passa a usar a tabela de flores secas (mais barata), em Finanças → Catálogo."
+              : "Volta à tabela normal da preservação, em Finanças → Catálogo."}{" "}
+            {budgetIsAuto ? (
+              <>O orçamento é recalculado já.</>
+            ) : (
+              <>
+                O orçamento actual{" "}
+                {order.budget !== null && (
+                  <span className="tabular-nums">({formatEUR(order.budget)})</span>
+                )}{" "}
+                foi posto à mão, por isso fica como está — para o novo valor usa
+                “Recalcular com preços actuais” no cartão Finanças.
+              </>
+            )}
+          </li>
+          <li className="rounded-lg border border-cream-200 bg-cream-50 px-3 py-2">
+            <strong className="text-cocoa-900">Acompanhamento do cliente.</strong>{" "}
+            {toDried
+              ? "A fase “Flores na prensa” desaparece da timeline pública e do selector de estado."
+              : "A fase “Flores na prensa” volta à timeline pública e ao selector de estado."}
+          </li>
+          {toDried && !order.dried_approach && (
+            <li className="rounded-lg border border-cream-200 bg-cream-50 px-3 py-2">
+              <strong className="text-cocoa-900">Campos das secas.</strong> A encomenda
+              veio pelo formulário de preservação, por isso a abordagem, o estado das
+              flores e as fotos ficam por preencher.
+            </li>
+          )}
+          {stuckInPress && (
+            <li className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+              Esta encomenda está em <strong>{STATUS_LABELS.flores_na_prensa}</strong>, um
+              estado que deixa de existir nas secas. Escolhe-lhe outro estado a seguir.
+            </li>
+          )}
+        </ul>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <button
+            onClick={onClose}
+            className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="h-9 px-4 rounded-lg bg-emerald-600 text-sm text-white font-medium hover:bg-emerald-700 transition-colors"
+          >
+            Sim, mudar
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function MetaFooter({
   local,
   canEdit,
@@ -163,39 +278,58 @@ export function MetaFooter({
   canEdit: boolean;
   update: UpdateFn;
 }) {
-  // Flores secas têm form/campos/fotos próprios — não se convertem aqui à
-  // mão (mostra-se só o selo). Preservação ↔ Recriação é uma etiqueta
-  // interna livre (mesmos preços, estados e status público).
-  const isDried = local.service_type === "emoldurar_secas";
+  // Preservação ↔ Recriação é só uma etiqueta interna (mesmos preços,
+  // estados e status público) — aplica-se logo. Já converter de/para
+  // "Emoldurar flores secas" mexe no dinheiro (tabela de preços própria,
+  // secas_*) e no acompanhamento público, por isso passa por confirmação.
+  const current: ServiceType = local.service_type ?? "preservacao";
+  const [pendingService, setPendingService] = useState<ServiceType | null>(null);
+
+  function chooseService(next: ServiceType) {
+    if (next === current) return;
+    const touchesDried =
+      next === "emoldurar_secas" || current === "emoldurar_secas";
+    if (touchesDried) {
+      setPendingService(next);
+      return;
+    }
+    update("service_type", next);
+  }
+
   return (
     <div className="order-[15] lg:order-none rounded-xl border border-cream-200 bg-surface px-4 py-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-cocoa-500">
           Tipo de serviço
         </span>
-        {isDried ? (
-          <span className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-            Flores secas
-          </span>
-        ) : canEdit ? (
-          <Select
-            value={local.service_type ?? "preservacao"}
-            onValueChange={(v) => update("service_type", v as Order["service_type"])}
-          >
-            <SelectTrigger className="h-7 w-40 text-xs border-cream-200 bg-cream-50 text-cocoa-900 rounded-lg">
+        {canEdit ? (
+          <Select value={current} onValueChange={(v) => chooseService(v as ServiceType)}>
+            <SelectTrigger className="h-7 w-44 text-xs border-cream-200 bg-cream-50 text-cocoa-900 rounded-lg">
               <SelectValue labels={SERVICE_TYPE_LABELS} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="preservacao">{SERVICE_TYPE_LABELS.preservacao}</SelectItem>
               <SelectItem value="recriacao">{SERVICE_TYPE_LABELS.recriacao}</SelectItem>
+              <SelectItem value="emoldurar_secas">{SERVICE_TYPE_LABELS.emoldurar_secas}</SelectItem>
             </SelectContent>
           </Select>
         ) : (
           <span className="text-[11px] font-medium text-cocoa-700">
-            {SERVICE_TYPE_LABELS[local.service_type ?? "preservacao"]}
+            {SERVICE_TYPE_LABELS[current]}
           </span>
         )}
       </div>
+
+      <ServiceChangeDialog
+        from={current}
+        to={pendingService}
+        order={local}
+        onClose={() => setPendingService(null)}
+        onConfirm={() => {
+          if (pendingService) update("service_type", pendingService);
+          setPendingService(null);
+        }}
+      />
       <div className="space-y-1 pt-1 border-t border-cream-100">
         <p className="text-[10px] text-cocoa-500">
           Criada em {formatDateTimeLisbon(local.created_at)}
