@@ -14,7 +14,7 @@
 **Fase 6 — Integrações + PWA + RGPD (em curso).** Última sessão: **152** (2026-08-17, converter uma encomenda de preservação para "flores secas" no workbench, com recálculo do orçamento, + cor verde própria do serviço — detalhe no bloco abaixo). Sessão 145 (Emoldurar Flores Secas) já em produção desde 26/07.
 
 ### ⚠️ Pendentes de confirmação da Maria (verificar antes de assumir)
-- [ ] **Sessão 152 — Converter uma encomenda para "flores secas" + cor própria do serviço (POR COMMITAR/DEPLOY):**
+- [ ] **Sessão 152 — Converter uma encomenda para "flores secas" + cor própria do serviço (EM PRODUÇÃO 17/08, `2dc4a7c`, deploy Vercel READY — falta só o smoke da Maria):**
   - **Porquê:** noiva reservou preservação mas o ramo já vinha quase todo seco — não faz sentido cobrar preços de preservação.
   - **O quê:** o select "Tipo de serviço" no rodapé do workbench passa a ter os **3** tipos (secas deixa de ser selo read-only). Trocar de/para secas abre **diálogo de confirmação** que explica: preços passam para a tabela `secas_*`, orçamento recalcula-se **só se ainda for o automático** (editado à mão fica intocado, com dica do botão "Recalcular"), "Flores na prensa" sai/entra na timeline pública e no selector, campos das secas ficam por preencher, e aviso extra se a encomenda estiver mesmo em "Flores na prensa". Preservação ↔ Recriação continua instantâneo (mesmos preços).
   - **Recalculo:** [actions.ts](src/app/(admin)/preservacao/actions.ts) — `service_type` entra no `needsPrev` e no `pricingFieldChanged` (só recalcula quando muda de valor e o orçamento == snapshot).
