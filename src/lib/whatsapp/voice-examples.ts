@@ -215,11 +215,43 @@ export async function pickVoiceExamples(
   }
 }
 
-/** Bloco pronto para o prompt. Vazio se não houver exemplos. */
-export function voiceExamplesBlock(exemplos: VoiceExample[]): string {
+/**
+ * Resolve o marcador {nome} deixado pela anonimização.
+ *
+ * Com nome conhecido, substitui. Sem nome, apaga o marcador E a
+ * pontuação que ficaria pendurada ("Bom dia, {nome}!" → "Bom dia!"),
+ * senão sobrava um "Bom dia ,!" ou um {nome} cru na mensagem.
+ */
+export function preencherNome(texto: string, primeiroNome: string): string {
+  const marcador = /\{nome(_completo)?\}/gi;
+  if (primeiroNome) return texto.replace(marcador, primeiroNome);
+  return texto
+    .replace(/([,;:]\s*)\{nome(_completo)?\}/gi, "")
+    .replace(/\s*\{nome(_completo)?\}/gi, "")
+    .replace(marcador, "");
+}
+
+/**
+ * Bloco pronto para o prompt. Vazio se não houver exemplos.
+ *
+ * `primeiroNome` é o nome da pessoa DESTA conversa. Injectá-lo nos
+ * exemplos importa mais do que parece: exemplos todos anonimizados
+ * ("Bom dia {nome}!") ensinam ao modelo, sem querer, que as mensagens
+ * da Maria não têm nome — e ele passa a escrever sem nome ou a copiar
+ * o marcador. Com o nome real lá dentro, o exemplo lê-se natural e o
+ * sinal de estilo fica correcto. A anonimização continua a fazer o seu
+ * trabalho: o nome da cliente ANTERIOR nunca chega aqui.
+ */
+export function voiceExamplesBlock(
+  exemplos: VoiceExample[],
+  primeiroNome = "",
+): string {
   if (exemplos.length === 0) return "";
   const corpo = exemplos
-    .map((e, i) => `### Exemplo ${i + 1}\n${e.text}`)
+    .map((e, i) => `### Exemplo ${i + 1}\n${preencherNome(e.text, primeiroNome)}`)
     .join("\n\n");
-  return `\n\n## Como a Maria escreve mesmo (mensagens reais dela)\n\nEstas são mensagens que a Maria enviou a clientes em situações parecidas. São a referência de VOZ: ritmo das frases, comprimento, uso de emojis, forma de abrir e fechar, expressões dela. Imita o estilo, não copies o conteúdo — os factos vêm da encomenda desta conversa. Os nomes foram substituídos por {nome} de propósito.\n\n${corpo}`;
+  const notaNome = primeiroNome
+    ? `A pessoa desta conversa chama-se **${primeiroNome}** e os exemplos já foram ajustados para esse nome: trata-a pelo nome como a Maria faz.`
+    : `Não sabemos o nome desta pessoa: escreve sem nome (nunca escrevas "{nome}" nem inventes um).`;
+  return `\n\n## Como a Maria escreve mesmo (mensagens reais dela)\n\nEstas são mensagens que a Maria enviou a clientes em situações parecidas. São a referência de VOZ: ritmo das frases, comprimento, uso de emojis, forma de abrir e fechar, expressões dela. Imita o estilo, não copies o conteúdo — os factos vêm da encomenda desta conversa. ${notaNome}\n\n${corpo}`;
 }

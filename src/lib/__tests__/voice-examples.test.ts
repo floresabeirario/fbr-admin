@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   anonimizar,
   escolherExemplos,
+  preencherNome,
   servePorExemplo,
   voiceExamplesBlock,
   type VoiceExample,
@@ -115,16 +116,67 @@ describe("escolherExemplos", () => {
   });
 });
 
+// Exemplos todos anonimizados ensinavam ao modelo que as mensagens da
+// Maria nao levam nome, e ele escrevia sem nome ou copiava o marcador.
+// O nome desta conversa entra nos exemplos; e a saida e limpa em codigo.
+
+describe("preencherNome", () => {
+  it("substitui o marcador pelo nome da conversa actual", () => {
+    expect(preencherNome("Bom dia {nome}, o quadro está pronto.", "Sofia")).toBe(
+      "Bom dia Sofia, o quadro está pronto.",
+    );
+  });
+
+  it("apanha também {nome_completo}", () => {
+    expect(preencherNome("Cara {nome_completo},", "Sofia")).toBe("Cara Sofia,");
+  });
+
+  it("sem nome, apaga o marcador e a pontuação pendurada", () => {
+    expect(preencherNome("Bom dia, {nome}! As flores chegaram.", "")).toBe(
+      "Bom dia! As flores chegaram.",
+    );
+    expect(preencherNome("Olá {nome} 🌷", "")).toBe("Olá 🌷");
+  });
+
+  it("nunca deixa um {nome} cru passar para a mensagem final", () => {
+    for (const nome of ["Sofia", ""]) {
+      expect(preencherNome("Bom dia {nome}, tudo bem?", nome)).not.toContain("{nome}");
+    }
+  });
+
+  it("não mexe em texto sem marcador", () => {
+    const t = "O quadro fica pronto para a semana.";
+    expect(preencherNome(t, "Sofia")).toBe(t);
+  });
+});
+
 describe("voiceExamplesBlock", () => {
+  const exemplo: VoiceExample[] = [
+    { text: "Bom dia {nome}, o quadro está pronto.", sentAt: new Date().toISOString() },
+  ];
+
   it("devolve vazio quando não há exemplos (assistente funciona à mesma)", () => {
     expect(voiceExamplesBlock([])).toBe("");
   });
 
   it("instrui a imitar o estilo e não o conteúdo", () => {
-    const bloco = voiceExamplesBlock([
-      { text: "Bom dia {nome}, o quadro está pronto.", sentAt: new Date().toISOString() },
-    ]);
+    const bloco = voiceExamplesBlock(exemplo);
     expect(bloco).toContain("Imita o estilo, não copies o conteúdo");
     expect(bloco).toContain("Exemplo 1");
+  });
+
+  it("com nome conhecido, os exemplos usam-no e o modelo é instruido a tratá-la pelo nome", () => {
+    const bloco = voiceExamplesBlock(exemplo, "Sofia");
+    expect(bloco).toContain("Bom dia Sofia, o quadro está pronto.");
+    expect(bloco).toContain("chama-se **Sofia**");
+    expect(bloco).not.toContain("{nome}");
+  });
+
+  it("sem nome, manda escrever sem nome e proíbe inventar", () => {
+    const bloco = voiceExamplesBlock(exemplo, "");
+    expect(bloco).toContain("escreve sem nome");
+    expect(bloco).toContain("nem inventes um");
+    // O exemplo fica limpo, sem marcador pendurado
+    expect(bloco).toContain("Bom dia, o quadro está pronto.");
   });
 });

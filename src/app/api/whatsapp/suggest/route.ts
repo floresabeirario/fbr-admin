@@ -13,7 +13,11 @@ import {
   fieldSuggestionBases,
   requiredContentPoints,
 } from "@/lib/templates";
-import { pickVoiceExamples, voiceExamplesBlock } from "@/lib/whatsapp/voice-examples";
+import {
+  pickVoiceExamples,
+  preencherNome,
+  voiceExamplesBlock,
+} from "@/lib/whatsapp/voice-examples";
 import type { SystemSettingsMap } from "@/types/message-template";
 import {
   STATUS_LABELS,
@@ -303,11 +307,22 @@ export async function POST(request: NextRequest) {
   ]
     .filter(Boolean)
     .join(" ");
+  // Nome da pessoa desta conversa. A encomenda ligada manda (é o nome
+  // que ela própria escreveu no formulário); o contacto do WhatsApp é o
+  // fallback. Vazio quando não sabemos — e aí ninguém inventa nada.
+  const nomeCliente = (
+    linkedOrders[0]?.client_name ??
+    conv.contact_name ??
+    ""
+  ).trim();
+  const primeiroNomeCliente = nomeCliente ? nomeCliente.split(/\s+/)[0] : "";
+
   const voiceBlock = voiceExamplesBlock(
     await pickVoiceExamples(supabase, {
       situacao,
       excludeConversationId: body.conversationId,
     }),
+    primeiroNomeCliente,
   );
 
   // ─── System prompt (cacheable) ───
@@ -391,6 +406,10 @@ Gera a próxima mensagem da FBR (pronta a copiar):`;
 
     const firstBlock = response.content[0];
     suggestion = firstBlock?.type === "text" ? firstBlock.text : "";
+    // Rede de segurança: se o modelo copiar o marcador {nome} dos
+    // exemplos, resolvemo-lo aqui em código. A Maria nunca deve ver um
+    // {nome} cru numa mensagem pronta a enviar.
+    suggestion = preencherNome(suggestion, primeiroNomeCliente);
     usage = response.usage as ClaudeUsage;
   } catch (err) {
     console.error("[wa-suggest] anthropic error", err);
