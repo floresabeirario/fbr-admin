@@ -1,13 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check, Send } from "lucide-react";
+import { ArrowLeft, Search, Archive, ArchiveRestore, Sparkles, Copy, RotateCcw, X, MailQuestion, RefreshCw, FolderOpen, User, Tag, Plus, Trash2, Check, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { phoneToWaMe } from "@/lib/format-phone";
+import {
+  subscribeComposer,
+  getComposerSnapshot,
+  getServerComposerSnapshot,
+  conversationDrafts,
+  currentDraft,
+  saveInstruction,
+  pushDraft,
+  updateDraftText,
+  setDraftIndex,
+  markDraftUsed,
+  clearConversationDrafts,
+} from "@/lib/whatsapp/composer-drafts";
 import { linkify } from "@/lib/linkify";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Input } from "@/components/ui/input";
@@ -1087,19 +1100,7 @@ function SuggestComposer({
   phone: string;
   orderId?: string | null;
 }) {
-  const [instruction, setInstruction] = useState("");
   const [loading, setLoading] = useState(false);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
-  // Texto tal como o Claude o gerou, antes das correcções da Maria. É
-  // metade do par que alimenta a aprendizagem (mig 102): o que ele
-  // escreveu vs o que ela realmente usou.
-  const [original, setOriginal] = useState<string | null>(null);
-  const [language, setLanguage] = useState<string | null>(null);
-  // Guarda-se uma vez por sugestão: se ela copiar e depois abrir no
-  // WhatsApp, é a mesma mensagem, não duas. Estado e não ref: o reset
-  // por mudança de conversa corre DURANTE o render, e aí um ref não
-  // pode ser tocado (regra react-hooks/refs).
-  const [registado, setRegistado] = useState(false);
   // Confirmação de "copiado" no próprio botão. Era um toast, mas no
   // telemóvel o toast aparecia por cima destes botões e não saía mais
   // (o toque conta como hover e o sonner pausa o auto-fechar).
@@ -1112,25 +1113,37 @@ function SuggestComposer({
     [],
   );
 
-  // Reset quando muda de conversa — durante o render, sem setState em effect.
+  // O que ela escreve vive em localStorage, não em memória: o Android
+  // mata a PWA quando ela vai ao WhatsApp e volta, e antes disto perdia
+  // a mensagem a meio. Cada geração empilha um rascunho, por isso o
+  // "Refazer" deixou de destruir a versão anterior.
+  const snapshot = useSyncExternalStore(
+    subscribeComposer,
+    getComposerSnapshot,
+    getServerComposerSnapshot,
+  );
+  const conv = conversationDrafts(snapshot, conversationId);
+  const draft = currentDraft(conv);
+  const suggestion = draft?.text ?? null;
+  const instruction = conv.instruction;
+  const totalDrafts = conv.drafts.length;
+  const draftIndex = Math.min(Math.max(conv.index, 0), Math.max(totalDrafts - 1, 0));
+
+  // Reset do "copiado" ao mudar de conversa — durante o render, sem
+  // setState em effect.
   const [prevSuggestConvId, setPrevSuggestConvId] = useState(conversationId);
   if (conversationId !== prevSuggestConvId) {
     setPrevSuggestConvId(conversationId);
-    setInstruction("");
-    setSuggestion(null);
     setLoading(false);
     setCopied(false);
-    setOriginal(null);
-    setLanguage(null);
-    setRegistado(false);
   }
 
   // Guarda o par sugestão-gerada / texto-usado. Silencioso e
   // best-effort: se falhar, a Maria nem dá por isso e a mensagem sai na
   // mesma. Nunca `await`-ado no caminho do clique.
   function registarUso(usedVia: "copiar" | "whatsapp") {
-    if (registado || !original || !suggestion) return;
-    setRegistado(true);
+    if (!draft || draft.used || !draft.original || !draft.text) return;
+    markDraftUsed(conversationId);
     void fetch("/api/whatsapp/suggest-edit", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1138,10 +1151,10 @@ function SuggestComposer({
         conversationId,
         orderId: orderId ?? null,
         instruction: instruction || null,
-        original,
-        final: suggestion,
+        original: draft.original,
+        final: draft.text,
         usedVia,
-        language,
+        language: draft.language ?? null,
       }),
     }).catch(() => {});
   }
@@ -1160,10 +1173,12 @@ function SuggestComposer({
         throw new Error(text || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      setSuggestion(data.suggestion || "");
-      setOriginal(data.suggestion || "");
-      setLanguage(data.language ?? null);
-      setRegistado(false);
+      const texto = data.suggestion || "";
+      pushDraft(conversationId, {
+        original: texto,
+        text: texto,
+        language: data.language ?? null,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro a gerar sugestão");
     } finally {
@@ -1185,8 +1200,7 @@ function SuggestComposer({
   }
 
   function handleClose() {
-    setSuggestion(null);
-    setInstruction("");
+    clearConversationDrafts(conversationId);
     setCopied(false);
   }
 
@@ -1207,20 +1221,49 @@ function SuggestComposer({
           <span className="text-[11px] font-medium text-cocoa-700 flex items-center gap-1">
             <Sparkles className="h-3 w-3 text-indigo-500" /> Sugestão (edita antes de enviar)
           </span>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="p-2 -m-1 text-cocoa-400 hover:text-cocoa-700"
-            aria-label="Fechar"
-          >
-            <X className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Histórico: o "Refazer" empilha em vez de destruir, por isso
+                dá para voltar a uma sugestão anterior que estava melhor. */}
+            {totalDrafts > 1 && (
+              <div className="flex items-center gap-0.5 mr-1">
+                <button
+                  type="button"
+                  onClick={() => setDraftIndex(conversationId, draftIndex - 1)}
+                  disabled={draftIndex === 0}
+                  className="p-1.5 -m-0.5 text-cocoa-400 hover:text-cocoa-700 disabled:opacity-30"
+                  aria-label="Sugestão anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-[11px] tabular-nums text-cocoa-500">
+                  {draftIndex + 1}/{totalDrafts}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDraftIndex(conversationId, draftIndex + 1)}
+                  disabled={draftIndex === totalDrafts - 1}
+                  className="p-1.5 -m-0.5 text-cocoa-400 hover:text-cocoa-700 disabled:opacity-30"
+                  aria-label="Sugestão seguinte"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleClose}
+              className="p-2 -m-1 text-cocoa-400 hover:text-cocoa-700"
+              aria-label="Fechar"
+            >
+              <X className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+            </button>
+          </div>
         </div>
         <Textarea
           value={suggestion}
           ref={autoGrow}
           onChange={(e) => {
-            setSuggestion(e.target.value);
+            updateDraftText(conversationId, e.target.value);
             autoGrow(e.currentTarget);
           }}
           rows={4}
@@ -1282,7 +1325,7 @@ function SuggestComposer({
       <Textarea
         value={instruction}
         onChange={(e) => {
-          setInstruction(e.target.value);
+          saveInstruction(conversationId, e.target.value);
           autoGrow(e.currentTarget);
         }}
         placeholder='Diz ao Claude o que queres comunicar (opcional). Ex: "responde que sim, conseguimos fazer mas o prazo é mais longo"'
