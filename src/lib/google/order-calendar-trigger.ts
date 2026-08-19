@@ -1,5 +1,6 @@
 import "server-only";
 import { upsertOrderEvent, deleteOrderEvent } from "./calendar";
+import { effectiveCalendarDate } from "./calendar-date";
 import { loadIntegration } from "./oauth";
 import { createClient } from "@/lib/supabase/server";
 import type { Order, OrderStatus, PaymentStatus } from "@/types/database";
@@ -9,6 +10,9 @@ import type { Order, OrderStatus, PaymentStatus } from "@/types/database";
  * (decididas com a Maria na sessão 38):
  *
  *  - Cria evento ao 1º pagamento (mesma trigger do Drive).
+ *  - Cria também quando a encomenda ganha data pela 1ª vez já depois de
+ *    paga — o caso das **flores secas**, que não têm data do evento e só
+ *    passam a ter dia quando a entrega das flores é marcada (sessão 154).
  *  - Actualiza se mudar `event_date`, `client_name`, `event_type`,
  *    `couple_names` ou `event_location` (e já houver evento).
  *  - Apaga se passar para `cancelado` (e havia evento).
@@ -116,7 +120,7 @@ export function calendarFieldsChanged(
 export async function upsertOrderCalendarEvent(
   order: OrderFields,
 ): Promise<{ id: string; htmlLink: string | null } | null> {
-  if (!order.event_date) return null;
+  if (!effectiveCalendarDate(order)) return null;
   if (!(await isGoogleConnected())) return null;
 
   try {

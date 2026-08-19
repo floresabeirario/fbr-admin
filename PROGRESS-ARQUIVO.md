@@ -7,6 +7,17 @@
 
 ---
 
+## Sessão 146 — movida na sessão 154
+
+### Sessão 146 (2026-08-09) — Migração Dualhook: chave outbound `dh_live_` (deadline Meta 12/08)
+- **O quê:** email + dashboard do Dualhook avisavam que **a partir de 12/08/2026** os pedidos de **saída** que usam a autorização Meta do Dualhook têm de ir por `https://api.dualhook.com` com a chave `dh_live_` (em `WHATSAPP_ACCESS_TOKEN`), senão a Meta rejeita-os. Webhooks de **entrada** não são afectados (continuam a chegar directamente da Meta). Único outbound da plataforma = **download da multimédia recebida** ([media-fetch.ts](src/lib/whatsapp/media-fetch.ts)); envio não implementado.
+- **Ficheiros:** [media-fetch.ts](src/lib/whatsapp/media-fetch.ts) — host `graph.facebook.com`→`api.dualhook.com` (const `WHATSAPP_API_BASE`) + o download dos bytes passa a usar a **rota `/content` do Dualhook** (o `url` temporário devolvido pela Meta aponta para o CDN dela e exigia o token Meta original, que já não temos com a `dh_live_`).
+- **Passos manuais (Maria, feitos):** criou a chave no dashboard Dualhook (Connection → Overview → Create key), substituiu `WHATSAPP_ACCESS_TOKEN` na Vercel (Production) pela `dh_live_...CzAM` + redeploy. Guardou o token Meta **antigo** numa nota (rede de segurança). Sem migração de BD.
+- **Smoke:** deploy `master` `e8b2000` READY em produção (verificado via Vercel MCP); varredura confirmou **zero** `graph.facebook.com` no código e `WHATSAPP_ACCESS_TOKEN` só usado no media-fetch; **teste real da Maria: enviou foto por WhatsApp → guardada na Drive ✅**. tsc limpo + 100 testes.
+- **Fix CI/preflight (mesma sessão):** o CI estava vermelho há semanas (emails "CI: All jobs have failed", 11 annotations) e o preflight local falhava — o **pool paralelo do vitest v4** rebenta a carregar vários ficheiros ao mesmo tempo ("Cannot read properties of undefined (reading 'config')"), no ubuntu do CI e no Windows local. Não era bug do código. Correcção: `fileParallelism: false` em [vitest.config.ts](vitest.config.ts) → 100 testes passam em série (~9-12s).
+- **Também triado (não são acção nossa):** email Google Maps "Apple Silicon/iOS SDK" = irrelevante (FBR usa Maps só na web, sem app iOS); GitHub "Lembretes de tarefas cancelled" = concorrência normal (cancela disparos sobrepostos de propósito); **Google Cloud trial a expirar (~14/08):** Drive/Gmail/Calendário são grátis e mantêm-se; só a **Google Maps** (sugestões de morada + mapa Entregas/Recolhas) exige cartão — degrada com elegância (campos passam a texto manual, dados intactos; mapa Portugal das Parcerias é SVG, não é Google). Maria inclina-se a **não pagar**; custo real seria ~0€ mas exige cartão. Link "abrir no Maps" em Entregas/Recolhas é URL grátis (não parte). **A decidir depois de 14/08 se as sugestões pararem.**
+- **Pendente:** apagar o token Meta antigo da nota após ~1 semana de confiança; PR **Dependabot #3** (`npm-mensal`) continua vermelha na Vercel — bump de TypeScript 7 incompatível com Next 16 ("does not provide the compiler API"); fechar/ignorar a PR (não é produção). Ecossistema/`SECRETS.md` já mencionam o Dualhook; rever se convém anotar o outbound.
+
 ## Sessões 143-144 — movidas na sessão 152
 
 ### Sessão 144 (2026-07-16) — fbr-voucher: página ficava presa com zoom no browser do WhatsApp

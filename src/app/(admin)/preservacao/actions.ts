@@ -24,6 +24,10 @@ import {
   statusBecomesCancelled,
   upsertOrderCalendarEvent,
 } from "@/lib/google/order-calendar-trigger";
+import {
+  calendarDateBecomesAvailable,
+  effectiveCalendarDate,
+} from "@/lib/google/calendar-date";
 import type { OrderInsert, OrderUpdate, OrderStatus, Order, PaymentStatus } from "@/types/database";
 import { isPreservacaoDesignStatus } from "@/types/database";
 import {
@@ -546,13 +550,41 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       // Calendar: decide ordem de prioridade
       //   1. Se vai passar para `cancelado` E existe evento → apagar
       //   2. Se é 1º pagamento → criar (se não houver ainda)
-      //   3. Se já existe evento e mudou algum campo visível → actualizar
+      //   3. Se a encomenda ganha data agora, já depois de paga → criar.
+      //      É o caminho das flores secas: sem data do evento, o 1º
+      //      pagamento não tinha dia nenhum para agendar (sessão 154).
+      //   4. Se já existe evento e mudou algum campo visível → actualizar
+      const prevCalendarDates = {
+        event_date: prev.event_date as string | null,
+        flower_delivery_method: prev.flower_delivery_method as Order["flower_delivery_method"],
+        pickup_date: prev.pickup_date as string | null,
+        hand_delivery_date: prev.hand_delivery_date as string | null,
+      };
+      const nextCalendarDates = {
+        event_date: updates.event_date ?? prevCalendarDates.event_date,
+        flower_delivery_method:
+          updates.flower_delivery_method ?? prevCalendarDates.flower_delivery_method,
+        pickup_date: updates.pickup_date ?? prevCalendarDates.pickup_date,
+        hand_delivery_date:
+          updates.hand_delivery_date ?? prevCalendarDates.hand_delivery_date,
+      };
+      const nextPayment =
+        updates.payment_status ?? (prev.payment_status as Order["payment_status"]);
+      const nextStatus = updates.status ?? (prev.status as Order["status"]);
+
       if (statusBecomesCancelled(prev.status as Order["status"], updates.status) && prev.calendar_event_id) {
         calendarAction = "delete";
       } else if (
         updates.payment_status !== undefined &&
         isFirstOrderPaymentTransition(prev.payment_status as Order["payment_status"], updates.payment_status) &&
         !prev.calendar_event_id
+      ) {
+        calendarAction = "create";
+      } else if (
+        !prev.calendar_event_id &&
+        nextPayment !== "100_por_pagar" &&
+        nextStatus !== "cancelado" &&
+        calendarDateBecomesAvailable(prevCalendarDates, nextCalendarDates)
       ) {
         calendarAction = "create";
       } else if (
@@ -863,8 +895,19 @@ export async function createOrderCalendarEventAction(id: string): Promise<{
     .single();
   if (error) throw new Error(error.message);
 
-  if (!data.event_date) {
-    throw new Error("A encomenda não tem data do evento — preenche primeiro.");
+  // Flores secas não têm data do evento — nesse caso serve a data de
+  // entrega das flores (recolha ou em mãos).
+  if (
+    !effectiveCalendarDate({
+      event_date: data.event_date as string | null,
+      flower_delivery_method: data.flower_delivery_method as Order["flower_delivery_method"],
+      pickup_date: data.pickup_date as string | null,
+      hand_delivery_date: data.hand_delivery_date as string | null,
+    })
+  ) {
+    throw new Error(
+      "A encomenda não tem data do evento nem data de entrega das flores — preenche uma delas primeiro.",
+    );
   }
 
   const result = await upsertOrderCalendarEvent({

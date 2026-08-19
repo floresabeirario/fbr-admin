@@ -35,6 +35,7 @@ import {
 import type { Order } from "@/types/database";
 import { EVENT_TYPE_LABELS } from "@/types/database";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
+import { effectiveCalendarDate } from "@/lib/google/calendar-date";
 import {
   publicStatusUrl,
   formatPublicEstimatedDelivery,
@@ -107,9 +108,13 @@ export function HeroSection({
     local.calendar_event_html_link,
   );
 
+  // Data que o evento vai usar: data do evento ou, nas flores secas (que
+  // não têm evento), a data de entrega das flores.
+  const calendarDate = effectiveCalendarDate(local);
+
   async function createCalendarEvent() {
-    if (!local.event_date) {
-      toast.error("Preenche a data do evento primeiro.");
+    if (!calendarDate) {
+      toast.error("Preenche a data do evento ou a data de entrega das flores primeiro.");
       return;
     }
     setCalendarBusy(true);
@@ -253,7 +258,7 @@ export function HeroSection({
 
               <CalendarEventShortcut
                 eventId={local.calendar_event_id}
-                eventDate={local.event_date}
+                eventDate={calendarDate}
                 link={calendarLink}
                 busy={calendarBusy}
                 onCreate={createCalendarEvent}

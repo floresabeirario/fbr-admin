@@ -1,6 +1,7 @@
 import "server-only";
 import { google, type calendar_v3 } from "googleapis";
 import { getAuthenticatedClient, loadIntegration } from "./oauth";
+import { effectiveCalendarDate } from "./calendar-date";
 import { createClient } from "@/lib/supabase/server";
 import {
   EVENT_TYPE_LABELS,
@@ -204,8 +205,11 @@ function addOneHour(hhmm: string): string {
 }
 
 function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
-  if (!order.event_date) {
-    throw new Error("Encomenda sem data do evento — não dá para criar evento Calendar.");
+  const effectiveDate = effectiveCalendarDate(order);
+  if (!effectiveDate) {
+    throw new Error(
+      "Encomenda sem data do evento nem data de entrega das flores — não dá para criar evento Calendar.",
+    );
   }
 
   const isPickup = order.flower_delivery_method === "recolha_evento";
@@ -229,27 +233,20 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
   // por ainda não haver data de entrega combinada. Só faz sentido para
   // entregas em mãos / recolha no local (CTT vai por correio, não tem
   // "marcação"; e nesses casos não poluímos o título).
-  const deliveryDateConfirmed =
-    (isPickup && !!order.pickup_date) ||
-    (isHandDelivery && !!order.hand_delivery_date);
+  // A data de entrega que "manda" neste evento (a mesma que alimenta o
+  // `effectiveDate`): se não há nenhuma, o evento está no dia do evento
+  // à espera de combinação.
+  const deliveryDate = isPickup
+    ? order.pickup_date
+    : isHandDelivery
+      ? order.hand_delivery_date
+      : (order.pickup_date ?? order.hand_delivery_date);
   const isCtt = order.flower_delivery_method === "ctt";
-  const showNoDeliveryDateNote = !deliveryDateConfirmed && !isCtt;
+  const showNoDeliveryDateNote = !deliveryDate && !isCtt;
 
   const summary =
     `${[prefix, namePart, typeLabel].filter(Boolean).join(" | ")} 💐` +
     (showNoDeliveryDateNote ? " — ⏳ entrega por combinar" : "");
-
-  // Data efectiva do evento (dia em que o evento aparece no Calendar):
-  //   - recolha: pickup_date se houver, senão event_date
-  //   - em mãos: hand_delivery_date se houver, senão event_date
-  //   - outros casos: event_date
-  // Isto garante que o evento aparece no dia em que há trabalho a fazer
-  // (recolha ou recepção em mãos), e não no dia do casamento.
-  const effectiveDate = isPickup
-    ? (order.pickup_date ?? order.event_date)
-    : isHandDelivery
-      ? (order.hand_delivery_date ?? order.event_date)
-      : order.event_date;
 
   // Fallback hardcoded para o domínio de produção — sem isto, eventos
   // criados em ambientes onde NEXT_PUBLIC_SITE_URL não esteja definido
@@ -371,7 +368,7 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
       end: { dateTime: `${effectiveDate}T${endTime}:00`, timeZone: TIMEZONE },
     };
   } else {
-    const start = effectiveDate!; // "YYYY-MM-DD"
+    const start = effectiveDate; // "YYYY-MM-DD"
     const next = new Date(`${effectiveDate}T00:00:00Z`);
     next.setUTCDate(next.getUTCDate() + 1);
     const end = next.toISOString().slice(0, 10);
@@ -394,12 +391,13 @@ function buildEventBody(order: OrderForEvent): calendar_v3.Schema$Event {
 
 /**
  * Cria ou actualiza o evento Calendar de uma encomenda.
- * Devolve `{id, htmlLink}` ou `null` se a encomenda não tem `event_date`.
+ * Devolve `{id, htmlLink}` ou `null` se a encomenda não tem nenhuma data
+ * utilizável (ver `effectiveCalendarDate`).
  */
 export async function upsertOrderEvent(
   order: OrderForEvent & { calendar_event_id: string | null },
 ): Promise<CalendarEventInfo | null> {
-  if (!order.event_date) return null;
+  if (!effectiveCalendarDate(order)) return null;
 
   const calendarId = await ensureCalendar();
   const calendar = await getCalendar();

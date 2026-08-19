@@ -245,7 +245,7 @@ export function CalendarEventShortcut({
     return (
       <span
         className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-cream-200 bg-cream-50 px-2.5 py-1.5 text-xs text-cocoa-500 cursor-not-allowed"
-        title="Preenche a data do evento para poderes criar um evento no Calendar"
+        title="Preenche a data do evento (ou a data de entrega das flores) para poderes criar um evento no Calendar"
       >
         <CalendarPlus className="h-3.5 w-3.5" />
         Evento Calendar
