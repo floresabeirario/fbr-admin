@@ -7,6 +7,28 @@
 
 ---
 
+## Sessões 150 e 147 — movidas na sessão 155
+
+### Sessão 150 (2026-08-10) — Pôr live o trabalho não-committado de 5 sessões paralelas
+- **O quê:** a Maria tinha 5 sessões Claude que trabalharam em simultâneo, todas terminadas, com código por committar espalhado. Consolidei e pus tudo em produção, com verificação das migrações antes de fazer deploy do que delas depende.
+- **fbr-admin (`master` `46c944d`, Vercel READY):** um commit com as DUAS frentes que estavam no working tree — (1) **Recriação** (mig 098) e (2) **status secas esconde "Flores na prensa"** no lado admin (mig 097). tsc + 103 testes + build OK (preflight verde). Ficheiros: database.ts, _styles.ts, preservacao-client.tsx, fields.tsx, closing-cards.tsx, workbench-client.tsx, public-status-sync.test.ts (reaponta p/ 097), migs 097+098.
+- **fbr-tracking (`develop`+`main` `854998a`):** commit do lado site do "esconder Flores na prensa" (supabase.js/timeline.js/[id].js). Diff real só 65 linhas (o resto era churn de CRLF — commit limpo confirmado por `git diff --cached`). ff-merge develop→main.
+- **Migrações verificadas ANTES do deploy (regra [[feedback_migracoes_supabase_aplicadas]]):** 098 confirmada pela Maria; **097 verificada em produção** — chamei a REST com a anon key e o anon já lê `orders.service_type` (só possível com o GRANT da 097). O `supabase.js` do tracking tem fallback `|| 'preservacao'`, portanto nunca partiria mesmo sem a migração.
+- **Nota (não-bloqueante):** 3 deploys de commits anteriores da Maria no fbr-admin (mobile workbench: `40d3fa8`/`9edd6b2`/`7b6ab9e`) ficaram em **ERROR** na Vercel, mas o meu commit por cima buildou READY → produção sã. Provável flutuação transitória do turbopack (preflight local, que inclui build, passa). Vale a pena um olho se voltar a acontecer.
+- **Outros repos:** fbr-website e fbr-voucher com working tree limpo e develop==main — nada por pôr live. Templates da sessão 148 já estavam committados+pushed (`9b65700`, live).
+- **Smoke (Maria):** os das duas frentes (ver bloco de pendentes acima).
+
+### Sessão 147 (2026-08-09) — Lote de afinações UX/fluxo (Maria) em 3 repos + poke + fix de navegação
+- **O quê (fbr-admin):** (1) push "Data de entrega das flores" já não dispara em pré-reserva; (2) nova var `{resumo_encomenda}` nas templates (itens+preços, com quantidade e unitário: "2× Mini 20x25 (2 × 90€ = 180€)"); (3) CTT esconde custo/pago (flores e quadro); (4) `{dados_pagamento}` PT inclui Titular; (5) cabeçalho do WhatsApp fixo (min-h-0 só a lista faz scroll); (6) editar tarefas no telemóvel (botões deixam de ser só-hover); (7) tarefa concluída no workbench: toast Anular + secção "N concluídas"; (8) datas de recolha/entrega em mãos bloqueiam antes do evento; (9) "Entrega agendada" âmbar (distinta do rosa da pré-reserva); (10) **poke** em tarefas (👋 → push interno ao responsável, `pokeTaskAction`); (11) vista Cards colapsa Sem resposta/Pré-reservas/Reservas.
+- **Fix de navegação (alargado a pedido da Maria):** vista activa da Preservação (Tabela/Cards/…) e sub-aba+modo das Parcerias passam a PERSISTIR (localStorage via `useSyncExternalStore`) — abrir um detalhe e voltar traz de volta a mesma vista (antes recaía sempre na tabela). Novos campo `activeView` em [preservacao-views.ts](src/lib/preservacao-views.ts) e [parcerias-views.ts](src/lib/parcerias-views.ts) NOVO; colapso das Parcerias recalculado pelo padrão "render anterior" (sem setState-em-effect [[feedback_react_set_state_in_effect]]). Vale-presente não tem alternador de vistas → não se aplica.
+- **fbr-tracking + fbr-website:** "Em breve" no status público → "Cerca de 6 meses após recebermos as flores + atualizamos a previsão ao longo do processo" (PT/EN); exemplo da localização do evento no form passa a "Coimbra" + dica pede só a cidade.
+- **Migrações:** [095](supabase/migrations/095_templates_link_status_wording.sql) ✅ **CORRIDA** (troca a frase do `{link_status}` nas 6 templates PT+EN por uma que explica acompanhamento vivo de todas as fases + previsão da data de entrega). Só dados, idempotente.
+- **Deploy:** fbr-admin `master` (este commit); **fbr-tracking `main` `827f844`** e **fbr-website `main` `cc7440e`** já em produção (pushed nesta sessão).
+- **Smoke (Maria):** Cards → abrir encomenda → voltar continua em Cards; Parcerias idem (sub-aba+vista); telemóvel: editar tarefa + campo "🔔 Lembrar-me" ao criar (se não aparecer, print); poke a tarefa com outro responsável → notificação; template de confirmação com frase nova do link; status público de encomenda em pré-reserva → texto novo do ~6 meses; CTT sem campos custo/pago.
+- **Pendente:** alertas por email no link de status (email opt-in + botão manual) ficaram registados nas "Próximas frentes" (Maria fá-lo quando tiver tempo).
+
+---
+
 ## Sessão 146 — movida na sessão 154
 
 ### Sessão 146 (2026-08-09) — Migração Dualhook: chave outbound `dh_live_` (deadline Meta 12/08)

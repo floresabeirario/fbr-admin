@@ -30,8 +30,21 @@ Esta é a lista canónica.
 ## Segredos só do website
 
 `TURNSTILE_SECRET` (fail-closed em produção — se sumir, o `monitor-forms` alarma) ·
-chave do Resend (emails de confirmação + relatório mensal Clarity) · segredos de analytics.
+chave do Resend (emails de confirmação + relatório mensal Clarity) · segredos de analytics ·
+`GOOGLE_MAPS_KEY` (sessão 155 — sugestões de morada e coordenadas da recolha, server-side) ·
+`NEXT_PUBLIC_GOOGLE_MAPS_KEY` (sessão 155 — desenho do mapa de confirmação, no browser).
 > ⚠️ Confirmado em Production na Vercel do site (auditoria 133). Fonte única para os forms.
+> ⚠️ **Duas chaves distintas no website, de propósito.** Não são intermutáveis:
+> - `GOOGLE_MAPS_KEY` — **servidor**. Restrições: aplicação **Nenhuma**, API só "Places API (New)".
+>   Serve `/api/places-autocomplete` e `/api/place-details`. Nunca lhe pôr `NEXT_PUBLIC_`: num site
+>   público ficaria copiável e as chamadas de estranhos vinham na nossa factura.
+> - `NEXT_PUBLIC_GOOGLE_MAPS_KEY` — **browser**, desenha o mapa de confirmação. Restrições:
+>   aplicação **Sites** (`floresabeirario.pt` e `*.floresabeirario.pt`), API só "Maps JavaScript API".
+>   É pública por natureza (entra no bundle) — a restrição de domínio é a única defesa, e é suficiente.
+>   Como é `NEXT_PUBLIC_*`, **só entra no build seguinte**: definir ANTES do deploy.
+>
+> A chave homónima do **admin** (`NEXT_PUBLIC_GOOGLE_MAPS_KEY` no projecto fbr-admin2) é outra,
+> com o seu próprio referrer. Mesmo nome, projectos diferentes, valores diferentes.
 
 ## Segredos do tracking / voucher
 
