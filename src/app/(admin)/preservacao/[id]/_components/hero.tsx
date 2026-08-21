@@ -39,7 +39,9 @@ import { effectiveCalendarDate } from "@/lib/google/calendar-date";
 import {
   publicStatusUrl,
   formatPublicEstimatedDelivery,
+  type PartialPublicMessages,
 } from "@/lib/public-status";
+import { PublicStatusMessageDialog } from "@/components/public-status-message-dialog";
 import {
   createOrderDriveFolderAction,
   createOrderCalendarEventAction,
@@ -54,13 +56,22 @@ export function HeroSection({
   setLocal,
   update,
   clientUpdate,
+  publicStatusDefaults = {},
+  canEdit = true,
 }: {
   local: Order;
   setLocal: Dispatch<SetStateAction<Order>>;
   update: UpdateFn;
   clientUpdate: ClientUpdateFn;
+  publicStatusDefaults?: PartialPublicMessages;
+  canEdit?: boolean;
 }) {
   const router = useRouter();
+
+  // Lápis ao lado do botão "Status público": abre o mesmo diálogo da aba
+  // Status (mensagem PT/EN, idioma, data prevista). Antes era preciso ir
+  // à aba Status procurar a cliente pelo nome (sessão 156).
+  const [publicStatusOpen, setPublicStatusOpen] = useState(false);
 
   const { overdueEvent, soonEvent, isWedding, eventRelative } = computeEventFlags(local);
   const publicStatusLink = publicStatusUrl(local.order_id);
@@ -332,17 +343,30 @@ export function HeroSection({
                       {formatPublicEstimatedDelivery(local.estimated_delivery_date, "pt")}
                     </span>
                   )}
-                  <a
-                    href={publicStatusLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-100 transition-colors shrink-0"
-                    title="Abrir status público"
-                  >
-                    <Globe className="h-3 w-3" />
-                    Status público
-                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                  </a>
+                  <div className="inline-flex items-stretch rounded-md overflow-hidden border border-sky-200 bg-sky-50 shrink-0">
+                    <a
+                      href={publicStatusLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-sky-700 hover:bg-sky-100 transition-colors"
+                      title="Abrir status público"
+                    >
+                      <Globe className="h-3 w-3" />
+                      Status público
+                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                    </a>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setPublicStatusOpen(true)}
+                        className="px-1.5 border-l border-sky-200 text-sky-700 hover:bg-sky-100 transition-colors"
+                        title="Editar o status público (mensagem, idioma, data prevista)"
+                        aria-label="Editar status público"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {!local.estimated_delivery_date && (
                   <p className="text-[10px] text-cocoa-500 italic px-1.5">
@@ -354,6 +378,15 @@ export function HeroSection({
           </div>
         </div>
       </div>
+
+      {publicStatusOpen && (
+        <PublicStatusMessageDialog
+          order={local}
+          defaults={publicStatusDefaults}
+          onClose={() => setPublicStatusOpen(false)}
+          onSaved={(updates) => setLocal((prev) => ({ ...prev, ...updates }))}
+        />
+      )}
     </div>
   );
 }

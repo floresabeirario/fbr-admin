@@ -406,9 +406,7 @@ export default function WorkbenchClient({
 
       <WorkbenchHeader
         local={local}
-        setLocal={setLocal}
         canEdit={canEdit}
-        publicStatusDefaults={publicStatusDefaults}
         update={update}
         onStatusChange={onStatusChange}
         daysUntilEvent={daysUntilEvent}
@@ -451,7 +449,7 @@ export default function WorkbenchClient({
                 Em mobile usa `display: contents` (ver nota em cima).
             ═══════════════════════════════ */}
             <main className="contents lg:block lg:col-span-6 lg:space-y-4 lg:space-y-5">
-              <HeroSection local={local} setLocal={setLocal} update={update} clientUpdate={clientUpdate} />
+              <HeroSection local={local} setLocal={setLocal} update={update} clientUpdate={clientUpdate} publicStatusDefaults={publicStatusDefaults} canEdit={canEdit} />
               <DriedFlowersCard local={local} canEdit={canEdit} photoUrls={clientPhotoUrls} />
               <MissingInvoiceAlert local={local} />
               <ApprovalPendingAlert local={local} update={update} />
