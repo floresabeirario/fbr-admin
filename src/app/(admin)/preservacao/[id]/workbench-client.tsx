@@ -42,6 +42,7 @@ import { WorkbenchHeader, DuplicatesBanner } from "./_components/header";
 import { CommsCard } from "./_components/comms-card";
 import { InventoryCard, GalleryCard } from "./_components/gallery-cards";
 import { HeroSection } from "./_components/hero";
+import type { PartialPublicMessages } from "@/lib/public-status";
 import { DriedFlowersCard, type ClientPhotoUrl } from "./_components/dried-flowers-card";
 import { MissingInvoiceAlert, ApprovalPendingAlert } from "./_components/alerts";
 import { FlowersCard } from "./_components/flowers-card";
@@ -78,6 +79,7 @@ export default function WorkbenchClient({
   linkedVoucherCode = null,
   duplicateOrders = [],
   clientPhotoUrls = [],
+  publicStatusDefaults = {},
 }: {
   order: Order;
   canEdit: boolean;
@@ -90,6 +92,8 @@ export default function WorkbenchClient({
   duplicateOrders?: DuplicateOrderInfo[];
   /** Signed URLs das fotos do ramo (só serviço "emoldurar_secas"). */
   clientPhotoUrls?: ClientPhotoUrl[];
+  /** Mensagens default por fase — para editar a mensagem pública aqui mesmo. */
+  publicStatusDefaults?: PartialPublicMessages;
 }) {
   const router = useRouter();
   const [local, setLocal] = useState<Order>(order);
@@ -402,7 +406,9 @@ export default function WorkbenchClient({
 
       <WorkbenchHeader
         local={local}
+        setLocal={setLocal}
         canEdit={canEdit}
+        publicStatusDefaults={publicStatusDefaults}
         update={update}
         onStatusChange={onStatusChange}
         daysUntilEvent={daysUntilEvent}

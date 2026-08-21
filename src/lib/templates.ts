@@ -102,24 +102,107 @@ function dataCurta(iso: string | null): string {
   }
 }
 
-// Resumo do que o cliente encomendou (moldura + extras pagos), a partir do
+// Rótulos para o cliente, por categoria+chave da tabela de preços. Os
+// rótulos guardados na BD são internos ("Fundo fotografia — 30x40",
+// "Flores secas — Moldura 30x40") e não servem numa mensagem: trazem
+// travessão (proibido nas mensagens da FBR) e detalhe de gestão que ao
+// cliente não diz nada. Chave desconhecida cai no rótulo da BD, com o
+// travessão limpo.
+const RESUMO_LABELS: Record<string, { pt: string; en: string }> = {
+  "base_frame:30x40": { pt: "Quadro 30x40 cm", en: "30x40 cm frame" },
+  "base_frame:40x50": { pt: "Quadro 40x50 cm", en: "40x50 cm frame" },
+  "base_frame:50x70": { pt: "Quadro 50x70 cm", en: "50x70 cm frame" },
+  "base_frame:secas_30x40": { pt: "Quadro 30x40 cm", en: "30x40 cm frame" },
+  "base_frame:secas_40x50": { pt: "Quadro 40x50 cm", en: "40x50 cm frame" },
+  "base_frame:secas_50x70": { pt: "Quadro 50x70 cm", en: "50x70 cm frame" },
+  "background_supplement:fotografia": { pt: "Fundo com fotografia", en: "Photo background" },
+  "background_supplement:fotografia_30x40": { pt: "Fundo com fotografia", en: "Photo background" },
+  "background_supplement:fotografia_40x50": { pt: "Fundo com fotografia", en: "Photo background" },
+  "background_supplement:fotografia_50x70": { pt: "Fundo com fotografia", en: "Photo background" },
+  "background_supplement:fotografia_mini": {
+    pt: "Fundo com fotografia nos quadros pequenos",
+    en: "Photo background on the small frames",
+  },
+  "background_supplement:cor": {
+    pt: "Fundo na cor à escolha",
+    en: "Background in a colour of your choice",
+  },
+  "extra:mini_frame": { pt: "Quadro extra pequeno", en: "Small extra frame" },
+  "extra:christmas_ornament": { pt: "Ornamento de Natal", en: "Christmas ornament" },
+  "extra:necklace_pendant": { pt: "Pendente para colar", en: "Necklace pendant" },
+  "extra:pyramid_frame": { pt: "Moldura pirâmide", en: "Pyramid frame" },
+};
+
+function rotuloLinha(
+  line: { category: string; key: string; label: string },
+  language: TemplateLanguage,
+): string {
+  const known = RESUMO_LABELS[`${line.category}:${line.key}`];
+  if (known) return known[language];
+  return line.label.replace(/\s*—\s*/g, " ");
+}
+
+// Resumo do que o cliente encomendou (quadro + extras pagos), a partir do
 // snapshot de preços guardado na encomenda. Uma linha por item, no estilo
-// "• Moldura 30x40 (300€)". Salta linhas sem custo (ex.: fundo preto a 0€).
-// Sem travessão, por regra das mensagens da FBR.
-function resumoEncomenda(order: Order): string {
+// "• Quadro 30x40 cm (300€)", e uma linha de total quando há mais do que
+// um item (com um só, o total seria repetição). Salta linhas sem custo
+// (ex.: fundo preto a 0€). Sem travessão, por regra das mensagens da FBR.
+//
+// `total` é o orçamento autoritativo (editável pela Maria). Se diferir do
+// snapshot (desconto de família, acréscimo combinado), a diferença é
+// absorvida na linha do quadro base — mesma regra do {valor_quadro}, para
+// que os itens somem sempre o total que a mensagem pede.
+export function resumoEncomendaLinhas(
+  order: Pick<Order, "pricing_snapshot" | "frame_size">,
+  language: TemplateLanguage,
+  total: number | null,
+): string {
   const snap = order.pricing_snapshot;
-  if (!snap || !snap.lines || snap.lines.length === 0) return "";
-  return snap.lines
-    .filter((l) => l.subtotal > 0)
-    .map((l) => {
-      if (l.qty > 1) {
-        // Com quantidade, mostra também o unitário:
-        // "• 2× Mini-quadro 20x25 (2 × 90€ = 180€)".
-        return `• ${l.qty}× ${l.label} (${l.qty} × ${fmtEurMsg(l.unit_price)} = ${fmtEurMsg(l.subtotal)})`;
-      }
-      return `• ${l.label} (${fmtEurMsg(l.subtotal)})`;
-    })
-    .join("\n");
+  const linhas = (snap?.lines ?? []).filter((l) => l.subtotal > 0);
+
+  // Encomenda antiga/sem snapshot: melhor uma linha só com o orçamento do
+  // que um espaço em branco no meio da mensagem.
+  if (linhas.length === 0) {
+    if (total === null) return "";
+    const tamanho =
+      order.frame_size && order.frame_size !== "voces_a_escolher" && order.frame_size !== "nao_sei"
+        ? `${order.frame_size} cm`
+        : "";
+    const label = tamanho
+      ? language === "en"
+        ? `${tamanho} frame`
+        : `Quadro ${tamanho}`
+      : language === "en"
+        ? "Frame"
+        : "Quadro";
+    return `• ${label} (${fmtEurMsg(total)})`;
+  }
+
+  // Ajuste do orçamento editado à mão → absorvido no quadro base.
+  const subtotais = linhas.map((l) => l.subtotal);
+  const snapTotal = snap?.total ?? subtotais.reduce((s, v) => s + v, 0);
+  if (total !== null && Math.abs(total - snapTotal) >= 0.01) {
+    const baseIdx = linhas.findIndex((l) => l.category === "base_frame");
+    if (baseIdx >= 0) {
+      subtotais[baseIdx] = Math.round((subtotais[baseIdx] + (total - snapTotal)) * 100) / 100;
+    }
+  }
+
+  const bullets = linhas.map((l, i) => {
+    const label = rotuloLinha(l, language);
+    if (l.qty > 1) {
+      // Com quantidade, mostra também o unitário:
+      // "• 2× Ornamento de Natal (2 × 25€ = 50€)".
+      return `• ${l.qty}× ${label} (${l.qty} × ${fmtEurMsg(l.unit_price)} = ${fmtEurMsg(subtotais[i])})`;
+    }
+    return `• ${label} (${fmtEurMsg(subtotais[i])})`;
+  });
+
+  if (bullets.length === 1) return bullets[0];
+
+  const somaFinal =
+    total !== null ? total : Math.round(subtotais.reduce((s, v) => s + v, 0) * 100) / 100;
+  return `${bullets.join("\n")}\n\nTotal: ${fmtEurMsg(somaFinal)}`;
 }
 
 function statusUrl(orderId: string): string {
@@ -220,7 +303,7 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     nome_completo: order.client_name ?? "",
     tamanho_quadro: tamanho,
     valor_quadro: valorQuadro !== null ? fmtEurMsg(valorQuadro) : "",
-    resumo_encomenda: resumoEncomenda(order),
+    resumo_encomenda: resumoEncomendaLinhas(order, lang, total),
     valor_total: total !== null ? fmtEurMsg(total) : "",
     valor_sinal: sinal30 !== null ? fmtEurMsg(sinal30) : "",
     valor_2a_parcela: parcela40 !== null ? fmtEurMsg(parcela40) : "",
@@ -289,7 +372,7 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   { key: "nome_completo", description: "Nome completo do cliente", scope: "order" },
   { key: "tamanho_quadro", description: 'Tamanho do quadro escolhido (ex: "30x40 cm")', scope: "order" },
   { key: "valor_quadro", description: "Preço da moldura escolhida (ex: 300€)", scope: "order" },
-  { key: "resumo_encomenda", description: 'Resumo do que o cliente encomendou, uma linha por item com preço; com quantidade mostra o unitário (ex: "• Moldura 30x40 (300€)" + "• 2× Mini-quadro 20x25 (2 × 90€ = 180€)")', scope: "order" },
+  { key: "resumo_encomenda", description: 'Tudo o que o cliente encomendou (quadro + extras), uma linha por item com preço e "Total:" no fim quando há mais do que um. Ex.: "• Quadro 30x40 cm (300€)" + "• 2× Ornamento de Natal (2 × 25€ = 50€)" + "Total: 350€". Segue o orçamento editado à mão.', scope: "order" },
   { key: "valor_total", description: "Valor total da encomenda", scope: "order" },
   { key: "valor_sinal", description: "30% do total (sinal)", scope: "order" },
   { key: "valor_2a_parcela", description: "40% do total (após recepção das flores)", scope: "order" },

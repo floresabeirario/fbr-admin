@@ -9,7 +9,6 @@ import {
   ExternalLink,
   Pencil,
   Loader2,
-  RotateCcw,
   Settings2,
   Eye,
   EyeOff,
@@ -20,7 +19,6 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -28,14 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   type Order,
   type PublicStatusLanguage,
@@ -45,7 +35,6 @@ import {
   ALL_PUBLIC_PHASES,
   PUBLIC_PHASE_COLORS,
   PUBLIC_PHASE_LABEL_PT,
-  PUBLIC_PHASE_LABEL_EN,
   STATUS_TO_PUBLIC_PHASE,
   publicStatusUrl,
   resolveMessage,
@@ -53,6 +42,7 @@ import {
   type PartialPublicMessages,
   type PublicPhase,
 } from "@/lib/public-status";
+import { PublicStatusMessageDialog } from "@/components/public-status-message-dialog";
 import { updateOrderPublicStatusAction } from "./actions";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -265,9 +255,9 @@ export default function StatusClient({
         </div>
       </div>
 
-      {/* Diálogo de edição */}
+      {/* Diálogo de edição (partilhado com o workbench da encomenda) */}
       {editing && (
-        <EditMessagesDialog
+        <PublicStatusMessageDialog
           order={editing}
           defaults={initialDefaults}
           onClose={() => setEditing(null)}
@@ -463,140 +453,3 @@ function StatusRow({
     </tr>
   );
 }
-
-// ── Diálogo de edição de mensagens ──────────────────────────
-
-function EditMessagesDialog({
-  order,
-  defaults,
-  onClose,
-}: {
-  order: Order;
-  defaults: PartialPublicMessages;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const phase = STATUS_TO_PUBLIC_PHASE[order.status];
-
-  const ptDefault = resolveMessage(phase, "pt", null, defaults);
-  const enDefault = resolveMessage(phase, "en", null, defaults);
-  const displayName = order.couple_names?.trim() || order.client_name;
-
-  const [pt, setPt] = useState(order.public_status_message_pt ?? "");
-  const [en, setEn] = useState(order.public_status_message_en ?? "");
-
-  const ptOverride = pt.trim().length > 0;
-  const enOverride = en.trim().length > 0;
-
-  function save() {
-    startTransition(async () => {
-      try {
-        await updateOrderPublicStatusAction(order.id, {
-          public_status_message_pt: ptOverride ? pt : null,
-          public_status_message_en: enOverride ? en : null,
-        });
-        router.refresh();
-        onClose();
-      } catch (err) {
-        console.error(err);
-      }
-    });
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-4 w-4 text-sky-600" />
-            Mensagem pública — {displayName}
-          </DialogTitle>
-          <DialogDescription>
-            Fase pública{" "}
-            <span
-              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold border ${PUBLIC_PHASE_COLORS[phase]}`}
-            >
-              {phase !== "cancelada" && `${phase} · `}
-              {PUBLIC_PHASE_LABEL_PT[phase]} / {PUBLIC_PHASE_LABEL_EN[phase]}
-            </span>
-            . Deixa em branco para usar a mensagem default.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-5 py-2">
-          {/* PT */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-cocoa-700">
-                🇵🇹 Português
-              </label>
-              {ptOverride && (
-                <button
-                  onClick={() => setPt("")}
-                  className="text-[11px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Voltar ao default
-                </button>
-              )}
-            </div>
-            <Textarea
-              value={pt}
-              onChange={(e) => setPt(e.target.value)}
-              placeholder={ptDefault}
-              rows={4}
-              className="text-sm"
-            />
-            {!ptOverride && (
-              <p className="mt-1.5 text-[11px] text-cocoa-500 italic">
-                A usar default: <span className="text-cocoa-700">{ptDefault}</span>
-              </p>
-            )}
-          </div>
-
-          {/* EN */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-cocoa-700">
-                🇬🇧 English
-              </label>
-              {enOverride && (
-                <button
-                  onClick={() => setEn("")}
-                  className="text-[11px] text-cocoa-700 hover:text-rose-600 inline-flex items-center gap-1"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Back to default
-                </button>
-              )}
-            </div>
-            <Textarea
-              value={en}
-              onChange={(e) => setEn(e.target.value)}
-              placeholder={enDefault}
-              rows={4}
-              className="text-sm"
-            />
-            {!enOverride && (
-              <p className="mt-1.5 text-[11px] text-cocoa-500 italic">
-                Using default: <span className="text-cocoa-700">{enDefault}</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
-            Cancelar
-          </Button>
-          <Button onClick={save} disabled={isPending} className="gap-2">
-            {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Guardar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-

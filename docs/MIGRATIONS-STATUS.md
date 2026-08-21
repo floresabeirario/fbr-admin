@@ -11,6 +11,7 @@
 
 | Migração | Descrição | Estado |
 |----------|-----------|--------|
+| `103_templates_resumo_encomenda` | Templates passam a listar os extras (`{resumo_encomenda}`) — só dados | ✅ 21/08 (Maria confirmou) |
 | `092_public_phase_defs` | Fonte única das fases públicas (RPC) — ver ECOSYSTEM #1 | ✅ 08/07 aplicada + fbr-tracking em produção (main); smokado contra dados reais |
 | `091_whatsapp_category_freeform` | Drop do CHECK (correr ANTES do deploy) | ✅ 04/07 (Maria confirmou) |
 | `090_whatsapp_category` | Categoria WhatsApp | ✅ aplicada |

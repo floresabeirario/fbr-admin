@@ -475,3 +475,104 @@ describe("renderOrderTemplate — valores seguem o orçamento editável", () => 
     expect(out).toBe("sinal 90€");
   });
 });
+
+// {resumo_encomenda} (sessão 156): as mensagens falavam sempre só do
+// quadro principal e nunca dos extras que a cliente encomendou, apesar de
+// o total estar certo. A variável existia desde a 147 mas não estava em
+// nenhuma template (mig 103 põe-na lá).
+
+describe("renderOrderTemplate — {resumo_encomenda}", () => {
+  const settings = {
+    payment_mbway: "",
+    payment_iban: "",
+    payment_account_holder: "",
+    payment_bic: "",
+    payment_bank_name: "",
+    review_link: "",
+    studio_address_url: "",
+    studio_address_text: "",
+  } as unknown as SystemSettingsMap;
+
+  function order(over: Partial<Order>): Order {
+    return {
+      id: "o1",
+      order_id: "ABCD1234",
+      client_name: "Ana Silva",
+      frame_size: "30x40",
+      status: "entrega_flores_agendar",
+      payment_status: "100_por_pagar",
+      budget: null,
+      budget_at_first_payment: null,
+      pricing_snapshot: null,
+      ...over,
+    } as unknown as Order;
+  }
+
+  const tpl = (language: TemplateLanguage): MessageTemplate =>
+    ({ language, body: "{resumo_encomenda}" } as MessageTemplate);
+
+  // Caso da Maria: quadro 30x40 (300€) + 2 ornamentos de Natal (50€).
+  const snapComExtras: PricingSnapshot = {
+    computed_at: "2026-01-01",
+    total: 350,
+    lines: [
+      { category: "base_frame", key: "30x40", label: "Moldura 30x40", qty: 1, unit_price: 300, subtotal: 300 },
+      { category: "background_supplement", key: "preto", label: "Fundo preto", qty: 1, unit_price: 0, subtotal: 0 },
+      { category: "extra", key: "christmas_ornament", label: "Ornamento de Natal", qty: 2, unit_price: 25, subtotal: 50 },
+    ],
+  };
+
+  it("lista o quadro E os extras, com unitário e total", () => {
+    const out = renderOrderTemplate(tpl("pt"), {
+      order: order({ budget: 350, pricing_snapshot: snapComExtras }),
+      settings,
+    });
+    expect(out).toBe(
+      "• Quadro 30x40 cm (300€)\n• 2× Ornamento de Natal (2 × 25€ = 50€)\n\nTotal: 350€",
+    );
+  });
+
+  it("traduz os rótulos nas templates EN", () => {
+    const out = renderOrderTemplate(tpl("en"), {
+      order: order({ budget: 350, pricing_snapshot: snapComExtras }),
+      settings,
+    });
+    expect(out).toBe(
+      "• 30x40 cm frame (300€)\n• 2× Christmas ornament (2 × 25€ = 50€)\n\nTotal: 350€",
+    );
+  });
+
+  it("com um só item não repete o total", () => {
+    const snap: PricingSnapshot = {
+      computed_at: "2026-01-01",
+      total: 300,
+      lines: [
+        { category: "base_frame", key: "30x40", label: "Moldura 30x40", qty: 1, unit_price: 300, subtotal: 300 },
+      ],
+    };
+    const out = renderOrderTemplate(tpl("pt"), {
+      order: order({ budget: 300, pricing_snapshot: snap }),
+      settings,
+    });
+    expect(out).toBe("• Quadro 30x40 cm (300€)");
+  });
+
+  it("orçamento editado à mão: o desconto entra no quadro e os itens somam o total", () => {
+    const out = renderOrderTemplate(tpl("pt"), {
+      order: order({ budget: 320, pricing_snapshot: snapComExtras }),
+      settings,
+    });
+    // 350 → 320: o quadro absorve os 30€ de desconto (mesma regra do {valor_quadro})
+    expect(out).toBe(
+      "• Quadro 30x40 cm (270€)\n• 2× Ornamento de Natal (2 × 25€ = 50€)\n\nTotal: 320€",
+    );
+  });
+
+  it("encomenda sem snapshot cai numa linha só com o orçamento", () => {
+    const out = renderOrderTemplate(tpl("pt"), {
+      order: order({ budget: 400, frame_size: "40x50", pricing_snapshot: null }),
+      settings,
+    });
+    expect(out).toBe("• Quadro 40x50 cm (400€)");
+  });
+});

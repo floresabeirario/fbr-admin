@@ -12,6 +12,7 @@ import {
   dadosPagamento,
   fieldSuggestionBases,
   requiredContentPoints,
+  resumoEncomendaLinhas,
 } from "@/lib/templates";
 import {
   pickVoiceExamples,
@@ -37,6 +38,7 @@ import {
   type FrameDeliveryMethod,
   type FrameBackground,
   type FrameSize,
+  type Order,
 } from "@/types/database";
 
 export const runtime = "nodejs";
@@ -104,10 +106,13 @@ type LinkedOrder = {
   necklace_pendants_qty: number | null;
   extra_small_frames: YesNoInfo | null;
   extra_small_frames_qty: number | null;
+  // Decomposição do orçamento (quadro + extras). Sem isto o assistente só
+  // sabia o total e falava sempre do quadro, nunca dos ornamentos.
+  pricing_snapshot: Order["pricing_snapshot"];
 };
 
 const LINKED_ORDER_COLUMNS =
-  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty";
+  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, pricing_snapshot";
 
 function labelOr(value: string | null, labels: Record<string, string>): string {
   if (!value) return "não preenchido";
@@ -171,6 +176,20 @@ function orderToBlock(o: LinkedOrder): string {
   const extras = extrasLine(o.extras_in_frame);
   if (extras) lines.push(`  Extras no quadro: ${extras}`);
   for (const l of escolhasExtraLines(o)) lines.push(l);
+  // Decomposição do orçamento, exactamente como sai nas templates. Sempre
+  // que a mensagem falar do que foi encomendado, tem de listar isto todo —
+  // o quadro sozinho deixa de fora os ornamentos, pendentes e minis.
+  const resumo = resumoEncomendaLinhas(
+    { pricing_snapshot: o.pricing_snapshot, frame_size: o.frame_size },
+    o.form_language,
+    o.budget,
+  );
+  if (resumo) {
+    lines.push(
+      "  Orçamento item a item (usar SEMPRE assim quando a mensagem falar do que foi encomendado, nunca só o quadro):",
+      ...resumo.split("\n").map((l) => (l ? `    ${l}` : "")),
+    );
+  }
   if (o.additional_notes) lines.push(`  Notas do cliente no formulário: ${o.additional_notes}`);
   lines.push(`  Link de acompanhamento: https://status.floresabeirario.pt/${o.order_id}`);
   return lines.join("\n");

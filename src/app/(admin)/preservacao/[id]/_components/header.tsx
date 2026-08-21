@@ -4,7 +4,7 @@
 // lembretes, nota post-it, arquivar) + faixa de cliente repetido.
 // Extraído do workbench-client.tsx (refactor sessão 128).
 
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
@@ -27,6 +27,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import WorkbenchNavigator from "@/components/workbench-navigator";
+import { PublicStatusMessageDialog } from "@/components/public-status-message-dialog";
+import type { PartialPublicMessages } from "@/lib/public-status";
 import { StickyNoteButton } from "@/components/sticky-note-button";
 import type { Order } from "@/types/database";
 import {
@@ -41,9 +43,11 @@ import type { UpdateFn, DuplicateOrderInfo } from "./shared";
 
 export function WorkbenchHeader({
   local,
+  setLocal,
   canEdit,
   update,
   onStatusChange,
+  publicStatusDefaults = {},
   daysUntilEvent,
   overdueEvent,
   soonEvent,
@@ -54,9 +58,12 @@ export function WorkbenchHeader({
   onArchive,
 }: {
   local: Order;
+  setLocal: Dispatch<SetStateAction<Order>>;
   canEdit: boolean;
   update: UpdateFn;
   onStatusChange: (s: Order["status"]) => void;
+  /** Mensagens default por fase — para o lápis do status público. */
+  publicStatusDefaults?: PartialPublicMessages;
   daysUntilEvent: number | null;
   overdueEvent: boolean;
   soonEvent: boolean;
@@ -68,6 +75,10 @@ export function WorkbenchHeader({
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  // Status público (o que a cliente lê no site): mensagens PT/EN, idioma e
+  // data prevista. Ao lado do estado porque é aqui que ela pensa nisso —
+  // antes tinha de ir à aba Status procurar a cliente pelo nome (sessão 156).
+  const [publicStatusOpen, setPublicStatusOpen] = useState(false);
 
   // Seta de voltar: se viemos de dentro da app (a lista de preservação),
   // usa o histórico do browser para RESTAURAR a vista/filtros/scroll onde
@@ -231,8 +242,21 @@ export function WorkbenchHeader({
         {/* Em mobile o estado fica na linha 2 (order-1, depois da quebra) e cresce
             para preencher o espaço livre (flex-1), truncando o texto se preciso —
             sem scroll horizontal. Em sm+ é fixo (w-56) e volta à ordem natural. */}
-        <div className="order-1 sm:order-none flex-1 min-w-0 sm:flex-none sm:w-56">
-          <StatusSelect value={local.status} onChange={onStatusChange} serviceType={local.service_type} />
+        <div className="order-1 sm:order-none flex-1 min-w-0 sm:flex-none sm:w-56 flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <StatusSelect value={local.status} onChange={onStatusChange} serviceType={local.service_type} />
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setPublicStatusOpen(true)}
+              title="Editar o status público (mensagem, idioma, data prevista)"
+              aria-label="Editar status público"
+              className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cream-200 bg-surface text-cocoa-600 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Sinal "no desidratador" — só na fase Preservação e design e na
@@ -336,6 +360,15 @@ export function WorkbenchHeader({
           </button>
         )}
       </div>
+
+      {publicStatusOpen && (
+        <PublicStatusMessageDialog
+          order={local}
+          defaults={publicStatusDefaults}
+          onClose={() => setPublicStatusOpen(false)}
+          onSaved={(updates) => setLocal((prev) => ({ ...prev, ...updates }))}
+        />
+      )}
     </header>
   );
 }

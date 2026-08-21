@@ -8,6 +8,7 @@ import { loadIntegration } from "@/lib/google/oauth";
 import { computeEventHtmlLink } from "@/lib/google/calendar";
 import { findDuplicates } from "@/lib/duplicates";
 import { getBouquetPhotoUrls } from "@/lib/storage/bouquet-photos";
+import type { PartialPublicMessages } from "@/lib/public-status";
 import { markOrderSeenAction } from "../actions";
 import WorkbenchClient, { type DuplicateOrderInfo } from "./workbench-client";
 
@@ -26,7 +27,7 @@ export default async function WorkbenchPage({
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const column = isUuid ? "id" : "order_id";
 
-  const [orderRes, partnersRes, templatesRes] = await Promise.all([
+  const [orderRes, partnersRes, templatesRes, publicDefaultsRes] = await Promise.all([
     supabase.from("orders").select("*").eq(column, id).single(),
     supabase
       .from("partners")
@@ -39,6 +40,9 @@ export default async function WorkbenchPage({
       .is("deleted_at", null)
       .in("scope", ["order", "both"])
       .order("position", { ascending: true }),
+    // Mensagens default por fase pública — o hero deixa editar aqui a
+    // mensagem que o cliente lê, sem ir à aba Status (sessão 156).
+    supabase.from("public_status_settings").select("messages").eq("id", 1).single(),
   ]);
 
   if (orderRes.error || !orderRes.data) notFound();
@@ -137,6 +141,9 @@ export default async function WorkbenchPage({
       linkedVoucherCode={linkedVoucherCode}
       duplicateOrders={duplicateOrders}
       clientPhotoUrls={clientPhotoUrls}
+      publicStatusDefaults={
+        (publicDefaultsRes.data?.messages as PartialPublicMessages) ?? {}
+      }
     />
   );
 }
