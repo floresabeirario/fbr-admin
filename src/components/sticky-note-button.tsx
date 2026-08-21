@@ -50,7 +50,7 @@ export function StickyNoteButton({
     >
       <PopoverTrigger
         title={hasContent ? title : `Adicionar ${title.toLowerCase()}`}
-        className={`shrink-0 inline-flex items-center sm:items-start gap-1 h-9 max-w-[140px] rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
+        className={`shrink-0 inline-flex items-center sm:items-start gap-1 h-9 max-w-[140px] overflow-hidden rounded-md border px-1.5 py-1 text-[10px] leading-tight transition-shadow shadow-[2px_2px_0_rgba(0,0,0,0.08)] hover:shadow-[3px_3px_0_rgba(0,0,0,0.12)] -rotate-1 ${
           hasContent
             ? "bg-yellow-200 border-yellow-400 text-yellow-950"
             : "bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-100"
@@ -61,7 +61,14 @@ export function StickyNoteButton({
             Em sm+ mantém o preview / label "Nota" como antes. */}
         <StickyNote className="h-3.5 w-3.5 shrink-0 sm:h-3 sm:w-3 sm:mt-0.5" />
         {hasContent ? (
-          <span className="hidden sm:block text-left line-clamp-2 break-words">{preview}</span>
+          // O clamp TEM de viver num elemento próprio: `line-clamp-2` precisa
+          // de `display:-webkit-box` e, no mesmo elemento, o `sm:block` (que
+          // vem depois na folha de estilos, por ser variante de media query)
+          // ganhava e matava o clamp — a nota inteira transbordava do post-it
+          // e escrevia por cima dos cartões atrás (sessão 156).
+          <span className="hidden sm:block overflow-hidden text-left">
+            <span className="line-clamp-2 break-words">{preview}</span>
+          </span>
         ) : (
           <span className="hidden sm:inline font-medium">Nota</span>
         )}
