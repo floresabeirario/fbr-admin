@@ -59,6 +59,12 @@ type ReqBody = {
   // aceitar o que saiu ou mandar refazer do zero e perder o que estava bom.
   refineFrom?: string; // a versão actual, tal como está na caixa dela
   refineWith?: string; // o que quer mudar
+  // "Refazer": versões já geradas nesta conversa. O prompt é idêntico
+  // entre chamadas e a tarefa é muito constrangida (templates, pontos
+  // obrigatórios, factos fixos), por isso o modelo convergia para a
+  // MESMA mensagem e o botão parecia não fazer nada. Mostrar-lhe o que
+  // já tentou é o que o obriga a mudar de caminho.
+  avoid?: string[];
 };
 
 // Campos da encomenda que passamos ao Claude (nomes reais das colunas —
@@ -326,6 +332,28 @@ Aplica só essa mudança. Mantém tudo o resto como está: os factos, valores, d
 `
     : "";
 
+  // "Refazer" com o prompt igual devolvia a mesma mensagem. Só quando o
+  // modelo vê o que já escreveu é que muda de abordagem. Duas versões
+  // chegam para o tirar do sítio sem inchar o prompt.
+  const jaTentadas = (body.avoid ?? [])
+    .map((t) => (t ?? "").trim())
+    .filter(Boolean)
+    .slice(-2);
+  const refazer = !refinar && jaTentadas.length > 0;
+  const avoidBlock = refazer
+    ? `
+## SEGUNDA TENTATIVA — a Maria carregou em "Refazer"
+
+Já escreveste isto e ela não ficou satisfeita:
+
+${jaTentadas.map((t, i) => `<tentativa_${i + 1}>\n${t}\n</tentativa_${i + 1}>`).join("\n\n")}
+
+Escreve uma alternativa **claramente diferente**: outra maneira de abrir, outra ordem das ideias, outras frases, outro comprimento se fizer sentido. Não repitas frases inteiras do que já tentaste.
+
+Muda a FORMA, não o conteúdo: os factos, valores, datas, links e os pontos obrigatórios acima continuam todos lá.
+`
+    : "";
+
   // Amostra de voz: mensagens reais da Maria em situações parecidas.
   // A "situação" é o que a cliente escreveu + o estado da encomenda —
   // é isso que faz vir exemplos do assunto certo (pagamentos, atrasos,
@@ -407,12 +435,12 @@ ${ordersBlock}${requiredBlock}${suggestionsBlock}${notesBlock}${voiceBlock}
 ## Instrução da Maria
 
 ${body.instruction?.trim() ? body.instruction.trim() : "(sem instrução específica — interpreta o contexto e responde como a Maria responderia)"}
-${refineBlock}
+${refineBlock}${avoidBlock}
 ## Língua
 
 Responde na língua das últimas mensagens do CLIENTE (não da FBR). Se o cliente escrever em francês, espanhol ou outra língua, responde nessa língua. Se a conversa ainda não permitir perceber, usa: **${probableLang === "en" ? "inglês" : "português europeu"}**.
 
-${refinar ? "Devolve a mensagem reescrita (pronta a copiar), e mais nada:" : "Gera a próxima mensagem da FBR (pronta a copiar):"}`;
+${refinar ? "Devolve a mensagem reescrita (pronta a copiar), e mais nada:" : refazer ? "Escreve a versão alternativa (pronta a copiar), e mais nada:" : "Gera a próxima mensagem da FBR (pronta a copiar):"}`;
 
   // ─── Chamada Claude ───
   const anthropic = createAnthropicClient();

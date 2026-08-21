@@ -1193,6 +1193,14 @@ function SuggestComposer({
           instruction,
           refineFrom: refineWith ? suggestion : undefined,
           refineWith: refineWith || undefined,
+          // "Refazer" (sem afinação) com o prompt igual devolvia a MESMA
+          // mensagem: a tarefa é constrangida demais para a aleatoriedade
+          // do modelo dar a volta sozinha. Mandar o que já saiu é o que o
+          // faz mudar de abordagem.
+          avoid:
+            !refineWith && conv.drafts.length > 0
+              ? conv.drafts.slice(-2).map((d) => d.original)
+              : undefined,
         }),
       });
       if (!res.ok) {
