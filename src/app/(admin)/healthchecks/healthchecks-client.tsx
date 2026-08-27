@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import type { HealthCheck } from "./page";
+import type { HealthCheck, HealthCheckSample } from "./page";
 import SistemaTopbar from "@/components/sistema-topbar";
 
 const CATEGORY_META: Record<HealthCheck["category"], { label: string; icon: React.ComponentType<{ className?: string }>; color: string }> = {
@@ -200,7 +200,46 @@ function CheckRow({ check }: { check: HealthCheck }) {
         {check.hint && (
           <p className="text-xs text-cocoa-900 mt-1 italic">💡 {check.hint}</p>
         )}
+        {check.samples && check.samples.length > 0 && (
+          <ul className="mt-2 space-y-1.5">
+            {check.samples.map((sample, i) => (
+              <SampleRow key={`${sample.message}-${sample.path ?? ""}-${i}`} sample={sample} />
+            ))}
+          </ul>
+        )}
       </div>
     </div>
+  );
+}
+
+// Uma família de erro (mesma mensagem, mesma página). O stack fica
+// escondido num <details> porque em produção vem minificado: não diz nada
+// à Maria, mas é exactamente o que o Claude precisa de ler para corrigir.
+function SampleRow({ sample }: { sample: HealthCheckSample }) {
+  return (
+    <li className="rounded-lg border border-cream-200 bg-surface px-2.5 py-2">
+      <div className="flex items-start gap-2">
+        <span className="shrink-0 rounded border border-cream-200 bg-cream-100 px-1.5 py-0.5 text-[10px] font-semibold text-cocoa-700 tabular-nums">
+          {sample.count}×
+        </span>
+        <p className="flex-1 min-w-0 text-[11px] leading-relaxed text-cocoa-900 break-words">
+          {sample.message}
+        </p>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-cocoa-500">
+        {sample.path && <span className="font-mono">{sample.path}</span>}
+        <span>último: {formatDateTimeLisbon(sample.lastAt)}</span>
+      </div>
+      {sample.stack && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-[10px] text-cocoa-700 hover:text-cocoa-900">
+            stack técnico
+          </summary>
+          <pre className="mt-1 max-h-40 overflow-auto rounded bg-cream-50 p-2 text-[10px] leading-snug text-cocoa-700 whitespace-pre-wrap break-all">
+            {sample.stack}
+          </pre>
+        </details>
+      )}
+    </li>
   );
 }

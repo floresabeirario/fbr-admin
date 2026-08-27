@@ -8,7 +8,7 @@ import HealthchecksClient from "./healthchecks-client";
 export const dynamic = "force-dynamic";
 
 // Re-exporta o tipo para que o client component continue a importar daqui.
-export type { HealthCheck } from "@/lib/healthchecks";
+export type { HealthCheck, HealthCheckSample } from "@/lib/healthchecks";
 
 export default async function HealthchecksPage() {
   const role = await getCurrentRole();

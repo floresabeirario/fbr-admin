@@ -8,6 +8,19 @@ export interface HealthCheck {
   details: string;
   count?: number;
   hint?: string;
+  /** Detalhe do problema, mostrado dentro do cartão (ver `samples` abaixo). */
+  samples?: HealthCheckSample[];
+}
+
+// Um alerta que só diz "10 erros" obriga a ir ao SQL Editor para perceber
+// o que aconteceu — no telemóvel isso é o mesmo que não saber. Estas
+// amostras põem o essencial dentro do próprio cartão.
+export interface HealthCheckSample {
+  message: string;
+  path: string | null;
+  count: number;
+  lastAt: string;
+  stack: string | null;
 }
 
 const VALID_ORDER_STATUSES =
@@ -276,6 +289,45 @@ export async function runHealthchecks(
       status = (errCount ?? 0) >= 10 ? "error" : "warning";
       details = `${errCount} erro(s) de JavaScript nas últimas 24h`;
     }
+
+    // Agrupa por mensagem+página: 10 registos são quase sempre o mesmo
+    // erro repetido, e ver "8× em /whatsapp" diz muito mais do que 8
+    // linhas iguais. Limitado às 5 famílias mais frequentes.
+    let samples: HealthCheckSample[] | undefined;
+    if (!errReadError && (errCount ?? 0) > 0) {
+      const { data: rows } = await supabase
+        .from("client_errors")
+        .select("message, path, at, stack")
+        .gte("at", dayAgoIso)
+        .order("at", { ascending: false })
+        .limit(100);
+      const byKey = new Map<string, HealthCheckSample>();
+      for (const r of (rows ?? []) as Array<{
+        message: string;
+        path: string | null;
+        at: string;
+        stack: string | null;
+      }>) {
+        const key = JSON.stringify([r.message, r.path]);
+        const seen = byKey.get(key);
+        if (seen) {
+          seen.count += 1;
+        } else {
+          // As linhas vêm da mais recente para a mais antiga, por isso a
+          // primeira de cada família já é a última vez que aconteceu.
+          byKey.set(key, {
+            message: r.message,
+            path: r.path,
+            count: 1,
+            lastAt: r.at,
+            stack: r.stack,
+          });
+        }
+      }
+      const list = [...byKey.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+      if (list.length > 0) samples = list;
+    }
+
     checks.push({
       id: "data-client-errors",
       label: "Erros na app (últimas 24h)",
@@ -283,9 +335,10 @@ export async function runHealthchecks(
       status,
       details,
       count: errCount ?? undefined,
+      samples,
       hint:
         status !== "ok" && !errReadError
-          ? "Vê os detalhes: SELECT * FROM client_errors ORDER BY at DESC LIMIT 20"
+          ? "Os erros estão aqui em baixo — manda-os ao Claude para os corrigir."
           : undefined,
     });
   }
