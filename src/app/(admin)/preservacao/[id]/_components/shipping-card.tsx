@@ -4,7 +4,8 @@
 // custos, detalhes de recolha/entrega em mãos e prazo "Entregar até".
 // Extraído do workbench-client.tsx (refactor sessão 128).
 
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
+import { calendarDaysFromTodayLisbon } from "@/lib/format-date";
 import { Truck, MapPin, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -346,7 +347,7 @@ export function ShippingCard({
         </Grid2>
         {local.delivery_deadline &&
           !["quadro_enviado", "quadro_recebido", "cancelado"].includes(local.status) && (() => {
-            const dias = differenceInCalendarDays(parseISO(local.delivery_deadline!), new Date());
+            const dias = calendarDaysFromTodayLisbon(local.delivery_deadline!);
             if (dias > 30) return null;
             const atrasado = dias < 0;
             return (

@@ -79,8 +79,11 @@ export function relativeMonthsDays(targetDateIso: string): string {
   } catch {
     return "—";
   }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // "Hoje" é o dia em LISBOA, não o da máquina: entre a meia-noite de cá
+  // e a de Londres o servidor (UTC) ainda está no dia anterior e diria
+  // "Em 3 dias" onde o browser diz "Em 2 dias" → mismatch de hidratação.
+  const today = new Date(`${lisbonDayKey(new Date())}T00:00:00Z`);
+  target = new Date(`${lisbonDayKey(target)}T00:00:00Z`);
 
   const days = differenceInCalendarDays(target, today);
   if (days === 0) return "Hoje";
@@ -109,4 +112,64 @@ export function relativeMonthsDays(targetDateIso: string): string {
 
   const phrase = parts.join(" e ");
   return future ? `Em ${phrase}` : `Há ${phrase}`;
+}
+
+// ── Dia de calendário em Lisboa ───────────────────────────────
+// Tudo o que compara datas ("Hoje", "Ontem", "há 3 dias") tem de usar o
+// calendário de LISBOA, não o da máquina: no servidor Vercel (UTC) o dia
+// muda uma hora antes do que muda cá, por isso entre a meia-noite de
+// Lisboa e a de Londres o servidor e o browser discordam sobre que dia é
+// hoje — e o React deita a árvore fora (mismatch de hidratação, #418).
+const lisbonDayKeyFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Lisbon",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** "aaaa-MM-dd" do dia em que este instante cai, em Lisboa. */
+export function lisbonDayKey(date: Date): string {
+  return lisbonDayKeyFmt.format(date);
+}
+
+/**
+ * Dias de calendário (em Lisboa) entre hoje e `iso`. Positivo = futuro.
+ * Aceita colunas DATE ("2026-08-27") e timestamptz — uma DATE vem como
+ * meia-noite UTC, que em Lisboa cai sempre no mesmo dia.
+ */
+export function calendarDaysFromTodayLisbon(iso: string): number {
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return 0;
+  const a = Date.parse(`${lisbonDayKey(target)}T00:00:00Z`);
+  const b = Date.parse(`${lisbonDayKey(new Date())}T00:00:00Z`);
+  return Math.round((a - b) / 86_400_000);
+}
+
+const lisbonDate = new Intl.DateTimeFormat("pt-PT", {
+  timeZone: "Europe/Lisbon",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const lisbonDayMonth = new Intl.DateTimeFormat("pt-PT", {
+  timeZone: "Europe/Lisbon",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+/** "dd/MM/aaaa" a partir de um instante (timestamptz), na hora de Lisboa. */
+export function formatDateLisbon(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return lisbonDate.format(d);
+}
+
+/** "dd/MM" a partir de um instante (timestamptz), na hora de Lisboa. */
+export function formatDayMonthLisbon(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return lisbonDayMonth.format(d);
 }

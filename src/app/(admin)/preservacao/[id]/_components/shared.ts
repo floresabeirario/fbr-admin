@@ -1,9 +1,9 @@
 // Tipos e helpers partilhados entre o workbench-client e os cartões
 // extraídos em _components/. Sem JSX — só contratos e derivações puras.
 
-import { format, parseISO, differenceInCalendarDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import type { Order, OrderUpdate } from "@/types/database";
-import { relativeMonthsDays } from "@/lib/format-date";
+import { calendarDaysFromTodayLisbon, relativeMonthsDays } from "@/lib/format-date";
 import { isEventAlertRelevant } from "../../_styles";
 
 /** Actualização com autosave (debounce 900ms) — vive no workbench-client. */
@@ -40,7 +40,7 @@ export function toDateInput(val: string | null | undefined): string {
 /** Alertas de proximidade/atraso do evento — usados no header e no hero. */
 export function computeEventFlags(local: Order) {
   const daysUntilEvent = local.event_date
-    ? differenceInCalendarDays(parseISO(local.event_date), new Date())
+    ? calendarDaysFromTodayLisbon(local.event_date)
     : null;
   const eventAlertRelevant = isEventAlertRelevant(local.status);
   const overdueEvent =

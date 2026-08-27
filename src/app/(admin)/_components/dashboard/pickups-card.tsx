@@ -61,7 +61,7 @@ export function PickupsCard({ pickups }: { pickups: PickupItem[] }) {
                   >
                     {PICKUP_KIND_LABELS[p.kind]}
                   </Badge>
-                  <span className="text-[11px] text-cocoa-700">
+                  <span className="text-[11px] text-cocoa-700" suppressHydrationWarning>
                     {formatRelativeDays(p.date)}
                   </span>
                 </div>

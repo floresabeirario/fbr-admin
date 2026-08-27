@@ -1,20 +1,31 @@
 // Helpers de formatação usados pelos cards do Dashboard.
 // Datas em pt; relativos em PT ("Hoje", "Em 3 dias", "há 5 min").
 
-import { format, parseISO, differenceInDays } from "date-fns";
-import { pt } from "date-fns/locale";
+import { parseISO } from "date-fns";
+import {
+  calendarDaysFromTodayLisbon,
+  formatDateLisbon,
+  formatDayMonthLisbon,
+} from "@/lib/format-date";
 
+// Uma coluna DATE ("2026-08-27") não tem hora — reordena-se a string.
+// Um timestamptz tem, e aí a data certa é a de Lisboa: às 23h30 de cá já
+// é o dia seguinte em UTC, e o servidor (que corre em UTC) imprimiria
+// outro dia que o browser.
 export function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
-  try {
-    return format(parseISO(d), "dd/MM/yyyy", { locale: pt });
-  } catch {
-    return "—";
+  if (!d.includes("T")) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : "—";
   }
+  return formatDateLisbon(d);
 }
 
 export function formatRelativeDays(d: string): string {
-  const days = differenceInDays(parseISO(d), new Date());
+  // Dias de CALENDÁRIO em Lisboa: o `differenceInDays` contava blocos de
+  // 24h a partir de agora, por isso uma recolha amanhã de manhã ainda dizia
+  // "Hoje" — e o resultado mudava conforme o fuso da máquina.
+  const days = calendarDaysFromTodayLisbon(d);
   if (days === 0) return "Hoje";
   if (days === 1) return "Amanhã";
   if (days === -1) return "Ontem";
@@ -86,5 +97,5 @@ export function formatDoneAgo(iso: string): string {
   if (hours < 24) return `há ${hours} h`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `há ${days} d`;
-  return format(date, "dd/MM", { locale: pt });
+  return formatDayMonthLisbon(iso);
 }

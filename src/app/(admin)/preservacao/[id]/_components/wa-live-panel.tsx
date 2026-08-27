@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText, RefreshCw, MailQuestion } from "lucide-react";
 import { linkify } from "@/lib/linkify";
+import { formatDateTimeLisbon, formatTimeLisbon } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { WhatsappConversation, WhatsappMessage } from "@/types/whatsapp-live";
@@ -22,8 +23,7 @@ function lastNineDigits(s: string | null | undefined): string {
 }
 
 function formatMessageTime(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  return formatTimeLisbon(iso);
 }
 
 function mediaIconLabel(content_type: string): string {
@@ -446,14 +446,14 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
   }
   if (message.delivery_status === "read") {
     return (
-      <span title={`Lida ${message.read_at ? new Date(message.read_at).toLocaleString("pt-PT") : ""}`} className="text-sky-500">
+      <span title={`Lida ${message.read_at ? formatDateTimeLisbon(message.read_at) : ""}`} className="text-sky-500">
         ✓✓
       </span>
     );
   }
   if (message.delivery_status === "delivered") {
     return (
-      <span title={`Entregue ${message.delivered_at ? new Date(message.delivered_at).toLocaleString("pt-PT") : ""}`} className="text-cocoa-400">
+      <span title={`Entregue ${message.delivered_at ? formatDateTimeLisbon(message.delivered_at) : ""}`} className="text-cocoa-400">
         ✓✓
       </span>
     );

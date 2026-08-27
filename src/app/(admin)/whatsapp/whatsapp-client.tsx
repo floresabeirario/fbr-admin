@@ -22,6 +22,13 @@ import {
   clearConversationDrafts,
 } from "@/lib/whatsapp/composer-drafts";
 import { linkify } from "@/lib/linkify";
+import {
+  formatDateLisbon,
+  formatDateTimeLisbon,
+  formatDayMonthLisbon,
+  formatTimeLisbon,
+  lisbonDayKey,
+} from "@/lib/format-date";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -98,12 +105,11 @@ function formatRelativeTime(iso: string | null): string {
   if (hours < 24) return `há ${hours}h`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `há ${days}d`;
-  return date.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+  return formatDayMonthLisbon(iso);
 }
 
 function formatMessageTime(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  return formatTimeLisbon(iso);
 }
 
 // Usado dentro das bolhas para a etiqueta do tipo de media. Nunca devolve
@@ -700,7 +706,7 @@ export default function WhatsappClient({ initialConversations, initialLabels, or
                         <span className="font-medium text-sm text-cocoa-900 truncate">
                           {c.contact_name || c.display_phone || c.phone_e164}
                         </span>
-                        <span className="text-[10px] text-cocoa-500 shrink-0">
+                        <span className="text-[10px] text-cocoa-500 shrink-0" suppressHydrationWarning>
                           {formatRelativeTime(c.last_message_at)}
                         </span>
                       </div>
@@ -1052,7 +1058,7 @@ function ConversationViewer({
                 <div key={m.id}>
                   {showDay && (
                     <div className="text-center my-2">
-                      <span className="text-[10px] text-cocoa-500 bg-cream-100 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] text-cocoa-500 bg-cream-100 px-2 py-0.5 rounded-full" suppressHydrationWarning>
                         {formatDayLabel(m.received_at)}
                       </span>
                     </div>
@@ -1438,27 +1444,15 @@ function SuggestComposer({
 function dayBoundary(prevIso: string, nextIso: string): boolean {
   const a = new Date(prevIso);
   const b = new Date(nextIso);
-  return (
-    a.getFullYear() !== b.getFullYear() ||
-    a.getMonth() !== b.getMonth() ||
-    a.getDate() !== b.getDate()
-  );
+  return lisbonDayKey(a) !== lisbonDayKey(b);
 }
 
 function formatDayLabel(iso: string): string {
-  const date = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-  if (sameDay(date, today)) return "Hoje";
-  if (sameDay(date, yesterday)) return "Ontem";
-  return date.toLocaleDateString("pt-PT", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-  });
+  const day = lisbonDayKey(new Date(iso));
+  const now = Date.now();
+  if (day === lisbonDayKey(new Date(now))) return "Hoje";
+  if (day === lisbonDayKey(new Date(now - 86_400_000))) return "Ontem";
+  return formatDateLisbon(iso);
 }
 
 function MessageBubble({
@@ -1579,7 +1573,7 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
   if (message.delivery_status === "read") {
     return (
       <span
-        title={`Lida ${message.read_at ? new Date(message.read_at).toLocaleString("pt-PT") : ""}`}
+        title={`Lida ${message.read_at ? formatDateTimeLisbon(message.read_at) : ""}`}
         className="text-sky-500"
       >
         ✓✓
@@ -1589,7 +1583,7 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
   if (message.delivery_status === "delivered") {
     return (
       <span
-        title={`Entregue ${message.delivered_at ? new Date(message.delivered_at).toLocaleString("pt-PT") : ""}`}
+        title={`Entregue ${message.delivered_at ? formatDateTimeLisbon(message.delivered_at) : ""}`}
         className="text-cocoa-400"
       >
         ✓✓

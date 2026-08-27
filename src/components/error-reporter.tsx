@@ -16,6 +16,23 @@ import { reportClientErrorAction } from "@/app/(admin)/actions";
 
 const MAX_REPORTS_PER_PAGELOAD = 5;
 
+// Ruído conhecido que NÃO é bug nosso e não vale um alerta vermelho.
+// Só entra aqui o que já vimos acontecer e sabemos ser inofensivo — o
+// resto (falhas a carregar chunks, TypeErrors, etc.) tem de continuar a
+// chegar, senão a monitorização deixa de servir para nada.
+const IGNORED = [
+  // O supabase-js serializa a renovação do token com navigator.locks.
+  // Com a PWA aberta em mais do que um sítio (ou o Android a acordar a
+  // app), duas chamadas a getUser() disputam o mesmo lock e a que perde
+  // rejeita. A biblioteca repete sozinha; nada parte.
+  /Lock ".*auth-token" was released because another request stole it/,
+  /NavigatorLockAcquireTimeoutError/,
+];
+
+function isIgnored(message: string): boolean {
+  return IGNORED.some((re) => re.test(message));
+}
+
 export function ErrorReporter() {
   const sentCount = useRef(0);
   const lastMessage = useRef<string | null>(null);
@@ -24,6 +41,7 @@ export function ErrorReporter() {
     function send(message: string, stack: string | null) {
       if (sentCount.current >= MAX_REPORTS_PER_PAGELOAD) return;
       if (message === lastMessage.current) return;
+      if (isIgnored(message)) return;
       sentCount.current += 1;
       lastMessage.current = message;
       // fire-and-forget; a action engole falhas de propósito

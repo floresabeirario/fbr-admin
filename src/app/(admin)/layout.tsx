@@ -218,7 +218,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       : "ok"
     : null;
   const healthTooltip = healthSummary
-    ? `${healthSummary.errors} erro${healthSummary.errors === 1 ? "" : "s"} · ${healthSummary.warnings} aviso${healthSummary.warnings === 1 ? "" : "s"} · verificado ${new Date(healthSummary.ran_at).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+    ? `${healthSummary.errors} erro${healthSummary.errors === 1 ? "" : "s"} · ${healthSummary.warnings} aviso${healthSummary.warnings === 1 ? "" : "s"} · verificado ${new Date(healthSummary.ran_at).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
     : "";
 
   // Auto-close mobile drawer ao mudar de rota — padrão "store info from

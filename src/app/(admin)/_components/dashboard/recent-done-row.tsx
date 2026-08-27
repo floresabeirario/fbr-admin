@@ -31,7 +31,11 @@ export function RecentDoneRow({
           {badge}
         </Badge>
       )}
-      {when && <span className="text-[10px] text-cocoa-500 shrink-0">{when}</span>}
+      {when && (
+        <span className="text-[10px] text-cocoa-500 shrink-0" suppressHydrationWarning>
+          {when}
+        </span>
+      )}
       {onReopen && (
         <button
           type="button"

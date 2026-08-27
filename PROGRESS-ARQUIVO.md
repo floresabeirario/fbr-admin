@@ -7,6 +7,34 @@
 
 ---
 
+## Sessão 153 — movida na sessão 158
+
+### Sessão 153 (2026-08-17) — Assistente do WhatsApp reconstruído (7 frentes, 8 deploys)
+- **O quê:** a Maria disse que reescrevia tudo à mão e não se relacionava com o que o assistente escrevia. Diagnóstico: o prompt nunca teve **uma mensagem real dela** (só persona + 29 templates), a query do `suggest` **omitia** metade dos campos que a cliente preenche, e as edições dela eram deitadas fora. Corrigidas as três, mais UX do telemóvel.
+- **Frentes:** campos do formulário + secção OBRIGATÓRIO (`requiredContentPoints`) · voz aprendida das `sent_echo` anonimizadas · UX (toast preso, "Abrir no WhatsApp", toques 44px) · rascunhos em localStorage + histórico `‹2/3›` · afinação por texto livre que reescreve · ciclo de aprendizagem (par gerado/usado → regras aprovadas por ela) · sugestão encolhível.
+- **Ficheiros:** [voice-examples.ts](src/lib/whatsapp/voice-examples.ts) · [composer-drafts.ts](src/lib/whatsapp/composer-drafts.ts) · [suggest-edit/route.ts](src/app/api/whatsapp/suggest-edit/route.ts) · [voice-rules/route.ts](src/app/api/whatsapp/voice-rules/route.ts) (todos NOVOS) + [suggest/route.ts](src/app/api/whatsapp/suggest/route.ts), [templates.ts](src/lib/templates.ts), [whatsapp-client.tsx](src/app/(admin)/whatsapp/whatsapp-client.tsx), [claudio-client.tsx](src/app/(admin)/comunicacoes/claudio/claudio-client.tsx), [sonner.tsx](src/components/ui/sonner.tsx).
+- **Migrações:** **102** ✅ CORRIDA (tabela `suggestion_edits` + chave `claude_voice_rules`).
+- **Bugs meus apanhados em produção pela Maria:** sugestão saía **sem nome** (os exemplos anonimizados ensinavam que as mensagens não levam nome → o nome desta conversa passa a entrar nos exemplos + `preencherNome()` limpa em código); o botão "Abrir no WhatsApp" **agravava** a perda de rascunhos (manda-a para fora da app) → localStorage; o rodapé cresceu tanto que **tapava a conversa** → tecto relativo ao ecrã + chevron para encolher.
+- **Armadilhas:** ESLint apanhou um `useRef` tocado durante o render (reset por mudança de conversa) → `useState`; `onClick={handleSuggest}` passava o evento do clique como 1.º argumento, o que partiria a afinação.
+- **Preflight:** ✅ tsc + **146 testes** (eram 103) + build + ESLint. **Smoke:** ver bloco de pendentes no topo — **nada confirmado ainda**.
+
+---
+
+## Sessão 152 — movida na sessão 157
+
+### Sessão 152 (2026-08-17) — Converter encomenda para "flores secas" + cor própria do serviço
+- **O quê (pedido da Maria):** uma noiva reservou preservação mas o ramo já vinha quase todo seco → não faz sentido cobrar preços de preservação. O select "Tipo de serviço" no rodapé do workbench passa a ter os **3** tipos (secas era selo read-only desde a 149). Trocar de/para secas abre `ServiceChangeDialog` novo que explica antes de aplicar: tabela de preços muda, orçamento recalcula **só se ainda for o automático** (editado à mão fica intocado + dica do botão "Recalcular"), "Flores na prensa" sai/entra da timeline pública e do selector, campos das secas ficam vazios (veio pelo form de preservação) e aviso extra se a encomenda estiver mesmo em "Flores na prensa". Preservação ↔ Recriação continua instantâneo (mesmos preços).
+- **Recalculo do orçamento:** `service_type` entra no `needsPrev` e no `pricingFieldChanged` de `updateOrderAction` (só quando muda de valor **e** `budget == pricing_snapshot.total`). `computePricingSnapshot` já escolhia a base `secas_` pelo `service_type` — nada a mudar em pricing.ts.
+- **Cor do serviço (2.ª parte do pedido, 2 rondas):** na lista o selo SECAS, "Entrega agendada" e "30% pago" eram todos âmbar. Decisão da Maria: **cores de estado e pagamento NÃO mudam** e **sem bolinhas** → mudou só o serviço "secas". 1.ª tentativa verde-esmeralda em tudo → ela viu que o selo **batia com a pílula verde "Contactada"** na mesma linha. Final: **selo/tag/aba em castanho da marca** (`bg-cocoa-900 text-cream-50` — o único chip escuro da linha, não colide com pastéis) e **cartão do workbench fica verde** (accent/ring/bg/links; lá não há pílulas a competir). "Entrega agendada" e "30% pago" continuam ambos âmbar entre si — limite aceite desta opção.
+- **Armadilha para a próxima:** as pílulas da lista já ocupam quase toda a paleta pastel (estados 16 cores, pagamento 4, "Contactada" verde, "Nova" sky, "Recriação" violeta). Para etiquetas NOVAS na lista, preferir chip escuro/neutro em vez de procurar mais um pastel livre.
+- **Ficheiros:** [closing-cards.tsx](src/app/(admin)/preservacao/[id]/_components/closing-cards.tsx) (`ServiceChangeDialog` + MetaFooter), [actions.ts](src/app/(admin)/preservacao/actions.ts), [preservacao-client.tsx](src/app/(admin)/preservacao/preservacao-client.tsx), [header.tsx](src/app/(admin)/preservacao/[id]/_components/header.tsx), [dried-flowers-card.tsx](src/app/(admin)/preservacao/[id]/_components/dried-flowers-card.tsx).
+- **Migrações:** nenhuma. **Smoke:** preflight ✅ (tsc + 103 testes + build) + eslint limpo nos 5 ficheiros; smoke no browser fica para a Maria (bloco de pendentes).
+- **Pendente:** confirmar no browser e, se a conversão for frequente, avaliar oferecer o mesmo select na lista (por agora só no workbench, para não haver conversões acidentais).
+
+> Sessões 127-146, 147 e 150 movidas para o [PROGRESS-ARQUIVO.md](PROGRESS-ARQUIVO.md).
+
+---
+
 ## Sessões 150 e 147 — movidas na sessão 155
 
 ### Sessão 150 (2026-08-10) — Pôr live o trabalho não-committado de 5 sessões paralelas

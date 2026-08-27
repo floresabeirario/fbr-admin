@@ -1468,6 +1468,7 @@ function DraggableTaskTile({
           <span
             className="text-[10px] text-cocoa-400 italic"
             title={`Criada: ${formatDate(task.created_at)}`}
+            suppressHydrationWarning
           >
             {formatCreatedAgo(task.created_at)}
           </span>

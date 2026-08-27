@@ -3,7 +3,7 @@
 // Alertas da coluna do meio: fatura em falta e aprovação pendente.
 // Extraídos do workbench-client.tsx (refactor sessão 128).
 
-import { differenceInCalendarDays, parseISO } from "date-fns";
+import { calendarDaysFromTodayLisbon } from "@/lib/format-date";
 import { AlertTriangle, Check } from "lucide-react";
 import type { Order } from "@/types/database";
 import { computeInvoiceFlags, type UpdateFn } from "./shared";
@@ -28,7 +28,7 @@ export function MissingInvoiceAlert({ local }: { local: Order }) {
 /* Alerta de aprovação pendente (estado a_aguardar_aprovacao) */
 export function ApprovalPendingAlert({ local, update }: { local: Order; update: UpdateFn }) {
   if (local.status !== "a_aguardar_aprovacao" || local.approval_responded) return null;
-  const daysWaiting = differenceInCalendarDays(new Date(), parseISO(local.updated_at));
+  const daysWaiting = -calendarDaysFromTodayLisbon(local.updated_at);
   const urgent = daysWaiting >= 4;
   return (
     <div className={`order-2 lg:order-none flex items-start gap-3 rounded-xl border px-4 py-3 ${
