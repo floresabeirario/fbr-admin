@@ -26,7 +26,9 @@ export const dynamic = "force-dynamic";
 const MAX_LEN = 8000;
 
 type ReqBody = {
-  conversationId: string;
+  // Um dos dois: conversa do WhatsApp, ou encomenda sem conversa
+  // (mensagem gerada a partir do formulário, no workbench).
+  conversationId?: string | null;
   orderId?: string | null;
   instruction?: string | null;
   original: string;
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   const original = (body.original ?? "").trim();
   const final = (body.final ?? "").trim();
-  if (!body.conversationId || !original || !final) {
+  if ((!body.conversationId && !body.orderId) || !original || !final) {
     return NextResponse.json({ error: "campos em falta" }, { status: 400 });
   }
   if (original.length > MAX_LEN || final.length > MAX_LEN) {
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
   try {
     const admin = createAdminClient();
     const { error } = await admin.from("suggestion_edits").insert({
-      conversation_id: body.conversationId,
+      conversation_id: body.conversationId ?? null,
       order_id: body.orderId ?? null,
       instruction: body.instruction?.trim() || null,
       suggestion_original: original,

@@ -54,7 +54,16 @@ const MAX_TOKENS = 1024;
 const PERSONA_FALLBACK = `És a Maria João da Flores à Beira-Rio (FBR), estúdio de preservação de flores em Coimbra. Português europeu, tom caloroso mas profissional, eficiente, emojis com moderação. Tratamento "a senhora"/"vocês" em PT. Responde SEMPRE na língua das últimas mensagens do cliente. Resposta directa para copiar — sem prefácios.`;
 
 type ReqBody = {
-  conversationId: string;
+  // Alvo: um dos dois. `conversationId` quando ela responde a uma
+  // conversa; `orderId` quando o cliente preencheu o formulário e nunca
+  // escreveu — aí não há conversa nenhuma para abrir, mas há tudo o que
+  // ele escolheu, que é o que interessa para a primeira mensagem.
+  conversationId?: string;
+  orderId?: string;
+  // Canal de saída. Por omissão WhatsApp (a esmagadora maioria). "email"
+  // muda o formato da mensagem — assunto, saudação, despedida — porque
+  // uma mensagem de WhatsApp colada num email lê-se mal.
+  channel?: "whatsapp" | "email";
   instruction?: string; // ex: "diz que sim, conseguimos fazer"
   // Afinação: a Maria já tem uma versão e quer mudá-la ("mais curta",
   // "sem emojis", "diz que só depois de Agosto"). Sem isto ela só podia
@@ -109,6 +118,14 @@ type LinkedOrder = {
   // Decomposição do orçamento (quadro + extras). Sem isto o assistente só
   // sabia o total e falava sempre do quadro, nunca dos ornamentos.
   pricing_snapshot: Order["pricing_snapshot"];
+};
+
+type ConvRow = {
+  id: string;
+  phone_e164: string;
+  display_phone: string | null;
+  contact_name: string | null;
+  notes: string | null;
 };
 
 const LINKED_ORDER_COLUMNS =
@@ -202,28 +219,70 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json()) as ReqBody;
-  if (!body?.conversationId) {
-    return NextResponse.json({ error: "conversationId em falta" }, { status: 400 });
+  const conversationIdParam = body?.conversationId?.trim() ?? "";
+  const orderIdParam = body?.orderId?.trim() ?? "";
+  if (!conversationIdParam && !orderIdParam) {
+    return NextResponse.json(
+      { error: "conversationId ou orderId em falta" },
+      { status: 400 },
+    );
   }
 
   const supabase = await createClient();
 
-  // 1. Conversa + ultimas mensagens
-  const { data: conv } = await supabase
-    .from("whatsapp_conversations")
-    .select("id, phone_e164, display_phone, contact_name, notes")
-    .eq("id", body.conversationId)
-    .single();
-  if (!conv) {
-    return NextResponse.json({ error: "conversa nao encontrada" }, { status: 404 });
+  // 1. Alvo — conversa do WhatsApp ou encomenda ainda sem conversa
+  const CONV_COLUMNS = "id, phone_e164, display_phone, contact_name, notes";
+  let conv: ConvRow | null = null;
+  // Encomenda pedida explicitamente: manda sobre as que se descobrem
+  // pelo telefone (é a que ela tem aberta no workbench).
+  let orderFromParam: LinkedOrder | null = null;
+
+  if (conversationIdParam) {
+    const { data } = await supabase
+      .from("whatsapp_conversations")
+      .select(CONV_COLUMNS)
+      .eq("id", conversationIdParam)
+      .single();
+    conv = (data as ConvRow | null) ?? null;
+    if (!conv) {
+      return NextResponse.json({ error: "conversa nao encontrada" }, { status: 404 });
+    }
+  } else {
+    const { data } = await supabase
+      .from("orders")
+      .select(LINKED_ORDER_COLUMNS)
+      .eq("order_id", orderIdParam)
+      .is("deleted_at", null)
+      .limit(1);
+    orderFromParam = ((data ?? [])[0] as LinkedOrder | undefined) ?? null;
+    if (!orderFromParam) {
+      return NextResponse.json({ error: "encomenda nao encontrada" }, { status: 404 });
+    }
+    // Pode haver conversa mesmo tendo ela entrado pelo workbench (ex:
+    // abriu o painel do WhatsApp na aba errada). Se existir, as
+    // mensagens contam — sugerir a ignorá-las seria pior que não sugerir.
+    const tail = (orderFromParam.phone ?? "").replace(/\D/g, "").slice(-9);
+    if (tail.length === 9) {
+      const { data: convData } = await supabase
+        .from("whatsapp_conversations")
+        .select(CONV_COLUMNS)
+        .like("phone_e164", `%${tail}`)
+        .limit(1);
+      conv = ((convData ?? [])[0] as ConvRow | undefined) ?? null;
+    }
   }
 
-  const { data: msgs } = await supabase
-    .from("whatsapp_messages")
-    .select("direction, content_type, text, received_at")
-    .eq("conversation_id", body.conversationId)
-    .order("received_at", { ascending: false })
-    .limit(RECENT_MESSAGES_LIMIT);
+  // Conversa efectivamente usada (pode ser null: encomenda sem conversa).
+  const conversationId = conv?.id ?? null;
+
+  const { data: msgs } = conversationId
+    ? await supabase
+        .from("whatsapp_messages")
+        .select("direction, content_type, text, received_at")
+        .eq("conversation_id", conversationId)
+        .order("received_at", { ascending: false })
+        .limit(RECENT_MESSAGES_LIMIT)
+    : { data: [] };
 
   const recentMessages = (msgs ?? []).reverse() as Array<{
     direction: "received" | "sent_echo";
@@ -262,21 +321,33 @@ export async function POST(request: NextRequest) {
 
   // 3. Encomendas associadas a esta pessoa (por telefone)
   // O matching e por digitos last 9 — espelhada do client side.
-  const phoneDigits = conv.phone_e164.replace(/\D/g, "");
-  const phoneTail = phoneDigits.slice(-9);
-  const { data: allOrders, error: ordersError } = await supabase
-    .from("orders")
-    .select(LINKED_ORDER_COLUMNS)
-    .not("phone", "is", null)
-    .is("deleted_at", null)
-    .limit(2000);
-  if (ordersError) {
-    // Nao silenciar: sem encomendas o Claude trata clientes como leads.
-    console.error("[wa-suggest] falhou a query de orders", ordersError);
-  }
-  const linkedOrders = ((allOrders ?? []) as LinkedOrder[]).filter(
-    (o) => (o.phone ?? "").replace(/\D/g, "").slice(-9) === phoneTail,
+  const phoneDigits = (conv?.phone_e164 ?? orderFromParam?.phone ?? "").replace(
+    /\D/g,
+    "",
   );
+  const phoneTail = phoneDigits.slice(-9);
+  let linkedOrders: LinkedOrder[] = [];
+  if (phoneTail.length === 9) {
+    const { data: allOrders, error: ordersError } = await supabase
+      .from("orders")
+      .select(LINKED_ORDER_COLUMNS)
+      .not("phone", "is", null)
+      .is("deleted_at", null)
+      .limit(2000);
+    if (ordersError) {
+      // Nao silenciar: sem encomendas o Claude trata clientes como leads.
+      console.error("[wa-suggest] falhou a query de orders", ordersError);
+    }
+    linkedOrders = ((allOrders ?? []) as LinkedOrder[]).filter(
+      (o) => (o.phone ?? "").replace(/\D/g, "").slice(-9) === phoneTail,
+    );
+  }
+  // A encomenda aberta no workbench vem sempre em primeiro lugar: é
+  // sobre ela que a mensagem é, mesmo que a cliente tenha outras.
+  if (orderFromParam) {
+    const outras = linkedOrders.filter((o) => o.order_id !== orderFromParam!.order_id);
+    linkedOrders = [orderFromParam, ...outras];
+  }
 
   // 4. Lingua provavel — dica, nao regra. A regra (na persona) e responder
   //    na lingua das ultimas mensagens do cliente; quando a conversa ainda
@@ -326,7 +397,7 @@ export async function POST(request: NextRequest) {
     ? `\n\n## OBRIGATÓRIO — esta mensagem TEM de cobrir todos estes pontos\n\nO cliente deixou estas questões pendentes no formulário. A mensagem só está correcta se as tratar todas, de forma natural e integrada no texto (não como lista):\n\n${required.map((p) => `- ${p.text}`).join("\n")}`
     : "";
 
-  const notesBlock = conv.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
+  const notesBlock = conv?.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
 
   // Afinação sobre a versão que ela já tem. Reescrever é diferente de
   // gerar do zero: o que já está bom tem de sobreviver, e só muda o que
@@ -391,7 +462,7 @@ Muda a FORMA, não o conteúdo: os factos, valores, datas, links e os pontos obr
   // fallback. Vazio quando não sabemos — e aí ninguém inventa nada.
   const nomeCliente = (
     linkedOrders[0]?.client_name ??
-    conv.contact_name ??
+    conv?.contact_name ??
     ""
   ).trim();
   const primeiroNomeCliente = nomeCliente ? nomeCliente.split(/\s+/)[0] : "";
@@ -399,7 +470,7 @@ Muda a FORMA, não o conteúdo: os factos, valores, datas, links e os pontos obr
   const voiceBlock = voiceExamplesBlock(
     await pickVoiceExamples(supabase, {
       situacao,
-      excludeConversationId: body.conversationId,
+      excludeConversationId: conversationId ?? undefined,
     }),
     primeiroNomeCliente,
   );
@@ -443,9 +514,34 @@ Muda a FORMA, não o conteúdo: os factos, valores, datas, links e os pontos obr
     .map((t) => `### ${t.name} [${t.language}] (${t.category})\n${t.body}`)
     .join("\n\n---\n\n");
 
-  const userTask = `## Conversa actual com ${conv.contact_name ?? conv.display_phone ?? conv.phone_e164}
+  // Sem uma única mensagem isto não é "responder" — é abrir a conversa.
+  // Dizê-lo por palavras evita o erro clássico de o assistente responder
+  // a algo que a cliente nunca escreveu.
+  const transcriptBlock =
+    conversationTranscript ||
+    (orderFromParam
+      ? "(ainda não há conversa nenhuma: o cliente preencheu o formulário e NUNCA escreveu. Esta é a PRIMEIRA mensagem que lhe enviamos — abre-a como tal, apresenta-te e agradece o pedido; nunca respondas a mensagens que ele não escreveu.)"
+      : "(ainda sem mensagens)");
 
-${conversationTranscript || "(ainda sem mensagens)"}
+  // Canal: os templates e os exemplos de voz são todos de WhatsApp. Sem
+  // isto, o que sai para email é uma mensagem de telemóvel colada num
+  // email — sem assunto, sem saudação, sem despedida.
+  const porEmail = body.channel === "email";
+  const emailBlock = porEmail
+    ? `
+## CANAL — EMAIL (não é WhatsApp)
+
+Esta mensagem vai por **email**. Escreve-a como email:
+- **Primeira linha exactamente \`Assunto: ...\`** (ou \`Subject: ...\` se escreveres em inglês), curto e concreto, seguida de uma linha em branco e só depois o corpo.
+- Abre com saudação ao cliente pelo primeiro nome e fecha com despedida e assinatura de quem escreve.
+- Parágrafos completos e arejados (nada de linhas soltas de WhatsApp), emojis raros ou nenhuns, sem abreviaturas.
+- Os templates da biblioteca são de WhatsApp: aproveita o conteúdo, os valores e as regras, mas passa a forma para email.
+`
+    : "";
+
+  const userTask = `## Conversa actual com ${conv?.contact_name ?? conv?.display_phone ?? conv?.phone_e164 ?? nomeCliente ?? "cliente"}
+
+${transcriptBlock}
 
 ## Encomendas ligadas a este número
 
@@ -454,12 +550,12 @@ ${ordersBlock}${requiredBlock}${suggestionsBlock}${notesBlock}${voiceBlock}
 ## Instrução da Maria
 
 ${body.instruction?.trim() ? body.instruction.trim() : "(sem instrução específica — interpreta o contexto e responde como a Maria responderia)"}
-${refineBlock}${avoidBlock}
+${emailBlock}${refineBlock}${avoidBlock}
 ## Língua
 
 Responde na língua das últimas mensagens do CLIENTE (não da FBR). Se o cliente escrever em francês, espanhol ou outra língua, responde nessa língua. Se a conversa ainda não permitir perceber, usa: **${probableLang === "en" ? "inglês" : "português europeu"}**.
 
-${refinar ? "Devolve a mensagem reescrita (pronta a copiar), e mais nada:" : refazer ? "Escreve a versão alternativa (pronta a copiar), e mais nada:" : "Gera a próxima mensagem da FBR (pronta a copiar):"}`;
+${refinar ? `Devolve ${porEmail ? "o email reescrito" : "a mensagem reescrita"} (pronto a copiar), e mais nada:` : refazer ? "Escreve a versão alternativa (pronta a copiar), e mais nada:" : porEmail ? "Escreve o email da FBR (assunto na primeira linha, pronto a copiar):" : "Gera a próxima mensagem da FBR (pronta a copiar):"}`;
 
   // ─── Chamada Claude ───
   const anthropic = createAnthropicClient();
@@ -512,7 +608,7 @@ ${refinar ? "Devolve a mensagem reescrita (pronta a copiar), e mais nada:" : ref
     const email = await getCurrentEmail();
     await admin.from("claude_usage").insert({
       model: CLAUDE_MODEL,
-      conversation_id: body.conversationId,
+      conversation_id: conversationId,
       input_tokens: usage.input_tokens ?? 0,
       output_tokens: usage.output_tokens ?? 0,
       cache_read_tokens: usage.cache_read_input_tokens ?? 0,

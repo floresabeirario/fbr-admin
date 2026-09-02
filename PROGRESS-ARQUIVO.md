@@ -7,6 +7,17 @@
 
 ---
 
+## Sessão 154 — movida na sessão 159
+
+### Sessão 154 (2026-08-19) — Flores secas passam a gerar evento no Google Calendar
+- **O quê (bug reportado pela Maria):** numa reserva de flores secas ela mete a **data de entrega das flores** e não aparecia evento nenhum no Calendar. Causa: **todo** o caminho do Calendar estava trancado ao `event_date` (`upsertOrderEvent`, `upsertOrderCalendarEvent`, a Server Action do botão e o próprio botão do workbench) — e o form das secas **não pergunta data do evento** (as flores já estão secas; ver comentário no mapper do site). Resultado: `event_date` NULL → nunca havia evento.
+- **Correcção:** regra única e pura `effectiveCalendarDate()` — recolha/em mãos manda, senão `event_date`, senão qualquer data de entrega preenchida. Todos os caminhos passam a usá-la. Novo gatilho `calendarDateBecomesAvailable()`: nas secas a data só aparece **depois** do 1º pagamento (o gatilho normal), por isso cria-se o evento no momento em que a encomenda ganha data, se já estiver paga e não cancelada. Botão do workbench deixa de estar cinzento e a mensagem de erro passa a falar das duas datas.
+- **Ficheiros:** [calendar-date.ts](src/lib/google/calendar-date.ts) (NOVO, pura e client-safe — `calendar.ts` é `server-only`) · [calendar.ts](src/lib/google/calendar.ts) · [order-calendar-trigger.ts](src/lib/google/order-calendar-trigger.ts) · [actions.ts](src/app/(admin)/preservacao/actions.ts) · [hero.tsx](src/app/(admin)/preservacao/[id]/_components/hero.tsx) · [fields.tsx](src/app/(admin)/preservacao/[id]/_components/fields.tsx) · [calendar-date.test.ts](src/lib/__tests__/calendar-date.test.ts) (NOVO, 10 testes).
+- **Migrações:** nenhuma. **Preflight:** ✅ tsc + 156 testes + build.
+- **🔴 SMOKE (por fazer):** encomenda de secas paga → meter data de entrega em mãos → evento aparece no calendário "Preservação de Flores" nesse dia, sem "⏳ entrega por combinar" no título; botão "Evento Calendar" activo no workbench; encomenda de preservação normal continua a criar no dia do evento como antes.
+
+---
+
 ## Sessão 153 — movida na sessão 158
 
 ### Sessão 153 (2026-08-17) — Assistente do WhatsApp reconstruído (7 frentes, 8 deploys)

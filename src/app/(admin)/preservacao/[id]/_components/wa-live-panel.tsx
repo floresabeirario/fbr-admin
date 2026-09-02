@@ -5,17 +5,22 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Sparkles, Copy, RotateCcw, X, ExternalLink, MessageSquareText, RefreshCw, MailQuestion } from "lucide-react";
+import { ExternalLink, MessageSquareText, RefreshCw, MailQuestion } from "lucide-react";
 import { linkify } from "@/lib/linkify";
 import { formatDateTimeLisbon, formatTimeLisbon } from "@/lib/format-date";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import SuggestComposer from "@/components/suggest-composer";
 import type { WhatsappConversation, WhatsappMessage } from "@/types/whatsapp-live";
 import { markConversationReadAction, markConversationUnreadAction } from "@/app/(admin)/whatsapp/actions";
 
 type Props = {
   // Telefone do cliente no formato livre da BD (ex: "935 896 353", "+351935...").
   phone: string | null | undefined;
+  // Encomenda a que este painel pertence. Só o workbench da Preservação a
+  // tem — as Parcerias e os Vales usam o mesmo painel sem encomenda.
+  // Quando existe, o assistente funciona mesmo sem conversa nenhuma: lê o
+  // que o cliente escolheu no formulário e sugere a PRIMEIRA mensagem.
+  orderId?: string | null;
+  contactName?: string | null;
 };
 
 function lastNineDigits(s: string | null | undefined): string {
@@ -40,7 +45,7 @@ function mediaIconLabel(content_type: string): string {
   }
 }
 
-export default function WhatsappLivePanel({ phone }: Props) {
+export default function WhatsappLivePanel({ phone, orderId, contactName }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const phoneTail = lastNineDigits(phone);
 
@@ -176,9 +181,16 @@ export default function WhatsappLivePanel({ phone }: Props) {
   }, [conversation?.id, conversation?.unread_count, conversation]);
 
   // ─── Empty states ───
+  // Sem conversa não quer dizer sem nada a dizer: a maior parte das
+  // clientes preenche o formulário e fica à espera que sejamos nós a
+  // escrever primeiro. Nesses casos o assistente continua disponível —
+  // lê a encomenda em vez da conversa.
   if (!phone || phoneTail.length < 9) {
     return (
-      <EmptyBox
+      <SemConversa
+        orderId={orderId}
+        contactName={contactName}
+        phone={null}
         title="Sem número de telefone"
         description="Adiciona o número do cliente na ficha para começares a ver conversas."
       />
@@ -191,7 +203,10 @@ export default function WhatsappLivePanel({ phone }: Props) {
   }
   if (!conversation) {
     return (
-      <EmptyBox
+      <SemConversa
+        orderId={orderId}
+        contactName={contactName}
+        phone={phone}
         title="Sem conversa de WhatsApp ainda"
         description={`Quando esta cliente enviar ou tu lhe escreveres pelo telemóvel para ${phone}, a conversa aparece aqui automaticamente.`}
       />
@@ -260,7 +275,12 @@ export default function WhatsappLivePanel({ phone }: Props) {
       </div>
 
       {/* Composer Sugerir resposta */}
-      <SuggestComposer conversationId={conversation.id} />
+      <SuggestComposer
+        conversationId={conversation.id}
+        orderId={orderId ?? null}
+        contactName={conversation.contact_name ?? contactName ?? null}
+        phone={conversation.phone_e164}
+      />
     </div>
   );
 }
@@ -271,6 +291,43 @@ function EmptyBox({ title, description }: { title: string; description: string }
       <MessageSquareText className="h-5 w-5 text-cocoa-400 mx-auto mb-1.5" />
       <p className="text-xs font-medium text-cocoa-700">{title}</p>
       {description && <p className="text-[11px] text-cocoa-500 mt-1">{description}</p>}
+    </div>
+  );
+}
+
+// Estado "ainda não há conversa": a caixa vazia de sempre, mais o
+// assistente quando estamos numa encomenda. É o caso mais comum do
+// workbench — a cliente preencheu o formulário e nunca escreveu — e era
+// justamente aqui que não havia forma de pedir uma sugestão sem ir
+// buscar um template à mão e adaptá-lo.
+function SemConversa({
+  orderId,
+  contactName,
+  phone,
+  title,
+  description,
+}: {
+  orderId?: string | null;
+  contactName?: string | null;
+  phone: string | null | undefined;
+  title: string;
+  description: string;
+}) {
+  if (!orderId) return <EmptyBox title={title} description={description} />;
+  return (
+    <div className="rounded-md border border-cream-200 bg-cream-50/40 overflow-hidden">
+      <div className="p-4 text-center">
+        <MessageSquareText className="h-5 w-5 text-cocoa-400 mx-auto mb-1.5" />
+        <p className="text-xs font-medium text-cocoa-700">{title}</p>
+        {description && <p className="text-[11px] text-cocoa-500 mt-1">{description}</p>}
+      </div>
+      <SuggestComposer
+        orderId={orderId}
+        contactName={contactName}
+        phone={phone}
+        ctaLabel="Sugerir mensagem"
+        placeholder='Diz ao Claude o que queres comunicar (opcional). Sem instrução, ele lê o formulário e escreve o primeiro contacto.'
+      />
     </div>
   );
 }
@@ -460,113 +517,4 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
   }
   // Sem status (ainda) — mostra so o icone do telemovel.
   return <span title="Enviada pelo telemóvel">📱</span>;
-}
-
-function SuggestComposer({ conversationId }: { conversationId: string }) {
-  const [instruction, setInstruction] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
-
-  // Reset durante o render quando muda de conversa — sem setState em effect.
-  const [prevConversationId, setPrevConversationId] = useState(conversationId);
-  if (conversationId !== prevConversationId) {
-    setPrevConversationId(conversationId);
-    setInstruction("");
-    setSuggestion(null);
-    setLoading(false);
-  }
-
-  async function handleSuggest() {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/whatsapp/suggest", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ conversationId, instruction }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setSuggestion(data.suggestion || "");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro a gerar sugestão");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCopy() {
-    if (!suggestion) return;
-    try {
-      await navigator.clipboard.writeText(suggestion);
-      toast.success("Copiado. Cola no telemóvel.");
-    } catch {
-      toast.error("Não consegui copiar — selecciona manualmente.");
-    }
-  }
-
-  if (suggestion !== null) {
-    return (
-      <div className="p-2.5 border-t border-cream-200 bg-surface space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-medium text-cocoa-700 flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-indigo-500" /> Sugestão (editável)
-          </span>
-          <button
-            type="button"
-            onClick={() => setSuggestion(null)}
-            className="p-0.5 text-cocoa-400 hover:text-cocoa-700"
-            aria-label="Fechar"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-        <Textarea
-          value={suggestion}
-          onChange={(e) => setSuggestion(e.target.value)}
-          rows={5}
-          className="text-xs"
-        />
-        <div className="flex gap-2">
-          <Button type="button" size="sm" onClick={handleCopy} className="flex-1">
-            <Copy className="h-3 w-3 mr-1.5" /> Copiar
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={handleSuggest}
-            disabled={loading}
-          >
-            <RotateCcw className="h-3 w-3 mr-1.5" /> Refazer
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-2.5 border-t border-cream-200 bg-surface space-y-2">
-      <Textarea
-        value={instruction}
-        onChange={(e) => setInstruction(e.target.value)}
-        placeholder='O que queres dizer? (opcional)'
-        rows={2}
-        className="text-xs"
-      />
-      <Button
-        type="button"
-        size="sm"
-        onClick={handleSuggest}
-        disabled={loading}
-        className="w-full"
-      >
-        <Sparkles className="h-3 w-3 mr-1.5" />
-        {loading ? "A pensar…" : "Sugerir resposta"}
-      </Button>
-    </div>
-  );
 }

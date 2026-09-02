@@ -3,7 +3,7 @@
 // ============================================================
 
 import { differenceInDays, parseISO } from "date-fns";
-import type { Order } from "@/types/database";
+import { isStatusAtOrAfter, type Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import { isExpiringSoon } from "@/lib/supabase/vouchers";
 import { formatEUR } from "@/lib/format";
@@ -122,11 +122,24 @@ export interface DashboardAlert {
 const EVENT_HORIZON_DAYS = 7;
 
 export function getDashboardAlerts(
-  orders: Order[],
+  allOrders: Order[],
   vouchers: Voucher[],
 ): DashboardAlert[] {
   const alerts: DashboardAlert[] = [];
   const today = new Date();
+
+  // ⚠ REGRA: os alertas começam em "Entrega agendada", inclusive.
+  // Uma pré-reserva ("Entrega de flores por agendar") ainda não é
+  // trabalho — é um pedido que pode nunca se concretizar, e enchia o
+  // cartão de linhas vermelhas por eventos e prazos de encomendas que
+  // ainda não existem. Esse acompanhamento vive na aba Preservação, nos
+  // grupos "Pré-reservas" (com/sem contacto) e "Sem resposta".
+  // Mesma regra da notificação diária (SKIP_STATUSES em lib/push/daily.ts).
+  // Encomendas canceladas também ficam de fora (isStatusAtOrAfter dá
+  // sempre false para estados fora da sequência de produção).
+  const orders = allOrders.filter((o) =>
+    isStatusAtOrAfter(o.status, "entrega_agendada"),
+  );
 
   // 1. Eventos nos próximos 7 dias (não cancelados, com flores por receber/preservadas)
   const upcomingEvents = orders.filter((o) => {
@@ -188,25 +201,12 @@ export function getDashboardAlerts(
     });
   }
 
-  // 2. Pré-reservas sem contacto há ≥4 dias — lembrete para contactar.
-  // Critério próprio (não confundir com o grupo "Sem resposta", que é só ghost
-  // manual via isWithoutResponse): pré-reserva ainda não contactada há ≥4 dias.
-  const uncontactedPreReservas = orders.filter((o) => {
-    if (o.deleted_at) return false;
-    if (o.status !== "entrega_flores_agendar") return false;
-    if (o.contacted) return false;
-    return differenceInDays(today, parseISO(o.created_at)) >= 4;
-  });
-  for (const o of uncontactedPreReservas.slice(0, 10)) {
-    const days = differenceInDays(today, parseISO(o.created_at));
-    alerts.push({
-      id: `noresp-${o.id}`,
-      severity: "danger",
-      label: `Pré-reserva sem contacto há ${days} dias`,
-      detail: `${o.client_name} — ${o.email ?? o.phone ?? "sem contacto"}`,
-      href: `/preservacao/${o.order_id ?? o.id}`,
-    });
-  }
+  // 2. (removido) "Pré-reserva sem contacto há ≥4 dias".
+  // Era o alerta que mais enchia o cartão — até 10 linhas vermelhas de
+  // pedidos que ainda não são encomendas. Pela regra acima, as
+  // pré-reservas não aparecem nos alertas; quem as segue é a própria aba
+  // Preservação, que já as separa em contactadas / não contactadas e tem
+  // o grupo "Sem resposta". Não voltar a acrescentar aqui.
 
   // 2b. Comissões de parceria por pagar — agregado único (sessão 140).
   // "Por pagar" = estados intermédios (informado / a aguardar / a aguardar

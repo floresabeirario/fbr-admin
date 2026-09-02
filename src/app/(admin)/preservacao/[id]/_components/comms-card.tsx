@@ -21,6 +21,7 @@ import { FORM_LANGUAGE_LABELS } from "@/types/database";
 import { formatPhone, phoneToWaMe } from "@/lib/format-phone";
 import WhatsappLivePanel from "./wa-live-panel";
 import GmailPanel from "./gmail-panel";
+import SuggestComposer from "@/components/suggest-composer";
 import { Card, inp } from "./layout";
 import type { UpdateFn, ClientUpdateFn } from "./shared";
 
@@ -245,11 +246,29 @@ export function CommsCard({
             WhatsApp
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="email" className="mt-3">
+        <TabsContent value="email" className="mt-3 space-y-2">
           <GmailPanel email={local.email} />
+          {/* Mesmo assistente do WhatsApp, em formato de email (assunto,
+              saudação, despedida). Fica fora do GmailPanel de propósito:
+              assim aparece mesmo quando o Google não está ligado ou ainda
+              não há emails trocados — que é justamente quando ela precisa
+              de escrever o primeiro. */}
+          <SuggestComposer
+            channel="email"
+            orderId={local.order_id}
+            contactName={local.client_name}
+            email={local.email}
+            ctaLabel="Sugerir email"
+            placeholder="Diz ao Claude o que queres comunicar (opcional). Sem instrução, ele lê o formulário e escreve o email."
+            className="rounded-md border border-cream-200"
+          />
         </TabsContent>
         <TabsContent value="whatsapp" className="mt-3">
-          <WhatsappLivePanel phone={local.phone} />
+          <WhatsappLivePanel
+            phone={local.phone}
+            orderId={local.order_id}
+            contactName={local.client_name}
+          />
         </TabsContent>
       </Tabs>
     </Card>
