@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import TemplatePicker from "@/components/template-picker";
+import type { Order } from "@/types/database";
 import {
   subscribeComposer,
   getComposerSnapshot,
@@ -95,11 +96,19 @@ export type SuggestComposerProps = {
   /** Destinatário do `mailto:` quando `channel === "email"`. */
   email?: string | null;
   /**
-   * Templates de lead ao lado do botão. Só na Caixa de Entrada: o
+   * Picker de templates ao lado do botão. Só na Caixa de Entrada: o
    * workbench já tem o seu próprio picker (com a encomenda) mesmo por
    * cima disto, e dois pickers seguidos só confundem.
    */
   leadTemplates?: boolean;
+  /**
+   * Encomenda completa desta conversa, quando existe. É o que faz o
+   * picker sugerir os templates **da fase certa** (e preencher valores,
+   * datas e tamanhos) em vez da lista fixa de primeiro contacto. Sem
+   * ela, cai-se no modo "lead", que é o correcto para quem escreve antes
+   * de preencher o formulário.
+   */
+  order?: Order | null;
   /** "Sugerir resposta" quando há conversa; "Sugerir mensagem" quando não há. */
   ctaLabel?: string;
   placeholder?: string;
@@ -114,6 +123,7 @@ export default function SuggestComposer({
   channel = "whatsapp",
   email,
   leadTemplates = false,
+  order,
   ctaLabel = "Sugerir resposta",
   placeholder = 'Diz ao Claude o que queres comunicar (opcional). Ex: "responde que sim, conseguimos fazer mas o prazo é mais longo"',
   className,
@@ -470,8 +480,19 @@ export default function SuggestComposer({
         className="text-sm resize-none"
       />
       <div className="flex items-center gap-2">
-        {/* Templates prontos a copiar/colar (leads: 1º contacto, preços, 3 opções de entrega, …) */}
-        {leadTemplates && <TemplatePicker scope="lead" contactName={contactName} />}
+        {/* Templates prontos a copiar/colar. Com encomenda ligada, os
+            sugeridos são os da fase dela (e das escolhas do formulário);
+            sem encomenda, os típicos de primeiro contacto. */}
+        {leadTemplates &&
+          (order ? (
+            <TemplatePicker
+              scope="order"
+              order={order}
+              preferredLanguage={order.form_language}
+            />
+          ) : (
+            <TemplatePicker scope="lead" contactName={contactName} />
+          ))}
         <Button
           type="button"
           size="sm"

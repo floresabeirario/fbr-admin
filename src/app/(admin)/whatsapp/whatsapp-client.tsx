@@ -27,7 +27,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { isStatusAtOrAfter, type OrderStatus } from "@/types/database";
+import { isStatusAtOrAfter, type Order, type OrderStatus } from "@/types/database";
 import {
   LABEL_PALETTE,
   PALETTE_ORDER,
@@ -823,6 +823,38 @@ function ConversationViewer({
   // Key automática desta conversa (usada quando não há etiqueta manual).
   const autoKey = useMemo(() => autoKeyFromOrders(linkedOrders), [linkedOrders]);
 
+  // Encomenda ligada, completa. A lista `orders` que vem do servidor é
+  // magra de propósito (7 colunas × 2000 encomendas, só para o matching
+  // por telefone), mas os templates precisam da encomenda inteira: é dela
+  // que saem as sugestões da fase certa e os valores/datas das variáveis.
+  // Sem isto, o picker desta aba mostrava sempre a mesma lista de
+  // primeiro contacto, mesmo em conversas de encomendas a meio.
+  // Vai-se buscar só a da conversa aberta, e só quando existe.
+  const linkedOrderId = linkedOrders[0]?.order_id ?? null;
+  const [fullOrder, setFullOrder] = useState<Order | null>(null);
+  const [prevLinkedOrderId, setPrevLinkedOrderId] = useState(linkedOrderId);
+  if (linkedOrderId !== prevLinkedOrderId) {
+    setPrevLinkedOrderId(linkedOrderId);
+    setFullOrder(null);
+  }
+  useEffect(() => {
+    if (!linkedOrderId) return;
+    let cancelled = false;
+    supabase
+      .from("orders")
+      .select("*")
+      .eq("order_id", linkedOrderId)
+      .is("deleted_at", null)
+      .limit(1)
+      .then(({ data }) => {
+        if (cancelled || !data?.[0]) return;
+        setFullOrder(data[0] as Order);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, linkedOrderId]);
+
   // Fetch mensagens da conversa + subscrever Realtime.
   // (reset de loading/messages ao mudar de conversa é feito no render, acima)
   useEffect(() => {
@@ -1063,6 +1095,7 @@ function ConversationViewer({
         contactName={conversation.contact_name}
         phone={conversation.phone_e164}
         orderId={linkedOrders[0]?.order_id ?? null}
+        order={fullOrder}
         leadTemplates
       />
     </>
