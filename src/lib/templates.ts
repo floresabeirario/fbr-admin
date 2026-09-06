@@ -343,6 +343,21 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     ? `${order.frame_size} cm`
     : "";
 
+  // Vale-presente: desconto, restante e crédito que sobra (mig 106). O
+  // valor do vale chega em gift_voucher_amount (OrderWithVoucher); sem
+  // ele, as variáveis ficam vazias e o template lê-se na mesma.
+  const valeAmount = (order as OrderWithVoucher).gift_voucher_amount ?? null;
+  const temVale = Boolean(order.gift_voucher_code) && valeAmount !== null && total !== null;
+  const valeDesconto = temVale ? Math.min(valeAmount as number, total as number) : null;
+  const valeRestante = temVale ? Math.max(0, Math.round(((total as number) - (valeAmount as number)) * 100) / 100) : null;
+  const valeCredito = temVale ? Math.max(0, Math.round(((valeAmount as number) - (total as number)) * 100) / 100) : 0;
+  const creditoVale =
+    valeCredito > 0
+      ? lang === "en"
+        ? `\n\nYou still have ${fmtEurMsg(valeCredito)} of voucher credit, which you can use on extras for this order, for example a Christmas ornament, a pendant or an extra frame. If you would like to add something, just let us know.`
+        : `\n\nSobram ainda ${fmtEurMsg(valeCredito)} de crédito do vale, que pode usar em extras desta encomenda, por exemplo um ornamento de Natal, um pendente ou um quadro extra. Se quiser acrescentar algo, é só dizer.`
+      : "";
+
   const vars: Record<string, string> = {
     saudacao,
     saudacao_en: saudacaoPorHora("en", now),
@@ -358,6 +373,10 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     valor_3a_parcela: parcela30 !== null ? fmtEurMsg(parcela30) : "",
     sinal_pago: sinalPago !== null ? fmtEurMsg(sinalPago) : "",
     valor_em_falta: valorEmFalta !== null ? fmtEurMsg(valorEmFalta) : "",
+    codigo_vale: order.gift_voucher_code ?? "",
+    valor_vale_desconto: valeDesconto !== null ? fmtEurMsg(valeDesconto) : "",
+    valor_restante: valeRestante !== null ? fmtEurMsg(valeRestante) : "",
+    credito_vale: creditoVale,
     data_evento: dataCurta(order.event_date),
     data_evento_extenso: dataExtenso(order.event_date, "pt"),
     data_evento_extenso_en: dataExtenso(order.event_date, "en"),
@@ -437,9 +456,12 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   // Vale
   { key: "nome_remetente", description: "Primeiro nome do remetente do vale", scope: "voucher" },
   { key: "nome_destinatario", description: "Primeiro nome do destinatário do vale", scope: "voucher" },
-  { key: "codigo_vale", description: "Código do vale (6 caracteres)", scope: "voucher" },
+  { key: "codigo_vale", description: "Código do vale (6 caracteres); na encomenda, o vale associado", scope: "both" },
   { key: "link_vale", description: "Link público do vale (voucher.floresabeirario.pt/xxx)", scope: "voucher" },
   { key: "valor_vale", description: "Valor do vale", scope: "voucher" },
+  { key: "valor_vale_desconto", description: "Quanto o vale desconta nesta encomenda (o valor do vale, ou o total se o vale for maior)", scope: "order" },
+  { key: "valor_restante", description: "Restante a pagar depois do vale (0€ se o vale cobrir tudo)", scope: "order" },
+  { key: "credito_vale", description: "Frase pronta com o crédito que sobra do vale e sugestão de extras; vazia quando não sobra nada", scope: "order" },
 ];
 
 // ─── Sugestões por campos da encomenda ─────────────────────
@@ -459,8 +481,13 @@ export interface OrderFieldsForSuggestion {
   budget_at_first_payment?: number | null;
   // Pagamento em dinheiro à entrega (mig 076)
   cash_on_delivery?: boolean;
-  // Encomenda paga com vale-presente
+  // Encomenda paga com vale-presente. O valor do vale não vive na
+  // encomenda (está em `vouchers`): o workbench junta-o à encomenda como
+  // `gift_voucher_amount` (ver OrderWithVoucher) para se saber se sobra
+  // ou falta dinheiro. Sem valor, assume-se "coberta" (comportamento antigo).
   gift_voucher_code?: string | null;
+  gift_voucher_amount?: number | null;
+  budget?: number | null;
   // Escolhas do cliente que podem ficar em "Mais info" no formulário.
   // Enquanto lá estiverem, a próxima mensagem tem de as explicar
   // (requiredContentPoints). Tipos soltos (string) de propósito: este
@@ -488,6 +515,27 @@ function tamanhoIndecisoDe(order: OrderFieldsForSuggestion): boolean {
   );
 }
 
+/**
+ * Encomenda + valor do vale-presente associado. O workbench constrói isto
+ * a partir da encomenda e da linha de `vouchers` (page.tsx); é só um
+ * campo extra em memória, nunca vai para a BD.
+ */
+export type OrderWithVoucher = Order & { gift_voucher_amount?: number | null };
+
+/**
+ * Vale-presente com restante a pagar: há vale, sabemos o valor dele e o
+ * orçamento é maior. Decide entre "reserva coberta" e "reserva com
+ * restante" (mig 106). Sem valor do vale, fica "coberta" como antes.
+ */
+export function valeComRestante(o: OrderFieldsForSuggestion): boolean {
+  return Boolean(
+    o.gift_voucher_code &&
+      o.gift_voucher_amount != null &&
+      o.budget != null &&
+      o.budget > o.gift_voucher_amount + 0.005,
+  );
+}
+
 export function fieldSuggestionBases(order: OrderFieldsForSuggestion): string[] {
   const bases: string[] = [];
   const st = order.status;
@@ -506,7 +554,7 @@ export function fieldSuggestionBases(order: OrderFieldsForSuggestion): string[] 
   // pede sinal a quem recebeu o vale).
   if (preReserva && order.payment_status === "100_por_pagar") {
     if (order.gift_voucher_code) {
-      bases.push("vale_reserva_coberta");
+      bases.push(valeComRestante(order) ? "vale_reserva_restante" : "vale_reserva_coberta");
     } else {
       bases.push(
         tamanhoIndeciso
@@ -670,7 +718,8 @@ const RELEVANCIA_POR_CAMPOS: Record<
     tamanhoIndecisoDe(o),
   lembrete_reserva_nao_paga: (o) =>
     o.payment_status === "100_por_pagar" && !o.gift_voucher_code,
-  vale_reserva_coberta: (o) => Boolean(o.gift_voucher_code),
+  vale_reserva_coberta: (o) => Boolean(o.gift_voucher_code) && !valeComRestante(o),
+  vale_reserva_restante: (o) => valeComRestante(o),
 
   // Envio das flores: cada mensagem só faz sentido com o método certo
   opcoes_entrega_flores: (o) => {

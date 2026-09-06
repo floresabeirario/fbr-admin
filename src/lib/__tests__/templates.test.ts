@@ -576,3 +576,51 @@ describe("renderOrderTemplate — {resumo_encomenda}", () => {
     expect(out).toBe("• Quadro 40x50 cm (400€)");
   });
 });
+
+// ── Vale-presente: restante a pagar vs. crédito que sobra (mig 106) ──
+describe("vale-presente com valor conhecido", () => {
+  const base = {
+    status: "entrega_flores_agendar",
+    payment_status: "100_por_pagar",
+    frame_size: "40x50",
+    gift_voucher_code: "A7K9X2",
+  };
+
+  it("orçamento maior do que o vale → template com restante", () => {
+    const bases = fieldSuggestionBases({ ...base, budget: 490, gift_voucher_amount: 300 });
+    expect(bases).toContain("vale_reserva_restante");
+    expect(bases).not.toContain("vale_reserva_coberta");
+  });
+
+  it("vale igual ou maior do que o orçamento → reserva coberta", () => {
+    expect(fieldSuggestionBases({ ...base, budget: 300, gift_voucher_amount: 300 })).toContain("vale_reserva_coberta");
+    expect(fieldSuggestionBases({ ...base, budget: 300, gift_voucher_amount: 400 })).toContain("vale_reserva_coberta");
+  });
+
+  it("sem valor do vale → comportamento antigo (coberta)", () => {
+    expect(fieldSuggestionBases({ ...base, budget: 900 })).toContain("vale_reserva_coberta");
+  });
+
+  it("variáveis: desconto, restante e crédito", () => {
+    const settings = {} as Parameters<typeof renderOrderTemplate>[1]["settings"];
+    const tpl = (body: string) =>
+      ({ slug: "x_pt", name: "x", language: "pt", category: "vale_presente", scope: "order", position: 1, is_seed: false, suggested_statuses: [], body }) as unknown as Parameters<typeof renderOrderTemplate>[0];
+    const ordem = (over: Record<string, unknown>) =>
+      ({ client_name: "Ana", gift_voucher_code: "A7K9X2", order_id: "X", ...over }) as unknown as Parameters<typeof renderOrderTemplate>[1]["order"];
+
+    const restante = renderOrderTemplate(tpl("{codigo_vale} {valor_vale_desconto} {valor_restante}[{credito_vale}]"), {
+      order: ordem({ budget: 490, gift_voucher_amount: 300 }), settings,
+    });
+    expect(restante).toBe("A7K9X2 300€ 190€[]");
+
+    const credito = renderOrderTemplate(tpl("{valor_vale_desconto} {valor_restante}{credito_vale}"), {
+      order: ordem({ budget: 300, gift_voucher_amount: 400 }), settings,
+    });
+    expect(credito.startsWith("300€ 0€\n\nSobram ainda 100€ de crédito do vale")).toBe(true);
+
+    const semValor = renderOrderTemplate(tpl("[{valor_restante}][{credito_vale}]"), {
+      order: ordem({ budget: 300 }), settings,
+    });
+    expect(semValor).toBe("[][]");
+  });
+});

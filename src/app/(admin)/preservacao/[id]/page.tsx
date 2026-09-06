@@ -11,6 +11,7 @@ import { getBouquetPhotoUrls } from "@/lib/storage/bouquet-photos";
 import type { PartialPublicMessages } from "@/lib/public-status";
 import { markOrderSeenAction } from "../actions";
 import WorkbenchClient, { type DuplicateOrderInfo } from "./workbench-client";
+import type { OrderWithVoucher } from "@/lib/templates";
 
 export default async function WorkbenchPage({
   params,
@@ -65,15 +66,23 @@ export default async function WorkbenchPage({
   // Se a encomenda tem código de vale-presente associado, verifica se existe um
   // vale activo com esse código — workbench mostra link directo para o vale.
   let linkedVoucherCode: string | null = null;
+  // Valor do vale: os templates precisam dele para saber se sobra crédito
+  // ou falta pagar (mig 106). Vai colado à encomenda em memória.
+  let linkedVoucherAmount: number | null = null;
   if (order.gift_voucher_code) {
     const { data: voucherRow } = await supabase
       .from("vouchers")
-      .select("code")
+      .select("code, amount")
       .eq("code", order.gift_voucher_code.toUpperCase())
       .is("deleted_at", null)
       .maybeSingle();
     linkedVoucherCode = voucherRow?.code ?? null;
+    const amount = Number(voucherRow?.amount);
+    linkedVoucherAmount = Number.isFinite(amount) ? amount : null;
   }
+  const orderComVale: Order = Object.assign({}, order, {
+    gift_voucher_amount: linkedVoucherAmount,
+  }) as OrderWithVoucher;
 
   // Cliente repetido: outras encomendas com o mesmo email/telemóvel.
   // Só informativo (aviso com link, NUNCA bloqueia — regra da Maria).
@@ -132,7 +141,7 @@ export default async function WorkbenchPage({
 
   return (
     <WorkbenchClient
-      order={order}
+      order={orderComVale}
       canEdit={role === "admin"}
       partners={partnerOptions}
       taskTemplates={taskTemplates}
