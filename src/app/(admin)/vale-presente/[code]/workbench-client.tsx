@@ -428,6 +428,7 @@ export default function VoucherWorkbenchClient({
                     amount: data.amount,
                   }}
                   phone={data.sender_phone}
+                  email={data.sender_email}
                   preferredLanguage="pt"
                 />
               }

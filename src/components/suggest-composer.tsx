@@ -37,12 +37,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phoneToWaMe } from "@/lib/format-phone";
-import { splitAssunto } from "@/lib/email-subject";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import TemplatePicker from "@/components/template-picker";
 import { boldForWhatsapp, boldToHtml, stripBold } from "@/lib/rich-text";
+import { buildMailtoHref } from "@/lib/mailto";
 import type { Order } from "@/types/database";
 import {
   subscribeComposer,
@@ -74,11 +74,6 @@ export function autoGrow(el: HTMLTextAreaElement | null) {
   el.style.height = "auto";
   el.style.height = `${Math.min(el.scrollHeight, tecto)}px`;
 }
-
-// Tecto conservador do `mailto:`: acima disto há clientes de email que
-// cortam o corpo em silêncio — e uma mensagem truncada a meio é pior que
-// não ter o botão. Nesses casos fica só o Copiar.
-const MAILTO_MAX = 1900;
 
 export type SuggestComposerProps = {
   /** Conversa do WhatsApp. Um destes dois tem de vir preenchido. */
@@ -300,17 +295,7 @@ export default function SuggestComposer({
   // Equivalente para email: abre o programa de email dela já com o
   // destinatário, o assunto e o corpo. Continua a ser ela a carregar em
   // enviar — a plataforma nunca envia nada por si.
-  const mailtoHref = (() => {
-    if (!porEmail || !suggestion || !email || !email.includes("@")) return null;
-    const { subject, body } = splitAssunto(suggestion);
-    const params = new URLSearchParams();
-    if (subject) params.set("subject", stripBold(subject));
-    // O mailto: não leva formatação — vai sem marcadores, que é melhor
-    // do que ir com asteriscos à vista.
-    params.set("body", stripBold(body));
-    const href = `mailto:${encodeURIComponent(email)}?${params.toString()}`;
-    return href.length > MAILTO_MAX ? null : href;
-  })();
+  const mailtoHref = porEmail ? buildMailtoHref(email, suggestion) : null;
 
   const accaoHref = waHref ?? mailtoHref;
 
@@ -512,7 +497,12 @@ export default function SuggestComposer({
               preferredLanguage={order.form_language}
             />
           ) : (
-            <TemplatePicker scope="lead" contactName={contactName} phone={phone} />
+            <TemplatePicker
+              scope="lead"
+              contactName={contactName}
+              phone={phone}
+              email={email}
+            />
           ))}
         <Button
           type="button"

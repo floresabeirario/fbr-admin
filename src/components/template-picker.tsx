@@ -11,6 +11,7 @@ import {
   Languages,
   Search,
   Send,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -50,6 +51,7 @@ import {
 import type { Order } from "@/types/database";
 import { phoneToWaMe } from "@/lib/format-phone";
 import { boldForWhatsapp } from "@/lib/rich-text";
+import { buildMailtoHref } from "@/lib/mailto";
 
 const SETTING_DEFAULTS: SystemSettingsMap = {
   payment_account_holder: "",
@@ -72,6 +74,8 @@ type PickerProps =
       preferredLanguage?: TemplateLanguage;
       /** Sobrepõe o telemóvel da encomenda (raro). */
       phone?: string | null;
+      /** Sobrepõe o email da encomenda (raro). */
+      email?: string | null;
       voucher?: never;
       contactName?: never;
     }
@@ -81,6 +85,8 @@ type PickerProps =
       preferredLanguage?: TemplateLanguage;
       /** Telemóvel do remetente do vale, para o "Abrir no WhatsApp". */
       phone?: string | null;
+      /** Email do remetente do vale, para o "Abrir no email". */
+      email?: string | null;
       order?: never;
       contactName?: never;
     }
@@ -91,6 +97,8 @@ type PickerProps =
       contactName?: string | null;
       /** Telemóvel da conversa, para o "Abrir no WhatsApp". */
       phone?: string | null;
+      /** Email conhecido do contacto, para o "Abrir no email". */
+      email?: string | null;
       order?: never;
       preferredLanguage?: TemplateLanguage;
       voucher?: never;
@@ -117,6 +125,7 @@ export default function TemplatePicker(props: PickerProps) {
   // escrito. Na encomenda vem da ficha; nos outros scopes é o caller que
   // o passa. Sem telemóvel, fica só o Copiar.
   const phone = props.phone ?? (props.scope === "order" ? props.order.phone : null);
+  const email = props.email ?? (props.scope === "order" ? props.order.email : null);
 
   // Carrega templates + system_settings da BD. Chamado pelo handler do
   // popover (não num useEffect) para evitar set-state-in-effect.
@@ -271,6 +280,7 @@ export default function TemplatePicker(props: PickerProps) {
           onClose={() => setChosen(null)}
           renderedBody={renderTemplate(chosen, props, settings)}
           phone={phone}
+          email={email}
         />
       )}
     </>
@@ -330,11 +340,13 @@ function TemplatePreviewDialog({
   renderedBody,
   onClose,
   phone,
+  email,
 }: {
   template: MessageTemplate;
   renderedBody: string;
   onClose: () => void;
   phone?: string | null;
+  email?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [edited, setEdited] = useState(renderedBody);
@@ -349,6 +361,13 @@ function TemplatePreviewDialog({
   const waHref = waNumero
     ? `https://wa.me/${waNumero}?text=${encodeURIComponent(boldForWhatsapp(finalText))}`
     : null;
+
+  // O mesmo para o email: abre o programa de email com o destinatário e o
+  // texto. Os templates são escritos para WhatsApp, por isso raramente
+  // trazem linha de assunto — quando não trazem, o assunto fica em branco
+  // para ela escrever (inventar um seria pior). null quando o link ficaria
+  // grande demais e o corpo corresse o risco de ir cortado.
+  const mailtoHref = buildMailtoHref(email, finalText);
 
   async function handleCopy() {
     try {
@@ -414,6 +433,15 @@ function TemplatePreviewDialog({
                 <X className="h-3.5 w-3.5 mr-1.5" />
                 Fechar
               </Button>
+              {mailtoHref && (
+                <a
+                  href={mailtoHref}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-700 active:bg-blue-800 flex-1 sm:flex-none"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Abrir no email
+                </a>
+              )}
               {waHref && (
                 <a
                   href={waHref}
@@ -427,7 +455,7 @@ function TemplatePreviewDialog({
               )}
               <Button
                 size="sm"
-                variant={waHref ? "outline" : "default"}
+                variant={waHref || mailtoHref ? "outline" : "default"}
                 onClick={handleCopy}
                 className="text-xs flex-1 sm:flex-none"
               >
