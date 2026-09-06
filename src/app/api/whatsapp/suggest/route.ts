@@ -11,19 +11,31 @@ import {
 import {
   dadosPagamento,
   fieldSuggestionBases,
+  renderOrderTemplate,
   requiredContentPoints,
   resumoEncomendaLinhas,
+  slugBase,
+  type OrderWithVoucher,
 } from "@/lib/templates";
 import {
   pickVoiceExamples,
   preencherNome,
   voiceExamplesBlock,
 } from "@/lib/whatsapp/voice-examples";
+import {
+  regraSaudacao,
+  transcriptComTempos,
+  type TranscriptMessage,
+} from "@/lib/whatsapp/transcript";
 import { fetchThreadsWithContact } from "@/lib/google/gmail";
 import { splitQuotedEmail } from "@/lib/email-quotes";
-import { formatDateLisbon } from "@/lib/format-date";
+import {
+  formatDateLisbon,
+  formatDateTimeLisbon,
+  lisbonWallClock,
+} from "@/lib/format-date";
 import { normalizeBold } from "@/lib/rich-text";
-import type { SystemSettingsMap } from "@/types/message-template";
+import type { MessageTemplate, SystemSettingsMap } from "@/types/message-template";
 import {
   STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -56,6 +68,19 @@ const MAX_TOKENS = 1024;
 // Fallback se system_settings.claude_persona estiver vazio (nao deveria
 // acontecer apos mig 080, mas defensivo).
 const PERSONA_FALLBACK = `És a Maria João da Flores à Beira-Rio (FBR), estúdio de preservação de flores em Coimbra. Português europeu, tom caloroso mas profissional, eficiente, emojis com moderação. Tratamento "a senhora"/"vocês" em PT. Responde SEMPRE na língua das últimas mensagens do cliente. Resposta directa para copiar — sem prefácios.`;
+
+// Regras da plataforma que não dependem da persona editável no Cérebro
+// (sessão 162). Vão coladas à persona no system prompt.
+// - Templates: a escolhida para a fase vai preenchida no pedido e é
+//   para manter; o modelo parafraseava-as e a estrutura dela perdia-se.
+// - Elogios: não é proibição, é medida. Saía "que ideia fantástica" e
+//   "uma forma maravilhosa de eternizar" a cada vale, e lia-se a lambe-botas.
+const REGRAS_FIXAS = `
+
+Prioridade das fontes (regras fixas da plataforma):
+- Quando o pedido trouxer uma secção "TEMPLATE BASE", a mensagem é essa template, com as frases e a ordem que lá estão. Adaptas só o que a conversa obrigar. Os exemplos de voz e a persona só mandam no que escreveres de novo.
+- Elogios com conta e medida: não elogies a FBR nem o nosso trabalho, e não qualifiques a escolha do cliente ("que ideia fantástica", "uma forma maravilhosa de eternizar"). Um "parabéns" ou "que bonito" cabe quando a template o tem ou quando o cliente partilha algo pessoal (casamento, nascimento), e uma vez só.
+- Responde primeiro ao que foi perguntado, com a informação concreta; a simpatia vem depois e em poucas palavras.`;
 
 type ReqBody = {
   // Alvo: um dos dois. `conversationId` quando ela responde a uma
@@ -331,12 +356,10 @@ export async function POST(request: NextRequest) {
         .limit(RECENT_MESSAGES_LIMIT)
     : { data: [] };
 
-  const recentMessages = (msgs ?? []).reverse() as Array<{
-    direction: "received" | "sent_echo";
-    content_type: string;
-    text: string | null;
-    received_at: string;
-  }>;
+  const recentMessages = (msgs ?? []).reverse() as TranscriptMessage[];
+  // "Agora" é uma coisa só para o pedido inteiro: transcript, regra de
+  // saudação e a saudação das templates ({saudacao}) têm de concordar.
+  const agora = new Date();
 
   // 2. Templates (todos PT e EN) + settings (persona, factos e dados de
   //    pagamento — o Claude precisa dos dados reais para compor mensagens
@@ -344,18 +367,13 @@ export async function POST(request: NextRequest) {
   const [tplDataRes, settingsRes] = await Promise.all([
     supabase
       .from("message_templates")
-      .select("name, language, category, body")
+      .select("*")
       .is("deleted_at", null)
       .order("category", { ascending: true })
       .order("position", { ascending: true }),
     supabase.from("system_settings").select("key, value"),
   ]);
-  const templates = (tplDataRes.data ?? []) as Array<{
-    name: string;
-    language: "pt" | "en";
-    category: string;
-    body: string;
-  }>;
+  const templates = (tplDataRes.data ?? []) as MessageTemplate[];
   const settingsMap = Object.fromEntries(
     (settingsRes.data ?? []).map((r) => [r.key as string, r.value as string]),
   ) as Partial<SystemSettingsMap>;
@@ -365,6 +383,24 @@ export async function POST(request: NextRequest) {
   // uma a uma no Cérebro do Claude (mig 102). Separadas da persona:
   // a persona é escrita por ela, isto é aprendido do uso.
   const voiceRulesFromDb = (settingsMap.claude_voice_rules ?? "").trim();
+  // Settings completos (variáveis {dados_pagamento}, {morada_estudio}…
+  // das templates). Merge com defaults vazios para nunca imprimir
+  // "undefined". Usado tanto para preencher a template base como para
+  // o bloco de pagamento do system prompt.
+  const settingsForPayment: SystemSettingsMap = {
+    payment_account_holder: "",
+    payment_iban: "",
+    payment_bic: "",
+    payment_bank_name: "",
+    payment_mbway: "",
+    studio_address_url: "",
+    studio_address_text: "",
+    review_link: "",
+    claude_persona: "",
+    claude_facts: "",
+    claude_voice_rules: "",
+    ...settingsMap,
+  };
 
   // 3. Encomendas associadas a esta pessoa (por telefone)
   // O matching e por digitos last 9 — espelhada do client side.
@@ -396,6 +432,36 @@ export async function POST(request: NextRequest) {
     linkedOrders = [orderFromParam, ...outras];
   }
 
+  // Encomenda principal com TODAS as colunas: é o que o motor de
+  // templates precisa para preencher {valor_sinal}, {resumo_encomenda},
+  // {vidro_museu}… tal e qual como no workbench. Sem isto a template ia
+  // para o prompt com as variáveis por preencher e o modelo inventava.
+  // O valor do vale entra colado (gift_voucher_amount), como na página.
+  let encomendaCompleta: OrderWithVoucher | null = null;
+  if (linkedOrders[0]) {
+    const { data: full } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("order_id", linkedOrders[0].order_id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (full) {
+      let gift_voucher_amount: number | null = null;
+      const code = (full as Order).gift_voucher_code;
+      if (code) {
+        const { data: voucherRow } = await supabase
+          .from("vouchers")
+          .select("amount")
+          .eq("code", code.toUpperCase())
+          .is("deleted_at", null)
+          .maybeSingle();
+        const amount = Number(voucherRow?.amount);
+        gift_voucher_amount = Number.isFinite(amount) ? amount : null;
+      }
+      encomendaCompleta = { ...(full as Order), gift_voucher_amount };
+    }
+  }
+
   // 4. Lingua provavel — dica, nao regra. A regra (na persona) e responder
   //    na lingua das ultimas mensagens do cliente; quando a conversa ainda
   //    nao diz nada, vale a lingua do formulario da encomenda ligada.
@@ -414,13 +480,10 @@ export async function POST(request: NextRequest) {
 
   // 5. Montar prompt
 
-  const conversationTranscript = recentMessages
-    .map((m) => {
-      const tag = m.direction === "received" ? "CLIENTE" : "FBR";
-      const content = m.text || `(${m.content_type})`;
-      return `${tag}: ${content}`;
-    })
-    .join("\n");
+  // Cada linha leva data/hora e "há X": sem isto o modelo não distinguia
+  // uma troca em curso (cliente a escrever há 2 min) de uma conversa
+  // retomada uma semana depois, e cumprimentava sempre.
+  const conversationTranscript = transcriptComTempos(recentMessages, agora);
 
   const ordersBlock = linkedOrders.length
     ? linkedOrders.slice(0, 3).map(orderToBlock).join("\n\n")
@@ -431,8 +494,32 @@ export async function POST(request: NextRequest) {
   const suggestionBases = linkedOrders.length
     ? fieldSuggestionBases(linkedOrders[0])
     : [];
-  const suggestionsBlock = suggestionBases.length
-    ? `\n\n## Templates mais prováveis para esta fase (pelas regras da FBR)\n\n${suggestionBases.map((b) => `- ${b}`).join("\n")}`
+  // As templates escolhidas iam para o prompt só pelo nome, enterradas
+  // no meio da biblioteca inteira, e o modelo reescrevia-as à sua
+  // maneira (sessão 162: "invisto tempo na estrutura das templates e
+  // ele reescreve"). Agora vão preenchidas com os dados reais, em
+  // primeiro plano, com a ordem de as manter tal como estão.
+  const templatesBase = encomendaCompleta
+    ? suggestionBases
+        .map((base) => {
+          const daLingua = templates.find(
+            (t) => t.language === probableLang && slugBase(t.slug) === base,
+          );
+          const qualquer = daLingua ?? templates.find((t) => slugBase(t.slug) === base);
+          return qualquer ?? null;
+        })
+        .filter((t): t is MessageTemplate => t !== null)
+        .map((t) => ({
+          nome: t.name,
+          corpo: renderOrderTemplate(t, {
+            order: encomendaCompleta as Order,
+            settings: settingsForPayment,
+            now: lisbonWallClock(agora),
+          }),
+        }))
+    : [];
+  const suggestionsBlock = templatesBase.length
+    ? `\n\n## TEMPLATE BASE — é isto que a mensagem tem de ser\n\nPelas regras da FBR, a situação desta encomenda corresponde à(s) template(s) abaixo, já preenchida(s) com os dados reais desta encomenda. A Maria escreveu-as com uma estrutura pensada: a ordem das ideias e as frases não são ao acaso.\n\nRegras:\n- A tua mensagem É esta template. Mantém a ordem dos parágrafos e as frases tal como estão; não parafraseies o que já está escrito.\n- Só mudas o que a conversa obrigar: responder a uma pergunta que o cliente fez, cobrir um ponto OBRIGATÓRIO que a template não cobre, ou cortar um parágrafo que já não faz sentido (por exemplo, já foi dito nesta conversa ou por email). O que acrescentares entra no sítio natural, sem reescrever o resto.\n- Se houver mais de uma template, encadeia-as pela ordem em que aparecem, com uma só saudação e uma só despedida.\n- Se a regra de saudação mais abaixo disser NÃO, corta a linha da saudação da template.\n- Os exemplos de voz mais abaixo servem só para o que escreveres de novo, nunca para reescrever a template.\n- Um valor que tenha ficado em branco na template não se inventa: escreve [CONFIRMAR: o que falta].\n\n${templatesBase.map((t) => `### ${t.nome}\n${t.corpo}`).join("\n\n---\n\n")}`
     : "";
 
   // Pontos que a mensagem TEM de cobrir (o cliente deixou-os pendentes no
@@ -441,7 +528,7 @@ export async function POST(request: NextRequest) {
     ? requiredContentPoints(linkedOrders[0])
     : [];
   const requiredBlock = required.length
-    ? `\n\n## OBRIGATÓRIO — esta mensagem TEM de cobrir todos estes pontos\n\nO cliente deixou estas questões pendentes no formulário. A mensagem só está correcta se as tratar todas, de forma natural e integrada no texto (não como lista):\n\n${required.map((p) => `- ${p.text}`).join("\n")}`
+    ? `\n\n## OBRIGATÓRIO — esta mensagem TEM de cobrir todos estes pontos\n\nO cliente deixou estas questões pendentes no formulário. A mensagem só está correcta se as tratar todas, integradas no texto. Se a template base já cobre um ponto, mantém a forma da template; o que a template não cobre, acrescenta no sítio natural:\n\n${required.map((p) => `- ${p.text}`).join("\n")}`
     : "";
 
   const notesBlock = conv?.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
@@ -536,7 +623,7 @@ ${emailHistory}`
   // ─── System prompt (cacheable) ───
   // Persona vem de system_settings.claude_persona; se vazio, fallback hardcoded.
   // Factos vem de system_settings.claude_facts; se vazio, omite a seccao.
-  const systemPersona = personaFromDb || PERSONA_FALLBACK;
+  const systemPersona = (personaFromDb || PERSONA_FALLBACK) + REGRAS_FIXAS;
   const systemFacts = factsFromDb
     ? `\n\n## Factos e contexto adicional da FBR (sabe sempre)\n\n${factsFromDb}`
     : "";
@@ -547,22 +634,6 @@ ${emailHistory}`
     ? `\n\n## Regras de voz da Maria (aprendidas das correcções dela — obedece-lhes acima de tudo o resto)\n\n${voiceRulesFromDb}`
     : "";
 
-  // Dados de pagamento reais (variavel {dados_pagamento} dos templates).
-  // Merge com defaults vazios para nunca imprimir "undefined".
-  const settingsForPayment: SystemSettingsMap = {
-    payment_account_holder: "",
-    payment_iban: "",
-    payment_bic: "",
-    payment_bank_name: "",
-    payment_mbway: "",
-    studio_address_url: "",
-    studio_address_text: "",
-    review_link: "",
-    claude_persona: "",
-    claude_facts: "",
-    claude_voice_rules: "",
-    ...settingsMap,
-  };
   const paymentBlock =
     settingsMap.payment_iban || settingsMap.payment_mbway
       ? `\n\n## Dados de pagamento reais (usar tal e qual; nunca inventar)\n\nPara clientes portugueses:\n${dadosPagamento("pt", settingsForPayment)}\n\nPara clientes internacionais (MB Way não funciona fora de PT):\n${dadosPagamento("en", settingsForPayment)}${settingsMap.studio_address_url ? `\n\nPonto de encontro / entrega em mãos (link Maps): ${settingsMap.studio_address_url}` : ""}${settingsMap.review_link ? `\nLink de avaliação/opinião: ${settingsMap.review_link}` : ""}`
@@ -609,9 +680,18 @@ Destaca a negrito só o essencial: valores, datas, prazos, códigos (vale-presen
 Escreve o negrito SEMPRE com dois asteriscos, \`**assim**\`, mesmo para o WhatsApp. ${porEmail ? "A plataforma converte isso em negrito a sério quando a Maria copiar o email." : "A plataforma converte isso para a sintaxe do WhatsApp ao copiar."} Nunca escrevas asteriscos simples à volta de palavras.
 `;
 
+  // Saudação decidida em código, não pelo modelo: numa conversa em
+  // curso ele cumprimentava em todas as respostas. Por email a saudação
+  // é sempre parte do formato, por isso a regra só se aplica ao WhatsApp.
+  const saudacaoBlock = porEmail
+    ? ""
+    : `\n\n## Saudação\n\n${regraSaudacao(recentMessages, agora)}`;
+
   const userTask = `## Conversa actual com ${conv?.contact_name ?? conv?.display_phone ?? conv?.phone_e164 ?? nomeCliente ?? "cliente"}
 
-${transcriptBlock}
+Agora são ${formatDateTimeLisbon(agora.toISOString())} (hora de Lisboa). Cada mensagem abaixo traz a data/hora e há quanto tempo foi enviada.
+
+${transcriptBlock}${saudacaoBlock}
 
 ## Encomendas ligadas a este número
 
@@ -644,7 +724,7 @@ ${refinar ? `Devolve ${porEmail ? "o email reescrito" : "a mensagem reescrita"} 
         },
         {
           type: "text",
-          text: `## Biblioteca oficial de templates da FBR\n\nEstas são as mensagens validadas pela Maria, em PT e EN. Quando a situação da conversa corresponde a um template, USA o template como base: mantém a estrutura e as frases, adapta apenas nome, valores, datas e detalhes ao contexto (e remove variáveis {assim} substituindo pelo valor real ou por [CONFIRMAR: ...] se não o souberes). Para situações sem template, escreve uma mensagem nova no mesmo estilo.\n\n${templatesAsReference}`,
+          text: `## Biblioteca oficial de templates da FBR\n\nEstas são as mensagens validadas pela Maria, em PT e EN. Servem de referência para situações que o pedido não trouxer já resolvidas: se o pedido tiver uma secção "TEMPLATE BASE", é essa que usas, já preenchida. Quando não tiver e a situação da conversa corresponder a um template daqui, USA-o como base: mantém a estrutura e as frases, adapta apenas nome, valores, datas e detalhes ao contexto (e remove variáveis {assim} substituindo pelo valor real ou por [CONFIRMAR: ...] se não o souberes). Para situações sem template, escreve uma mensagem nova no mesmo estilo.\n\n${templatesAsReference}`,
           cache_control: { type: "ephemeral" },
         },
       ],

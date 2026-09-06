@@ -19,6 +19,7 @@ import {
   BookOpen,
   MessageSquareText,
   Loader2,
+  ClipboardPaste,
 } from "lucide-react";
 import {
   Command,
@@ -146,6 +147,37 @@ export function GlobalSearch() {
     router.push(href);
   }
 
+  // "Colar número": o atalho WhatsApp → encomenda (copiar o número em
+  // "Ver contacto", abrir a app, colar). Lê a área de transferência
+  // (pede permissão à primeira) e pesquisa. Se der UMA encomenda só,
+  // abre-a logo sem passar pela lista; senão mostra os resultados como
+  // uma pesquisa normal. Sem acesso à área de transferência (permissão
+  // negada, browser sem suporte) não faz nada: colar à mão continua a
+  // funcionar.
+  async function colarEPesquisar() {
+    let texto = "";
+    try {
+      texto = (await navigator.clipboard.readText()).trim();
+    } catch {
+      return;
+    }
+    if (texto.length < 2) return;
+    setPending(true);
+    const myId = ++reqIdRef.current;
+    try {
+      const res = await globalSearchAction(texto);
+      if (reqIdRef.current !== myId) return;
+      const encomendas = res.results.filter((r) => r.kind === "order");
+      if (encomendas.length === 1) {
+        goTo(encomendas[0].href);
+        return;
+      }
+    } catch {
+      /* cai na pesquisa normal abaixo */
+    }
+    if (reqIdRef.current === myId) onValueChange(texto);
+  }
+
   // Agrupa resultados por kind preservando a ordem definida.
   const grouped = KIND_ORDER.map((kind) => ({
     kind,
@@ -165,14 +197,22 @@ export function GlobalSearch() {
     >
       <Command shouldFilter={false} label="Pesquisa global">
       <CommandInput
-        placeholder="Procurar em encomendas, vales, parceiros, ideias, receitas…"
+        placeholder="Nome, telemóvel, código, email, ID…"
         value={query}
         onValueChange={onValueChange}
       />
       <CommandList>
         {showHint && (
-          <div className="px-3 py-6 text-center text-sm text-cocoa-700">
-            Escreve pelo menos 2 caracteres para procurar.
+          <div className="px-3 py-6 text-center text-sm text-cocoa-700 flex flex-col items-center gap-3">
+            <span>Escreve pelo menos 2 caracteres para procurar.</span>
+            <button
+              type="button"
+              onClick={colarEPesquisar}
+              className="inline-flex items-center gap-2 rounded-full border border-cream-200 px-3 py-1.5 text-xs text-cocoa-700 hover:bg-cream-100"
+            >
+              <ClipboardPaste className="h-3.5 w-3.5" />
+              Colar número do telemóvel
+            </button>
           </div>
         )}
         {pending && (

@@ -173,3 +173,24 @@ export function formatDayMonthLisbon(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "";
   return lisbonDayMonth.format(d);
 }
+
+/**
+ * Date cujo getHours()/getMinutes() devolvem a hora de parede de Lisboa.
+ * Para código que só sabe ler `now.getHours()` (ex.: saudacaoPorHora)
+ * mas corre no servidor, que está em UTC: sem isto, às 19h30 em Lisboa
+ * (18h30 UTC) saía "Boa tarde" em vez de "Boa noite".
+ */
+export function lisbonWallClock(d: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Lisbon",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  return new Date(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
+}
