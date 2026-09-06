@@ -81,7 +81,9 @@ You can also follow the status of your order here:
 
 It will be a pleasure to take care of your flowers. 🌸$tpl$)
 
-ON CONFLICT (slug) DO NOTHING;
+-- O índice único de slug é parcial (WHERE deleted_at IS NULL, mig 041):
+-- o ON CONFLICT tem de repetir o predicado, senão dá 42P10.
+ON CONFLICT (slug) WHERE deleted_at IS NULL DO NOTHING;
 
 -- 2. Crédito que sobra no template "reserva coberta" ──────────
 -- A variável {credito_vale} traz as suas próprias quebras de linha e fica
