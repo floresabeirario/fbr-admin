@@ -207,3 +207,76 @@ export async function fetchThreadsWithContact(
 
   return { status: "ok", account, threads };
 }
+
+// ─── Resumo leve, para o selo da aba ──────────────────────────
+// O painel completo só carrega quando ela abre a aba Email — e era esse o
+// problema: com o WhatsApp a abrir por defeito, os emails passavam
+// despercebidos. Este resumo custa 2 chamadas curtas (listar ids + ler os
+// cabeçalhos do mais recente) e chega para pintar o selo.
+
+export type ContactEmailSummary =
+  | {
+      status: "ok";
+      /** Emails encontrados (o teto é MAX_SUMMARY_MESSAGES). */
+      count: number;
+      /** Data do mais recente (ISO). */
+      lastDate: string | null;
+      /** Quem falou por último — "received" é o cliente à espera de resposta. */
+      lastDirection: "sent" | "received" | null;
+    }
+  | { status: "not_connected" }
+  | { status: "missing_scope" };
+
+const MAX_SUMMARY_MESSAGES = 50;
+
+export async function fetchContactEmailSummary(
+  clientEmail: string | null | undefined,
+): Promise<ContactEmailSummary> {
+  const integration = await loadIntegration();
+  if (!integration?.refresh_token) return { status: "not_connected" };
+  if (!(integration.scopes ?? []).includes(GMAIL_READONLY_SCOPE)) {
+    return { status: "missing_scope" };
+  }
+
+  const email = (clientEmail ?? "").trim().toLowerCase();
+  const account = (integration.google_email ?? "info@floresabeirario.pt").toLowerCase();
+  if (!email || !email.includes("@")) {
+    return { status: "ok", count: 0, lastDate: null, lastDirection: null };
+  }
+
+  const gmail = await getGmail();
+  const listRes = await gmail.users.messages.list({
+    userId: "me",
+    q: `from:${email} OR to:${email}`,
+    maxResults: MAX_SUMMARY_MESSAGES,
+  });
+  const ids = listRes.data.messages ?? [];
+  if (ids.length === 0 || !ids[0].id) {
+    return { status: "ok", count: 0, lastDate: null, lastDirection: null };
+  }
+
+  // A lista vem do mais recente para o mais antigo.
+  const newest = await gmail.users.messages.get({
+    userId: "me",
+    id: ids[0].id,
+    format: "metadata",
+    metadataHeaders: ["From", "Date"],
+  });
+  const headers = newest.data.payload?.headers;
+  const from = extractEmail(headerValue(headers, "From"));
+  const dateHeader = headerValue(headers, "Date");
+  const parsed = dateHeader ? new Date(dateHeader) : null;
+  const lastDate =
+    parsed && !Number.isNaN(parsed.getTime())
+      ? parsed.toISOString()
+      : newest.data.internalDate
+        ? new Date(Number(newest.data.internalDate)).toISOString()
+        : null;
+
+  return {
+    status: "ok",
+    count: ids.length,
+    lastDate,
+    lastDirection: from === account ? "sent" : "received",
+  };
+}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { linkify } from "@/lib/linkify";
 import { formatDateTimeLisbon } from "@/lib/format-date";
+import { splitQuotedEmail } from "@/lib/email-quotes";
 import {
   Mail,
   ChevronDown,
@@ -11,6 +12,7 @@ import {
   RefreshCw,
   AlertTriangle,
   Link2Off,
+  MoreHorizontal,
 } from "lucide-react";
 
 type Props = {
@@ -252,7 +254,12 @@ function ThreadItem({ thread, account }: { thread: GmailThread; account: string 
 
 function MessageBubble({ message }: { message: GmailMessage }) {
   const isSent = message.direction === "sent";
-  const text = (message.body || message.snippet).trim();
+  // Numa conversa com várias respostas, cada email traz os anteriores
+  // citados por baixo. Mostra-se só o que foi escrito de novo; o resto
+  // fica atrás de um "mostrar texto citado", como no Gmail.
+  const { visible, quoted } = splitQuotedEmail(message.body || message.snippet);
+  const [showQuoted, setShowQuoted] = useState(false);
+  const text = visible;
   return (
     <div className={cn("flex", isSent ? "justify-end" : "justify-start")}>
       <div
@@ -275,6 +282,24 @@ function MessageBubble({ message }: { message: GmailMessage }) {
           <span className="text-[9px] text-cocoa-400">{formatDateTime(message.date)}</span>
         </div>
         <p className="whitespace-pre-wrap break-words leading-snug">{linkify(text)}</p>
+        {quoted && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowQuoted((v) => !v)}
+              className="mt-1 inline-flex items-center gap-1 rounded bg-cream-100 px-1.5 py-0.5 text-[10px] text-cocoa-500 hover:bg-cream-200 hover:text-cocoa-700"
+              title={showQuoted ? "Esconder o texto citado" : "Mostrar o texto citado"}
+            >
+              <MoreHorizontal className="h-3 w-3" />
+              {showQuoted ? "esconder citação" : "mostrar texto citado"}
+            </button>
+            {showQuoted && (
+              <p className="mt-1 border-l-2 border-cream-200 pl-2 whitespace-pre-wrap break-words leading-snug text-[11px] text-cocoa-500">
+                {quoted}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

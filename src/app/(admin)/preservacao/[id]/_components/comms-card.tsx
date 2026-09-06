@@ -21,6 +21,11 @@ import { FORM_LANGUAGE_LABELS } from "@/types/database";
 import { formatPhone, phoneToWaMe } from "@/lib/format-phone";
 import WhatsappLivePanel from "./wa-live-panel";
 import GmailPanel from "./gmail-panel";
+import {
+  ChannelBadge,
+  useEmailActivity,
+  useWhatsappActivity,
+} from "./channel-activity";
 import SuggestComposer from "@/components/suggest-composer";
 import { Card, inp } from "./layout";
 import type { UpdateFn, ClientUpdateFn } from "./shared";
@@ -42,6 +47,12 @@ export function CommsCard({
   const [contactDraftEmail, setContactDraftEmail] = useState("");
   const [contactDraftPreference, setContactDraftPreference] = useState<"whatsapp" | "email" | "">("");
   const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
+
+  // Selos das abas: dizem que há mensagens no outro canal sem ela ter de
+  // lá ir ver. A aba que abre por defeito continua a ser a do canal que o
+  // cliente escolheu no formulário.
+  const emailActivity = useEmailActivity(local.email);
+  const whatsappActivity = useWhatsappActivity(local.phone);
 
   return (
     <Card
@@ -240,10 +251,12 @@ export function CommsCard({
           <TabsTrigger value="email" className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-blue-700">
             <Mail className="h-3.5 w-3.5 mr-1.5" />
             Email
+            <ChannelBadge activity={emailActivity} tone="blue" />
           </TabsTrigger>
           <TabsTrigger value="whatsapp" className="flex-1 text-xs data-[state=active]:bg-surface data-[state=active]:text-green-700">
             <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
             WhatsApp
+            <ChannelBadge activity={whatsappActivity} tone="green" />
           </TabsTrigger>
         </TabsList>
         <TabsContent value="email" className="mt-3 space-y-2">

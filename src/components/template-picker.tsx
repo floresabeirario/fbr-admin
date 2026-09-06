@@ -10,6 +10,7 @@ import {
   X,
   Languages,
   Search,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -47,6 +48,8 @@ import {
   type VoucherForTemplate,
 } from "@/lib/templates";
 import type { Order } from "@/types/database";
+import { phoneToWaMe } from "@/lib/format-phone";
+import { boldForWhatsapp } from "@/lib/rich-text";
 
 const SETTING_DEFAULTS: SystemSettingsMap = {
   payment_account_holder: "",
@@ -67,6 +70,8 @@ type PickerProps =
       scope: "order";
       order: Order;
       preferredLanguage?: TemplateLanguage;
+      /** Sobrepõe o telemóvel da encomenda (raro). */
+      phone?: string | null;
       voucher?: never;
       contactName?: never;
     }
@@ -74,6 +79,8 @@ type PickerProps =
       scope: "voucher";
       voucher: VoucherForTemplate;
       preferredLanguage?: TemplateLanguage;
+      /** Telemóvel do remetente do vale, para o "Abrir no WhatsApp". */
+      phone?: string | null;
       order?: never;
       contactName?: never;
     }
@@ -82,8 +89,10 @@ type PickerProps =
       // variáveis genéricas (saudação, nome, morada, pagamento).
       scope: "lead";
       contactName?: string | null;
-      preferredLanguage?: TemplateLanguage;
+      /** Telemóvel da conversa, para o "Abrir no WhatsApp". */
+      phone?: string | null;
       order?: never;
+      preferredLanguage?: TemplateLanguage;
       voucher?: never;
     };
 
@@ -103,6 +112,11 @@ export default function TemplatePicker(props: PickerProps) {
   const [chosen, setChosen] = useState<MessageTemplate | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+
+  // Telemóvel do destinatário, para abrir o WhatsApp já com o template
+  // escrito. Na encomenda vem da ficha; nos outros scopes é o caller que
+  // o passa. Sem telemóvel, fica só o Copiar.
+  const phone = props.phone ?? (props.scope === "order" ? props.order.phone : null);
 
   // Carrega templates + system_settings da BD. Chamado pelo handler do
   // popover (não num useEffect) para evitar set-state-in-effect.
@@ -256,6 +270,7 @@ export default function TemplatePicker(props: PickerProps) {
           template={chosen}
           onClose={() => setChosen(null)}
           renderedBody={renderTemplate(chosen, props, settings)}
+          phone={phone}
         />
       )}
     </>
@@ -314,10 +329,12 @@ function TemplatePreviewDialog({
   template,
   renderedBody,
   onClose,
+  phone,
 }: {
   template: MessageTemplate;
   renderedBody: string;
   onClose: () => void;
+  phone?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [edited, setEdited] = useState(renderedBody);
@@ -325,9 +342,19 @@ function TemplatePreviewDialog({
 
   const finalText = editing ? edited : renderedBody;
 
+  // Abre o WhatsApp já na conversa certa e com o template na caixa de
+  // escrita — inclui as edições feitas aqui. Continua a ser a Maria a
+  // carregar em enviar: a plataforma nunca envia nada por ela.
+  const waNumero = phoneToWaMe(phone);
+  const waHref = waNumero
+    ? `https://wa.me/${waNumero}?text=${encodeURIComponent(boldForWhatsapp(finalText))}`
+    : null;
+
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(finalText);
+      // Templates com `**negrito**` saem em sintaxe de WhatsApp, para
+      // ela não ter de apagar asteriscos depois de colar.
+      await navigator.clipboard.writeText(boldForWhatsapp(finalText));
       setCopied(true);
       toast.success("Mensagem copiada. Cola onde precisares 💐");
       setTimeout(() => setCopied(false), 1500);
@@ -387,7 +414,23 @@ function TemplatePreviewDialog({
                 <X className="h-3.5 w-3.5 mr-1.5" />
                 Fechar
               </Button>
-              <Button size="sm" onClick={handleCopy} className="text-xs flex-1 sm:flex-none">
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition-colors hover:bg-green-700 active:bg-green-800 flex-1 sm:flex-none"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  Abrir no WhatsApp
+                </a>
+              )}
+              <Button
+                size="sm"
+                variant={waHref ? "outline" : "default"}
+                onClick={handleCopy}
+                className="text-xs flex-1 sm:flex-none"
+              >
                 {copied ? (
                   <>
                     <Check className="h-3.5 w-3.5 mr-1.5" />

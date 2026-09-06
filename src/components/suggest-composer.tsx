@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import TemplatePicker from "@/components/template-picker";
+import { boldForWhatsapp, boldToHtml, stripBold } from "@/lib/rich-text";
 import type { Order } from "@/types/database";
 import {
   subscribeComposer,
@@ -253,7 +254,25 @@ export default function SuggestComposer({
   async function handleCopy() {
     if (!suggestion) return;
     try {
-      await navigator.clipboard.writeText(suggestion);
+      if (porEmail) {
+        // O Gmail não percebe asteriscos: o que vai a negrito tem de ir
+        // como HTML. O `text/plain` segue limpo, sem marcadores, para os
+        // sítios que não aceitam formatação. [[lib/rich-text]]
+        const item = typeof ClipboardItem !== "undefined"
+          ? new ClipboardItem({
+              "text/html": new Blob([boldToHtml(suggestion)], { type: "text/html" }),
+              "text/plain": new Blob([stripBold(suggestion)], { type: "text/plain" }),
+            })
+          : null;
+        if (item && navigator.clipboard.write) {
+          await navigator.clipboard.write([item]);
+        } else {
+          await navigator.clipboard.writeText(stripBold(suggestion));
+        }
+      } else {
+        // WhatsApp: *asterisco simples* é o negrito nativo.
+        await navigator.clipboard.writeText(boldForWhatsapp(suggestion));
+      }
       registarUso("copiar");
       setCopied(true);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
@@ -275,7 +294,7 @@ export default function SuggestComposer({
   const waNumero = !porEmail && phone ? phoneToWaMe(phone) : null;
   const waHref =
     waNumero && suggestion
-      ? `https://wa.me/${waNumero}?text=${encodeURIComponent(suggestion)}`
+      ? `https://wa.me/${waNumero}?text=${encodeURIComponent(boldForWhatsapp(suggestion))}`
       : null;
 
   // Equivalente para email: abre o programa de email dela já com o
@@ -285,8 +304,10 @@ export default function SuggestComposer({
     if (!porEmail || !suggestion || !email || !email.includes("@")) return null;
     const { subject, body } = splitAssunto(suggestion);
     const params = new URLSearchParams();
-    if (subject) params.set("subject", subject);
-    params.set("body", body);
+    if (subject) params.set("subject", stripBold(subject));
+    // O mailto: não leva formatação — vai sem marcadores, que é melhor
+    // do que ir com asteriscos à vista.
+    params.set("body", stripBold(body));
     const href = `mailto:${encodeURIComponent(email)}?${params.toString()}`;
     return href.length > MAILTO_MAX ? null : href;
   })();
@@ -491,7 +512,7 @@ export default function SuggestComposer({
               preferredLanguage={order.form_language}
             />
           ) : (
-            <TemplatePicker scope="lead" contactName={contactName} />
+            <TemplatePicker scope="lead" contactName={contactName} phone={phone} />
           ))}
         <Button
           type="button"

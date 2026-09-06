@@ -19,6 +19,10 @@ import {
   preencherNome,
   voiceExamplesBlock,
 } from "@/lib/whatsapp/voice-examples";
+import { fetchThreadsWithContact } from "@/lib/google/gmail";
+import { splitQuotedEmail } from "@/lib/email-quotes";
+import { formatDateLisbon } from "@/lib/format-date";
+import { normalizeBold } from "@/lib/rich-text";
 import type { SystemSettingsMap } from "@/types/message-template";
 import {
   STATUS_LABELS,
@@ -104,6 +108,9 @@ type LinkedOrder = {
   form_language: "pt" | "en";
   estimated_delivery_date: string | null;
   phone: string | null;
+  // Para ir buscar os emails trocados com esta pessoa (o histórico do
+  // Gmail entra no prompt a par do WhatsApp).
+  email: string | null;
   // Escolhas do cliente no formulário que o assistente tem de conhecer
   // para não responder às cegas (sessão 152). Os "Mais info" viram
   // pontos obrigatórios via requiredContentPoints().
@@ -129,7 +136,47 @@ type ConvRow = {
 };
 
 const LINKED_ORDER_COLUMNS =
-  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, pricing_snapshot";
+  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, email, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, pricing_snapshot";
+
+// ─── Histórico de email ───────────────────────────────────────
+// O WhatsApp não é a história toda: muita coisa combina-se por email
+// (orçamentos, moradas, datas). Sem isto o assistente podia contradizer
+// o que já tinha ficado escrito no outro canal.
+// Custa uma chamada ao Gmail por sugestão; se falhar ou o Google não
+// estiver ligado, segue-se só com o WhatsApp em vez de rebentar.
+const EMAIL_HISTORY_LIMIT = 8;
+const EMAIL_BODY_CHARS = 700;
+
+async function fetchEmailHistory(clientEmail: string | null | undefined): Promise<string> {
+  const email = (clientEmail ?? "").trim();
+  if (!email.includes("@")) return "";
+  try {
+    const res = await fetchThreadsWithContact(email);
+    if (res.status !== "ok" || res.threads.length === 0) return "";
+    const todas = res.threads.flatMap((t) =>
+      t.messages.map((m) => ({ ...m, subject: t.subject })),
+    );
+    todas.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+    return todas
+      .slice(-EMAIL_HISTORY_LIMIT)
+      .map((m) => {
+        const tag = m.direction === "sent" ? "FBR" : "CLIENTE";
+        // Só o que foi escrito de novo: as citações repetiriam a mesma
+        // conversa a cada email e enchiam o prompt de ruído pago.
+        const corpo = splitQuotedEmail(m.body || m.snippet)
+          .visible.slice(0, EMAIL_BODY_CHARS)
+          .trim();
+        const quando = m.date ? formatDateLisbon(m.date) : "sem data";
+        return `[${quando}] ${tag} (assunto: ${m.subject}):
+${corpo}`;
+      })
+      .filter((linha) => linha.trim().length > 0)
+      .join("\n\n");
+  } catch (err) {
+    console.warn("[wa-suggest] falhou a puxar emails (segue sem eles)", err);
+    return "";
+  }
+}
 
 function labelOr(value: string | null, labels: Record<string, string>): string {
   if (!value) return "não preenchido";
@@ -467,13 +514,24 @@ Muda a FORMA, não o conteúdo: os factos, valores, datas, links e os pontos obr
   ).trim();
   const primeiroNomeCliente = nomeCliente ? nomeCliente.split(/\s+/)[0] : "";
 
-  const voiceBlock = voiceExamplesBlock(
-    await pickVoiceExamples(supabase, {
+  // Os dois vão à rede: pedem-se ao mesmo tempo para não somar esperas.
+  const [voiceExamples, emailHistory] = await Promise.all([
+    pickVoiceExamples(supabase, {
       situacao,
       excludeConversationId: conversationId ?? undefined,
     }),
-    primeiroNomeCliente,
-  );
+    fetchEmailHistory(linkedOrders[0]?.email),
+  ]);
+  const voiceBlock = voiceExamplesBlock(voiceExamples, primeiroNomeCliente);
+  const emailHistoryBlock = emailHistory
+    ? `
+
+## Emails trocados com esta mesma pessoa (outro canal)
+
+O WhatsApp acima não é a história toda: isto foi trocado por email, do mais antigo para o mais recente (citações cortadas). Vale como já dito — não repitas nem contradigas o que aqui está, e se a resposta a dar já foi dada por email, não a voltes a dar como se fosse nova.
+
+${emailHistory}`
+    : "";
 
   // ─── System prompt (cacheable) ───
   // Persona vem de system_settings.claude_persona; se vazio, fallback hardcoded.
@@ -539,18 +597,30 @@ Esta mensagem vai por **email**. Escreve-a como email:
 `
     : "";
 
+  // Negrito: um marcador só (`**assim**`), convertido pela plataforma
+  // para a sintaxe de cada destino. Se o modelo escrevesse asteriscos
+  // simples para o email, a Maria tinha de os apagar à mão depois de
+  // colar — foi isso que ela pediu para acabar. [[lib/rich-text]]
+  const boldBlock = `
+## Negrito — o que destacar
+
+Destaca a negrito só o essencial: valores, datas, prazos, códigos (vale-presente, encomenda) e a morada. No máximo **2 ou 3 destaques** por mensagem — se tudo estiver a negrito, nada se destaca. Nunca destaques a saudação, o nome da pessoa, nem frases inteiras.
+
+Escreve o negrito SEMPRE com dois asteriscos, \`**assim**\`, mesmo para o WhatsApp. ${porEmail ? "A plataforma converte isso em negrito a sério quando a Maria copiar o email." : "A plataforma converte isso para a sintaxe do WhatsApp ao copiar."} Nunca escrevas asteriscos simples à volta de palavras.
+`;
+
   const userTask = `## Conversa actual com ${conv?.contact_name ?? conv?.display_phone ?? conv?.phone_e164 ?? nomeCliente ?? "cliente"}
 
 ${transcriptBlock}
 
 ## Encomendas ligadas a este número
 
-${ordersBlock}${requiredBlock}${suggestionsBlock}${notesBlock}${voiceBlock}
+${ordersBlock}${requiredBlock}${suggestionsBlock}${notesBlock}${emailHistoryBlock}${voiceBlock}
 
 ## Instrução da Maria
 
 ${body.instruction?.trim() ? body.instruction.trim() : "(sem instrução específica — interpreta o contexto e responde como a Maria responderia)"}
-${emailBlock}${refineBlock}${avoidBlock}
+${emailBlock}${boldBlock}${refineBlock}${avoidBlock}
 ## Língua
 
 Responde na língua das últimas mensagens do CLIENTE (não da FBR). Se o cliente escrever em francês, espanhol ou outra língua, responde nessa língua. Se a conversa ainda não permitir perceber, usa: **${probableLang === "en" ? "inglês" : "português europeu"}**.
@@ -592,6 +662,9 @@ ${refinar ? `Devolve ${porEmail ? "o email reescrito" : "a mensagem reescrita"} 
     // exemplos, resolvemo-lo aqui em código. A Maria nunca deve ver um
     // {nome} cru numa mensagem pronta a enviar.
     suggestion = preencherNome(suggestion, primeiroNomeCliente);
+    // O modelo às vezes responde em sintaxe de WhatsApp: uniformiza-se
+    // aqui para o cliente ter sempre um marcador só com que lidar.
+    suggestion = normalizeBold(suggestion);
     usage = response.usage as ClaudeUsage;
   } catch (err) {
     console.error("[wa-suggest] anthropic error", err);
