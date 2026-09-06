@@ -28,6 +28,8 @@ pela base de dados partilhada.** É por isso que o contrato de tabelas/RPCs é s
 | Recurso na BD | admin | website | tracking | voucher |
 |---------------|:-----:|:-------:|:--------:|:-------:|
 | `orders` (escrita completa) | ✅ RW | ➕ INSERT (form, service role) | — | — |
+| `orders.budget` + `pricing_snapshot` | ✅ RW (recalcula se automático) | ➕ escreve ao inserir (`orcamento.js` espelha `pricing.ts`; teste de paridade no admin) | — | — |
+| `pricing_items` | ✅ RW (Finanças → Catálogo) | 👁 SELECT (service role; preços do site + resumo do formulário) | — | — |
 | `orders` (colunas públicas) | — | — | 👁 SELECT (anon, policy `orders_public_status_read`) | — |
 | `public_status_settings` | ✅ RW | — | 👁 SELECT (anon) | — |
 | `vouchers` | ✅ RW | ➕ INSERT (form) | — | — |

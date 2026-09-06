@@ -7,6 +7,22 @@
 
 ---
 
+## Sessão 155 — movida na sessão 160
+
+### Sessão 155 (2026-08-19 a 21) — Detalhes da recolha no formulário público (fbr-website) ✅ FECHADA
+- **O quê:** quem escolhe a recolha no form de preservação não dizia onde, quando nem a que horas, e as moradas à mão vinham incompletas. Bloco condicional novo: **Dia → Morada (Google Maps + mapa interactivo) → Janela de horas → Notas**. Tudo **opcional**, cada campo com **"Ainda não sei"** (distingue "não sabe" de "saltou" — para orçamentar é diferente). Depois: botão **"Voltar à morada"** no mapa; labels PT+EN sem "no local"/"at the venue"; extras do quadro passam a dizer **"Não tem qualquer custo adicional"** a negrito (pergunta mais repetida pelas clientes).
+- **Ficheiros (todos no fbr-website):** `api/places-autocomplete/route.js`, `api/place-details/route.js`, `_components/AddressAutocomplete.jsx`, `_components/PickupMap.jsx` (NOVOS) · ReservarPreservacaoForm.jsx · EmoldurarForm.jsx · ReservarPreservacaoClient.css · next.config.mjs (CSP) · supabase-mappings.js · api/reservar-preservacao/route.js · messages pt+en.
+- **Migrações: nenhuma.** As colunas `pickup_*` existem desde as migs 018/031 e já apareciam no workbench; só nunca tinham sido perguntadas à cliente. Os "Ainda não sei" vão em texto para `pickup_notes` (DATE/TIME não guardam texto).
+- **Passos manuais (Maria, ✅ AMBOS FEITOS):** 2 chaves distintas na Vercel do **fbr-website** — `GOOGLE_MAPS_KEY` (servidor, restrição de aplicação Nenhuma, só Places API (New)) e `NEXT_PUBLIC_GOOGLE_MAPS_KEY` (browser, restrição Sites em `floresabeirario.pt`, só Maps JavaScript API). Porquê duas e as armadilhas: [docs/SECRETS.md](docs/SECRETS.md).
+- **Deploy:** 8 deploys, fbr-website `main` `157eb8d`. **Smoke ✅ FEITO pela Maria (21/08)** — pinça do mapa e reserva de teste a chegar ao admin. **Nada pendente.**
+- **⚠️ 4 armadilhas que valem para o futuro:**
+  - **CSP.** O mapa nunca aparecia e não era a Google: a `Content-Security-Policy` do site não listava `maps.googleapis.com`. **Invisível ao `next build`, ao `curl` e à validação da chave — só um browser real a apanha** ([[feedback_csp_dominios_novos]]). `fonts.googleapis.com` fica DE FORA de propósito (RGPD): gera 3 violações esperadas e inofensivas.
+  - **`label` ≠ `valor` nas opções dos forms.** O texto visível já não diz "no local", mas o `valor` guardado sim. **`valor` é chave estrangeira de facto** para `COMO_ENVIAR_FLORES` em `supabase-mappings.js` e para o `RECOLHA_VALOR` do form (`/recolha no local/i`) — "arrumá-lo" parte as reservas em silêncio.
+  - **`elementosHint` é partilhado** pelos forms de preservação e de flores secas: ao passar um para `t.rich`, o outro tem de ir junto ou mostra `<b>` em cru à cliente.
+  - **fbr-website não usa ff-merge** (ao contrário do fbr-tracking): `main` tem commits de merge próprios, `git merge --ff-only` falha sempre. Usar `--no-ff`.
+- **💡 Truque reutilizável:** nenhum repo tem Playwright instalado, mas os **browsers estão em `%LOCALAPPDATA%/ms-playwright/chromium-1228/chrome-win64/chrome.exe`**. `npm i playwright-core` no scratchpad + `executablePath` → testar produção num browser real sem tocar nas dependências. Foi assim que se apanhou a CSP e 3 defeitos de layout mobile que nem eu nem a Maria tínhamos visto.
+- **Por vigiar (não bloqueia):** a frase "não tem custo adicional" foi escrita a partir do que a Maria disse, **não foi verificada contra o catálogo de preços** — se a opção "Fotografia" custar nalgum caso, está errada em letra bem visível.
+
 ## Sessão 154 — movida na sessão 159
 
 ### Sessão 154 (2026-08-19) — Flores secas passam a gerar evento no Google Calendar
