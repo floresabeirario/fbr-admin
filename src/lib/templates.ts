@@ -127,11 +127,58 @@ const RESUMO_LABELS: Record<string, { pt: string; en: string }> = {
     pt: "Fundo na cor à escolha",
     en: "Background in a colour of your choice",
   },
+  "glass_supplement:museum_glass_30x40": {
+    pt: "Vidro museu anti-UV",
+    en: "Anti-UV museum glass",
+  },
+  "glass_supplement:museum_glass_40x50": {
+    pt: "Vidro museu anti-UV",
+    en: "Anti-UV museum glass",
+  },
+  "glass_supplement:museum_glass_50x70": {
+    pt: "Vidro museu anti-UV",
+    en: "Anti-UV museum glass",
+  },
+  "glass_supplement:museum_glass_20x25": {
+    pt: "Vidro museu anti-UV nos quadros pequenos",
+    en: "Anti-UV museum glass on the small frames",
+  },
   "extra:mini_frame": { pt: "Quadro extra pequeno", en: "Small extra frame" },
   "extra:christmas_ornament": { pt: "Ornamento de Natal", en: "Christmas ornament" },
   "extra:necklace_pendant": { pt: "Pendente para colar", en: "Necklace pendant" },
   "extra:pyramid_frame": { pt: "Moldura pirâmide", en: "Pyramid frame" },
 };
+
+// Frase pronta sobre o vidro do quadro (mig 104), para as mensagens não
+// contradizerem o que o cliente escolheu no formulário. Frase completa e
+// autónoma (e não um fragmento tipo "com vidro museu"): com "não sei" o
+// fragmento deixaria a frase da template coxa.
+//
+// 'incluido' são as encomendas anteriores a 26/08/2026, que levaram vidro
+// museu dentro do preço-base: para o cliente a mensagem é a mesma do 'sim'.
+// Em 'nao'/'nao_sei' a frase convida sem falar de preço, porque o valor
+// depende do tamanho e vive na tabela de Finanças (que a Maria pode mudar);
+// ela acrescenta o valor se quiser, tem-no à frente no workbench.
+// Sem travessão, por regra das mensagens da FBR.
+function fraseVidroMuseu(
+  museumGlass: Order["museum_glass"] | null | undefined,
+  language: TemplateLanguage,
+): string {
+  switch (museumGlass) {
+    case "sim":
+    case "incluido":
+      return language === "en"
+        ? "Your frame comes with anti-UV UltraVue® museum glass, the same glass used in museums: it virtually eliminates reflections and protects the colours of the flowers for decades. 🖼️"
+        : "O seu quadro leva vidro museu anti-UV UltraVue®, o mesmo que se usa em museus: praticamente elimina os reflexos e protege as cores das flores durante décadas. 🖼️";
+    case "nao":
+    case "nao_sei":
+      return language === "en"
+        ? "If you wish, you can still add anti-UV UltraVue® museum glass, the same glass used in museums: it virtually eliminates reflections and protects the colours of the flowers for decades. 🖼️"
+        : "Se quiser, pode ainda acrescentar o vidro museu anti-UV UltraVue®, o mesmo que se usa em museus: praticamente elimina os reflexos e protege as cores das flores durante décadas. 🖼️";
+    default:
+      return "";
+  }
+}
 
 function rotuloLinha(
   line: { category: string; key: string; label: string },
@@ -304,6 +351,7 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
     tamanho_quadro: tamanho,
     valor_quadro: valorQuadro !== null ? fmtEurMsg(valorQuadro) : "",
     resumo_encomenda: resumoEncomendaLinhas(order, lang, total),
+    vidro_museu: fraseVidroMuseu(order.museum_glass, lang),
     valor_total: total !== null ? fmtEurMsg(total) : "",
     valor_sinal: sinal30 !== null ? fmtEurMsg(sinal30) : "",
     valor_2a_parcela: parcela40 !== null ? fmtEurMsg(parcela40) : "",
@@ -373,6 +421,7 @@ export const AVAILABLE_VARIABLES: TemplateVariable[] = [
   { key: "tamanho_quadro", description: 'Tamanho do quadro escolhido (ex: "30x40 cm")', scope: "order" },
   { key: "valor_quadro", description: "Preço da moldura escolhida (ex: 300€)", scope: "order" },
   { key: "resumo_encomenda", description: 'Tudo o que o cliente encomendou (quadro + extras), uma linha por item com preço e "Total:" no fim quando há mais do que um. Ex.: "• Quadro 30x40 cm (300€)" + "• 2× Ornamento de Natal (2 × 25€ = 50€)" + "Total: 350€". Segue o orçamento editado à mão.', scope: "order" },
+  { key: "vidro_museu", description: 'Frase pronta sobre o vidro do quadro, conforme o cliente escolheu: confirma o vidro museu quando escolheu "Sim" (ou quando é uma encomenda antiga, que o levava incluído) e convida a acrescentá-lo quando escolheu "Não" ou ainda não decidiu. Sem valores, porque dependem do tamanho.', scope: "order" },
   { key: "valor_total", description: "Valor total da encomenda", scope: "order" },
   { key: "valor_sinal", description: "30% do total (sinal)", scope: "order" },
   { key: "valor_2a_parcela", description: "40% do total (após recepção das flores)", scope: "order" },

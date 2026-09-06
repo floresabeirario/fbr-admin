@@ -44,6 +44,9 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  // Preço do quadro mais pequeno, vindo de Finanças (ver voucherMinAmount).
+  // Decisão Maria 26/08/2026: o mínimo do vale acompanha-o sempre.
+  minAmount: number;
 }
 
 const INITIAL_FORM: VoucherInsert = {
@@ -68,7 +71,7 @@ const INITIAL_FORM: VoucherInsert = {
   usage_status: "preservacao_nao_agendada",
 };
 
-export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) {
+export default function NovoValeSheet({ open, onOpenChange, onSuccess, minAmount }: Props) {
   const [form, setForm] = useState<VoucherInsert>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -88,8 +91,8 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
     // Telemóvel só é obrigatório se WhatsApp
     if (form.sender_contact_pref === "whatsapp" && !form.sender_phone?.trim())
       errors.sender_phone = "Telemóvel obrigatório quando o contacto preferido é WhatsApp";
-    if (!form.amount || form.amount < 300)
-      errors.amount = "O valor mínimo é de 300€, correspondente ao quadro mais pequeno";
+    if (!form.amount || form.amount < minAmount)
+      errors.amount = `O valor mínimo é de ${minAmount}€, correspondente ao quadro mais pequeno`;
     if (!form.delivery_recipient) errors.delivery_recipient = "Indica para quem entregar o vale";
     if (!form.delivery_format) errors.delivery_format = "Indica o tipo de vale";
     if (form.delivery_format === "digital" && !form.delivery_channel)
@@ -275,7 +278,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                 <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-cocoa-500" />
                 <Input
                   type="number"
-                  min={300}
+                  min={minAmount}
                   step={10}
                   value={form.amount ?? 300}
                   onChange={(e) => set("amount", Number(e.target.value))}
@@ -283,7 +286,7 @@ export default function NovoValeSheet({ open, onOpenChange, onSuccess }: Props) 
                 />
               </div>
               <p className="text-[11px] text-cocoa-500 mt-1">
-                Valor mínimo: 300€, correspondente ao quadro mais pequeno.
+                Valor mínimo: {minAmount}€, correspondente ao quadro mais pequeno.
               </p>
             </Field>
 

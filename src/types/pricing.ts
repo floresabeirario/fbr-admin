@@ -5,6 +5,7 @@
 export type PricingCategory =
   | "base_frame"
   | "background_supplement"
+  | "glass_supplement"
   | "extra";
 
 export interface PricingItem {
@@ -63,6 +64,7 @@ export interface PricingSnapshot {
 export const PRICING_CATEGORY_LABELS: Record<PricingCategory, string> = {
   base_frame: "Moldura (preço-base por tamanho)",
   background_supplement: "Suplemento por fundo",
+  glass_supplement: "Suplemento por vidro",
   extra: "Extras por unidade",
 };
 
@@ -71,5 +73,7 @@ export const PRICING_CATEGORY_HELPER: Record<PricingCategory, string> = {
     "Preço fixo de cada tamanho de quadro. Define a base do orçamento.",
   background_supplement:
     "Suplemento aplicado por cima da base, consoante o fundo escolhido. Pode ser 0.",
+  glass_supplement:
+    "Suplemento do vidro museu anti-UV, por tamanho de quadro. Só entra no orçamento quando o cliente escolhe 'Sim'.",
   extra: "Cobrado por unidade (multiplicado pela quantidade).",
 };

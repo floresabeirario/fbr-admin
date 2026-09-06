@@ -39,6 +39,7 @@ import {
   FRAME_SIZE_LABELS,
   FRAME_SIZE_COLORS,
   FRAME_BACKGROUND_LABELS,
+  MUSEUM_GLASS_LABELS,
   HOW_FOUND_FBR_LABELS,
   HOW_FOUND_FBR_COLORS,
 } from "@/types/database";
@@ -63,6 +64,11 @@ const INITIAL_FORM: OrderInsert = {
   frame_delivery_method: undefined,
   frame_background: undefined,
   frame_size: undefined,
+  // Encomenda criada à mão: por decidir. Só "sim" soma o suplemento do
+  // vidro museu; o legado "incluido" é exclusivo das encomendas antigas
+  // (mig 104) e nunca se atribui a uma encomenda nova.
+  museum_glass: "nao_sei",
+  museum_glass_mini: "nao_sei",
   how_found_fbr: undefined,
   additional_notes: "",
   status: "entrega_flores_agendar",
@@ -340,6 +346,31 @@ export default function NovaEncomendaSheet({ open, onOpenChange, onSuccess }: Pr
                 </Select>
               </Field>
             </div>
+
+            <Field label="Vidro museu">
+              <Select
+                value={form.museum_glass ?? "nao_sei"}
+                onValueChange={(v) => set("museum_glass", v as OrderInsert["museum_glass"])}
+              >
+                <SelectTrigger
+                  className={`${inputCls} font-medium ${
+                    form.museum_glass === "sim"
+                      ? "bg-amber-100 text-amber-900 border-amber-300"
+                      : ""
+                  }`}
+                >
+                  <SelectValue placeholder="Seleccionar..." labels={MUSEUM_GLASS_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sim">Sim</SelectItem>
+                  <SelectItem value="nao">Não</SelectItem>
+                  <SelectItem value="nao_sei">Não sei</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-cocoa-500 mt-1">
+                Só o “Sim” soma suplemento (45€ / 65€ / 115€ conforme o tamanho).
+              </p>
+            </Field>
 
             <Field label="Tipo de flores">
               <Input

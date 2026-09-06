@@ -141,6 +141,13 @@ export type FrameBackground =
 
 export type FrameSize = "30x40" | "40x50" | "50x70" | "voces_a_escolher" | "nao_sei";
 
+// Vidro do quadro (mig 104). Até 26/08/2026 todos os quadros levavam vidro
+// museu dentro do preço-base — essas encomendas ficaram em 'incluido', que
+// NUNCA cobra suplemento. A partir daí o cliente escolhe 'sim' (cobra
+// pricing_items.glass_supplement.museum_glass_<tamanho>) ou 'nao' (vidro
+// normal, preço-base inalterado). 'nao_sei' decide-se na fase de design.
+export type MuseumGlass = "incluido" | "sim" | "nao" | "nao_sei";
+
 export type YesNoInfo = "sim" | "nao" | "mais_info";
 
 export type HowFoundFBR =
@@ -238,6 +245,10 @@ export interface Order {
   frame_delivery_method: FrameDeliveryMethod | null;
   frame_background: FrameBackground | null;
   frame_size: FrameSize | null;
+  museum_glass: MuseumGlass;
+  // Vidro dos mini-quadros 20x25 (mig 105): escolha independente do
+  // principal. Só relevante quando extra_small_frames = 'sim'.
+  museum_glass_mini: MuseumGlass;
   extras_in_frame: ExtrasInFrame;
   extra_small_frames: YesNoInfo | null;
   extra_small_frames_qty: number | null;
@@ -630,6 +641,19 @@ export const FRAME_SIZE_LABELS: Record<FrameSize, string> = {
   voces_a_escolher: "Vocês a escolher",
   nao_sei: "Não sei",
 };
+
+export const MUSEUM_GLASS_LABELS: Record<MuseumGlass, string> = {
+  incluido: "Incluído (preço antigo)",
+  sim: "Sim",
+  nao: "Não",
+  nao_sei: "Não sei",
+};
+
+// Só 'sim' cobra. 'incluido' é o legado (o cliente pagou o vidro dentro do
+// preço-base) e 'nao'/'nao_sei' não levam vidro museu ou ainda não decidiram.
+export function museumGlassIsBillable(v: MuseumGlass | null | undefined): boolean {
+  return v === "sim";
+}
 
 // Cores associadas a cada tamanho — gradiente do mais pequeno para o maior,
 // indecisos a cinzento.

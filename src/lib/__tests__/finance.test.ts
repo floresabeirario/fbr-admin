@@ -39,6 +39,8 @@ const baseOrder = {
   payment_status: "100_pago" as const,
   frame_size: "30x40" as const,
   frame_background: "transparente" as const,
+  museum_glass: "incluido" as const,
+  museum_glass_mini: "incluido" as const,
   pyramid_frame: false,
   frame_internal_type: "baixa" as const,
   extra_small_frames: null,

@@ -209,6 +209,11 @@ type OrderForCogs = Pick<
   | "payment_status"
   | "frame_size"
   | "frame_background"
+  // Sem isto o desconto do vidro normal nunca chegava ao COGS: o campo é
+  // opcional em OrderFieldsForCost (por causa das encomendas antigas), por
+  // isso a omissão compilava e falhava em silêncio.
+  | "museum_glass"
+  | "museum_glass_mini"
   | "pyramid_frame"
   | "frame_internal_type"
   | "extra_small_frames"

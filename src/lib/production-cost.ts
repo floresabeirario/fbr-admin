@@ -30,6 +30,7 @@ export function buildProductionCostSnapshot(
       size_key: i.size_key,
       frame_type: i.frame_type,
       glass_type: i.glass_type,
+      glass_grade: i.glass_grade,
       label: i.label,
       cost: i.cost,
     })),
@@ -56,6 +57,10 @@ export interface ProductionCostBreakdown {
 interface OrderFieldsForCost {
   frame_size: Order["frame_size"];
   frame_background: Order["frame_background"];
+  // Opcional: encomendas anteriores à mig 104 não o têm, e nesse caso
+  // trata-se como vidro museu (que é o que levaram).
+  museum_glass?: Order["museum_glass"];
+  museum_glass_mini?: Order["museum_glass_mini"];
   pyramid_frame: Order["pyramid_frame"];
   frame_internal_type: Order["frame_internal_type"];
   extra_small_frames: Order["extra_small_frames"];
@@ -75,6 +80,29 @@ function findFrameLine(
       l.frame_type === frameType &&
       l.glass_type === glassType,
   );
+}
+
+function findGlassLine(
+  snapshot: ProductionCostSnapshot,
+  size: string,
+  grade: "normal" | "museu",
+): ProductionCostSnapshotLine | undefined {
+  return snapshot.items.find(
+    (l) => l.kind === "glass" && l.size_key === size && l.glass_grade === grade,
+  );
+}
+
+/**
+ * Quanto se poupa num quadro deste tamanho por levar vidro normal em vez
+ * de vidro museu. Zero quando o snapshot é anterior à mig 105 (não tem as
+ * linhas kind='glass') — nesse caso não se inventa desconto nenhum.
+ */
+function glassSaving(snapshot: ProductionCostSnapshot, size: string): number {
+  const museu = findGlassLine(snapshot, size, "museu");
+  const normal = findGlassLine(snapshot, size, "normal");
+  if (!museu || !normal) return 0;
+  const diff = museu.cost - normal.cost;
+  return diff > 0 ? diff : 0;
 }
 
 function findPhotoPrintLine(
@@ -149,6 +177,50 @@ export function computeProductionCost(
         qty,
         unit_cost: mini.cost,
         subtotal: mini.cost * qty,
+      });
+    }
+  }
+
+  // 3b. Vidro normal em vez de vidro museu (mig 105).
+  //     Os custos das molduras (kind='frame') assumem vidro museu, porque
+  //     até 26/08/2026 todos os quadros o levavam. Quando o cliente
+  //     escolhe vidro normal, devolve-se a diferença: uma linha negativa,
+  //     visível no detalhe, em vez de um número que muda sem explicação.
+  //
+  //     Só desconta em 'nao' (decisão firme). Em 'sim' e 'incluido' o
+  //     quadro leva mesmo vidro museu; em 'nao_sei' fica o custo maior,
+  //     para a margem não aparecer inflacionada antes de a escolha estar
+  //     fechada. Ausente (encomenda anterior à mig 104) = levou museu.
+  if (order.museum_glass === "nao" && sizeKey) {
+    const saving = glassSaving(snapshot, sizeKey);
+    if (saving > 0) {
+      lines.push({
+        label: `Vidro normal em vez de museu (${sizeLabel(sizeKey)})`,
+        qty: 1,
+        unit_cost: -saving,
+        subtotal: -saving,
+      });
+    }
+  }
+
+  // 3c. O mesmo para os mini-quadros, que têm escolha de vidro PRÓPRIA
+  //     (mig 105): o cliente pode querer museu no grande e normal nos
+  //     pequenos, ou o inverso. Cada mini leva o seu vidro, por isso o
+  //     desconto multiplica pela quantidade.
+  if (
+    order.museum_glass_mini === "nao" &&
+    order.extra_small_frames === "sim" &&
+    order.extra_small_frames_qty &&
+    order.extra_small_frames_qty > 0
+  ) {
+    const miniSaving = glassSaving(snapshot, "mini_20x25");
+    if (miniSaving > 0) {
+      const qty = order.extra_small_frames_qty;
+      lines.push({
+        label: `Vidro normal em vez de museu (20x25) × ${qty}`,
+        qty,
+        unit_cost: -miniSaving,
+        subtotal: -miniSaving * qty,
       });
     }
   }

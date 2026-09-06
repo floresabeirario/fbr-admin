@@ -9,7 +9,7 @@
 // Capturado em snapshot por encomenda igual ao pricing_snapshot:
 // alterações futuras a esta tabela não recalculam encomendas antigas.
 
-export type ProductionCostKind = "frame" | "photo_print" | "consumable";
+export type ProductionCostKind = "frame" | "photo_print" | "consumable" | "glass";
 
 // Identificador de "produto vendável": tamanhos físicos + extras autónomos.
 // Cada consumível pode ter custo distinto por produto. Os 4 primeiros são
@@ -26,6 +26,11 @@ export type ProductionFrameType = "baixa" | "caixa" | "piramide";
 
 export type ProductionGlassType = "vidro_vidro" | "vidro_cartao";
 
+// Qualidade do vidro (mig 105). Distinto de ProductionGlassType, que
+// descreve a MONTAGEM (vidro sobre vidro / vidro sobre cartão). Este diz
+// se o vidro é o normal ou o museu anti-UV.
+export type ProductionGlassGrade = "normal" | "museu";
+
 export interface ProductionCostItem {
   id: string;
   created_at: string;
@@ -38,6 +43,7 @@ export interface ProductionCostItem {
   size_key: ProductionCostSize;
   frame_type: ProductionFrameType | null;   // só para kind='frame'
   glass_type: ProductionGlassType | null;   // só para kind='frame'
+  glass_grade: ProductionGlassGrade | null; // só para kind='glass'
   label: string | null;                     // obrigatório para kind='consumable'
   cost: number;
   position: number;
@@ -69,6 +75,10 @@ export interface ProductionCostSnapshotLine {
   size_key: ProductionCostSize;
   frame_type: ProductionFrameType | null;
   glass_type: ProductionGlassType | null;
+  // Opcional: os snapshots capturados antes da mig 105 não têm linhas
+  // kind='glass', e nesses o cálculo não desconta nada (assume vidro
+  // museu, que é o que essas encomendas de facto levaram).
+  glass_grade?: ProductionGlassGrade | null;
   label: string | null;
   cost: number;
 }

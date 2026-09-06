@@ -25,6 +25,8 @@ export type FaturacaoOrder = Pick<
   | "frame_delivery_date"
   | "frame_size"
   | "frame_background"
+  | "museum_glass"
+  | "museum_glass_mini"
   | "pyramid_frame"
   | "frame_internal_type"
   | "extra_small_frames"

@@ -39,7 +39,7 @@ export default async function FinancasPage() {
       .order("expense_date", { ascending: false }),
     supabase
       .from("orders")
-      .select("id, order_id, client_name, created_at, event_date, status, payment_status, budget, frame_delivery_date, frame_size, frame_background, pyramid_frame, frame_internal_type, extra_small_frames, extra_small_frames_qty, production_cost_snapshot, partner_commission, partner_commission_status, gift_voucher_code")
+      .select("id, order_id, client_name, created_at, event_date, status, payment_status, budget, frame_delivery_date, frame_size, frame_background, museum_glass, museum_glass_mini, pyramid_frame, frame_internal_type, extra_small_frames, extra_small_frames_qty, production_cost_snapshot, partner_commission, partner_commission_status, gift_voucher_code")
       .is("deleted_at", null),
     supabase
       .from("vouchers")
@@ -51,7 +51,7 @@ export default async function FinancasPage() {
   const pricing: PricingItem[] = (pricingRes.data ?? []) as PricingItem[];
   const productionCosts: ProductionCostItem[] = (productionCostRes.data ?? []) as ProductionCostItem[];
   const expenses: Expense[] = (expensesRes.data ?? []) as Expense[];
-  const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "client_name" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot" | "partner_commission" | "partner_commission_status" | "gift_voucher_code">[];
+  const orders = (ordersRes.data ?? []) as Pick<Order, "id" | "order_id" | "client_name" | "created_at" | "event_date" | "status" | "payment_status" | "budget" | "frame_delivery_date" | "frame_size" | "frame_background" | "museum_glass" | "museum_glass_mini" | "pyramid_frame" | "frame_internal_type" | "extra_small_frames" | "extra_small_frames_qty" | "production_cost_snapshot" | "partner_commission" | "partner_commission_status" | "gift_voucher_code">[];
   const vouchers = (vouchersRes.data ?? []) as Pick<Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status" | "partner_commission" | "partner_commission_status">[];
 
   return (

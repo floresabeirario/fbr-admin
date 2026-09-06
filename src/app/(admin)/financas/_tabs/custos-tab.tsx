@@ -7,7 +7,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Frame, Camera, Package } from "lucide-react";
+import { Plus, Trash2, Frame, Camera, Package, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatEUR } from "@/lib/format";
 import { toast } from "sonner";
@@ -79,6 +79,17 @@ export function CustosTab({
     for (const it of items) {
       if (it.kind !== "frame") continue;
       map.set(`${it.size_key}|${it.frame_type}|${it.glass_type}`, it);
+    }
+    return map;
+  }, [items]);
+
+  // Custo do vidro avulso (mig 105), por tamanho e qualidade. Chave
+  // "<size>|<grade>" para uma consulta directa na tabela.
+  const glassByKey = useMemo(() => {
+    const map = new Map<string, ProductionCostItem>();
+    for (const it of items) {
+      if (it.kind !== "glass" || !it.glass_grade) continue;
+      map.set(`${it.size_key}|${it.glass_grade}`, it);
     }
     return map;
   }, [items]);
@@ -257,6 +268,63 @@ export function CustosTab({
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Card: Custo do vidro (mig 105) */}
+      <div className="rounded-2xl border bg-gradient-to-br from-sky-50 to-cyan-100 border-sky-200 p-3 sm:p-4 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Layers className="h-4 w-4 text-sky-700" />
+          <h2 className="text-sm font-semibold text-cocoa-900">
+            Custo do vidro
+          </h2>
+          <span className="text-[11px] text-cocoa-700">
+            O que cada vidro custa à FBR, por tamanho
+          </span>
+        </div>
+        <div className="rounded-xl bg-surface border border-white/40 overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[480px] text-sm">
+            <thead className="bg-cream-50 text-[10px] uppercase tracking-wide text-cocoa-700">
+              <tr>
+                <th className="text-left px-3 py-1.5 font-medium w-28">Qualidade</th>
+                {PRODUCTION_SIZES_ORDER.map((s) => (
+                  <th key={s} className="text-left px-3 py-1.5 font-medium">
+                    {PRODUCTION_SIZE_LABELS[s]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(["museu", "normal"] as const).map((grade) => (
+                <tr key={grade} className="border-t border-sky-100">
+                  <td className="px-3 py-2 text-xs font-medium text-cocoa-900">
+                    {grade === "museu" ? "Museu (UltraVue)" : "Normal"}
+                  </td>
+                  {PRODUCTION_SIZES_ORDER.map((s) => {
+                    const it = glassByKey.get(`${s}|${grade}`);
+                    return (
+                      <td key={s} className="px-2 py-2 align-middle">
+                        {it ? (
+                          <CostInput
+                            item={it}
+                            canEdit={canEdit}
+                            saving={saving === it.id}
+                            onSave={(v) => saveCost(it, v)}
+                          />
+                        ) : (
+                          <span className="text-cocoa-500 text-xs">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-cocoa-700 italic">
+          A tabela das molduras em cima <strong>já assume vidro museu</strong> (era o que todos os quadros levavam até 26/08/2026). Quando o cliente escolhe vidro normal, o custo da encomenda desce pela <strong>diferença entre estas duas linhas</strong>, e aparece no detalhe do custo como uma linha negativa.
+          {" "}Só a diferença conta, por isso não é preciso mexer nos valores das molduras.
+        </p>
       </div>
 
       {/* Card: Impressão de fotografia */}

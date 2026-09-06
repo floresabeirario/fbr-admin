@@ -97,6 +97,8 @@ export async function createOrderAction(order: OrderInsert): Promise<Order> {
           service_type: order.service_type ?? "preservacao",
           frame_size: order.frame_size ?? null,
           frame_background: order.frame_background ?? null,
+          museum_glass: order.museum_glass ?? "nao_sei",
+          museum_glass_mini: order.museum_glass_mini ?? "nao_sei",
           pyramid_frame: order.pyramid_frame ?? false,
           extra_small_frames: order.extra_small_frames ?? null,
           extra_small_frames_qty: order.extra_small_frames_qty ?? null,
@@ -163,7 +165,7 @@ export async function recomputeOrderBudgetAction(
     supabase
       .from("orders")
       .select(
-        "service_type, frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+        "service_type, frame_size, frame_background, museum_glass, museum_glass_mini, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single(),
@@ -364,6 +366,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     updates.service_type !== undefined ||
     updates.frame_size !== undefined ||
     updates.frame_background !== undefined ||
+    updates.museum_glass !== undefined ||
+    updates.museum_glass_mini !== undefined ||
     updates.pyramid_frame !== undefined ||
     updates.extra_small_frames !== undefined ||
     updates.extra_small_frames_qty !== undefined ||
@@ -397,7 +401,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, service_type, client_photos, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, pricing_snapshot, frame_size, frame_background, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+        "payment_status, status, service_type, client_photos, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, pricing_snapshot, frame_size, frame_background, museum_glass, museum_glass_mini, pyramid_frame, extra_small_frames, extra_small_frames_qty, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single();
@@ -467,6 +471,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
           updates.service_type !== prev.service_type) ||
         updates.frame_size !== undefined ||
         updates.frame_background !== undefined ||
+        updates.museum_glass !== undefined ||
+        updates.museum_glass_mini !== undefined ||
         updates.pyramid_frame !== undefined ||
         updates.extra_small_frames !== undefined ||
         updates.extra_small_frames_qty !== undefined ||
@@ -490,6 +496,8 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
           service_type: pick("service_type"),
           frame_size: pick("frame_size"),
           frame_background: pick("frame_background"),
+          museum_glass: pick("museum_glass") ?? "nao_sei",
+          museum_glass_mini: pick("museum_glass_mini") ?? "nao_sei",
           pyramid_frame: pick("pyramid_frame") ?? false,
           extra_small_frames: pick("extra_small_frames"),
           extra_small_frames_qty: pick("extra_small_frames_qty"),

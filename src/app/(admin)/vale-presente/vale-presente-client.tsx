@@ -427,9 +427,12 @@ interface Props {
   initialGrouped: GroupedVouchers;
   archivedVouchers: Voucher[];
   canEdit: boolean;
+  // Preço do quadro mais pequeno (Finanças). O vale nunca pode valer menos
+  // do que a peça mais barata que compra.
+  minAmount: number;
 }
 
-export default function ValePresenteClient({ initialVouchers, initialGrouped, archivedVouchers, canEdit }: Props) {
+export default function ValePresenteClient({ initialVouchers, initialGrouped, archivedVouchers, canEdit, minAmount }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   // Grupos vazios começam colapsados por default; o utilizador pode abrir.
@@ -647,6 +650,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
       {/* Sheet de criação */}
       {canEdit && (
         <NovoValeSheet
+          minAmount={minAmount}
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           onSuccess={() => {

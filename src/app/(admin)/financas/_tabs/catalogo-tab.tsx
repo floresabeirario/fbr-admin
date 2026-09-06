@@ -104,6 +104,16 @@ function BackfillCogsSection() {
 // entre as 3 linhas do mesmo tamanho (rowspan). "Supl." só aparece
 // editável na linha fotografia. Custo, margem € e margem % são derivados.
 //
+// Bloco 3 — suplemento do vidro museu, um preço por tamanho (mig 104).
+// `key` é o sufixo em pricing_items (museum_glass_<key>); `costSize` é o
+// size_key correspondente em production_cost_items.
+const MUSEUM_GLASS_SIZES = [
+  { key: "30x40", costSize: "30x40",      label: "30x40" },
+  { key: "40x50", costSize: "40x50",      label: "40x50" },
+  { key: "50x70", costSize: "50x70",      label: "50x70" },
+  { key: "20x25", costSize: "mini_20x25", label: "20x25 (mini)" },
+] as const;
+
 // Bloco 2 — 2 extras autónomos (ornamento, pendente). Preço e custo
 // FBR são ambos editáveis (custo guardado em pricing_items.cost_fbr).
 
@@ -156,6 +166,7 @@ function MargemTeoricaSection({
           size_key: i.size_key,
           frame_type: i.frame_type,
           glass_type: i.glass_type,
+          glass_grade: i.glass_grade,
           label: i.label,
           cost: i.cost,
         })),
@@ -215,6 +226,37 @@ function MargemTeoricaSection({
   // vendáveis com a sua coluna na tabela de Custos de produção em baixo).
   const ornament = findPricing("extra", "christmas_ornament");
   const pendant = findPricing("extra", "necklace_pendant");
+
+  // ── Vidro museu (Bloco 3, mig 104) — suplemento por tamanho ──
+  // Sem colunas de custo/margem de propósito: o custo do vidro ainda não
+  // está separado em production_cost_items (o custo da moldura no Bloco 1
+  // assume vidro museu em todos os quadros). Mostrar uma margem aqui daria
+  // 100%, que é falso.
+  // O custo real do vidro museu é o que ele custa A MAIS do que o normal
+  // (mig 105): o vidro normal seria comprado de qualquer maneira, por isso
+  // a margem do suplemento mede-se contra a diferença, não contra o preço
+  // do vidro museu inteiro.
+  const glassExtraCost = (costSize: string): number => {
+    const find = (grade: "normal" | "museu") =>
+      productionCosts.find(
+        (c) =>
+          c.deleted_at === null &&
+          c.kind === "glass" &&
+          c.size_key === costSize &&
+          c.glass_grade === grade,
+      );
+    const museu = find("museu");
+    const normal = find("normal");
+    if (!museu || !normal) return 0;
+    const diff = Number(museu.cost) - Number(normal.cost);
+    return diff > 0 ? diff : 0;
+  };
+
+  const glassRows = MUSEUM_GLASS_SIZES.map((sz) => ({
+    size: sz,
+    item: findPricing("glass_supplement", `museum_glass_${sz.key}`),
+    cost: glassExtraCost(sz.costSize),
+  }));
   const consumablesCostByProduct = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of productionCosts) {
@@ -390,6 +432,60 @@ function MargemTeoricaSection({
         </div>
         <p className="text-[11px] text-emerald-800/70 italic">
           <strong>Custo</strong> deriva dos consumíveis das colunas <em>Ornamento</em> e <em>Pendente</em> na tabela “Outros custos recorrentes” em baixo.
+        </p>
+      </div>
+
+      {/* Bloco 3 — Vidro museu (suplemento por tamanho) */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide">
+          Vidro museu (suplemento por tamanho)
+        </h3>
+        <div className="rounded-xl bg-surface overflow-hidden overflow-x-auto border border-emerald-200/60 dark:border-emerald-900/40">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Tamanho</th>
+                <th className="text-right px-3 py-2 font-medium w-28">Suplemento (€)</th>
+                <th className="text-right px-3 py-2 font-medium w-24">Custo extra</th>
+                <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
+                <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {glassRows.map(({ size, item, cost }) => {
+                const price = Number(item?.price ?? 0);
+                const margin = price - cost;
+                const marginPct = price > 0 ? (margin / price) * 100 : 0;
+                return (
+                  <tr key={size.key} className="border-t border-emerald-100 dark:border-emerald-900/30">
+                    <td className="px-3 py-2 text-cocoa-900">{size.label}</td>
+                    <td className="px-2 py-2 text-right">
+                      <EditableEuro item={item ?? null} field="price" canEdit={canEdit} align="right" />
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-rose-700">
+                      {formatEUR(cost)}
+                    </td>
+                    <td className={cn(
+                      "px-3 py-2 text-right tabular-nums font-semibold",
+                      margin >= 0 ? "text-emerald-700" : "text-rose-700",
+                    )}>
+                      {formatEUR(margin)}
+                    </td>
+                    <td className={cn(
+                      "px-3 py-2 text-right tabular-nums font-semibold",
+                      marginPct >= 50 ? "text-emerald-700" : marginPct >= 30 ? "text-amber-700" : "text-rose-700",
+                    )}>
+                      {price > 0 ? `${marginPct.toFixed(0)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-emerald-800/70 italic">
+          Só entra no orçamento quando o cliente escolhe <strong>Sim</strong> no vidro museu. Encomendas anteriores a 26/08/2026 ficaram em <strong>“Incluído”</strong> e nunca somam este valor. O do 20x25 é cobrado <strong>por cada mini-quadro</strong>.
+          {" "}<strong>Custo extra</strong> é quanto o vidro museu custa a mais do que o normal (o vidro normal seria comprado de qualquer maneira); edita-se na tabela <em>Custo do vidro</em> em baixo. O <strong>Bloco 1</strong> assume vidro museu, e é dessa base que o desconto é feito quando o cliente escolhe vidro normal.
         </p>
       </div>
     </div>

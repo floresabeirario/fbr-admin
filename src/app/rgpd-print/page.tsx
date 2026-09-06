@@ -11,6 +11,7 @@ import {
   FRAME_DELIVERY_METHOD_LABELS,
   FRAME_BACKGROUND_LABELS,
   FRAME_SIZE_LABELS,
+  MUSEUM_GLASS_LABELS,
 } from "@/types/database";
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
@@ -160,6 +161,14 @@ function OrderBlock({ order }: { order: Order }) {
         )}
         <dt>Tamanho</dt>
         <dd>{order.frame_size ? FRAME_SIZE_LABELS[order.frame_size] : "—"}</dd>
+        <dt>Vidro museu</dt>
+        <dd>{order.museum_glass ? MUSEUM_GLASS_LABELS[order.museum_glass] : "—"}</dd>
+        {order.extra_small_frames === "sim" && (
+          <>
+            <dt>Vidro museu (quadros extra)</dt>
+            <dd>{order.museum_glass_mini ? MUSEUM_GLASS_LABELS[order.museum_glass_mini] : "—"}</dd>
+          </>
+        )}
         <dt>Como conheceu</dt>
         <dd>
           {order.how_found_fbr ? HOW_FOUND_FBR_LABELS[order.how_found_fbr] : "—"}

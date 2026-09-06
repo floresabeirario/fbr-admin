@@ -17,6 +17,11 @@ export interface OrderForPricing {
   service_type?: Order["service_type"];
   frame_size: Order["frame_size"];
   frame_background: Order["frame_background"];
+  // Opcional para retro-compatibilidade: ausente = trata como 'incluido'
+  // (encomenda anterior à mig 104, vidro dentro do preço-base).
+  museum_glass?: Order["museum_glass"];
+  // Vidro dos mini-quadros, escolha própria (mig 105).
+  museum_glass_mini?: Order["museum_glass_mini"];
   pyramid_frame: Order["pyramid_frame"];
   extra_small_frames: Order["extra_small_frames"];
   extra_small_frames_qty: Order["extra_small_frames_qty"];
@@ -120,6 +125,36 @@ export function computePricingSnapshot(
     }
   }
 
+  // 2b. Suplemento do vidro museu (mig 104), por tamanho da moldura
+  //     (30x40 → 45€, 40x50 → 65€, 50x70 → 115€). Só cobra quando o
+  //     cliente escolheu 'sim'.
+  //
+  //     'incluido' é o legado: até 26/08/2026 todos os quadros levavam
+  //     vidro museu dentro do preço-base, e essas encomendas NUNCA podem
+  //     ganhar o suplemento — se ganhassem, decidir o tamanho da moldura
+  //     na fase de design somaria +45€ a +115€ a quem já pagou. 'nao' e
+  //     'nao_sei' também não cobram (vidro normal / por decidir).
+  //
+  //     Mesmo suplemento nos 3 serviços: o vidro é o mesmo, só o
+  //     preço-base do quadro é que difere. Daí a chave sem prefixo.
+  if (order.museum_glass === "sim") {
+    const glass = findItem(
+      pricing,
+      "glass_supplement",
+      `museum_glass_${effectiveSize}`,
+    );
+    if (glass) {
+      lines.push({
+        category: glass.category,
+        key: glass.key,
+        label: glass.label,
+        qty: 1,
+        unit_price: glass.price,
+        subtotal: glass.price,
+      });
+    }
+  }
+
   // 3. Extras por unidade — só conta se a opção for "sim" E houver qty > 0
   const extras: Array<{
     key: string;
@@ -182,6 +217,32 @@ export function computePricingSnapshot(
     }
   }
 
+  // 3c. Vidro museu nos mini-quadros — escolha PRÓPRIA (mig 105), não
+  //     herdada do quadro principal: o cliente pode querer museu no
+  //     grande e normal nos pequenos, ou o inverso. Cada mini leva o seu
+  //     vidro, por isso o suplemento (20€) multiplica pela quantidade,
+  //     tal como o `fotografia_mini`. Em 'incluido' o vidro já vinha no
+  //     preço-base também dos minis, por isso não cobra.
+  if (
+    order.museum_glass_mini === "sim" &&
+    order.extra_small_frames === "sim" &&
+    order.extra_small_frames_qty &&
+    order.extra_small_frames_qty > 0
+  ) {
+    const miniGlass = findItem(pricing, "glass_supplement", "museum_glass_20x25");
+    if (miniGlass && miniGlass.price > 0) {
+      const qty = order.extra_small_frames_qty;
+      lines.push({
+        category: miniGlass.category,
+        key: miniGlass.key,
+        label: miniGlass.label,
+        qty,
+        unit_price: miniGlass.price,
+        subtotal: miniGlass.price * qty,
+      });
+    }
+  }
+
   // 4. Moldura pirâmide — upsell visível ao cliente (cobrado).
   //    O preço é editável pela Maria em Finanças (pricing_items.extra.pyramid_frame).
   //    Quando o cliente não escolhe pirâmide, este item não entra no snapshot.
@@ -207,6 +268,24 @@ export function computePricingSnapshot(
     lines,
     ...(sizeUndecided ? { provisional: true } : {}),
   };
+}
+
+// Valor a usar quando a tabela de preços não está disponível. Nunca deve
+// acontecer em produção; existe para o formulário não ficar sem mínimo.
+const VOUCHER_MIN_FALLBACK = 300;
+
+/**
+ * Valor mínimo de um vale-presente: o preço do quadro mais barato da
+ * preservação, sem extras (decisão Maria 26/08/2026 — "o mínimo deve
+ * corresponder sempre ao preço mais barato da preservação, sem extras
+ * sem nada"). Sobe sozinho quando a moldura 30x40 subir em Finanças.
+ *
+ * Só afecta vales NOVOS: os já emitidos guardam o seu próprio valor.
+ */
+export function voucherMinAmount(pricing: PricingItem[]): number {
+  const base = findItem(pricing, "base_frame", "30x40");
+  const preco = Number(base?.price);
+  return Number.isFinite(preco) && preco > 0 ? preco : VOUCHER_MIN_FALLBACK;
 }
 
 /**

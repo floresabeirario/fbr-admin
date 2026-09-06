@@ -22,6 +22,7 @@ import {
   FRAME_BACKGROUND_LABELS,
   FRAME_SIZE_LABELS,
   FRAME_SIZE_COLORS,
+  MUSEUM_GLASS_LABELS,
   SIM_NAO_LABELS,
   isStatusAtOrAfter,
 } from "@/types/database";
@@ -213,6 +214,49 @@ export function FlowersCard({
           </Select>
         </Field>
         <Field
+          label="Vidro museu"
+          hint={
+            local.museum_glass === "incluido"
+              ? "Encomenda antiga: leva vidro museu dentro do preço-base. Não soma suplemento."
+              : "Escolha do cliente. Só o \"Sim\" soma suplemento (45€ / 65€ / 115€ conforme o tamanho)."
+          }
+        >
+          <Select
+            value={local.museum_glass ?? "nao_sei"}
+            onValueChange={(v) =>
+              clientUpdate(
+                "museum_glass",
+                v as Order["museum_glass"],
+                "Vidro museu",
+                (val) => (val ? MUSEUM_GLASS_LABELS[val] : "—"),
+              )
+            }
+          >
+            <SelectTrigger
+              className={`${sel} font-medium ${
+                local.museum_glass === "sim"
+                  ? "bg-amber-100 text-amber-900 border-amber-300"
+                  : ""
+              }`}
+            >
+              <SelectValue labels={MUSEUM_GLASS_LABELS} />
+            </SelectTrigger>
+            <SelectContent>
+              {/* "Incluído" é o estado legado das encomendas anteriores a
+                  26/08/2026. Só aparece na lista enquanto for o valor
+                  actual: não é uma escolha a fazer de novo. */}
+              {local.museum_glass === "incluido" && (
+                <SelectItem value="incluido">
+                  {MUSEUM_GLASS_LABELS.incluido}
+                </SelectItem>
+              )}
+              <SelectItem value="sim">Sim</SelectItem>
+              <SelectItem value="nao">Não</SelectItem>
+              <SelectItem value="nao_sei">Não sei</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field
           label="Moldura pirâmide"
           hint="Upgrade pago pelo cliente. Aplica suplemento ao orçamento."
         >
@@ -309,7 +353,47 @@ export function FlowersCard({
           />
           {(local.extra_small_frames === "sim" ||
             local.extra_small_frames === "mais_info") && (
-            <div className="ml-2 pl-3 border-l-2 border-cream-200">
+            <div className="ml-2 pl-3 border-l-2 border-cream-200 space-y-2">
+              <Field
+                label="Vidro museu nos quadros extra"
+                hint={
+                  local.museum_glass_mini === "incluido"
+                    ? "Encomenda antiga: os minis levam vidro museu dentro do preço-base."
+                    : "Escolha própria, independente do quadro principal. O \"Sim\" soma 20€ por cada mini."
+                }
+              >
+                <Select
+                  value={local.museum_glass_mini ?? "nao_sei"}
+                  onValueChange={(v) =>
+                    clientUpdate(
+                      "museum_glass_mini",
+                      v as Order["museum_glass_mini"],
+                      "Vidro museu nos quadros extra",
+                      (val) => (val ? MUSEUM_GLASS_LABELS[val] : "—"),
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    className={`${sel} font-medium ${
+                      local.museum_glass_mini === "sim"
+                        ? "bg-amber-100 text-amber-900 border-amber-300"
+                        : ""
+                    }`}
+                  >
+                    <SelectValue labels={MUSEUM_GLASS_LABELS} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {local.museum_glass_mini === "incluido" && (
+                      <SelectItem value="incluido">
+                        {MUSEUM_GLASS_LABELS.incluido}
+                      </SelectItem>
+                    )}
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                    <SelectItem value="nao_sei">Não sei</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field
                 label="Fundo do quadro extra"
                 hint="Só preencher se for diferente do fundo do quadro principal."
