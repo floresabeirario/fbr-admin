@@ -7,7 +7,10 @@ import { STATUS_LABELS, type OrderStatus } from "@/types/database";
 import type { Partner } from "@/types/partner";
 import type { Task, TaskTemplate } from "@/types/tasks";
 import { findDuplicates } from "@/lib/duplicates";
-import VoucherWorkbenchClient, { type VoucherDuplicateInfo } from "./workbench-client";
+import VoucherWorkbenchClient, {
+  type VoucherDuplicateInfo,
+  type VoucherOrderInfo,
+} from "./workbench-client";
 
 export default async function VoucherWorkbenchPage({
   params,
@@ -52,6 +55,26 @@ export default async function VoucherWorkbenchPage({
     .eq("voucher_id", voucher.id)
     .order("created_at", { ascending: false });
   const voucherTasks = (tasksData ?? []) as Task[];
+
+  // Reserva(s) feitas com este vale: match pelo CÓDIGO, não pelo contacto
+  // (quem usa o vale é quase sempre a pessoa presenteada, com outro email).
+  // Lista porque o mesmo código pode aparecer em mais do que uma encomenda.
+  let linkedOrders: VoucherOrderInfo[] = [];
+  if (voucher.code) {
+    const { data: linkedRows } = await supabase
+      .from("orders")
+      .select("id, order_id, client_name, status, budget")
+      .is("deleted_at", null)
+      .eq("gift_voucher_code", voucher.code.toUpperCase())
+      .order("created_at", { ascending: false });
+    linkedOrders = (linkedRows ?? []).map((o) => ({
+      id: String(o.id),
+      orderId: String(o.order_id),
+      clientName: (o.client_name as string | null) ?? "Sem nome",
+      statusLabel: STATUS_LABELS[o.status as OrderStatus] ?? String(o.status),
+      budget: o.budget === null || o.budget === undefined ? null : Number(o.budget),
+    }));
+  }
 
   // Cliente repetido: outros vales E encomendas com o mesmo contacto do
   // remetente. Só informativo (aviso com link, NUNCA bloqueia — regra
@@ -108,6 +131,7 @@ export default async function VoucherWorkbenchPage({
       voucherTasks={voucherTasks}
       currentEmail={currentEmail}
       duplicates={duplicates}
+      linkedOrders={linkedOrders}
     />
   );
 }

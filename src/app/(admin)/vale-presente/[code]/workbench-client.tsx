@@ -121,6 +121,17 @@ export type VoucherDuplicateInfo = {
   matchedBy: string;
 };
 
+/** Reserva feita com este vale (orders.gift_voucher_code = código).
+ *  Pode haver mais do que uma: o mesmo código pode ser usado por engano,
+ *  ou de propósito quando sobrou crédito. Por isso é lista, não um objecto. */
+export type VoucherOrderInfo = {
+  id: string;
+  orderId: string;
+  clientName: string;
+  statusLabel: string;
+  budget: number | null;
+};
+
 interface Props {
   voucher: Voucher;
   canEdit: boolean;
@@ -129,6 +140,7 @@ interface Props {
   voucherTasks?: Task[];
   currentEmail?: string;
   duplicates?: VoucherDuplicateInfo[];
+  linkedOrders?: VoucherOrderInfo[];
 }
 
 // ── Edição inline do código do vale ────────────────────────
@@ -199,6 +211,7 @@ export default function VoucherWorkbenchClient({
   voucherTasks = [],
   currentEmail = "",
   duplicates = [],
+  linkedOrders = [],
 }: Props) {
   const router = useRouter();
   const [data, setData] = useState<Voucher>(voucher);
@@ -949,6 +962,37 @@ export default function VoucherWorkbenchClient({
                       ? "Não conta para faturação (evita duplicação com a Preservação)."
                       : "Conta para faturação."}
                   </p>
+                </Field>
+
+                {/* Reserva(s) feitas com este vale. Procuradas pelo código
+                    (orders.gift_voucher_code), não pelo contacto: quem usa o
+                    vale é quase sempre a pessoa presenteada, com outro email. */}
+                <Field label="Reserva feita com este vale">
+                  {linkedOrders.length === 0 ? (
+                    <p className="text-[11px] text-cocoa-500">
+                      Ainda não foi usado numa reserva de preservação.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {linkedOrders.map((o) => (
+                        <Link
+                          key={o.id}
+                          href={`/preservacao/${o.orderId}`}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-violet-200 dark:border-violet-900 bg-violet-50 dark:bg-violet-950/30 px-2.5 py-1.5 text-xs text-violet-900 dark:text-violet-200 hover:border-violet-400 transition-colors"
+                          title={`Abrir a encomenda de ${o.clientName}`}
+                        >
+                          <span className="min-w-0 truncate font-medium">{o.clientName}</span>
+                          <span className="shrink-0 flex items-center gap-2">
+                            <span className="text-violet-700 dark:text-violet-300">{o.statusLabel}</span>
+                            {o.budget !== null && (
+                              <span className="tabular-nums font-semibold">{formatEUR(o.budget)}</span>
+                            )}
+                            <ExternalLink className="h-3 w-3" />
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </Field>
               </Section>
 
