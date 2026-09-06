@@ -11,6 +11,9 @@
 
 | Migração | Descrição | Estado |
 |----------|-----------|--------|
+| `106_templates_vale_restante_credito` | Templates do vale (restante a pagar, crédito que sobra) + factos do Cérebro | ✅ 06/09 (verificada por query) |
+| `105_museum_glass_costs` | Custo real do vidro (kind=`glass`) + vidro museu nos mini-quadros (`museum_glass_mini`) | ✅ 06/09 |
+| `104_museum_glass` | Vidro museu passa a opção paga: `orders.museum_glass` + categoria `glass_supplement` | ✅ 26/08 |
 | `103_templates_resumo_encomenda` | Templates passam a listar os extras (`{resumo_encomenda}`) — só dados | ✅ 21/08 (Maria confirmou) |
 | `092_public_phase_defs` | Fonte única das fases públicas (RPC) — ver ECOSYSTEM #1 | ✅ 08/07 aplicada + fbr-tracking em produção (main); smokado contra dados reais |
 | `091_whatsapp_category_freeform` | Drop do CHECK (correr ANTES do deploy) | ✅ 04/07 (Maria confirmou) |
