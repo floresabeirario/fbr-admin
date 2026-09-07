@@ -66,6 +66,7 @@ import {
 import { groupOrders, GROUP_TO_TARGET_STATUS, type OrderGroupKey } from "@/lib/supabase/orders";
 import { setNavList } from "@/lib/workbench-nav";
 import { exportOrdersToCsv } from "@/lib/export-csv";
+import { additionalFramesCount, additionalFramesLabel } from "@/lib/additional-frames";
 import { formatEUR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toEmbeddableImageUrl } from "@/lib/drive-url";
@@ -580,6 +581,14 @@ function OrderRow({
                   title="Serviço: recriação"
                 >
                   Recriação
+                </span>
+              )}
+              {additionalFramesCount(order.additional_main_frames) > 0 && (
+                <span
+                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 uppercase tracking-wide shrink-0"
+                  title={`Quadros principais adicionais: ${additionalFramesLabel(order.additional_main_frames)}`}
+                >
+                  +{additionalFramesCount(order.additional_main_frames)} {additionalFramesCount(order.additional_main_frames) === 1 ? "quadro" : "quadros"}
                 </span>
               )}
               {isNew && (
@@ -1737,6 +1746,14 @@ function OrderCard({
               title="Ainda não abriste esta encomenda"
             >
               Nova
+            </span>
+          )}
+          {additionalFramesCount(order.additional_main_frames) > 0 && (
+            <span
+              className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-semibold text-amber-900 uppercase tracking-wide shrink-0"
+              title={`Quadros principais adicionais: ${additionalFramesLabel(order.additional_main_frames)}`}
+            >
+              +{additionalFramesCount(order.additional_main_frames)} {additionalFramesCount(order.additional_main_frames) === 1 ? "quadro" : "quadros"}
             </span>
           )}
         </div>
