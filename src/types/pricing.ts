@@ -46,6 +46,10 @@ export interface PricingSnapshotLine {
   qty: number;
   unit_price: number;
   subtotal: number;
+  // "additional" = linha de um quadro principal ADICIONAL (mig 107): a
+  // mesma key da base/fundo/vidro do principal, mas para outro quadro.
+  // Ausente nas linhas do principal e nos extras.
+  variant?: "additional";
 }
 
 export interface PricingSnapshot {

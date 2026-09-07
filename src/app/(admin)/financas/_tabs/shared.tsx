@@ -31,6 +31,7 @@ export type FaturacaoOrder = Pick<
   | "frame_internal_type"
   | "extra_small_frames"
   | "extra_small_frames_qty"
+  | "additional_main_frames"
   | "production_cost_snapshot"
   | "partner_commission"
   | "partner_commission_status"

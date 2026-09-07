@@ -181,12 +181,17 @@ function fraseVidroMuseu(
 }
 
 function rotuloLinha(
-  line: { category: string; key: string; label: string },
+  line: { category: string; key: string; label: string; variant?: string },
   language: TemplateLanguage,
 ): string {
   const known = RESUMO_LABELS[`${line.category}:${line.key}`];
-  if (known) return known[language];
-  return line.label.replace(/\s*—\s*/g, " ");
+  const base = known ? known[language] : line.label.replace(/\s*—\s*/g, " ");
+  // Quadro principal adicional (mig 107): a mesma key do principal, mas
+  // para outro quadro; sem o sufixo a mensagem repetia "Quadro 30x40 cm".
+  if (line.variant === "additional") {
+    return language === "en" ? `${base} (additional frame)` : `${base} (quadro adicional)`;
+  }
+  return base;
 }
 
 // Resumo do que o cliente encomendou (quadro + extras pagos), a partir do

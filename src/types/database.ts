@@ -215,6 +215,12 @@ export interface ExtrasInFrame {
   notes: string;
 }
 
+// Quadros principais adicionais (mig 107): quantidade por tamanho, ALÉM
+// do quadro principal (frame_size). {} = nenhum. Ler sempre através de
+// lib/additional-frames.ts (valida o JSONB).
+export type MainFrameSize = "30x40" | "40x50" | "50x70";
+export type AdditionalMainFrames = Partial<Record<MainFrameSize, number>>;
+
 // Item do inventário de flores em cada encomenda
 export interface InventoryItem {
   qty: number;
@@ -255,6 +261,8 @@ export interface Order {
   // Fundo dos quadros extra pequenos quando difere do principal
   // (frame_background). Mesmas opções. NULL = não especificado.
   extra_small_frames_background: FrameBackground | null;
+  // Quadros principais adicionais por tamanho (mig 107). Ex.: {"50x70": 1}.
+  additional_main_frames: AdditionalMainFrames;
   christmas_ornaments: YesNoInfo | null;
   christmas_ornaments_qty: number | null;
   necklace_pendants: YesNoInfo | null;

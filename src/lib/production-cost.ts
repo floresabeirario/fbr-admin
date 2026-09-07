@@ -16,6 +16,7 @@ import {
   effectiveFrameType,
   frameSizeToCostSize,
 } from "@/types/production-cost";
+import { additionalFramesEntries } from "./additional-frames";
 
 // ── Snapshot ─────────────────────────────────────────────────
 
@@ -65,6 +66,8 @@ interface OrderFieldsForCost {
   frame_internal_type: Order["frame_internal_type"];
   extra_small_frames: Order["extra_small_frames"];
   extra_small_frames_qty: Order["extra_small_frames_qty"];
+  // Quadros principais adicionais (mig 107). Opcional: ausente = nenhum.
+  additional_main_frames?: Order["additional_main_frames"] | null;
 }
 
 function findFrameLine(
@@ -157,6 +160,46 @@ export function computeProductionCost(
         unit_cost: photo.cost,
         subtotal: photo.cost,
       });
+    }
+  }
+
+  // 2b. Quadros principais ADICIONAIS (mig 107): cada um leva a sua
+  //     moldura (mesmo tipo e vidro do principal), a sua impressão quando
+  //     o fundo é fotografia, e devolve a diferença do vidro normal quando
+  //     o cliente escolheu 'nao' (a mesma regra do principal, em 3b).
+  for (const [size, qty] of additionalFramesEntries(order.additional_main_frames)) {
+    const sk = frameSizeToCostSize(size);
+    if (!sk || !glassType || !frameType) continue;
+    const frame = findFrameLine(snapshot, sk, frameType, glassType);
+    if (frame) {
+      lines.push({
+        label: `Quadro adicional ${sizeLabel(sk)} × ${qty} · ${frameTypeLabel(frameType)} · ${glassLabel(glassType)}`,
+        qty,
+        unit_cost: frame.cost,
+        subtotal: frame.cost * qty,
+      });
+    }
+    if (order.frame_background === "fotografia") {
+      const photo = findPhotoPrintLine(snapshot, sk);
+      if (photo) {
+        lines.push({
+          label: `Impressão fotografia (quadro adicional ${sizeLabel(sk)}) × ${qty}`,
+          qty,
+          unit_cost: photo.cost,
+          subtotal: photo.cost * qty,
+        });
+      }
+    }
+    if (order.museum_glass === "nao") {
+      const saving = glassSaving(snapshot, sk);
+      if (saving > 0) {
+        lines.push({
+          label: `Vidro normal em vez de museu (quadro adicional ${sizeLabel(sk)}) × ${qty}`,
+          qty,
+          unit_cost: -saving,
+          subtotal: -saving * qty,
+        });
+      }
     }
   }
 

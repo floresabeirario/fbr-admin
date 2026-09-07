@@ -213,6 +213,9 @@ describe.skipIf(!existsSync(ORCAMENTO_PATH))("paridade do cálculo website ↔ a
   const backgrounds: Input["frame_background"][] = ["transparente", "fotografia", "cor", "voces_a_escolher", null];
   const glass: Input["museum_glass"][] = ["sim", "nao", "nao_sei"];
   const flags: Input["extra_small_frames"][] = ["sim", "nao", "mais_info", null];
+  // Quadros principais adicionais (mig 107): ausente, vazio e um caso com
+  // dois tamanhos (um deles igual ao principal em parte da matriz).
+  const adicionais: Input["additional_main_frames"][] = [undefined, {}, { "30x40": 1, "50x70": 2 }];
 
   it("dá o mesmo total e as mesmas linhas para uma matriz de encomendas", async () => {
     const site = (await import(pathToFileURL(ORCAMENTO_PATH).href)) as {
@@ -230,13 +233,15 @@ describe.skipIf(!existsSync(ORCAMENTO_PATH))("paridade do cálculo website ↔ a
           for (const museum_glass of glass)
             for (const museum_glass_mini of glass)
               for (const minis of flags)
-                for (const qty of [null, 0, 2]) {
+                for (const qty of [null, 0, 2])
+                for (const additional_main_frames of adicionais) {
                   const order: Input = {
                     service_type,
                     frame_size,
                     frame_background,
                     museum_glass,
                     museum_glass_mini,
+                    ...(additional_main_frames !== undefined ? { additional_main_frames } : {}),
                     pyramid_frame: false,
                     extra_small_frames: minis,
                     extra_small_frames_qty: qty,

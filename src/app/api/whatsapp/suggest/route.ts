@@ -56,6 +56,7 @@ import {
   type FrameSize,
   type Order,
 } from "@/types/database";
+import { additionalFramesLabel } from "@/lib/additional-frames";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -147,6 +148,8 @@ type LinkedOrder = {
   necklace_pendants_qty: number | null;
   extra_small_frames: YesNoInfo | null;
   extra_small_frames_qty: number | null;
+  // Quadros principais adicionais por tamanho (mig 107).
+  additional_main_frames: Order["additional_main_frames"] | null;
   // Decomposição do orçamento (quadro + extras). Sem isto o assistente só
   // sabia o total e falava sempre do quadro, nunca dos ornamentos.
   pricing_snapshot: Order["pricing_snapshot"];
@@ -161,7 +164,7 @@ type ConvRow = {
 };
 
 const LINKED_ORDER_COLUMNS =
-  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, email, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, pricing_snapshot";
+  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, email, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, additional_main_frames, pricing_snapshot";
 
 // ─── Histórico de email ───────────────────────────────────────
 // O WhatsApp não é a história toda: muita coisa combina-se por email
@@ -227,6 +230,12 @@ function escolhasExtraLines(o: LinkedOrder): string[] {
     ["Pendentes para colares", o.necklace_pendants, o.necklace_pendants_qty],
   ];
   const out: string[] = [];
+  // Quadros principais adicionais (mig 107): o cliente quer mais do que
+  // um quadro grande e tem de entregar flores para todos.
+  const adicionais = additionalFramesLabel(o.additional_main_frames);
+  if (adicionais) {
+    out.push(`Quadros principais adicionais (além do principal): ${adicionais}. Precisam de flores suficientes para todos os quadros, não chega o bouquet.`);
+  }
   for (const [label, valor, qty] of campos) {
     if (!valor) continue;
     const qtyTxt = typeof qty === "number" && qty > 0 ? `, quantidade ${qty}` : "";

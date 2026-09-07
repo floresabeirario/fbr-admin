@@ -28,6 +28,8 @@ import {
 } from "@/types/database";
 import { Card, CardSummary, Grid2, Field, CheckRow, inp, sel } from "./layout";
 import { ExtraPieceRow } from "./fields";
+import { MAIN_FRAME_SIZES, additionalFramesCount } from "@/lib/additional-frames";
+import type { AdditionalMainFrames, MainFrameSize } from "@/types/database";
 import type { UpdateFn, ClientUpdateFn } from "./shared";
 
 // Opções de extras tal como aparecem no formulário público.
@@ -84,8 +86,19 @@ export function FlowersCard({
   const autoCollapsed =
     local.status === "cancelado" || isStatusAtOrAfter(local.status, "quadro_pronto");
   const extrasCount = extras.options.filter((o) => o !== EXTRAS_NONE && o !== EXTRAS_OTHER).length;
+  // Quadros principais adicionais (mig 107): {} quando não há.
+  const adicionais: AdditionalMainFrames = local.additional_main_frames ?? {};
+  const nAdicionais = additionalFramesCount(adicionais);
+  function setAdicional(size: MainFrameSize, raw: string) {
+    const next: AdditionalMainFrames = { ...adicionais };
+    const n = raw.trim() === "" ? 0 : Number(raw);
+    if (!Number.isInteger(n) || n <= 0) delete next[size];
+    else next[size] = Math.min(n, 99);
+    update("additional_main_frames", next);
+  }
   const summaryParts: string[] = [];
   if (local.frame_size) summaryParts.push(FRAME_SIZE_LABELS[local.frame_size]);
+  if (nAdicionais > 0) summaryParts.push(`+${nAdicionais} quadro${nAdicionais === 1 ? "" : "s"}`);
   if (local.frame_background) summaryParts.push(`Fundo: ${FRAME_BACKGROUND_LABELS[local.frame_background]}`);
   summaryParts.push(extrasCount === 0 ? "sem extras" : `${extrasCount} extra${extrasCount === 1 ? "" : "s"}`);
 
@@ -198,6 +211,31 @@ export function FlowersCard({
               ))}
             </SelectContent>
           </Select>
+        </Field>
+        <Field
+          label="Quadros principais adicionais"
+          span2
+          hint="Além do quadro principal, pelo preço cheio de cada tamanho. Cada um precisa das suas próprias flores."
+        >
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {MAIN_FRAME_SIZES.map((size) => (
+              <label key={size} className="flex items-center gap-1.5">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${FRAME_SIZE_COLORS[size]}`}>
+                  {FRAME_SIZE_LABELS[size]}
+                </span>
+                <Input
+                  className="h-7 w-12 text-xs text-center border-cream-200 bg-cream-50 text-cocoa-900 rounded-md px-1"
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={adicionais[size] ?? ""}
+                  placeholder="0"
+                  title={`Quadros ${FRAME_SIZE_LABELS[size]} adicionais`}
+                  onChange={(e) => setAdicional(size, e.target.value)}
+                />
+              </label>
+            ))}
+          </div>
         </Field>
         <Field label="Fundo do quadro">
           <Select value={local.frame_background ?? ""} onValueChange={(v) => clientUpdate("frame_background", v as Order["frame_background"], "Fundo do quadro", (val) => val ? FRAME_BACKGROUND_LABELS[val] : "—")}>

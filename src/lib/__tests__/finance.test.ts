@@ -45,6 +45,7 @@ const baseOrder = {
   frame_internal_type: "baixa" as const,
   extra_small_frames: null,
   extra_small_frames_qty: null,
+  additional_main_frames: {},
   production_cost_snapshot: SNAPSHOT,
 };
 

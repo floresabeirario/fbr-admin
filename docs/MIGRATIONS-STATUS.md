@@ -11,6 +11,7 @@
 
 | Migração | Descrição | Estado |
 |----------|-----------|--------|
+| `107_additional_main_frames` | Quadros principais adicionais: `orders.additional_main_frames` JSONB `{tamanho: qty}` (sessão 163). **Correr ANTES do deploy do site e do admin** | ⏳ por correr |
 | `106_templates_vale_restante_credito` | Templates do vale (restante a pagar, crédito que sobra) + factos do Cérebro | ✅ 06/09 (verificada por query) |
 | `105_museum_glass_costs` | Custo real do vidro (kind=`glass`) + vidro museu nos mini-quadros (`museum_glass_mini`) | ✅ 06/09 |
 | `104_museum_glass` | Vidro museu passa a opção paga: `orders.museum_glass` + categoria `glass_supplement` | ✅ 26/08 |

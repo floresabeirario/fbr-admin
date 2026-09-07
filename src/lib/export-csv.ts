@@ -37,6 +37,7 @@ import {
   PARTNER_ACCEPTS_COMMISSION_LABELS,
 } from "@/types/partner";
 import { format, parseISO } from "date-fns";
+import { additionalFramesLabel } from "./additional-frames";
 
 function fmtDate(value: string | null): string {
   if (!value) return "";
@@ -80,6 +81,7 @@ const COLUMNS: Array<{ header: string; get: (o: Order) => string }> = [
   { header: "Localização",              get: (o) => o.event_location ?? "" },
   { header: "Tipo de flores",           get: (o) => o.flower_type ?? "" },
   { header: "Tamanho moldura",          get: (o) => lookup(o.frame_size, FRAME_SIZE_LABELS) },
+  { header: "Quadros principais adicionais", get: (o) => additionalFramesLabel(o.additional_main_frames) },
   { header: "Fundo do quadro",          get: (o) => lookup(o.frame_background, FRAME_BACKGROUND_LABELS) },
   { header: "Vidro museu",              get: (o) => lookup(o.museum_glass, MUSEUM_GLASS_LABELS) },
   { header: "Vidro museu (minis)",      get: (o) => lookup(o.museum_glass_mini, MUSEUM_GLASS_LABELS) },

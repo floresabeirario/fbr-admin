@@ -8,6 +8,7 @@ import type {
   PricingSnapshotLine,
 } from "@/types/pricing";
 import type { Order } from "@/types/database";
+import { additionalFramesEntries } from "./additional-frames";
 
 // Campos da encomenda usados no cálculo (subconjunto para minimizar
 // acoplamento — server actions só precisam de garantir estes campos).
@@ -22,6 +23,9 @@ export interface OrderForPricing {
   museum_glass?: Order["museum_glass"];
   // Vidro dos mini-quadros, escolha própria (mig 105).
   museum_glass_mini?: Order["museum_glass_mini"];
+  // Quadros principais adicionais por tamanho (mig 107). Opcional: ausente
+  // ou {} = só o quadro principal (todas as encomendas antigas).
+  additional_main_frames?: Order["additional_main_frames"] | null;
   pyramid_frame: Order["pyramid_frame"];
   extra_small_frames: Order["extra_small_frames"];
   extra_small_frames_qty: Order["extra_small_frames_qty"];
@@ -152,6 +156,57 @@ export function computePricingSnapshot(
         unit_price: glass.price,
         subtotal: glass.price,
       });
+    }
+  }
+
+  // 2c. Quadros principais ADICIONAIS (mig 107). Cada um entra pelo
+  //     preço cheio do seu tamanho, com o mesmo fundo e a mesma escolha de
+  //     vidro museu do principal (decisão da Maria, 07/09/2026). As linhas
+  //     levam variant: "additional" para o site e os templates as
+  //     distinguirem das do principal (que são sempre as primeiras).
+  //     Os suplementos só entram quando custam alguma coisa.
+  for (const [size, qty] of additionalFramesEntries(order.additional_main_frames)) {
+    const b = findItem(pricing, "base_frame", `${baseKeyPrefix}${size}`);
+    if (b) {
+      lines.push({
+        category: b.category,
+        key: b.key,
+        label: b.label,
+        qty,
+        unit_price: b.price,
+        subtotal: b.price * qty,
+        variant: "additional",
+      });
+    }
+    if (order.frame_background === "fotografia") {
+      const s =
+        findItem(pricing, "background_supplement", `fotografia_${size}`) ??
+        findItem(pricing, "background_supplement", "fotografia");
+      if (s && s.price > 0) {
+        lines.push({
+          category: s.category,
+          key: s.key,
+          label: s.label,
+          qty,
+          unit_price: s.price,
+          subtotal: s.price * qty,
+          variant: "additional",
+        });
+      }
+    }
+    if (order.museum_glass === "sim") {
+      const g = findItem(pricing, "glass_supplement", `museum_glass_${size}`);
+      if (g && g.price > 0) {
+        lines.push({
+          category: g.category,
+          key: g.key,
+          label: g.label,
+          qty,
+          unit_price: g.price,
+          subtotal: g.price * qty,
+          variant: "additional",
+        });
+      }
     }
   }
 
