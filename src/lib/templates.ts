@@ -982,3 +982,82 @@ export function rankTemplatesForStatus(
 
   return { suggested: finalSuggested, others };
 }
+
+// ─── Fusão de templates para o assistente ──────────────────
+// fieldSuggestionBases pode devolver mais do que uma template para a
+// mesma situação (ex.: pré-reserva com sinal + as 3 opções de envio,
+// porque o cliente respondeu "Não sei"). Se as duas forem para o prompt
+// lado a lado, o modelo cola uma a seguir à outra, com a despedida da
+// primeira a meio e um "---" entre elas (sessão 164). A junção passa a
+// ser feita aqui, de forma determinística: a template principal é a
+// mensagem, e cada bloco secundário entra no parágrafo âncora (quando o
+// há) ou antes dos parágrafos de fecho.
+
+export interface TemplateBloco {
+  /** slug-base (sem sufixo de língua), ex. "opcoes_entrega_flores" */
+  base: string;
+  nome: string;
+  /** corpo já preenchido com os dados da encomenda */
+  corpo: string;
+}
+
+// Templates que nunca são a mensagem inteira: são pedaços para encaixar
+// numa principal. Fora daqui, uma template conta como principal.
+const BLOCOS_SECUNDARIOS = new Set(["opcoes_entrega_flores", "recolha_orcamento"]);
+
+// Parágrafo da principal que o bloco SUBSTITUI, por dizer o contrário
+// (a pré-reserva adia a conversa do envio; o bloco tem-na já).
+const ANCORAS_SUBSTITUIR: Record<string, string[]> = {
+  opcoes_entrega_flores: [
+    "Após a confirmação da reserva, alinharemos",
+    "Once the booking is confirmed, we will arrange",
+  ],
+};
+
+// Parágrafos de fecho da principal (telefonema, agradecimento final):
+// um bloco sem âncora encaixa antes deles, nunca depois.
+const FECHO = [
+  /^Se quiser, teremos todo o gosto/i,
+  /^Mais uma vez, muito obrigad/i,
+  /^Ficamos ao dispor/i,
+  /^If you would like, we/i,
+  /^Once again, thank you/i,
+  /^We remain at your disposal/i,
+];
+
+function encaixarBloco(principal: string, bloco: TemplateBloco): string {
+  const paragrafos = principal.split(/\n{2,}/);
+  const ancoras = ANCORAS_SUBSTITUIR[bloco.base] ?? [];
+  const idxAncora = paragrafos.findIndex((p) =>
+    ancoras.some((a) => p.trim().startsWith(a)),
+  );
+  if (idxAncora >= 0) {
+    paragrafos.splice(idxAncora, 1, bloco.corpo.trim());
+    return paragrafos.join("\n\n");
+  }
+  // Sem âncora: antes do primeiro parágrafo de fecho contíguo ao fim.
+  let idxFecho = paragrafos.length;
+  while (idxFecho > 0 && FECHO.some((re) => re.test(paragrafos[idxFecho - 1].trim()))) {
+    idxFecho -= 1;
+  }
+  paragrafos.splice(idxFecho, 0, bloco.corpo.trim());
+  return paragrafos.join("\n\n");
+}
+
+/**
+ * Funde os blocos secundários na primeira template principal. Devolve a
+ * lista com a principal já fundida e sem os secundários. Sem principal
+ * (só blocos) ou sem secundários, devolve a lista tal como veio.
+ */
+export function fundirTemplates(blocos: TemplateBloco[]): TemplateBloco[] {
+  const idxPrincipal = blocos.findIndex((b) => !BLOCOS_SECUNDARIOS.has(b.base));
+  const secundarios = blocos.filter((b) => BLOCOS_SECUNDARIOS.has(b.base));
+  if (idxPrincipal < 0 || secundarios.length === 0) return blocos;
+
+  const principal = blocos[idxPrincipal];
+  const corpo = secundarios.reduce((acc, b) => encaixarBloco(acc, b), principal.corpo);
+  const nome = [principal.nome, ...secundarios.map((b) => b.nome)].join(" + ");
+  return blocos
+    .filter((b) => !BLOCOS_SECUNDARIOS.has(b.base))
+    .map((b) => (b === principal ? { ...b, nome, corpo } : b));
+}

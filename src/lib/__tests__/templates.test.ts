@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   fieldSuggestionBases,
+  fundirTemplates,
   rankTemplatesForStatus,
   renderOrderTemplate,
   requiredContentPoints,
@@ -622,5 +623,69 @@ describe("vale-presente com valor conhecido", () => {
       order: ordem({ budget: 300 }), settings,
     });
     expect(semValor).toBe("[][]");
+  });
+});
+
+// Fusão de templates para o assistente (sessão 164): pré-reserva + opções
+// de envio saíam coladas com "---" e a despedida a meio. A junção passa
+// a ser determinística, feita antes de o modelo ver o texto.
+describe("fundirTemplates", () => {
+  const preReserva = {
+    base: "pre_reserva_tamanho_indeciso",
+    nome: "Pré-reserva",
+    corpo: [
+      "Bom dia Isadora 🌸",
+      "Muito obrigada por ter preenchido o formulário!",
+      "O sinal é 30% deste valor, ou seja, 90,00 €.",
+      "Após a confirmação da reserva, alinharemos todos os detalhes da entrega das flores, para que as possamos receber o mais rapidamente possível.",
+      "Aqui ficam os dados para o pagamento do sinal:\nIBAN PT50",
+      "Se quiser, teremos todo o gosto em falar consigo por telefone 😊",
+      "Mais uma vez, muito obrigada pela confiança! 🌺",
+    ].join("\n\n"),
+  };
+  const opcoes = {
+    base: "opcoes_entrega_flores",
+    nome: "Opções de envio",
+    corpo: "O nosso estúdio fica em Coimbra, pelo que existem três formas:\n\n💐 Em mãos\n\n🚗 Recolha\n\n📦 CTT\n\nDiga-nos qual prefere 🌼",
+  };
+  const recolha = {
+    base: "recolha_orcamento",
+    nome: "Morada da recolha",
+    corpo: "Para podermos calcular o valor da recolha, pode indicar-nos a morada? 🌻",
+  };
+
+  it("substitui o parágrafo 'após a confirmação' pelas opções de envio e devolve UMA template", () => {
+    const out = fundirTemplates([preReserva, opcoes]);
+    expect(out).toHaveLength(1);
+    const corpo = out[0].corpo;
+    expect(corpo).not.toContain("Após a confirmação da reserva");
+    expect(corpo).not.toContain("---");
+    expect(corpo).toContain("O nosso estúdio fica em Coimbra");
+    // O bloco entra antes dos dados de pagamento e a despedida fica no fim
+    expect(corpo.indexOf("Coimbra")).toBeLessThan(corpo.indexOf("IBAN PT50"));
+    expect(corpo.trim().endsWith("Mais uma vez, muito obrigada pela confiança! 🌺")).toBe(true);
+    // Uma só saudação
+    expect(corpo.match(/Bom dia/g)).toHaveLength(1);
+    expect(out[0].nome).toBe("Pré-reserva + Opções de envio");
+  });
+
+  it("um bloco sem âncora encaixa antes dos parágrafos de fecho", () => {
+    const out = fundirTemplates([preReserva, recolha]);
+    const paras = out[0].corpo.split("\n\n");
+    const i = paras.findIndex((p) => p.startsWith("Para podermos calcular"));
+    expect(paras[i + 1]).toMatch(/^Se quiser, teremos todo o gosto/);
+    expect(paras[i + 2]).toMatch(/^Mais uma vez/);
+  });
+
+  it("a ordem não importa: a principal é a primeira que não é bloco", () => {
+    const out = fundirTemplates([opcoes, preReserva]);
+    expect(out).toHaveLength(1);
+    expect(out[0].corpo.startsWith("Bom dia Isadora")).toBe(true);
+  });
+
+  it("sem principal (só blocos) ou sem blocos devolve tal como veio", () => {
+    expect(fundirTemplates([opcoes])).toEqual([opcoes]);
+    expect(fundirTemplates([preReserva])).toEqual([preReserva]);
+    expect(fundirTemplates([])).toEqual([]);
   });
 });

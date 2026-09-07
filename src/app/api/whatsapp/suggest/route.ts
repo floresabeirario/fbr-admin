@@ -11,6 +11,7 @@ import {
 import {
   dadosPagamento,
   fieldSuggestionBases,
+  fundirTemplates,
   renderOrderTemplate,
   requiredContentPoints,
   resumoEncomendaLinhas,
@@ -508,27 +509,34 @@ export async function POST(request: NextRequest) {
   // maneira (sessão 162: "invisto tempo na estrutura das templates e
   // ele reescreve"). Agora vão preenchidas com os dados reais, em
   // primeiro plano, com a ordem de as manter tal como estão.
+  // Quando as regras devolvem mais do que uma (pré-reserva + opções de
+  // envio), a junção é feita aqui por fundirTemplates, não pelo modelo:
+  // dado as duas soltas, ele colava-as com a despedida a meio e um
+  // "---" entre elas (sessão 164).
   const templatesBase = encomendaCompleta
-    ? suggestionBases
-        .map((base) => {
-          const daLingua = templates.find(
-            (t) => t.language === probableLang && slugBase(t.slug) === base,
-          );
-          const qualquer = daLingua ?? templates.find((t) => slugBase(t.slug) === base);
-          return qualquer ?? null;
-        })
-        .filter((t): t is MessageTemplate => t !== null)
-        .map((t) => ({
-          nome: t.name,
-          corpo: renderOrderTemplate(t, {
-            order: encomendaCompleta as Order,
-            settings: settingsForPayment,
-            now: lisbonWallClock(agora),
-          }),
-        }))
+    ? fundirTemplates(
+        suggestionBases
+          .map((base) => {
+            const daLingua = templates.find(
+              (t) => t.language === probableLang && slugBase(t.slug) === base,
+            );
+            const qualquer = daLingua ?? templates.find((t) => slugBase(t.slug) === base);
+            return qualquer ? { base, template: qualquer } : null;
+          })
+          .filter((x): x is { base: string; template: MessageTemplate } => x !== null)
+          .map(({ base, template: t }) => ({
+            base,
+            nome: t.name,
+            corpo: renderOrderTemplate(t, {
+              order: encomendaCompleta as Order,
+              settings: settingsForPayment,
+              now: lisbonWallClock(agora),
+            }),
+          })),
+      )
     : [];
   const suggestionsBlock = templatesBase.length
-    ? `\n\n## TEMPLATE BASE — é isto que a mensagem tem de ser\n\nPelas regras da FBR, a situação desta encomenda corresponde à(s) template(s) abaixo, já preenchida(s) com os dados reais desta encomenda. A Maria escreveu-as com uma estrutura pensada: a ordem das ideias e as frases não são ao acaso.\n\nRegras:\n- A tua mensagem É esta template. Mantém a ordem dos parágrafos e as frases tal como estão; não parafraseies o que já está escrito.\n- Só mudas o que a conversa obrigar: responder a uma pergunta que o cliente fez, cobrir um ponto OBRIGATÓRIO que a template não cobre, ou cortar um parágrafo que já não faz sentido (por exemplo, já foi dito nesta conversa ou por email). O que acrescentares entra no sítio natural, sem reescrever o resto.\n- Se houver mais de uma template, encadeia-as pela ordem em que aparecem, com uma só saudação e uma só despedida.\n- Se a regra de saudação mais abaixo disser NÃO, corta a linha da saudação da template.\n- Os exemplos de voz mais abaixo servem só para o que escreveres de novo, nunca para reescrever a template.\n- Um valor que tenha ficado em branco na template não se inventa: escreve [CONFIRMAR: o que falta].\n\n${templatesBase.map((t) => `### ${t.nome}\n${t.corpo}`).join("\n\n---\n\n")}`
+    ? `\n\n## TEMPLATE BASE — é isto que a mensagem tem de ser\n\nPelas regras da FBR, a situação desta encomenda corresponde à(s) template(s) abaixo, já preenchida(s) com os dados reais desta encomenda. A Maria escreveu-as com uma estrutura pensada: a ordem das ideias e as frases não são ao acaso.\n\nRegras:\n- A tua mensagem É esta template. Mantém a ordem dos parágrafos e as frases tal como estão; não parafraseies o que já está escrito.\n- Só mudas o que a conversa obrigar: responder a uma pergunta que o cliente fez, cobrir um ponto OBRIGATÓRIO que a template não cobre, ou cortar um parágrafo que já não faz sentido (por exemplo, já foi dito nesta conversa ou por email). O que acrescentares entra no sítio natural, sem reescrever o resto.\n- A mensagem que envias é UM texto corrido: nunca escreves separadores ("---", "***", títulos) nem juntas duas mensagens uma a seguir à outra. Se aparecer mais de uma template abaixo, a primeira é a mensagem e as seguintes são blocos a encaixar dentro dela, antes dos parágrafos finais (telefonema, agradecimento). Fica uma só saudação e uma só despedida, e a despedida é sempre o último parágrafo.\n- Se a regra de saudação mais abaixo disser NÃO, corta a linha da saudação da template.\n- Os exemplos de voz mais abaixo servem só para o que escreveres de novo, nunca para reescrever a template.\n- Um valor que tenha ficado em branco na template não se inventa: escreve [CONFIRMAR: o que falta].\n\n${templatesBase.map((t) => `### ${t.nome}\n${t.corpo}`).join("\n\n")}`
     : "";
 
   // Pontos que a mensagem TEM de cobrir (o cliente deixou-os pendentes no
