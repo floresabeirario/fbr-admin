@@ -55,6 +55,7 @@ import { toast } from "sonner";
 import HardDeleteDialog from "@/components/hard-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -1219,12 +1220,34 @@ export default function PreservacaoClient({
     });
   }
 
-  const totalActive = initialOrders.filter(
-    (o) => o.status !== "cancelado" && o.status !== "quadro_recebido"
-  ).length;
-  const totalNaoCanceladas = initialOrders.filter(
-    (o) => o.status !== "cancelado"
-  ).length;
+  // Contagem do cabeçalho. Base: encomendas não arquivadas (initialOrders),
+  // com os movimentos ópticos aplicados. É de propósito global: ignora
+  // pesquisa, filtros e vista de serviço, porque é o retrato da carteira
+  // toda. O tooltip mostra a decomposição para a contagem ser auditável
+  // (a linha "A ver agora" cobre o caso de haver filtros activos).
+  const headerGrouped = groupOrders(ordersWithOptimistic);
+  const headerBreakdown: { label: string; n: number }[] = [
+    { label: "Sem resposta", n: headerGrouped.sem_resposta.length },
+    { label: "Pré-reservas", n: headerGrouped.pre_reservas.length },
+    { label: "Reservas", n: headerGrouped.reservas.length },
+    { label: "Preservação e design", n: headerGrouped.preservacao_design.length },
+    { label: "Finalização", n: headerGrouped.finalizacao.length },
+    { label: "Sem grupo", n: headerGrouped.orfas.length },
+  ].filter((r) => r.label !== "Sem grupo" || r.n > 0);
+  const totalActive = headerBreakdown.reduce((sum, r) => sum + r.n, 0);
+  const totalConcluidos = headerGrouped.concluidos.length;
+  const totalCancelados = headerGrouped.cancelamentos.length;
+  // "Confirmadas" = clientes que passaram de pré-reserva a encomenda real
+  // (adjudicadas), incluíndo as já entregues. É o "quantos clientes já
+  // tivemos": pré-reservas e sem-resposta ficam de fora de propósito, tal
+  // como as canceladas e as arquivadas.
+  const totalConfirmadas =
+    headerGrouped.reservas.length +
+    headerGrouped.preservacao_design.length +
+    headerGrouped.finalizacao.length +
+    totalConcluidos;
+  const isFiltrado =
+    search.trim().length > 0 || activeFiltersCount > 0 || serviceFilter !== "todos";
 
   const VIEW_BUTTONS = [
     { id: "tabela" as ViewType,     label: "Tabela",     icon: <LayoutList className="h-3.5 w-3.5" /> },
@@ -1239,10 +1262,49 @@ export default function PreservacaoClient({
       <div className="flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-cream-200 bg-surface shrink-0">
         <div>
           <h1 className="text-lg sm:text-xl font-semibold text-cocoa-900">Preservação de Flores</h1>
-          <p className="text-xs text-cocoa-700 mt-0.5">
-            {totalActive} encomenda{totalActive !== 1 ? "s" : ""} em curso ·{" "}
-            <span title="Excluindo canceladas">{totalNaoCanceladas} total</span>
-          </p>
+          <Tooltip>
+            <TooltipTrigger
+              className="text-xs text-cocoa-700 mt-0.5 cursor-help underline decoration-dotted decoration-cocoa-300 underline-offset-4"
+              aria-label="Como é feita esta contagem"
+            >
+              {totalActive} encomenda{totalActive !== 1 ? "s" : ""} em curso ·{" "}
+              {totalConfirmadas} confirmada{totalConfirmadas !== 1 ? "s" : ""}
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              align="start"
+              className="block w-72 max-w-none items-start px-3 py-2.5 text-left"
+            >
+              <p className="font-medium">Em curso ({totalActive})</p>
+              <table className="mt-1 w-full">
+                <tbody>
+                  {headerBreakdown.map((r) => (
+                    <tr key={r.label}>
+                      <td className="py-px pr-2 opacity-80">{r.label}</td>
+                      <td className="py-px text-right tabular-nums">{r.n}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 border-t border-white/20 pt-2">
+                <span className="font-medium">Confirmadas ({totalConfirmadas})</span>
+              </p>
+              <p className="mt-0.5 opacity-80">
+                Reservas + Preservação e design + Finalização + {totalConcluidos} concluída
+                {totalConcluidos !== 1 ? "s" : ""}. Pré-reservas e sem-resposta não contam.
+              </p>
+              <p className="mt-1.5 opacity-70">
+                Fora de tudo: {totalCancelados} cancelada{totalCancelados !== 1 ? "s" : ""} e{" "}
+                {archivedOrders.length} arquivada{archivedOrders.length !== 1 ? "s" : ""}.
+              </p>
+              {isFiltrado && (
+                <p className="mt-1.5 opacity-70">
+                  Estes números são de todas as encomendas — não seguem os filtros nem a
+                  vista. A ver agora: {filteredOrders.length}.
+                </p>
+              )}
+            </TooltipContent>
+          </Tooltip>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none min-w-0">
