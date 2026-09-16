@@ -48,6 +48,21 @@ describe("levaSaudacao", () => {
     expect(levaSaudacao([msg(30), msg(2, "sent_echo")], agora)).toBe(false);
   });
 
+  // Sessão 166: a cliente escreveu há 1 h e nós nunca respondemos hoje.
+  // Antes saía "NÃO, já nos cumprimentámos hoje" — e não tínhamos.
+  it("cliente escreveu há pouco mas a FBR ainda não falou hoje: sim", () => {
+    expect(levaSaudacao([msg(60)], agora)).toBe(true);
+    expect(levaSaudacao([msg(2)], agora)).toBe(true);
+  });
+
+  it("FBR falou ontem, cliente respondeu hoje há 10 min: sim", () => {
+    expect(levaSaudacao([msg(20 * 60, "sent_echo"), msg(10)], agora)).toBe(true);
+  });
+
+  it("FBR falou hoje há 1 h, cliente respondeu há 5 min: não", () => {
+    expect(levaSaudacao([msg(60, "sent_echo"), msg(5)], agora)).toBe(false);
+  });
+
   it("última mensagem há mais de 3 h: sim", () => {
     expect(levaSaudacao([msg(4 * 60)], agora)).toBe(true);
   });
@@ -66,7 +81,8 @@ describe("levaSaudacao", () => {
 
 describe("regraSaudacao / transcriptComTempos", () => {
   it("escreve a decisão no prompt", () => {
-    expect(regraSaudacao([msg(2)], agora)).toMatch(/Saudação: NÃO.*há 2 min/);
+    expect(regraSaudacao([msg(30, "sent_echo"), msg(2)], agora)).toMatch(/Saudação: NÃO.*há 2 min/);
+    expect(regraSaudacao([msg(2)], agora)).toMatch(/Saudação: SIM.*ainda não teve resposta/);
     expect(regraSaudacao([], agora)).toMatch(/Saudação: SIM/);
   });
 

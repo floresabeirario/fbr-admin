@@ -28,6 +28,11 @@ import {
   transcriptComTempos,
   type TranscriptMessage,
 } from "@/lib/whatsapp/transcript";
+import {
+  classificarPendencias,
+  pendenciasBlock,
+  type MensagemFbr,
+} from "@/lib/whatsapp/pendencias";
 import { fetchThreadsWithContact } from "@/lib/google/gmail";
 import { splitQuotedEmail } from "@/lib/email-quotes";
 import {
@@ -176,17 +181,34 @@ const LINKED_ORDER_COLUMNS =
 const EMAIL_HISTORY_LIMIT = 8;
 const EMAIL_BODY_CHARS = 700;
 
-async function fetchEmailHistory(clientEmail: string | null | undefined): Promise<string> {
+type EmailHistory = {
+  /** Bloco pronto para o prompt ("" se não houver emails). */
+  block: string;
+  /** Só os emails enviados por nós: alimentam a classificação das pendências. */
+  enviados: MensagemFbr[];
+};
+
+const SEM_EMAILS: EmailHistory = { block: "", enviados: [] };
+
+async function fetchEmailHistory(clientEmail: string | null | undefined): Promise<EmailHistory> {
   const email = (clientEmail ?? "").trim();
-  if (!email.includes("@")) return "";
+  if (!email.includes("@")) return SEM_EMAILS;
   try {
     const res = await fetchThreadsWithContact(email);
-    if (res.status !== "ok" || res.threads.length === 0) return "";
+    if (res.status !== "ok" || res.threads.length === 0) return SEM_EMAILS;
     const todas = res.threads.flatMap((t) =>
       t.messages.map((m) => ({ ...m, subject: t.subject })),
     );
     todas.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
-    return todas
+    // Para as pendências contam TODOS os emails nossos, não só os 8 do
+    // prompt: um extra explicado por email há meses continua explicado.
+    const enviados: MensagemFbr[] = todas
+      .filter((m) => m.direction === "sent" && m.date)
+      .map((m) => ({
+        text: splitQuotedEmail(m.body || m.snippet).visible,
+        at: m.date as string,
+      }));
+    const block = todas
       .slice(-EMAIL_HISTORY_LIMIT)
       .map((m) => {
         const tag = m.direction === "sent" ? "FBR" : "CLIENTE";
@@ -201,9 +223,10 @@ ${corpo}`;
       })
       .filter((linha) => linha.trim().length > 0)
       .join("\n\n");
+    return { block, enviados };
   } catch (err) {
     console.warn("[wa-suggest] falhou a puxar emails (segue sem eles)", err);
-    return "";
+    return SEM_EMAILS;
   }
 }
 
@@ -242,7 +265,7 @@ function escolhasExtraLines(o: LinkedOrder): string[] {
     const qtyTxt = typeof qty === "number" && qty > 0 ? `, quantidade ${qty}` : "";
     const pendente =
       valor === "mais_info"
-        ? " ← PENDENTE: o cliente pediu mais informação sobre isto no formulário"
+        ? " (pediu mais informação no formulário; ver a secção Pendências)"
         : "";
     out.push(`  ${label}: ${YES_NO_INFO_LABELS[valor]}${qtyTxt}${pendente}`);
   }
@@ -367,6 +390,25 @@ export async function POST(request: NextRequest) {
     : { data: [] };
 
   const recentMessages = (msgs ?? []).reverse() as TranscriptMessage[];
+
+  // Tudo o que já dissemos nesta conversa, sem o limite das 20 recentes:
+  // é contra isto que se vê se uma pendência do formulário já foi
+  // tratada. Um extra explicado há um mês não se explica outra vez.
+  const { data: ecos } = conversationId
+    ? await supabase
+        .from("whatsapp_messages")
+        .select("text, received_at")
+        .eq("conversation_id", conversationId)
+        .eq("direction", "sent_echo")
+        .not("text", "is", null)
+        .order("received_at", { ascending: true })
+        .limit(1000)
+    : { data: [] };
+  const mensagensNossasWa: MensagemFbr[] = (
+    (ecos ?? []) as Array<{ text: string | null; received_at: string }>
+  )
+    .filter((m) => m.text)
+    .map((m) => ({ text: m.text as string, at: m.received_at }));
   // "Agora" é uma coisa só para o pedido inteiro: transcript, regra de
   // saudação e a saudação das templates ({saudacao}) têm de concordar.
   const agora = new Date();
@@ -536,17 +578,18 @@ export async function POST(request: NextRequest) {
       )
     : [];
   const suggestionsBlock = templatesBase.length
-    ? `\n\n## TEMPLATE BASE — é isto que a mensagem tem de ser\n\nPelas regras da FBR, a situação desta encomenda corresponde à(s) template(s) abaixo, já preenchida(s) com os dados reais desta encomenda. A Maria escreveu-as com uma estrutura pensada: a ordem das ideias e as frases não são ao acaso.\n\nRegras:\n- A tua mensagem É esta template. Mantém a ordem dos parágrafos e as frases tal como estão; não parafraseies o que já está escrito.\n- Só mudas o que a conversa obrigar: responder a uma pergunta que o cliente fez, cobrir um ponto OBRIGATÓRIO que a template não cobre, ou cortar um parágrafo que já não faz sentido (por exemplo, já foi dito nesta conversa ou por email). O que acrescentares entra no sítio natural, sem reescrever o resto.\n- A mensagem que envias é UM texto corrido: nunca escreves separadores ("---", "***", títulos) nem juntas duas mensagens uma a seguir à outra. Se aparecer mais de uma template abaixo, a primeira é a mensagem e as seguintes são blocos a encaixar dentro dela, antes dos parágrafos finais (telefonema, agradecimento). Fica uma só saudação e uma só despedida, e a despedida é sempre o último parágrafo.\n- Se a regra de saudação mais abaixo disser NÃO, corta a linha da saudação da template.\n- Os exemplos de voz mais abaixo servem só para o que escreveres de novo, nunca para reescrever a template.\n- Um valor que tenha ficado em branco na template não se inventa: escreve [CONFIRMAR: o que falta].\n\n${templatesBase.map((t) => `### ${t.nome}\n${t.corpo}`).join("\n\n")}`
+    ? `\n\n## TEMPLATE BASE — é isto que a mensagem tem de ser\n\nPelas regras da FBR, a situação desta encomenda corresponde à(s) template(s) abaixo, já preenchida(s) com os dados reais desta encomenda. A Maria escreveu-as com uma estrutura pensada: a ordem das ideias e as frases não são ao acaso.\n\nRegras:\n- A tua mensagem É esta template. Mantém a ordem dos parágrafos e as frases tal como estão; não parafraseies o que já está escrito.\n- Só mudas o que a conversa obrigar: responder a uma pergunta que o cliente fez, tratar uma pendência "ainda por tratar" (secção Pendências) que a template não cobre, ou cortar um parágrafo que já não faz sentido (por exemplo, já foi dito nesta conversa ou por email). O que acrescentares entra no sítio natural, sem reescrever o resto.\n- A mensagem que envias é UM texto corrido: nunca escreves separadores ("---", "***", títulos) nem juntas duas mensagens uma a seguir à outra. Se aparecer mais de uma template abaixo, a primeira é a mensagem e as seguintes são blocos a encaixar dentro dela, antes dos parágrafos finais (telefonema, agradecimento). Fica uma só saudação e uma só despedida, e a despedida é sempre o último parágrafo.\n- Se a regra de saudação mais abaixo disser NÃO, corta a linha da saudação da template.\n- Os exemplos de voz mais abaixo servem só para o que escreveres de novo, nunca para reescrever a template.\n- Um valor que tenha ficado em branco na template não se inventa: escreve [CONFIRMAR: o que falta].\n\n${templatesBase.map((t) => `### ${t.nome}\n${t.corpo}`).join("\n\n")}`
     : "";
 
-  // Pontos que a mensagem TEM de cobrir (o cliente deixou-os pendentes no
-  // formulário). Ao contrário dos templates acima, isto não é uma dica.
+  // O que a cliente deixou em aberto no formulário. Até à sessão 166 ia
+  // como OBRIGATÓRIO em todas as mensagens enquanto a encomenda não
+  // fechasse; agora cruza-se com o que já lhe dissemos (WhatsApp +
+  // email) e o bloco distingue "por tratar" de "já tratada" — ver
+  // pendencias.ts. Monta-se depois de termos os emails (Promise.all
+  // mais abaixo).
   const required = linkedOrders.length
     ? requiredContentPoints(linkedOrders[0])
     : [];
-  const requiredBlock = required.length
-    ? `\n\n## OBRIGATÓRIO — esta mensagem TEM de cobrir todos estes pontos\n\nO cliente deixou estas questões pendentes no formulário. A mensagem só está correcta se as tratar todas, integradas no texto. Se a template base já cobre um ponto, mantém a forma da template; o que a template não cobre, acrescenta no sítio natural:\n\n${required.map((p) => `- ${p.text}`).join("\n")}`
-    : "";
 
   const notesBlock = conv?.notes ? `\n\nNotas guardadas sobre esta pessoa:\n${conv.notes}` : "";
 
@@ -627,14 +670,19 @@ Muda a FORMA, não o conteúdo: os factos, valores, datas, links e os pontos obr
     fetchEmailHistory(linkedOrders[0]?.email),
   ]);
   const voiceBlock = voiceExamplesBlock(voiceExamples, primeiroNomeCliente);
-  const emailHistoryBlock = emailHistory
+  const pendencias = classificarPendencias(required, [
+    ...mensagensNossasWa,
+    ...emailHistory.enviados,
+  ]);
+  const requiredBlock = pendenciasBlock(pendencias);
+  const emailHistoryBlock = emailHistory.block
     ? `
 
 ## Emails trocados com esta mesma pessoa (outro canal)
 
 O WhatsApp acima não é a história toda: isto foi trocado por email, do mais antigo para o mais recente (citações cortadas). Vale como já dito — não repitas nem contradigas o que aqui está, e se a resposta a dar já foi dada por email, não a voltes a dar como se fosse nova.
 
-${emailHistory}`
+${emailHistory.block}`
     : "";
 
   // ─── System prompt (cacheable) ───

@@ -63,9 +63,16 @@ export function transcriptComTempos(
 }
 
 /**
- * A próxima mensagem leva saudação? Não, se a conversa está em curso:
- * última mensagem há menos de SAUDACAO_JANELA_MS e no mesmo dia (Lisboa).
- * Sem mensagens, ou depois de um intervalo, sim.
+ * A próxima mensagem leva saudação?
+ *
+ * Não, só quando a conversa está em curso E já fomos nós a falar hoje:
+ * última mensagem (de qualquer lado) há menos de SAUDACAO_JANELA_MS, no
+ * mesmo dia de Lisboa, e pelo menos uma mensagem da FBR nesse mesmo dia.
+ *
+ * O "já fomos nós a falar" é o que faltava (sessão 166): a cliente
+ * escrevia há uma hora sem nunca ter tido resposta e o assistente
+ * abria sem saudação como se estivéssemos a meio de uma conversa. Só
+ * se pode "continuar a falar" depois de se ter começado.
  */
 export function levaSaudacao(msgs: TranscriptMessage[], now: Date): boolean {
   const ultima = msgs[msgs.length - 1];
@@ -73,15 +80,34 @@ export function levaSaudacao(msgs: TranscriptMessage[], now: Date): boolean {
   const t = new Date(ultima.received_at);
   if (Number.isNaN(t.getTime())) return true;
   if (now.getTime() - t.getTime() >= SAUDACAO_JANELA_MS) return true;
-  return lisbonDayKey(t) !== lisbonDayKey(now);
+  const hoje = lisbonDayKey(now);
+  if (lisbonDayKey(t) !== hoje) return true;
+  return !fbrFalouNoDia(msgs, hoje);
+}
+
+/** Houve alguma mensagem nossa no dia de Lisboa indicado? */
+function fbrFalouNoDia(msgs: TranscriptMessage[], dia: string): boolean {
+  return msgs.some((m) => {
+    if (m.direction !== "sent_echo") return false;
+    const t = new Date(m.received_at);
+    return !Number.isNaN(t.getTime()) && lisbonDayKey(t) === dia;
+  });
 }
 
 /** Texto da regra de saudação para o prompt, já decidida em código. */
 export function regraSaudacao(msgs: TranscriptMessage[], now: Date): string {
   if (levaSaudacao(msgs, now)) {
+    const ultima = msgs[msgs.length - 1];
+    const semResposta =
+      ultima &&
+      ultima.direction === "received" &&
+      !fbrFalouNoDia(msgs, lisbonDayKey(now));
+    if (semResposta) {
+      return "Saudação: SIM. A cliente escreveu e ainda não teve resposta nossa hoje, por isso esta mensagem abre a conversa de hoje: saudação habitual e o primeiro nome.";
+    }
     return "Saudação: SIM. Passou tempo desde a última troca (ou é a primeira mensagem), por isso abre com a saudação habitual e o primeiro nome.";
   }
   const ultima = msgs[msgs.length - 1];
   const dist = intervaloHumano(ultima.received_at, now);
-  return `Saudação: NÃO. A conversa está em curso (última mensagem ${dist}). Já nos cumprimentámos hoje: começa directamente pelo conteúdo, sem "Olá", "Boa tarde", nem repetir o nome na abertura. Responde como quem continua a falar.`;
+  return `Saudação: NÃO. A conversa está em curso (última mensagem ${dist}) e já lhe escrevemos hoje: começa directamente pelo conteúdo, sem "Olá", "Boa tarde", nem repetir o nome na abertura. Responde como quem continua a falar.`;
 }
