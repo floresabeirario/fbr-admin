@@ -10,6 +10,7 @@ import {
 } from "@/lib/healthcheck-cache";
 import { computeDailyPushItems, computeTaskDeadlineItems } from "@/lib/push/daily";
 import { cleanupOrphanBouquetPhotos } from "@/lib/storage/bouquet-photos";
+import { fetchPendingMediaBatch } from "@/lib/whatsapp/media-fetch";
 import { claimDedupKey, sendPushToAdmins, sendPushToEmails } from "@/lib/push/send";
 import type { Order } from "@/types/database";
 import type { Task } from "@/types/tasks";
@@ -72,6 +73,16 @@ export async function GET(request: Request) {
     await cleanupOrphanBouquetPhotos(supabase);
   } catch (err) {
     console.error("[cron/healthcheck] limpeza de fotos do ramo falhou", err);
+  }
+
+  // Segunda oportunidade para a multimédia do WhatsApp que falhou o
+  // download (sessão 166). O media_id da Meta vale ~30 dias, por isso uma
+  // retentativa no dia seguinte resulta muitas vezes. Sem isto, desistia-se
+  // à primeira e as fotos sumiam em silêncio. Best-effort.
+  try {
+    await fetchPendingMediaBatch();
+  } catch (err) {
+    console.error("[cron/healthcheck] retry de multimédia do WhatsApp falhou", err);
   }
 
   // Notificações push diárias (recolha/flores amanhã, congelador 5 dias) +

@@ -1063,8 +1063,11 @@ function ConversationViewer({
                 reactionsByTarget.set(m.reaction_target_wamid, arr);
               }
             }
+            // Fora da conversa: as reacções (viram badges na mensagem
+            // alvo) e as linhas 'system', que são só a anulação de uma
+            // mensagem apagada — a original já aparece riscada.
             const renderableMessages = visibleMessages.filter(
-              (m) => m.content_type !== "reaction",
+              (m) => m.content_type !== "reaction" && m.content_type !== "system",
             );
             return renderableMessages.map((m, i) => {
               const prev = i > 0 ? renderableMessages[i - 1] : null;
@@ -1262,8 +1265,38 @@ function DeliveryTicks({ message }: { message: WhatsappMessage }) {
 }
 
 function MessageContent({ message }: { message: WhatsappMessage }) {
+  // Apagada para todos: mantém-se a linha (o histórico é registo de
+  // trabalho) mas sem fingir que o conteúdo ainda vale.
+  if (message.revoked_at) {
+    return (
+      <p className="text-cocoa-400 italic line-through decoration-cocoa-300">
+        {message.text || "(mensagem)"}
+      </p>
+    );
+  }
+
   if (message.content_type === "text") {
-    return <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>;
+    return (
+      <>
+        <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>
+        {message.is_edit && (
+          <span className="text-[10px] text-cocoa-400 italic">editada</span>
+        )}
+      </>
+    );
+  }
+
+  // A Meta manda `type: "unsupported"` com um erro e SEM conteúdo nenhum
+  // (sondagens, ver-uma-vez, localização em directo). Não é falha nossa e
+  // não há nada a recuperar — mais vale dizê-lo do que mostrar
+  // "(mensagem)" e deixar a Maria a pensar que a plataforma se enganou.
+  if (message.content_type === "unsupported") {
+    return (
+      <p className="text-cocoa-500 italic">
+        Tipo de mensagem que o WhatsApp não nos deixa ler{" "}
+        <span className="text-cocoa-400">— vê no telemóvel</span>
+      </p>
+    );
   }
 
   // Media bubble: 3 estados possiveis

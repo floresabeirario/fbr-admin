@@ -15,14 +15,18 @@
 // dh_live_ (em WHATSAPP_ACCESS_TOKEN), senao a Meta rejeita-os. Os webhooks
 // de ENTRADA continuam a chegar directamente da Meta e nao sao afectados.
 //
-// Em caso de falha, marca media_pending=false (nao retentamos a mesma
-// mensagem para sempre — os URLs da Meta expiram em ~5min).
+// Em caso de falha conta-se a tentativa e volta-se a tentar no cron diario,
+// ate MAX_ATTEMPTS. So ai e que media_pending passa a false e a UI mostra
+// "nao consegui guardar" com botao de retry manual (sessao 166 — ate aqui
+// desistia-se a primeira e as fotos sumiam em silencio).
 // ============================================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadWhatsappMedia } from "@/lib/google/drive";
 
 const BATCH_SIZE = 10;
+// Tentativas de download antes de desistir de vez (ver markFailed).
+const MAX_ATTEMPTS = 3;
 const META_GRAPH_VERSION = "v25.0";
 // Runtime API do Dualhook: mesmas rotas/payloads que a Graph API, mas assina
 // os pedidos com a proteccao ao nivel-app da Meta. Ver migracao acima.
@@ -36,6 +40,7 @@ type PendingMessage = {
   content_type: string;
   conversation_id: string;
   received_at: string;
+  media_attempts: number;
 };
 
 export async function fetchPendingMediaBatch(): Promise<void> {
@@ -48,9 +53,12 @@ export async function fetchPendingMediaBatch(): Promise<void> {
   const supabase = createAdminClient();
   const { data: pending, error } = await supabase
     .from("whatsapp_messages")
-    .select("id, wamid, media_id, media_mime, content_type, conversation_id, received_at")
+    .select(
+      "id, wamid, media_id, media_mime, content_type, conversation_id, received_at, media_attempts",
+    )
     .eq("media_pending", true)
     .not("media_id", "is", null)
+    .lt("media_attempts", MAX_ATTEMPTS)
     .order("received_at", { ascending: true })
     .limit(BATCH_SIZE);
 
@@ -73,7 +81,7 @@ export async function fetchPendingMediaBatch(): Promise<void> {
   for (const msg of pending as PendingMessage[]) {
     const phone = phoneByConvId.get(msg.conversation_id);
     if (!phone) {
-      await markFailed(supabase, msg.id, "sem conversa associada");
+      await markFailed(supabase, msg.id, msg.media_attempts, "sem conversa associada");
       continue;
     }
     try {
@@ -81,7 +89,7 @@ export async function fetchPendingMediaBatch(): Promise<void> {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.error("[wa-media] falhou", { wamid: msg.wamid, reason });
-      await markFailed(supabase, msg.id, reason);
+      await markFailed(supabase, msg.id, msg.media_attempts, reason);
     }
   }
 }
@@ -146,16 +154,32 @@ async function fetchOne(
   if (error) throw new Error(`update DB: ${error.message}`);
 }
 
+// Antes desistia-se à PRIMEIRA falha (media_pending=false) e o ficheiro
+// perdia-se em silêncio — foi assim que 41 fotos e vídeos desapareceram
+// em Junho de 2026 sem ninguém dar por isso.
+//
+// Agora conta-se a tentativa e a mensagem fica pendente até MAX_ATTEMPTS.
+// O media_id da Meta continua válido ~30 dias (é só a URL temporária que
+// expira em 5 min), por isso uma retentativa no cron do dia seguinte tem
+// mesmo hipótese de resultar.
 async function markFailed(
   supabase: ReturnType<typeof createAdminClient>,
   id: string,
+  attempts: number,
   reason: string,
 ): Promise<void> {
+  const proximaTentativa = attempts + 1;
+  const desistir = proximaTentativa >= MAX_ATTEMPTS;
   await supabase
     .from("whatsapp_messages")
-    .update({ media_pending: false })
+    .update({
+      media_attempts: proximaTentativa,
+      // Só deixa de estar pendente quando se desiste de vez — aí a UI
+      // mostra "⚠ não consegui guardar" com o botão de retry manual.
+      media_pending: !desistir,
+    })
     .eq("id", id);
-  console.warn("[wa-media] marcado nao-pending por falha", { id, reason });
+  console.warn("[wa-media] falha", { id, tentativa: proximaTentativa, desistir, reason });
 }
 
 function extFromMime(mime: string, contentType: string): string {

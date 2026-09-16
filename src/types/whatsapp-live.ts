@@ -40,4 +40,11 @@ export type WhatsappMessage = {
   delivery_status: "delivered" | "read" | "failed" | null;
   delivered_at: string | null;
   read_at: string | null;
+  // Mensagem que chegou como edição de outra (mig 108). O texto é a
+  // versão corrigida pelo remetente.
+  is_edit: boolean;
+  // Preenchido quando o remetente apagou a mensagem para todos.
+  revoked_at: string | null;
+  // Tentativas de download da multimédia antes de desistir.
+  media_attempts: number;
 };

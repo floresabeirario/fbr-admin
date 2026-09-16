@@ -264,7 +264,11 @@ export default function WhatsappLivePanel({ phone, orderId, contactName }: Props
                 reactionsByTarget.set(m.reaction_target_wamid, arr);
               }
             }
-            const renderable = messages.filter((m) => m.content_type !== "reaction");
+            // Reacções viram badges; 'system' é só a anulação de uma
+            // mensagem apagada (a original aparece riscada).
+            const renderable = messages.filter(
+              (m) => m.content_type !== "reaction" && m.content_type !== "system",
+            );
             return renderable.map((m) => {
               const repliedTo = m.reply_to_wamid ? wamidMap.get(m.reply_to_wamid) ?? null : null;
               const reactions = reactionsByTarget.get(m.wamid) ?? [];
@@ -386,8 +390,25 @@ function MessageBubble({
             </div>
           </div>
         )}
-        {message.content_type === "text" ? (
-          <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>
+        {message.revoked_at ? (
+          // Apagada para todos: fica a linha, sem fingir que ainda vale.
+          <p className="text-cocoa-400 italic line-through decoration-cocoa-300">
+            {message.text || "(mensagem)"}
+          </p>
+        ) : message.content_type === "unsupported" ? (
+          // A Meta manda estas sem conteúdo nenhum. Dizer a verdade em vez
+          // de "(mensagem)", que parecia uma falha da plataforma.
+          <p className="text-cocoa-500 italic">
+            Tipo de mensagem que o WhatsApp não nos deixa ler{" "}
+            <span className="text-cocoa-400">— vê no telemóvel</span>
+          </p>
+        ) : message.content_type === "text" ? (
+          <>
+            <p className="whitespace-pre-wrap break-words">{linkify(message.text ?? "")}</p>
+            {message.is_edit && (
+              <span className="text-[10px] text-cocoa-400 italic">editada</span>
+            )}
+          </>
         ) : (
           (() => {
             const failed =

@@ -58,6 +58,25 @@ type WaMessage = {
   location?: { latitude: number; longitude: number; name?: string; address?: string };
   context?: { from: string; id: string };
   reaction?: { message_id: string; emoji: string };
+  // Mensagem editada no WhatsApp: o texto novo vem embrulhado aqui, e a
+  // mensagem chega com um wamid PRÓPRIO (não substitui a original).
+  edit?: { message?: { text?: { body?: string } } };
+  // "Apagar para todos": aponta para a mensagem que deixou de valer.
+  revoke?: { original_message_id?: string };
+  // Cartões de contacto partilhados.
+  contacts?: Array<{
+    name?: { formatted_name?: string; first_name?: string; last_name?: string };
+    phones?: Array<{ phone?: string }>;
+  }>;
+};
+
+type ParsedContent = {
+  content_type: string;
+  text: string | null;
+  media_id: string | null;
+  media_mime: string | null;
+  is_edit: boolean;
+  revoke_target_wamid: string | null;
 };
 
 // ──────────────────────────────────────────────────────────────
@@ -137,17 +156,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return new Response("ok", { status: 200 });
   }
 
-  let hadMedia = false;
+  let result: ProcessResult = { hadMedia: false, retryable: 0 };
   try {
-    hadMedia = await processWebhookPayload(payload);
+    result = await processWebhookPayload(payload);
   } catch (err) {
-    // 200 mesmo em erro — meta_payload guarda o raw para recuperar manualmente.
     console.error("[wa-webhook] erro no processamento", serializeError(err));
+    // Falha global (ex.: Supabase em baixo): pedir retransmissão de tudo.
+    result = { hadMedia: false, retryable: 1 };
   }
 
   // Background: se chegou multimedia, vai buscar logo a seguir a responder
   // 200 a Meta (URLs da Meta expiram em ~5min — nao da para esperar cron).
-  if (hadMedia) {
+  if (result.hadMedia) {
     after(async () => {
       try {
         await fetchPendingMediaBatch();
@@ -155,6 +175,25 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         console.error("[wa-webhook] erro media fetch", serializeError(err));
       }
     });
+  }
+
+  // Até à sessão 166 respondia-se SEMPRE 200, mesmo quando a gravação
+  // falhava. A Meta lê 200 como "entregue" e nunca retransmite, portanto
+  // uma falha de um segundo com o Supabase apagava a mensagem para
+  // sempre — foi assim que se perderam mensagens em ambos os sentidos.
+  //
+  // Agora devolve-se 500 e a Meta retransmite durante 7 dias. É seguro
+  // porque o wamid é UNIQUE: as retransmissões do que já entrou são
+  // ignoradas em silêncio (23505).
+  //
+  // Ressalva importante: se uma mensagem falhar SEMPRE (payload que a
+  // nossa CHECK constraint recusa, por exemplo), retransmitir para todo
+  // o sempre faria a Meta desactivar a subscrição e perdíamos tudo. Por
+  // isso `retryable` só conta falhas com menos de MAX_RETRY tentativas
+  // registadas; passado esse ponto damo-la por perdida, respondemos 200
+  // e fica registada em whatsapp_webhook_failures para tratar à mão.
+  if (result.retryable > 0) {
+    return new Response("retry", { status: 500 });
   }
 
   return new Response("ok", { status: 200 });
@@ -219,15 +258,111 @@ async function processStatuses(
   }
 }
 
-async function processWebhookPayload(payload: unknown): Promise<boolean> {
+// Ao fim de 3 retransmissões falhadas damos a mensagem por perdida e
+// respondemos 200, para a Meta não desactivar a subscrição por causa de
+// uma mensagem que nunca vai entrar. Fica registada para tratar à mão.
+const MAX_RETRY = 3;
+
+type ProcessResult = { hadMedia: boolean; retryable: number };
+
+// Regista (ou incrementa) uma falha e diz se ainda vale a pena pedir
+// retransmissão à Meta. Nunca deixa rebentar: se o próprio registo
+// falhar, assumimos que vale a pena tentar outra vez.
+async function recordFailure(
+  supabase: SupabaseAdmin,
+  info: {
+    wamid: string | null;
+    direction: string;
+    msgType: string | null;
+    phoneE164: string | null;
+    stage: string;
+    err: unknown;
+  },
+): Promise<boolean> {
+  const e = info.err as { code?: string; message?: string };
+  const errorCode = e?.code ?? null;
+  const errorMessage =
+    (info.err instanceof Error ? info.err.message : e?.message) ?? String(info.err);
+
+  try {
+    let attempts = 1;
+    if (info.wamid) {
+      const { data: existing } = await supabase
+        .from("whatsapp_webhook_failures")
+        .select("attempts")
+        .eq("wamid", info.wamid)
+        .maybeSingle();
+      if (existing) attempts = (existing.attempts as number) + 1;
+    }
+
+    await supabase.from("whatsapp_webhook_failures").upsert(
+      {
+        wamid: info.wamid,
+        direction: info.direction,
+        msg_type: info.msgType,
+        phone_e164: info.phoneE164,
+        stage: info.stage,
+        error_code: errorCode,
+        error_message: errorMessage?.slice(0, 500) ?? null,
+        attempts,
+        resolved: false,
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: "wamid" },
+    );
+
+    return attempts < MAX_RETRY;
+  } catch (logErr) {
+    console.error("[wa-webhook] nao consegui registar a falha", serializeError(logErr));
+    return true;
+  }
+}
+
+// Escolhe o número da "outra parte" para ESTA mensagem.
+//
+// Antes usava-se sempre contacts[0].wa_id para todas as mensagens da
+// remessa. Quando a Meta agrupa mensagens de pessoas diferentes no mesmo
+// evento, as da segunda pessoa iam parar à conversa da primeira.
+//
+// Não se pode simplesmente trocar por msg.from: a Meta documenta que em
+// alguns países (Brasil, Argentina) o `from` e o `wa_id` diferem, e o
+// wa_id é o canónico — trocar criaria conversas duplicadas. Por isso:
+// com um contacto só mantém-se o comportamento antigo, e só quando há
+// vários é que se procura o que corresponde a esta mensagem.
+function resolveCounterparty(
+  msg: WaMessage,
+  direction: "received" | "sent_echo",
+  contacts: Array<{ wa_id?: string; profile?: { name?: string } }>,
+): { phoneRaw: string | null; contactName: string | null } {
+  const ownSide = direction === "received" ? msg.from : msg.to;
+
+  if (contacts.length <= 1) {
+    return {
+      phoneRaw: contacts[0]?.wa_id ?? ownSide ?? null,
+      contactName: contacts[0]?.profile?.name ?? null,
+    };
+  }
+
+  const digits = (s: string | undefined) => (s ?? "").replace(/\D/g, "");
+  const match = contacts.find((c) => digits(c.wa_id) === digits(ownSide));
+  if (match) {
+    return { phoneRaw: match.wa_id ?? ownSide ?? null, contactName: match.profile?.name ?? null };
+  }
+  // Vários contactos e nenhum bate certo: o `from`/`to` desta mensagem é
+  // mais fiável do que assumir o primeiro da lista.
+  return { phoneRaw: ownSide ?? null, contactName: null };
+}
+
+async function processWebhookPayload(payload: unknown): Promise<ProcessResult> {
   if (
     !payload ||
     typeof payload !== "object" ||
     (payload as { object?: string }).object !== "whatsapp_business_account"
   ) {
-    return false;
+    return { hadMedia: false, retryable: 0 };
   }
   let hadMedia = false;
+  let retryable = 0;
 
   const entries = Array.isArray((payload as { entry?: unknown[] }).entry)
     ? ((payload as { entry: unknown[] }).entry)
@@ -274,14 +409,12 @@ async function processWebhookPayload(payload: unknown): Promise<boolean> {
         wa_id?: string;
         profile?: { name?: string };
       }>;
-      const contactName = contacts[0]?.profile?.name ?? null;
-      // contacts[0].wa_id = "outra parte" da conversa, sempre presente.
-      const clientPhoneFromContacts = contacts[0]?.wa_id ?? null;
 
       for (const msg of messages) {
+        const { phoneRaw, contactName } = resolveCounterparty(msg, direction, contacts);
         try {
           const inserted = await insertMessage(
-            supabase, msg, direction, contactName, clientPhoneFromContacts,
+            supabase, msg, direction, contactName, phoneRaw,
           );
           if (inserted?.hasMedia) hadMedia = true;
         } catch (err) {
@@ -291,11 +424,20 @@ async function processWebhookPayload(payload: unknown): Promise<boolean> {
             msgType: msg?.type,
             errInfo: serializeError(err),
           });
+          const vaiTentarOutraVez = await recordFailure(supabase, {
+            wamid: msg?.id ?? null,
+            direction,
+            msgType: msg?.type ?? null,
+            phoneE164: phoneRaw,
+            stage: "insert",
+            err,
+          });
+          if (vaiTentarOutraVez) retryable += 1;
         }
       }
     }
   }
-  return hadMedia;
+  return { hadMedia, retryable };
 }
 
 async function insertMessage(
@@ -341,6 +483,7 @@ async function insertMessage(
     media_pending: !!content.media_id,
     reply_to_wamid: msg.context?.id ?? null,
     reaction_target_wamid: msg.reaction?.message_id ?? null,
+    is_edit: content.is_edit,
     received_at: receivedAt,
     meta_payload: msg as unknown as Record<string, unknown>,
   });
@@ -350,12 +493,45 @@ async function insertMessage(
     throw error;
   }
 
+  // Entrou à segunda (ou à terceira): fecha a falha que tinha ficado
+  // registada, para a contagem de perdidas não mentir.
+  after(async () => {
+    try {
+      await supabase
+        .from("whatsapp_webhook_failures")
+        .update({ resolved: true })
+        .eq("wamid", msg.id)
+        .eq("resolved", false);
+    } catch {
+      // registo de diagnóstico — não vale a pena falhar a mensagem por isto
+    }
+  });
+
+  // "Apagar para todos": risca a mensagem original em vez de a deixar a
+  // fingir que ainda existe na conversa.
+  if (content.revoke_target_wamid) {
+    const { error: revErr } = await supabase
+      .from("whatsapp_messages")
+      .update({ revoked_at: receivedAt })
+      .eq("wamid", content.revoke_target_wamid)
+      .is("revoked_at", null);
+    if (revErr) {
+      console.warn("[wa-webhook] nao consegui riscar a mensagem apagada", {
+        alvo: content.revoke_target_wamid,
+        err: revErr.message,
+      });
+    }
+  }
+
   // Push ao António quando chega mensagem de cliente (não em ecos das
   // nossas respostas nem em reações). tag por conversa => uma rajada de
   // mensagens colapsa numa só notificação em vez de empilhar 10.
+  // 'system' = anulação de uma mensagem apagada: não é conteúdo novo,
+  // não vale uma notificação.
   if (
     direction === "received" &&
     content.content_type !== "reaction" &&
+    content.content_type !== "system" &&
     ANTONIO_EMAIL
   ) {
     const sender = contactName ?? displayPhone;
@@ -435,22 +611,71 @@ async function ensureConversation(
   return created.id;
 }
 
-function parseContent(msg: WaMessage): {
-  content_type: string;
-  text: string | null;
-  media_id: string | null;
-  media_mime: string | null;
-} {
+function parseContent(msg: WaMessage): ParsedContent {
+  const base = { is_edit: false, revoke_target_wamid: null };
   switch (msg.type) {
     case "text":
       return {
+        ...base,
         content_type: "text",
         text: msg.text?.body ?? null,
         media_id: null,
         media_mime: null,
       };
+
+    // Mensagem editada no WhatsApp. Vinha como 'unsupported' com text=NULL
+    // e a conversa mostrava "(mensagem)" em itálico — 18 mensagens reais
+    // perdidas à vista, incluindo cartas de clientes. O corpo novo está
+    // em edit.message.text.body; a Meta dá-lhe um wamid próprio, por isso
+    // entra como mensagem de pleno direito, marcada como editada.
+    case "edit": {
+      const body = msg.edit?.message?.text?.body ?? null;
+      return {
+        ...base,
+        content_type: body ? "text" : "unsupported",
+        text: body,
+        media_id: null,
+        media_mime: null,
+        is_edit: true,
+      };
+    }
+
+    // "Apagar para todos". Não é uma mensagem: é a anulação de outra.
+    // Guardamos como 'system' (a UI não desenha balão) e o alvo é riscado
+    // em insertMessage.
+    case "revoke":
+      return {
+        ...base,
+        content_type: "system",
+        text: "Mensagem apagada pelo remetente",
+        media_id: null,
+        media_mime: null,
+        revoke_target_wamid: msg.revoke?.original_message_id ?? null,
+      };
+
+    // Cartões de contacto partilhados: "Maria Silva — +351 912 345 678".
+    case "contacts": {
+      const cartoes = (msg.contacts ?? []).map((c) => {
+        const nome =
+          c.name?.formatted_name ||
+          [c.name?.first_name, c.name?.last_name].filter(Boolean).join(" ") ||
+          "Contacto";
+        const numeros = (c.phones ?? [])
+          .map((p) => p.phone)
+          .filter((p): p is string => !!p);
+        return numeros.length ? `${nome} — ${numeros.join(", ")}` : nome;
+      });
+      return {
+        ...base,
+        content_type: "contacts",
+        text: cartoes.length ? cartoes.join(" | ") : null,
+        media_id: null,
+        media_mime: null,
+      };
+    }
     case "image":
       return {
+        ...base,
         content_type: "image",
         text: msg.image?.caption ?? null,
         media_id: msg.image?.id ?? null,
@@ -458,6 +683,7 @@ function parseContent(msg: WaMessage): {
       };
     case "video":
       return {
+        ...base,
         content_type: "video",
         text: msg.video?.caption ?? null,
         media_id: msg.video?.id ?? null,
@@ -465,6 +691,7 @@ function parseContent(msg: WaMessage): {
       };
     case "audio":
       return {
+        ...base,
         content_type: "audio",
         text: null,
         media_id: msg.audio?.id ?? null,
@@ -472,6 +699,7 @@ function parseContent(msg: WaMessage): {
       };
     case "document":
       return {
+        ...base,
         content_type: "document",
         text: msg.document?.caption ?? msg.document?.filename ?? null,
         media_id: msg.document?.id ?? null,
@@ -479,6 +707,7 @@ function parseContent(msg: WaMessage): {
       };
     case "sticker":
       return {
+        ...base,
         content_type: "sticker",
         text: null,
         media_id: msg.sticker?.id ?? null,
@@ -491,10 +720,11 @@ function parseContent(msg: WaMessage): {
             loc.address ? " (" + loc.address + ")" : ""
           }`
         : null;
-      return { content_type: "location", text, media_id: null, media_mime: null };
+      return { ...base, content_type: "location", text, media_id: null, media_mime: null };
     }
     case "reaction":
       return {
+        ...base,
         content_type: "reaction",
         text: msg.reaction?.emoji ?? null,
         media_id: null,
@@ -502,6 +732,7 @@ function parseContent(msg: WaMessage): {
       };
     default:
       return {
+        ...base,
         content_type: "unsupported",
         text: null,
         media_id: null,

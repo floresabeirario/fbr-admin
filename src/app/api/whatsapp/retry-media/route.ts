@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   await admin
     .from("whatsapp_messages")
-    .update({ media_pending: true })
+    .update({ media_pending: true, media_attempts: 0 })
     .eq("id", body.messageId);
 
   try {
