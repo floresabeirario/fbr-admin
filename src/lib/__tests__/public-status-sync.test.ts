@@ -18,12 +18,13 @@ import {
 // apita. Ver docs/ECOSYSTEM.md #1.
 //
 // Aponta para a migração mais recente que (re)define a RPC. A 092
-// criou-a; a 097 redefiniu-a (acrescentou service_type ao output) e é
-// agora a definição VIVA — os labels/mensagens continuam idênticos.
+// criou-a; a 097 acrescentou service_type ao output; a 109 passou-a a
+// SECURITY DEFINER com o filtro de visibilidade no WHERE e é agora a
+// definição VIVA — os labels/mensagens continuam idênticos.
 // ============================================================
 
 const SQL = readFileSync(
-  join(process.cwd(), "supabase", "migrations", "097_public_status_service_type.sql"),
+  join(process.cwd(), "supabase", "migrations", "109_public_status_security_definer.sql"),
   "utf8",
 );
 

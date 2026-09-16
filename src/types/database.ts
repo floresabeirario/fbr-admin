@@ -387,7 +387,7 @@ export interface Order {
   // true = o cliente combinou pagar em mão quando entrega as flores.
   // Marcador interno (mig 076). Quando true, o link de status público
   // funciona mesmo sem pagamento registado, desde que a encomenda já
-  // esteja agendada (ver policy orders_public_status_read).
+  // esteja agendada (filtro dentro da RPC get_public_order_status, mig 109).
   cash_on_delivery: boolean;
 
   // ── Congelador (5 dias anti-insectos, mig 079) ──────────────
