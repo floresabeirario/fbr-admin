@@ -56,6 +56,7 @@ import {
   Cell,
   Legend,
   CartesianGrid,
+  LabelList,
 } from "recharts";
 import {
   Select,
@@ -439,14 +440,19 @@ function UpsellsBars({
   }
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, data.length * 50)}>
-      <BarChart data={data} layout="vertical" margin={{ left: 24, right: 24 }} stackOffset="sign">
+      <BarChart data={data} layout="vertical" margin={{ left: 24, right: 32 }} barGap={2}>
         <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} horizontal={false} />
         <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
         <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 11 }} />
         <Tooltip contentStyle={tooltipStyle} />
         <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-        <Bar dataKey="sim" name="Sim" stackId="upsell" fill={OK} />
-        <Bar dataKey="maisInfo" name="Mais info" stackId="upsell" fill={WAIT} radius={[0, 6, 6, 0]} />
+        {/* Lado a lado, pela mesma razão do gráfico mensal: empilhado lia-se mal. */}
+        <Bar dataKey="sim" name="Sim" fill={OK} radius={[0, 6, 6, 0]}>
+          <LabelList dataKey="sim" position="right" style={{ fontSize: 10 }} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : "")} />
+        </Bar>
+        <Bar dataKey="maisInfo" name="Mais info" fill={WAIT} radius={[0, 6, 6, 0]}>
+          <LabelList dataKey="maisInfo" position="right" style={{ fontSize: 10 }} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : "")} />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -657,23 +663,31 @@ export default function MetricasClient({
               />
             </div>
 
-            {/* Pedidos por mês, empilhado */}
+            {/* Pedidos por mês — barras LADO A LADO com o número em cima.
+                Empilhadas liam-se mal: o topo da cor de cima parecia o
+                valor dessa cor (a Maria leu "28 cancelados" onde eram 5). */}
             <ChartCard
               title="Pedidos por mês (últimos 12 meses)"
               icon={ShoppingBag}
               iconColor="text-violet-500"
-              info="Pedidos criados em cada mês, desde que o formulário público existe (as encomendas importadas do Monday têm a data de criação errada e ficam de fora). Verde = pagaram sinal; âmbar = à espera; rosa = cancelaram sem sinal. Não depende do período escolhido."
+              info="Pedidos criados em cada mês, desde que o formulário público existe (as encomendas importadas do Monday têm a data de criação errada e ficam de fora). Cada barra é o número de pedidos desse mês nesse estado: verde = pagaram sinal; âmbar = à espera; rosa = cancelaram sem sinal. Não depende do período escolhido."
             >
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={metrics.monthlyRequests} barCategoryGap="25%">
+                <BarChart data={metrics.monthlyRequests} barCategoryGap="20%" barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
                   <XAxis dataKey="label" tick={axisTick} />
                   <YAxis allowDecimals={false} tick={axisTick} width={32} />
                   <Tooltip contentStyle={tooltipStyle} cursor={{ fill: chartGrid, opacity: 0.4 }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="confirmed" name="Com sinal" stackId="p" fill={OK} />
-                  <Bar dataKey="pending" name="À espera" stackId="p" fill={WAIT} />
-                  <Bar dataKey="cancelled" name="Cancelados" stackId="p" fill={RISK} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="confirmed" name="Com sinal" fill={OK} radius={[3, 3, 0, 0]}>
+                    <LabelList dataKey="confirmed" position="top" style={{ fontSize: 10, fill: axisTick.fill }} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : "")} />
+                  </Bar>
+                  <Bar dataKey="pending" name="À espera" fill={WAIT} radius={[3, 3, 0, 0]}>
+                    <LabelList dataKey="pending" position="top" style={{ fontSize: 10, fill: axisTick.fill }} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : "")} />
+                  </Bar>
+                  <Bar dataKey="cancelled" name="Cancelados" fill={RISK} radius={[3, 3, 0, 0]}>
+                    <LabelList dataKey="cancelled" position="top" style={{ fontSize: 10, fill: axisTick.fill }} formatter={(v: unknown) => (Number(v) > 0 ? String(v) : "")} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
