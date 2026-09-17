@@ -16,6 +16,7 @@ import type {
   ProductionConsumableInsert,
 } from "@/types/production-cost";
 import type { Expense, ExpenseInsert, ExpenseUpdate } from "@/types/expense";
+import { subscriptionSplitDates } from "@/types/expense";
 
 // Aba Finanças → Competição: só admin escreve. A Ana lê.
 
@@ -216,6 +217,89 @@ export async function updateExpenseAction(
   if (error) throw new Error(error.message);
   revalidatePath("/financas");
   return data as Expense;
+}
+
+/**
+ * Muda o valor de uma subscrição A PARTIR de um mês, sem tocar no
+ * histórico (sessão 174, pedido da Maria: "contabilizar a partir daquela
+ * data" em vez de fechar uma e abrir outra à mão). Faz os dois passos:
+ *   1. cria uma subscrição nova igual à antiga, com o valor novo, a
+ *      começar no dia 1 de `fromMonth` (e o mesmo fim, se a antiga tinha);
+ *   2. termina a antiga no último dia do mês anterior.
+ * `patch` (descrição, categoria, fornecedor, notas, método) aplica-se às
+ * duas, para a lista continuar coerente. Se o passo 2 falhar, a nova é
+ * arquivada para não ficar a contar a dobrar.
+ */
+export async function changeSubscriptionAmountFromAction(
+  id: string,
+  newAmount: number,
+  fromMonth: string,
+  patch: Pick<ExpenseUpdate, "description" | "category" | "supplier" | "notes" | "payment_method">,
+): Promise<{ oldId: string; newId: string }> {
+  await requireAdmin();
+  const email = await getCurrentEmail();
+  const supabase = await createClient();
+
+  const { data: old, error: loadError } = await supabase
+    .from("expenses")
+    .select("*")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .single();
+  if (loadError || !old) throw new Error(loadError?.message ?? "Subscrição não encontrada.");
+  const oldExp = old as Expense;
+  if (!oldExp.is_recurring || !oldExp.recurrence_start_date) {
+    throw new Error("Só se aplica a subscrições.");
+  }
+  if (oldExp.recurrence_period === "custom") {
+    throw new Error("Numa subscrição de intervalo específico o valor é o total do intervalo; edita-o directamente.");
+  }
+
+  const { oldEnd, newStart } = subscriptionSplitDates(fromMonth);
+  if (newStart <= oldExp.recurrence_start_date) {
+    throw new Error("O mês escolhido tem de ser depois do início da subscrição. Para corrigir todos os meses, apaga a data.");
+  }
+  if (oldExp.recurrence_end_date && oldExp.recurrence_end_date < newStart) {
+    throw new Error("A subscrição já tinha terminado antes desse mês.");
+  }
+
+  const { data: created, error: insertError } = await supabase
+    .from("expenses")
+    .insert({
+      expense_date: newStart,
+      supplier: patch.supplier ?? oldExp.supplier,
+      category: patch.category ?? oldExp.category,
+      description: patch.description ?? oldExp.description ?? "",
+      amount: newAmount,
+      vat_rate: oldExp.vat_rate,
+      payment_method: patch.payment_method ?? oldExp.payment_method,
+      has_invoice: false,
+      invoice_url: null,
+      notes: patch.notes ?? oldExp.notes,
+      is_recurring: true,
+      recurrence_period: oldExp.recurrence_period,
+      recurrence_start_date: newStart,
+      recurrence_end_date: oldExp.recurrence_end_date,
+      created_by_email: email,
+    })
+    .select("id")
+    .single();
+  if (insertError || !created) throw new Error(insertError?.message ?? "Erro ao criar a subscrição nova.");
+
+  const { error: updateError } = await supabase
+    .from("expenses")
+    .update({ ...patch, recurrence_end_date: oldEnd })
+    .eq("id", id);
+  if (updateError) {
+    await supabase
+      .from("expenses")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", created.id);
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/financas");
+  return { oldId: id, newId: created.id as string };
 }
 
 export async function archiveExpenseAction(id: string): Promise<void> {

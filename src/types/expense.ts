@@ -204,6 +204,32 @@ export function subscriptionTotalToDate(
 }
 
 /**
+ * Datas para "o valor novo conta a partir de <mês>" (sessão 174): a
+ * subscrição antiga termina no último dia do mês anterior e a nova começa
+ * no dia 1 desse mês. Como as contas são feitas ao mês (início e fim
+ * inclusive), não há sobreposição nem buraco: o mês anterior conta ao
+ * valor antigo, o mês escolhido já conta ao novo.
+ * `fromMonth` no formato "yyyy-MM" (input type=month).
+ */
+export function subscriptionSplitDates(fromMonth: string): {
+  oldEnd: string;
+  newStart: string;
+} {
+  const m = /^(\d{4})-(\d{2})$/.exec(fromMonth);
+  if (!m) throw new Error(`Mês inválido: ${fromMonth}`);
+  const year = Number(m[1]);
+  const month = Number(m[2]); // 1-12
+  if (month < 1 || month > 12) throw new Error(`Mês inválido: ${fromMonth}`);
+  // Dia 0 do mês seguinte ao anterior = último dia do mês anterior.
+  const prevEnd = new Date(year, month - 1, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    oldEnd: `${prevEnd.getFullYear()}-${pad(prevEnd.getMonth() + 1)}-${pad(prevEnd.getDate())}`,
+    newStart: `${year}-${pad(month)}-01`,
+  };
+}
+
+/**
  * Devolve true se uma subscrição está activa numa dada data
  * (entre start e end, inclusive; end NULL = ainda activa).
  */

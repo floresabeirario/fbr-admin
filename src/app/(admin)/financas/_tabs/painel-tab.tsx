@@ -4,7 +4,7 @@
 // PAINEL (resumo executivo) — extraído de financas-client.tsx
 // ============================================================
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Tags,
   Receipt,
@@ -16,9 +16,17 @@ import {
   Frame,
   Package,
   Handshake,
+  Calendar as CalendarIcon,
 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatDateTimeLisbon } from "@/lib/format-date";
 import { formatEUR } from "@/lib/format";
 import {
@@ -45,13 +53,81 @@ export function PainelTab({
   expenses: Expense[];
 }) {
   const now = useMemo(() => new Date(), []);
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
-  const prevMonthStart = startOfMonth(subMonths(now, 1));
-  const prevMonthEnd = endOfMonth(subMonths(now, 1));
-  const yearStart = startOfYear(now);
-  const yearEnd = endOfYear(now);
   const currentYear = getYear(now);
+
+  // Período do resumo (pedido da Maria, sessão 174: "escolher o período de
+  // tempo, tal como na aba Faturação"). Por defeito o mês actual, como
+  // sempre foi; "Mês passado" serve para fechar o mês no início do
+  // seguinte; um ano ou "Todos" como na Faturação. A comparação (delta) é
+  // sempre com o período homólogo anterior: mês anterior ou ano anterior.
+  // O ranking "Onde está o lucro" usa o ano do período escolhido.
+  type Period = "this_month" | "last_month" | "all" | number;
+  const [period, setPeriod] = useState<Period>("this_month");
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>([currentYear]);
+    const add = (iso: string | null) => {
+      if (!iso) return;
+      try { years.add(getYear(parseISO(iso))); } catch {}
+    };
+    for (const o of orders) add(o.event_date);
+    for (const v of vouchers) add(v.created_at);
+    for (const e of expenses) add(e.expense_date);
+    return [...years].sort((a, b) => b - a);
+  }, [orders, vouchers, expenses, currentYear]);
+
+  // Memoizado para as datas serem estáveis entre renders (antes eram
+  // recriadas a cada render e faziam os useMemo abaixo recalcular sempre).
+  const range = useMemo(() => {
+    if (period === "this_month" || period === "last_month") {
+      const base = period === "this_month" ? now : subMonths(now, 1);
+      return {
+        start: startOfMonth(base),
+        end: endOfMonth(base),
+        prevStart: startOfMonth(subMonths(base, 1)) as Date | null,
+        prevEnd: endOfMonth(subMonths(base, 1)) as Date | null,
+        yearStart: startOfYear(base),
+        yearEnd: endOfYear(base),
+        title: `Resumo de ${format(base, "MMMM 'de' yyyy", { locale: pt })}`,
+        unit: "mês" as "mês" | "ano" | "total",
+        deltaLabel: "vs. mês anterior",
+      };
+    }
+    if (period === "all") {
+      return {
+        start: new Date(1970, 0, 1),
+        end: new Date(2999, 11, 31),
+        prevStart: null as Date | null,
+        prevEnd: null as Date | null,
+        yearStart: new Date(1970, 0, 1),
+        yearEnd: new Date(2999, 11, 31),
+        title: "Resumo desde sempre",
+        unit: "total" as "mês" | "ano" | "total",
+        deltaLabel: "",
+      };
+    }
+    const y = period;
+    return {
+      start: startOfYear(new Date(y, 0, 1)),
+      end: endOfYear(new Date(y, 11, 31)),
+      prevStart: startOfYear(new Date(y - 1, 0, 1)) as Date | null,
+      prevEnd: endOfYear(new Date(y - 1, 11, 31)) as Date | null,
+      yearStart: startOfYear(new Date(y, 0, 1)),
+      yearEnd: endOfYear(new Date(y, 11, 31)),
+      title: `Resumo de ${y}`,
+      unit: "ano" as "mês" | "ano" | "total",
+      deltaLabel: "vs. ano anterior",
+    };
+  }, [period, now]);
+  const {
+    start: monthStart,
+    end: monthEnd,
+    prevStart: prevMonthStart,
+    prevEnd: prevMonthEnd,
+    yearStart,
+    yearEnd,
+  } = range;
+  const rankingYearLabel = period === "all" ? "desde sempre" : String(getYear(yearStart));
 
   // ── Agregação genérica de um período ──
   // A função vive dentro do useMemo para as deps ficarem completas
@@ -116,14 +192,15 @@ export function PainelTab({
     };
     return {
       month: aggregate(monthStart, monthEnd),
-      prevMonth: aggregate(prevMonthStart, prevMonthEnd),
+      // "Todos" não tem período anterior: sem delta.
+      prevMonth: prevMonthStart && prevMonthEnd ? aggregate(prevMonthStart, prevMonthEnd) : null,
     };
   }, [orders, vouchers, expenses, now, monthStart, monthEnd, prevMonthStart, prevMonthEnd]);
 
-  const revenueDelta = prevMonth.revenueGross > 0
+  const revenueDelta = prevMonth && prevMonth.revenueGross > 0
     ? ((month.revenueGross - prevMonth.revenueGross) / prevMonth.revenueGross) * 100
     : null;
-  const profitDelta = prevMonth.profit !== 0
+  const profitDelta = prevMonth && prevMonth.profit !== 0
     ? ((month.profit - prevMonth.profit) / Math.abs(prevMonth.profit)) * 100
     : null;
 
@@ -213,15 +290,41 @@ export function PainelTab({
     return [...groups.values()].sort((a, b) => b.margin - a.margin);
   }, [orders, yearStart, yearEnd]);
 
-  const monthLabel = format(now, "MMMM 'de' yyyy", { locale: pt });
+  const periodValue = typeof period === "number" ? String(period) : period;
 
   return (
     <div className="space-y-4">
+      {/* Selector de período — o mesmo controlo da Faturação, mais os dois meses */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <CalendarIcon className="h-4 w-4 text-cocoa-700" />
+        <span className="text-sm font-medium text-cocoa-900">Período:</span>
+        <Select
+          value={periodValue}
+          onValueChange={(v) =>
+            setPeriod(v === "this_month" || v === "last_month" || v === "all" ? v : Number(v))
+          }
+        >
+          <SelectTrigger className="h-9 w-[190px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="this_month">Este mês</SelectItem>
+            <SelectItem value="last_month">Mês passado</SelectItem>
+            <SelectItem value="all">Todos (desde sempre)</SelectItem>
+            {availableYears.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}{y === currentYear ? " (actual)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Header */}
       <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-900/50 p-4">
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <h2 className="text-base font-semibold text-emerald-900 dark:text-emerald-200 capitalize">
-            Resumo de {monthLabel}
+          <h2 className="text-base font-semibold text-emerald-900 dark:text-emerald-200 first-letter:capitalize">
+            {range.title}
           </h2>
           <span className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
             Atualizado em {formatDateTimeLisbon(now.toISOString())}
@@ -237,6 +340,7 @@ export function PainelTab({
           icon={<TrendingUp className="h-4 w-4" />}
           color="emerald"
           delta={revenueDelta}
+          deltaLabel={range.deltaLabel}
           subLabel="Bruta"
           subValue={month.commission > 0 ? formatEUR(month.revenueGross) : undefined}
         />
@@ -249,6 +353,7 @@ export function PainelTab({
           icon={<CreditCard className="h-4 w-4" />}
           color={month.profit >= 0 ? "emerald" : "rose"}
           delta={profitDelta}
+          deltaLabel={range.deltaLabel}
         />
         <KpiBox
           label="Margem %"
@@ -261,7 +366,7 @@ export function PainelTab({
       {/* 4 KPIs secundários */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiBox
-          label="Encomendas no mês"
+          label={range.unit === "mês" ? "Encomendas no mês" : range.unit === "ano" ? "Encomendas no ano" : "Encomendas (total)"}
           value={String(month.orderCount)}
           icon={<Package className="h-4 w-4" />}
           color="sky"
@@ -270,7 +375,7 @@ export function PainelTab({
         />
         <KpiBox label="Ticket médio" value={formatEUR(ticketAvg)} icon={<Tags className="h-4 w-4" />} color="sky" />
         <KpiBox
-          label="Quadro mais lucrativo (mês)"
+          label={`Quadro mais lucrativo (${range.unit === "total" ? "sempre" : range.unit})`}
           value={mostProfitableThisMonth ? formatEUR(mostProfitableThisMonth.pnl.margin_full) : "—"}
           icon={<Sparkles className="h-4 w-4" />}
           color="emerald"
@@ -290,7 +395,7 @@ export function PainelTab({
       {/* Breakdown de despesas por tipo contabilístico — mês actual */}
       <div className="rounded-xl border border-cream-200 bg-surface p-4 space-y-3">
         <h3 className="text-sm font-semibold text-cocoa-900">
-          Despesas do mês por tipo
+          {range.unit === "mês" ? "Despesas do mês por tipo" : range.unit === "ano" ? "Despesas do ano por tipo" : "Despesas por tipo (desde sempre)"}
         </h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {(Object.entries(month.expensesByType) as [keyof typeof month.expensesByType, number][]).map(([type, value]) => (
@@ -316,7 +421,7 @@ export function PainelTab({
       <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-4">
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <h3 className="text-sm font-semibold text-cocoa-900">
-            Onde está o lucro — {currentYear}
+            Onde está o lucro — {rankingYearLabel}
           </h3>
           <p className="text-xs text-cocoa-700 italic">
             Agregação pelo orçamento e custo plenos (não proporcionais). Cancelado excluído.

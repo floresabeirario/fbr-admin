@@ -61,6 +61,7 @@ export function KpiBox({
   icon,
   color,
   delta,
+  deltaLabel = "vs. mês anterior",
   subValue,
   subLabel,
   info,
@@ -70,6 +71,8 @@ export function KpiBox({
   icon: React.ReactNode;
   color: "emerald" | "rose" | "sky" | "amber" | "slate" | "violet";
   delta?: number | null;
+  /** Com que período se compara o delta ("vs. mês anterior" por defeito). */
+  deltaLabel?: string;
   subValue?: string;
   subLabel?: string;
   /** Explicação do que este valor mede (tooltip no ícone ⓘ). */
@@ -104,7 +107,7 @@ export function KpiBox({
       )}
       {delta !== undefined && delta !== null && (
         <p className={cn("text-xs font-medium", delta >= 0 ? "text-emerald-700" : "text-rose-700")}>
-          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}% vs. mês anterior
+          {delta >= 0 ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}% {deltaLabel}
         </p>
       )}
     </div>

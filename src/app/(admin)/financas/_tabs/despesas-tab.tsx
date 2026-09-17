@@ -58,6 +58,7 @@ import {
   updateExpenseAction,
   archiveExpenseAction,
   uploadExpenseInvoiceAction,
+  changeSubscriptionAmountFromAction,
 } from "../actions";
 import { KpiBox } from "./shared";
 
@@ -800,6 +801,20 @@ function EditExpenseDialog({
     recurrence_end_date: expense.recurrence_end_date ?? "",
   });
 
+  // "O valor novo conta a partir de" (sessão 174): mês (yyyy-MM) a partir
+  // do qual o valor novo se aplica; os meses anteriores ficam com o antigo
+  // (a plataforma fecha a subscrição actual no mês anterior e abre uma
+  // nova). Vazio = corrigir todos os meses. Só em subscrições mensais/
+  // anuais e só quando o valor muda.
+  const [applyFrom, setApplyFrom] = useState(format(new Date(), "yyyy-MM"));
+  const amountChanged =
+    isSub && parseFloat(draft.amount.replace(",", ".")) !== Number(expense.amount);
+  const canSplit = amountChanged && draft.recurrence_period !== "custom";
+  const datesChanged =
+    draft.recurrence_period !== (expense.recurrence_period ?? "monthly") ||
+    draft.recurrence_start_date !== (expense.recurrence_start_date ?? expense.expense_date) ||
+    draft.recurrence_end_date !== (expense.recurrence_end_date ?? "");
+
   function handleSave() {
     const amount = parseFloat(draft.amount.replace(",", "."));
     if (!draft.description.trim()) {
@@ -841,10 +856,29 @@ function EditExpenseDialog({
       patch.expense_date = draft.expense_date;
     }
 
+    const split = canSplit && applyFrom !== "";
+    if (split && datesChanged) {
+      toast.error("Para mudar datas ou periodicidade, guarda primeiro sem mudar o valor.");
+      return;
+    }
+
     startTransition(async () => {
       try {
-        await updateExpenseAction(expense.id, patch as Partial<Expense>);
-        toast.success(isSub ? "Subscrição actualizada." : "Despesa actualizada.");
+        if (split) {
+          await changeSubscriptionAmountFromAction(expense.id, amount, applyFrom, {
+            description: patch.description as string,
+            category: patch.category as ExpenseCategory,
+            supplier: patch.supplier as string | null,
+            notes: patch.notes as string | null,
+            payment_method: patch.payment_method as ExpensePaymentMethod | null,
+          });
+          toast.success(
+            `Valor novo a contar desde ${applyFrom.slice(5)}/${applyFrom.slice(0, 4)}. A subscrição antiga terminou no mês anterior.`,
+          );
+        } else {
+          await updateExpenseAction(expense.id, patch as Partial<Expense>);
+          toast.success(isSub ? "Subscrição actualizada." : "Despesa actualizada.");
+        }
         onOpenChange(false);
         router.refresh();
       } catch (err) {
@@ -909,6 +943,21 @@ function EditExpenseDialog({
               </div>
             </div>
           </div>
+
+          {canSplit && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/50 p-3 space-y-1.5">
+              <Label className="text-xs">O valor novo conta a partir de</Label>
+              <Input
+                type="month"
+                value={applyFrom}
+                onChange={(e) => setApplyFrom(e.target.value)}
+                className="max-w-[180px]"
+              />
+              <p className="text-[11px] text-cocoa-700 leading-relaxed">
+                Os meses anteriores ficam com o valor antigo: esta subscrição termina no mês anterior e abre-se uma nova com o valor novo, tudo sozinho. Apaga o mês se for uma correcção que se aplica a todos os meses.
+              </p>
+            </div>
+          )}
 
           {isSub ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

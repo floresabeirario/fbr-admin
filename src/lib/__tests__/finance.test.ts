@@ -20,6 +20,7 @@ import {
   expensesTotalInPeriod,
 } from "@/lib/finance";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
+import { subscriptionSplitDates } from "@/types/expense";
 
 // Snapshot mínimo com uma moldura 30x40 baixa/vidro-vidro a 55€.
 const SNAPSHOT: ProductionCostSnapshot = {
@@ -235,6 +236,34 @@ describe("aggregateExpensesByAccountingType", () => {
     expect(totals.marketing).toBe(7);
     expect(totals.financeira).toBe(1.5);
     expect(totals.investimento).toBe(0);
+  });
+});
+
+// ── "Valor novo a partir de <mês>": datas do corte ──
+describe("subscriptionSplitDates", () => {
+  it("termina a antiga no último dia do mês anterior e começa a nova no dia 1", () => {
+    expect(subscriptionSplitDates("2026-09")).toEqual({ oldEnd: "2026-08-31", newStart: "2026-09-01" });
+    expect(subscriptionSplitDates("2026-03")).toEqual({ oldEnd: "2026-02-28", newStart: "2026-03-01" });
+    expect(subscriptionSplitDates("2026-01")).toEqual({ oldEnd: "2025-12-31", newStart: "2026-01-01" });
+  });
+
+  it("o corte não sobrepõe nem deixa buraco nas contas mensais", () => {
+    const { oldEnd, newStart } = subscriptionSplitDates("2026-09");
+    const NOW = new Date(2026, 11, 1);
+    const antiga = {
+      expense_date: "2026-03-01", amount: 20, is_recurring: true,
+      recurrence_period: "monthly" as const, recurrence_start_date: "2026-03-01", recurrence_end_date: oldEnd,
+    };
+    const nova = { ...antiga, amount: 15, expense_date: newStart, recurrence_start_date: newStart, recurrence_end_date: null };
+    const ago = { start: new Date(2026, 7, 1), end: new Date(2026, 8, 0, 23, 59, 59) };
+    const set = { start: new Date(2026, 8, 1), end: new Date(2026, 9, 0, 23, 59, 59) };
+    expect(expensesTotalInPeriod([antiga, nova], ago.start, ago.end, NOW)).toBe(20);
+    expect(expensesTotalInPeriod([antiga, nova], set.start, set.end, NOW)).toBe(15);
+  });
+
+  it("rejeita meses mal formados", () => {
+    expect(() => subscriptionSplitDates("2026-13")).toThrow();
+    expect(() => subscriptionSplitDates("setembro")).toThrow();
   });
 });
 
