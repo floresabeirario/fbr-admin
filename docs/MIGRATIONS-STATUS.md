@@ -12,7 +12,7 @@
 | Migração | Descrição | Estado |
 |----------|-----------|--------|
 | `107_additional_main_frames` | Quadros principais adicionais: `orders.additional_main_frames` JSONB `{tamanho: qty}` (sessão 163). | ✅ 07/09 |
-| `109_public_status_security_definer` | Fecha a enumeração anónima de `orders` (88 linhas com nome+estado legíveis com a anon key): RPC `get_public_order_status` passa a SECURITY DEFINER com o filtro no WHERE; DROP da policy `orders_public_status_read`; REVOKE SELECT do anon em `orders` (fica só `id, order_id` para o RETURNING da 017). Sessão 170. | ⏳ por correr |
+| `109_public_status_security_definer` | Fecha a enumeração anónima de `orders` (88 linhas com nome+estado legíveis com a anon key): RPC `get_public_order_status` passa a SECURITY DEFINER com o filtro no WHERE; DROP da policy `orders_public_status_read`; REVOKE SELECT do anon em `orders` (fica só `id, order_id` para o RETURNING da 017). Sessão 170. | ✅ 17/09 |
 | `106_templates_vale_restante_credito` | Templates do vale (restante a pagar, crédito que sobra) + factos do Cérebro | ✅ 06/09 (verificada por query) |
 | `105_museum_glass_costs` | Custo real do vidro (kind=`glass`) + vidro museu nos mini-quadros (`museum_glass_mini`) | ✅ 06/09 |
 | `104_museum_glass` | Vidro museu passa a opção paga: `orders.museum_glass` + categoria `glass_supplement` | ✅ 26/08 |
