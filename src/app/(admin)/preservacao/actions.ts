@@ -722,8 +722,16 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     });
   }
 
+  // O upsert do Calendar é uma ida e volta à API do Google (segundos).
+  // Na *actualização* isso ficava no caminho crítico do autosave: cada
+  // campo de recolha/entrega gravado esperava pelo Google e, como o cliente
+  // despacha server actions uma de cada vez, a gravação seguinte ficava na
+  // fila atrás desta — bastava um refresh pelo meio para se perder
+  // (sessão 175). Passa para `after()`: a acção devolve assim que a BD
+  // escreve. Criação e remoção ficam no caminho crítico — são raras e o
+  // workbench mostra/esconde o botão "No Calendar" logo a seguir.
   if (calendarAction === "create" || calendarAction === "update") {
-    await upsertOrderCalendarEvent({
+    const calendarPayload = {
       id: updatedOrder.id,
       order_id: updatedOrder.order_id,
       client_name: updatedOrder.client_name,
@@ -750,7 +758,18 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
       email: updatedOrder.email,
       phone: updatedOrder.phone,
       contact_preference: updatedOrder.contact_preference,
-    });
+    };
+    if (calendarAction === "create") {
+      await upsertOrderCalendarEvent(calendarPayload);
+    } else {
+      after(async () => {
+        try {
+          await upsertOrderCalendarEvent(calendarPayload);
+        } catch (err) {
+          console.error("[calendar] upsert em after() falhou", err);
+        }
+      });
+    }
   } else if (calendarAction === "delete") {
     await deleteOrderCalendarEvent({
       id: updatedOrder.id,

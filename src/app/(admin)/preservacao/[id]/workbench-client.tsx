@@ -22,7 +22,7 @@
 //   dialogs.tsx       → os 5 diálogos (pagamento, edição de campo do
 //                       cliente, lembretes 40/30%, data de entrega, arquivar)
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { AlertTriangle, CheckSquare, Trash2 } from "lucide-react";
@@ -114,7 +114,13 @@ export default function WorkbenchClient({
     });
   }
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Ponteiro para o `flush` mais recente — deixa o temporizador de
+  // recuperação chamá-lo sem criar uma referência circular.
+  const flushRef = useRef<(() => void) | null>(null);
+  // Tentativas de gravação falhadas seguidas — afastam a retentativa
+  // (4s, 8s, 16s, depois 30s) para não martelar um servidor em baixo.
+  const retryRef = useRef(0);
 
   // Diálogo de mudança de pagamento (alerta para comprovativo + NIF)
   const [paymentDialog, setPaymentDialog] = useState<null | { newStatus: PaymentStatus }>(null);
@@ -178,13 +184,56 @@ export default function WorkbenchClient({
         }
         return merged;
       });
+      retryRef.current = 0;
       setSaveState("saved");
       router.refresh();
       setTimeout(() => setSaveState("idle"), 2500);
     } catch {
-      setSaveState("idle");
+      // NÃO perder o que ficou por gravar. As chaves já tinham saído do
+      // pendingRef antes do envio; voltam para a fila (as edições mais
+      // recentes ficam por cima) e tenta-se outra vez daqui a pouco. O
+      // estado "error" é visível no cabeçalho — antes disto a falha era
+      // silenciosa e o que ela tinha escrito desaparecia (sessão 175).
+      pendingRef.current = { ...updates, ...pendingRef.current };
+      setSaveState("error");
+      const delay = Math.min(4000 * 2 ** retryRef.current, 30000);
+      retryRef.current += 1;
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => flushRef.current?.(), delay);
     }
   }, [order.id, router]);
+
+  // O temporizador de recuperação usa sempre a versão actual do flush.
+  useEffect(() => {
+    flushRef.current = () => { void flush(); };
+  }, [flush]);
+
+  // Rede de segurança contra perda de dados ao sair da página. O autosave
+  // só dispara 900 ms depois da última tecla, por isso um F5 (ou o Android
+  // a matar a PWA) apanhava quase sempre alguma coisa por gravar:
+  //   • pagehide / visibilitychange → última tentativa de gravar;
+  //   • beforeunload → havendo pendências, o browser pergunta antes de
+  //     deitar fora o que ela acabou de escrever.
+  useEffect(() => {
+    const hasPending = () => Object.keys(pendingRef.current).length > 0;
+    const trySave = () => { if (hasPending()) void flush(); };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") trySave();
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!hasPending()) return;
+      trySave();
+      e.preventDefault();
+    };
+    window.addEventListener("pagehide", trySave);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("pagehide", trySave);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [flush]);
 
   function update<K extends keyof OrderUpdate>(key: K, value: OrderUpdate[K]) {
     setLocal((prev) => ({ ...prev, [key]: value }));
@@ -391,7 +440,12 @@ export default function WorkbenchClient({
     reachedQuadroPronto && local.payment_status !== "100_pago";
 
   return (
-    <div className="flex flex-col h-full bg-cream-50">
+    // onBlur na raiz: sair de um campo grava já, em vez de esperar pelos
+    // 900 ms do debounce. O blur do React borbulha (é focusout), por isso
+    // este único handler cobre todos os campos dos cartões sem lhes tocar,
+    // e corre depois dos handlers dos filhos. Sem nada pendente o flush
+    // devolve logo, portanto não custa nada.
+    <div className="flex flex-col h-full bg-cream-50" onBlur={() => { void flush(); }}>
 
       {!canEdit && (
         <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-800 flex items-center gap-2">

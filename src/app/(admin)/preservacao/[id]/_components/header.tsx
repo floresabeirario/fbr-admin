@@ -63,7 +63,7 @@ export function WorkbenchHeader({
   showContactadaPrompt: boolean;
   show40Prompt: boolean;
   show30Prompt: boolean;
-  saveState: "idle" | "saving" | "saved";
+  saveState: "idle" | "saving" | "saved" | "error";
   onArchive: () => void;
 }) {
   const router = useRouter();
@@ -300,17 +300,33 @@ export function WorkbenchHeader({
           </div>
         )}
 
-        <div className="hidden sm:block w-24 shrink-0 text-right text-xs">
+        {/* Indicador de gravação. "A guardar"/"Guardado" continuam só em
+            desktop (≥sm), como antes; o aviso de falha aparece também no
+            telemóvel — é a única forma de ela saber que ficou por gravar. */}
+        <div
+          className={`shrink-0 text-right text-xs sm:block sm:w-24 ${
+            saveState === "error" ? "block" : "hidden"
+          }`}
+        >
           {saveState === "saving" && (
-            <span className="flex items-center justify-end gap-1 text-cocoa-500">
+            <span className="hidden sm:flex items-center justify-end gap-1 text-cocoa-500">
               <Loader2 className="h-3 w-3 animate-spin" />
               A guardar…
             </span>
           )}
           {saveState === "saved" && (
-            <span className="flex items-center justify-end gap-1 text-green-600">
+            <span className="hidden sm:flex items-center justify-end gap-1 text-green-600">
               <Check className="h-3 w-3" />
               Guardado
+            </span>
+          )}
+          {saveState === "error" && (
+            <span
+              className="flex items-center justify-end gap-1 font-semibold text-red-600"
+              title="A gravação falhou. Nada foi perdido: a plataforma volta a tentar sozinha. Não feches a página."
+            >
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              Por guardar
             </span>
           )}
         </div>
