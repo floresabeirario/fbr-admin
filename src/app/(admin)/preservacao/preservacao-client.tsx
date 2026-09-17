@@ -555,16 +555,14 @@ function OrderRow({
       <td className="px-4 py-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex flex-col min-w-0">
             <span
-              className="text-sm font-medium text-cocoa-900 truncate min-w-0"
+              className="text-sm font-medium text-cocoa-900 truncate"
               title={order.client_name}
             >
               {order.client_name}
             </span>
-            {/* Tipo de evento e etiquetas ficam na MESMA linha do nome (não por
-                baixo): o nome encolhe com reticências, as etiquetas nunca. */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
               {order.event_type && (
                 <span className="text-xs text-cocoa-700">
                   {EVENT_TYPE_LABELS[order.event_type]}
