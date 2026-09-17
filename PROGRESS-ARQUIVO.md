@@ -7,6 +7,21 @@
 
 ---
 
+## Sessão 170 — movida na sessão 175
+
+### Sessão 170 (2026-09-17) — Análise estratégica de tráfego (Umami + Clarity + Search Console) + mig 109 + títulos EN
+
+- **Ponto de partida dela:** pasta `export relatorio/` (untracked, na raiz) com export Umami 03/07–16/09, emails Clarity de Julho e Agosto e xlsx do Search Console; *"analisa tudo de forma muito completa e estratégica e diz-me o que temos que fazer para ter mais sucesso."*
+- **Achados (detalhe na memória `project_analise_trafego_2026-09`):** campanha Meta paga de 05–23/07 = 1349 sessões, **0 formulários, 0 WhatsApp** (era ela que inflacionava o Clarity de Julho); Google orgânico 720 sessões → 20 pedidos (2,8%), directo 4,8%, Instagram orgânico 4,6%, ChatGPT 6,4%; telemóvel 1,6% vs portátil 4,4%; estrangeiros 18% das sessões e 31% dos pedidos; GSC a crescer (Mai 120 → Ago 314 cliques/mês), bouquet = 66% dos cliques, **snippet de opinião = 332 de 824 cliques** (o `aggregateRating` da auditoria 122 está a funcionar — item fechado); formulário: 231 abrem, 98 tocam, 49 enviam, erro nº1 = 4 campos de extras; 83 cliques WhatsApp vs 58 formulários; Setembro com metade dos pedidos de Agosto com o mesmo tráfego.
+- **Decisões dela:** extras **continuam obrigatórios**; já tem template de opinião Google (não fazer); autorizou títulos EN + fechar leitura anónima; "WhatsApp com origem" **por explicar antes de fazer** (nada toca no campo "Como conheceu" nem se preenche nada no admin — o site já pré-preenche a mensagem por página).
+- **Ficheiros (admin):** `supabase/migrations/109_public_status_security_definer.sql` (RPC SECURITY DEFINER + filtro no WHERE + DROP policy + REVOKE anon + GRANT (id, order_id)); `src/lib/__tests__/public-status-sync.test.ts` (aponta para a 109); `src/types/database.ts` (comentário); `docs/ECOSYSTEM.md`, `docs/MIGRATIONS-STATUS.md`.
+- **Ficheiros (site, `ef3ebc1`, EM PRODUÇÃO em `main` via merge `38913c2` da sessão 169, OK dela "go main"):** frontmatter de `content/blog/en/is-it-worth-preserving-your-wedding-bouquet.mdx` e `what-to-do-with-your-wedding-bouquet.mdx`. Só estes 2; a sessão 169 tem alterações por committar no mesmo working tree.
+- **Migração:** 109 ✅ **CORRIDA 17/09** pela Maria; verificado por curl com a anon key (42501 na tabela, RPC ok). Ela abriu um link real: **"status estão a funcionar"** (17/09). Smoke feito. O fbr-tracking não muda (mesma RPC); só o comentário em `utils/supabase.js` ainda fala da policy.
+- **Smoke:** (a) link real de status depois da mig; (b) `curl` com a anon key a `/rest/v1/orders?select=order_id,client_name` → `permission denied`; (c) no site, `/en/blog/...` dos 2 artigos com os títulos novos.
+- **Pendente / recomendações não implementadas (decisão dela):** Google Ads nas 4 pesquisas que convertem em vez de Meta; Instagram a apontar para a página do bouquet; página de serviço EN para casamentos em Portugal + parcerias com wedding planners; ver gravações Clarity de `/reservar-preservacao` em mobile sem envio; `/preservacao-de-flores` (568 impressões, pos 27) decidir o papel; reindexação GSC (desde a 141); link partilhado com erro `/en/blog/vale-a-pena-preservar-bouquet-noiva:CVale` (10 visitas a 09 e 15/09, não está no código); medir no Dashboard de Métricas quantos dos 58 pedidos pagaram.
+
+---
+
 ## Sessões 164 a 169 — movidas na sessão 174
 
 ### Sessão 169 (2026-09-17) — fbr-website: "Coimbra" deixava de ser orgulho e passava a barreira (✅ EM PRODUÇÃO 17/09, `main` `38913c2`)
