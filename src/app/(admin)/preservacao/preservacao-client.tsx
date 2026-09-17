@@ -1241,6 +1241,43 @@ export default function PreservacaoClient({
   const isFiltrado =
     search.trim().length > 0 || activeFiltersCount > 0 || serviceFilter !== "todos";
 
+  // Abas de tipo de serviço. Só aparecem quando há encomendas de outro serviço
+  // além da preservação (senão são ruído). Extraídas para variável porque são
+  // usadas em dois sítios: dentro da ViewsBar (vista Tabela, para ficarem na
+  // MESMA linha que Vista/Filtros/Colunas em vez de somarem uma segunda barra)
+  // e soltas por cima do conteúdo nas outras vistas, onde não há ViewsBar.
+  const hasSecas = initialOrders.some((o) => (o.service_type ?? "preservacao") === "emoldurar_secas");
+  const hasRecriacao = initialOrders.some((o) => (o.service_type ?? "preservacao") === "recriacao");
+  const hasServiceFilter = hasSecas || hasRecriacao;
+  const serviceTabs = hasServiceFilter ? (
+    <div className="inline-flex shrink-0 rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
+      {([
+        ["todos", "Todos"],
+        ["preservacao", "Preservação"],
+        ...(hasRecriacao ? [["recriacao", "Recriação"] as ["recriacao", string]] : []),
+        ...(hasSecas ? [["emoldurar_secas", "Flores secas"] as ["emoldurar_secas", string]] : []),
+      ] as Array<["todos" | ServiceType, string]>).map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => setServiceFilter(value)}
+          className={cn(
+            "px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap",
+            serviceFilter === value
+              ? value === "emoldurar_secas"
+                ? "bg-cocoa-900 text-cream-50"
+                : value === "recriacao"
+                ? "bg-violet-100 text-violet-800"
+                : "bg-surface text-cocoa-900 shadow-sm"
+              : "text-cocoa-500 hover:text-cocoa-800",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   const VIEW_BUTTONS = [
     { id: "tabela" as ViewType,     label: "Tabela",     icon: <LayoutList className="h-3.5 w-3.5" /> },
     { id: "cards" as ViewType,      label: "Cards",      icon: <LayoutGrid className="h-3.5 w-3.5" /> },
@@ -1384,57 +1421,27 @@ export default function PreservacaoClient({
             activeViewId={activeViewId}
             setActiveViewId={setActiveViewId}
             partners={partners}
-          />
+          >
+            {serviceTabs}
+          </ViewsBar>
         </div>
       )}
 
       {/* Conteúdo */}
       <div className="flex-1 overflow-auto p-3 sm:p-6">
-        {/* Filtro por tipo de serviço — só aparece quando há encomendas de
-            outro serviço além da preservação (senão é ruído). As abas dos
-            serviços especiais só surgem se existir pelo menos uma encomenda
-            desse tipo. */}
+        {/* Abas de tipo de serviço + botão de ordenação da vista Cards.
+            Na vista Tabela as abas NÃO aparecem aqui: vão dentro da ViewsBar,
+            na mesma linha que Vista/Filtros/Colunas, para não haver duas
+            barras de selectores empilhadas. */}
         {(() => {
           if (showArchived) return null;
-          const hasSecas = initialOrders.some((o) => (o.service_type ?? "preservacao") === "emoldurar_secas");
-          const hasRecriacao = initialOrders.some((o) => (o.service_type ?? "preservacao") === "recriacao");
-          const hasServiceFilter = hasSecas || hasRecriacao;
           // O botão de ordenação só faz sentido na vista Cards.
           const showOrderBtn = activeView === "cards";
-          if (!hasServiceFilter && !showOrderBtn) return null;
-          const options: Array<["todos" | ServiceType, string]> = [
-            ["todos", "Todos"],
-            ["preservacao", "Preservação"],
-            ...(hasRecriacao ? [["recriacao", "Recriação"] as ["recriacao", string]] : []),
-            ...(hasSecas ? [["emoldurar_secas", "Flores secas"] as ["emoldurar_secas", string]] : []),
-          ];
+          const showTabs = serviceTabs !== null && activeView !== "tabela";
+          if (!showTabs && !showOrderBtn) return null;
           return (
             <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
-              {hasServiceFilter ? (
-                <div className="inline-flex rounded-lg border border-cream-200 bg-cream-50/60 p-0.5 text-xs">
-                  {options.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setServiceFilter(value)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-md font-medium transition-colors",
-                        serviceFilter === value
-                          ? value === "emoldurar_secas"
-                            ? "bg-cocoa-900 text-cream-50"
-                            : value === "recriacao"
-                            ? "bg-violet-100 text-violet-800"
-                            : "bg-surface text-cocoa-900 shadow-sm"
-                          : "text-cocoa-500 hover:text-cocoa-800",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <span />
-              )}
+              {showTabs ? serviceTabs : <span />}
               {showOrderBtn && (
                 <button
                   type="button"

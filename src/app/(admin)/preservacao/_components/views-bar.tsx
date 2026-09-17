@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ChevronDown,
   Columns3,
@@ -53,7 +53,7 @@ import {
 // aparência alinhada com o `Button variant="outline" size="sm"` mas sem o
 // wrapper extra.
 const TRIGGER_BASE =
-  "inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors";
+  "inline-flex shrink-0 items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-medium transition-colors";
 const TRIGGER_NEUTRAL = "border-cream-200 bg-surface text-cocoa-900 hover:bg-cream-50";
 const TRIGGER_ACTIVE = "border-indigo-300 bg-indigo-50 text-indigo-900 hover:bg-indigo-100";
 
@@ -67,6 +67,8 @@ interface Props {
   activeViewId: string | null;
   setActiveViewId: (id: string | null) => void;
   partners: { id: string; name: string }[];
+  /** Controlos extra (ex.: abas de tipo de serviço) na MESMA linha dos botões. */
+  children?: ReactNode;
 }
 
 export function ViewsBar({
@@ -79,6 +81,7 @@ export function ViewsBar({
   activeViewId,
   setActiveViewId,
   partners,
+  children,
 }: Props) {
   const activeFiltersCount = countActiveFilters(filters);
   const activeColumnsCount = columns.length;
@@ -104,7 +107,10 @@ export function ViewsBar({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Uma linha só. No telemóvel desliza na horizontal (a barra é estreita
+          demais para tudo); a partir de sm volta ao comportamento de sempre.
+          Os popovers são Radix com portal, logo o overflow não os corta. */}
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible">
         {/* Selector de Vista */}
         <ViewsMenu
           views={views}
@@ -135,6 +141,10 @@ export function ViewsBar({
           onToggle={toggleColumn}
           activeCount={activeColumnsCount}
         />
+
+        {/* Abas de tipo de serviço, quando existem: partilham esta linha em vez
+            de somarem uma segunda barra por baixo. */}
+        {children}
 
         {/* Guardar como vista */}
         {(activeFiltersCount > 0 || activeColumnsCount > 0) && !activeViewId && (
