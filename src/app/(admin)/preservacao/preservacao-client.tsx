@@ -555,14 +555,16 @@ function OrderRow({
       <td className="px-4 py-1.5">
         <div className="flex items-center gap-2 min-w-0">
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C4A882] shrink-0" />}
-          <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
-              className="text-sm font-medium text-cocoa-900 truncate"
+              className="text-sm font-medium text-cocoa-900 truncate min-w-0"
               title={order.client_name}
             >
               {order.client_name}
             </span>
-            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            {/* Tipo de evento e etiquetas ficam na MESMA linha do nome (não por
+                baixo): o nome encolhe com reticências, as etiquetas nunca. */}
+            <div className="flex items-center gap-1.5 shrink-0">
               {order.event_type && (
                 <span className="text-xs text-cocoa-700">
                   {EVENT_TYPE_LABELS[order.event_type]}
@@ -582,14 +584,6 @@ function OrderRow({
                   title="Serviço: recriação"
                 >
                   Recriação
-                </span>
-              )}
-              {additionalFramesCount(order.additional_main_frames) > 0 && (
-                <span
-                  className="inline-flex items-center rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 uppercase tracking-wide shrink-0"
-                  title={`Quadros principais adicionais: ${additionalFramesLabel(order.additional_main_frames)}`}
-                >
-                  +{additionalFramesCount(order.additional_main_frames)} {additionalFramesCount(order.additional_main_frames) === 1 ? "quadro" : "quadros"}
                 </span>
               )}
               {isNew && (
