@@ -4,7 +4,7 @@
 // FATURAÇÃO — extraído de financas-client.tsx
 // ============================================================
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Receipt,
   TrendingUp,
@@ -13,8 +13,15 @@ import {
   Sparkles,
   Frame,
   Handshake,
+  Download,
 } from "lucide-react";
-import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear, getYear } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear, getYear, addMonths, isBefore } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { downloadCsv } from "@/lib/export-csv";
+import { formatDatePT, formatDateLisbon } from "@/lib/format-date";
+import { STATUS_LABELS } from "@/types/database";
+import { VOUCHER_USAGE_STATUS_LABELS } from "@/types/voucher";
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_PAYMENT_METHOD_LABELS } from "@/types/expense";
 import { pt } from "date-fns/locale";
 import { useTheme } from "next-themes";
 import {
@@ -37,13 +44,16 @@ import {
 import { cn } from "@/lib/utils";
 import { formatEUR } from "@/lib/format";
 import {
-  commissionFromOrder,
   commissionFullFromVoucher,
   voucherCodesWithCommission,
   orderCommissionSuppressedByVoucher,
-  cogsRecognizedFromOrder,
   expensesTotalInPeriod,
-  paidRatio as paidRatioOf,
+  expenseAmountInPeriod,
+  revenueInPeriod,
+  revenueTranches,
+  commissionInPeriod,
+  cogsInPeriod,
+  outstandingFromOrder,
 } from "@/lib/finance";
 import type { Expense } from "@/types/expense";
 import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
@@ -51,13 +61,15 @@ import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
 // Explicações dos KPIs (tooltips ⓘ) — para ficar claro o que cada número
 // mede, sobretudo porque os clientes pagam em parcelas.
 const INFO_RECEITA =
-  "Dinheiro JÁ RECEBIDO no período: orçamento × % já pago (30/70/100%) de cada encomenda (sem canceladas, pela data do evento) + vales 100% pagos ainda não convertidos. NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
+  "Dinheiro que ENTROU no período: cada parcela (30% / 40% / 30% do orçamento) conta na data em que foi paga; encomendas antigas sem essa data contam pela data do evento. Sem canceladas. Mais vales 100% pagos ainda não convertidos (pela data de criação). NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
 const INFO_DESPESAS =
   "Despesas únicas pela data da despesa + subscrições activas no período, ao custo mensal equivalente (anual ÷ 12), em cada mês até ao mês actual. A mesma base da aba Despesas.";
 const INFO_COGS =
-  "Custo de produção reconhecido: materiais de cada encomenda (snapshot capturado na criação: tamanho, fundo, tipo de moldura e extras), contados só quando a encomenda está 100% paga (tudo-ou-nada). Encomendas a 30/70% ainda não entram; encomendas antigas sem snapshot contam 0. Atribuído ao período pela data do evento.";
+  "Custo de produção reconhecido: materiais de cada encomenda (snapshot capturado na criação: tamanho, fundo, tipo de moldura e extras), contados só quando a encomenda está 100% paga (tudo-ou-nada), na data em que ficou 100% paga (sem essa data: data do evento). Encomendas a 30/70% ainda não entram; encomendas antigas sem snapshot contam 0.";
 const INFO_COMISSOES =
-  "Comissões a parceiros, proporcionais ao % já pago, nos estados que contam (parceiro informado / a aguardar / paga). 'N/A' e 'Não aceita' não entram. Inclui comissões de vales recomendados (só quando o vale está 100% pago); contam uma única vez no vale e não recontam quando este vira preservação.";
+  "Comissões a parceiros, proporcionais às parcelas pagas no período, nos estados que contam (parceiro informado / a aguardar / paga). 'N/A' e 'Não aceita' não entram. Inclui comissões de vales recomendados (só quando o vale está 100% pago); contam uma única vez no vale e não recontam quando este vira preservação.";
+const INFO_POR_RECEBER =
+  "Quanto falta os clientes pagarem: orçamento × (1 − % pago) das encomendas não canceladas com evento neste período. Dinheiro que ainda vai entrar se tudo correr bem.";
 const INFO_LUCRO =
   "Receita recebida − despesas − custo de produção − comissões, no período.";
 
@@ -70,23 +82,26 @@ export function FaturacaoTab({
   vouchers: FaturacaoVoucher[];
   expenses: Expense[];
 }) {
-  // Receita = orders proporcional ao % pago + vales pagos não convertidos (evitar dupla contagem)
-  // Encomendas CANCELADAS não contam (coerente com o Painel e as Métricas).
-  const revenueFromOrder = (o: FaturacaoOrder): number => {
-    if (o.status === "cancelado") return 0;
-    if (!o.budget) return 0;
-    return o.budget * paidRatioOf(o.payment_status);
-  };
+  // Receita, comissões e custo de produção das encomendas contam pela DATA
+  // DE CADA PAGAMENTO (mig 111, decisão da Maria na sessão 174); encomendas
+  // sem carimbo caem na data do evento, como antes. Vales pela data de
+  // criação (100% pagos e não convertidos, para não contar a dobrar com a
+  // encomenda). Canceladas nunca contam. Tudo em lib/finance.ts.
   const revenueFromVoucher = (v: FaturacaoVoucher): number => {
     if (v.payment_status !== "100_pago") return 0;
     if (v.usage_status === "preservacao_agendada") return 0; // evita dupla contagem com a encomenda
     return Number(v.amount);
   };
-  // COGS tudo-ou-nada: só conta quando a encomenda está 100% paga
-  // (decisão Maria 2026-05-22). Implementação em lib/finance.ts. Canceladas
-  // não contam (alinhado com a receita).
-  const cogsFromOrder = (o: FaturacaoOrder): number =>
-    o.status === "cancelado" ? 0 : cogsRecognizedFromOrder(o);
+  const ordersRevenueIn = useCallback(
+    (start: Date, end: Date): number =>
+      orders.reduce((s, o) => s + revenueInPeriod(o, start, end), 0),
+    [orders],
+  );
+  const ordersCogsIn = useCallback(
+    (start: Date, end: Date): number =>
+      orders.reduce((s, o) => s + cogsInPeriod(o, start, end), 0),
+    [orders],
+  );
 
   // new Date() é impuro durante o render — estabilizado com useMemo (o
   // compilador do React não conseguia preservar o useMemo de availableYears).
@@ -105,14 +120,20 @@ export function FaturacaoTab({
     fontSize: 12,
   } as const;
 
-  // Anos disponíveis: encomendas pela data do evento; vales pela data de criação;
-  // despesas pela data da despesa. Garante que o ano actual aparece sempre.
+  // Anos disponíveis: encomendas pela data do evento e pelas datas de
+  // pagamento; vales pela data de criação; despesas pela data da despesa.
+  // Garante que o ano actual aparece sempre.
   const availableYears = useMemo(() => {
     const years = new Set<number>([currentYear]);
+    const add = (iso: string | null | undefined) => {
+      if (!iso) return;
+      try { years.add(getYear(parseISO(iso))); } catch {}
+    };
     for (const o of orders) {
-      if (o.event_date) {
-        try { years.add(getYear(parseISO(o.event_date))); } catch {}
-      }
+      add(o.event_date);
+      add(o.deposit_paid_at);
+      add(o.second_paid_at);
+      add(o.fully_paid_at);
     }
     for (const v of vouchers) {
       if (v.created_at) {
@@ -190,11 +211,109 @@ export function FaturacaoTab({
     pipelineBuckets.em_producao.total +
     pipelineBuckets.recebido.total;
 
-  // KPIs anuais (o mês corrente vive no Painel): encomendas pela data do
-  // evento; vales pela data de criação. "Receita do ano" passa a ser
-  // "Receita total" quando isAllTime.
+  // Por receber (pedido da Maria, sessão 174): o que falta os clientes
+  // pagarem das encomendas não canceladas com evento no período.
+  let outstandingTotal = 0;
+  let outstandingCount = 0;
+  for (const o of orders) {
+    if (!inRange(o.event_date, yearStart, yearEnd)) continue;
+    const due = outstandingFromOrder(o);
+    if (due > 0) {
+      outstandingTotal += due;
+      outstandingCount += 1;
+    }
+  }
+
+  // ── Exportação CSV (pedido da Maria, sessão 174): receitas e despesas do
+  // ano escolhido, para contabilista/IRS. Receitas = uma linha por parcela
+  // paga (com a data que contou) + vales; despesas = únicas + uma linha por
+  // mês de cada subscrição activa. Abre no Excel (`;` + BOM).
+  const eur = (n: number) => n.toFixed(2).replace(".", ",");
+  const yearLabel = isAllTime ? "todos" : String(selectedYear);
+  const exportRevenueCsv = () => {
+    const items: Array<{ at: Date; row: string[] }> = [];
+    for (const o of orders) {
+      if (o.status === "cancelado" || !o.budget) continue;
+      for (const t of revenueTranches(o)) {
+        if (!t.at || !inRange(t.at, yearStart, yearEnd)) continue;
+        items.push({
+          at: parseISO(t.at),
+          row: [
+            t.stamped ? formatDateLisbon(t.at) : formatDatePT(t.at),
+            "Encomenda",
+            o.client_name,
+            o.order_id,
+            `${t.pct}%`,
+            eur((Number(o.budget) * t.pct) / 100),
+            formatDatePT(o.event_date),
+            STATUS_LABELS[o.status],
+            t.stamped ? "data do pagamento" : "data do evento (sem data de pagamento)",
+          ],
+        });
+      }
+    }
+    for (const v of vouchers) {
+      if (revenueFromVoucher(v) <= 0 || !inRange(v.created_at, yearStart, yearEnd)) continue;
+      items.push({
+        at: parseISO(v.created_at),
+        row: [
+          formatDateLisbon(v.created_at),
+          "Vale",
+          v.code,
+          "",
+          "100%",
+          eur(Number(v.amount)),
+          "",
+          VOUCHER_USAGE_STATUS_LABELS[v.usage_status],
+          "data de criação",
+        ],
+      });
+    }
+    items.sort((a, b) => a.at.getTime() - b.at.getTime());
+    downloadCsv(`fbr-receitas-${yearLabel}`, [
+      ["Data", "Tipo", "Cliente / Vale", "ID", "Parcela", "Valor (€)", "Data do evento", "Estado", "Base da data"],
+      ...items.map((i) => i.row),
+    ]);
+  };
+  const exportExpensesCsv = () => {
+    const items: Array<{ at: Date; row: string[] }> = [];
+    const metodo = (e: Expense) => (e.payment_method ? EXPENSE_PAYMENT_METHOD_LABELS[e.payment_method] : "");
+    for (const e of expenses) {
+      if (!e.is_recurring) {
+        if (!inRange(e.expense_date, yearStart, yearEnd)) continue;
+        items.push({
+          at: parseISO(e.expense_date),
+          row: [formatDatePT(e.expense_date), e.description ?? "", EXPENSE_CATEGORY_LABELS[e.category], e.supplier ?? "", eur(Number(e.amount)), metodo(e), e.has_invoice ? "Sim" : "Não", "Única"],
+        });
+        continue;
+      }
+      // Subscrição: uma linha por mês activo dentro do período, até ao mês actual.
+      let m = isAllTime
+        ? startOfMonth(parseISO(e.recurrence_start_date ?? e.expense_date))
+        : startOfMonth(yearStart);
+      const last = endOfMonth(isBefore(yearEnd, now) ? yearEnd : now);
+      while (!isBefore(last, m)) {
+        const amt = expenseAmountInPeriod(e, m, endOfMonth(m), now);
+        if (amt > 0) {
+          items.push({
+            at: m,
+            row: [format(m, "dd/MM/yyyy"), `${e.description ?? ""} (subscrição)`, EXPENSE_CATEGORY_LABELS[e.category], e.supplier ?? "", eur(amt), metodo(e), e.has_invoice ? "Sim" : "Não", "Subscrição"],
+          });
+        }
+        m = addMonths(m, 1);
+      }
+    }
+    items.sort((a, b) => a.at.getTime() - b.at.getTime());
+    downloadCsv(`fbr-despesas-${yearLabel}`, [
+      ["Data", "Descrição", "Categoria", "Fornecedor", "Valor (€)", "Método", "Factura", "Tipo"],
+      ...items.map((i) => i.row),
+    ]);
+  };
+
+  // KPIs anuais (o mês corrente vive no Painel). "Receita do ano" passa a
+  // ser "Receita total" quando isAllTime.
   const revenueYear =
-    orders.filter((o) => inRange(o.event_date, yearStart, yearEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+    ordersRevenueIn(yearStart, yearEnd) +
     vouchers.filter((v) => inRange(v.created_at, yearStart, yearEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
 
   // Despesas: únicas pela data + subscrições em cada mês activo (ver
@@ -202,11 +321,9 @@ export function FaturacaoTab({
   // contavam no mês em que começavam).
   const expensesYear = expensesTotalInPeriod(expenses, yearStart, yearEnd, now);
 
-  // Custo de produção (COGS) por período: atribuído à mesma janela em que a
-  // receita conta, ou seja, pela data do evento da encomenda.
-  const cogsYear = orders
-    .filter((o) => inRange(o.event_date, yearStart, yearEnd))
-    .reduce((s, o) => s + cogsFromOrder(o), 0);
+  // Custo de produção (COGS) por período: na data em que a encomenda ficou
+  // 100% paga (sem carimbo: data do evento).
+  const cogsYear = ordersCogsIn(yearStart, yearEnd);
 
   // Comissões a parceiros: dedução à receita (decisão Maria 2026-05-19).
   // Conta proporcional ao %pago, excluindo estados `na` e `nao_aceita` e
@@ -216,16 +333,14 @@ export function FaturacaoTab({
   // encomenda paga com um vale comissionado é suprimida (não recontar).
   const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
   const orderCommissionInRange = (start: Date, end: Date) =>
-    orders
-      .filter((o) => o.status !== "cancelado" && inRange(o.event_date, start, end))
-      .reduce(
-        (s, o) =>
-          s +
-          (orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
-            ? 0
-            : commissionFromOrder(o)),
-        0,
-      );
+    orders.reduce(
+      (s, o) =>
+        s +
+        (orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
+          ? 0
+          : commissionInPeriod(o, start, end)),
+      0,
+    );
   const voucherCommissionInRange = (start: Date, end: Date) =>
     vouchers
       .filter((v) => inRange(v.created_at, start, end))
@@ -250,10 +365,10 @@ export function FaturacaoTab({
         const start = startOfYear(new Date(y, 0, 1));
         const end = endOfYear(new Date(y, 11, 31));
         const rev =
-          orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+          ordersRevenueIn(start, end) +
           vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
         const exp = expensesTotalInPeriod(expenses, start, end, now);
-        const cogs = orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + cogsFromOrder(o), 0);
+        const cogs = ordersCogsIn(start, end);
         return {
           key: String(y),
           label: String(y),
@@ -268,10 +383,10 @@ export function FaturacaoTab({
       const start = startOfMonth(new Date(selectedYear as number, m, 1));
       const end = endOfMonth(new Date(selectedYear as number, m, 1));
       const rev =
-        orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
+        ordersRevenueIn(start, end) +
         vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
       const exp = expensesTotalInPeriod(expenses, start, end, now);
-      const cogs = orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + cogsFromOrder(o), 0);
+      const cogs = ordersCogsIn(start, end);
       const monthLabel = format(start, "MMM", { locale: pt });
       buckets.push({
         key: format(start, "yyyy-MM"),
@@ -282,7 +397,7 @@ export function FaturacaoTab({
       });
     }
     return buckets;
-  }, [orders, vouchers, expenses, selectedYear, isAllTime, availableYears, now]);
+  }, [vouchers, expenses, selectedYear, isAllTime, availableYears, now, ordersRevenueIn, ordersCogsIn]);
 
   return (
     <div className="space-y-4">
@@ -307,9 +422,17 @@ export function FaturacaoTab({
               ))}
             </SelectContent>
           </Select>
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={exportRevenueCsv} title="Uma linha por parcela paga (com a data que contou) e por vale">
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            CSV receitas
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="h-9" onClick={exportExpensesCsv} title="Despesas únicas e uma linha por mês de cada subscrição">
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            CSV despesas
+          </Button>
         </div>
         <p className="text-xs text-cocoa-700 italic">
-          Encomendas contam pelo ano da <strong>data do evento</strong>; vales pelo ano de <strong>criação</strong>.
+          Receita, comissões e custo de produção contam pela <strong>data de cada pagamento</strong> (sem essa data, pela data do evento); vales pela data de <strong>criação</strong>; o pipeline pela data do evento.
         </p>
       </div>
 
@@ -358,7 +481,7 @@ export function FaturacaoTab({
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <PipelineBucket
             label="Não confirmado"
             helper="Pré-reservas e sem-resposta"
@@ -386,6 +509,14 @@ export function FaturacaoTab({
             count={pipelineBuckets.recebido.count}
             total={pipelineBuckets.recebido.total}
             color="emerald"
+          />
+          <PipelineBucket
+            label="Por receber"
+            helper="orçamento × (1 − % pago)"
+            count={outstandingCount}
+            total={outstandingTotal}
+            color="rose"
+            info={INFO_POR_RECEBER}
           />
         </div>
       </div>
@@ -430,23 +561,27 @@ function PipelineBucket({
   count,
   total,
   color,
+  info,
 }: {
   label: string;
   helper: string;
   count: number;
   total: number;
-  color: "amber" | "sky" | "violet" | "emerald";
+  color: "amber" | "sky" | "violet" | "emerald" | "rose";
+  /** Explicação (tooltip no título). */
+  info?: string;
 }) {
   const palette: Record<string, { border: string; bg: string; text: string; subtext: string }> = {
     amber:   { border: "border-amber-200 dark:border-amber-900/40",   bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-amber-900 dark:text-amber-200",   subtext: "text-amber-700 dark:text-amber-300" },
     sky:     { border: "border-sky-200 dark:border-sky-900/40",       bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-sky-900 dark:text-sky-200",       subtext: "text-sky-700 dark:text-sky-300" },
     violet:  { border: "border-violet-200 dark:border-violet-900/40", bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-violet-900 dark:text-violet-200", subtext: "text-violet-700 dark:text-violet-300" },
     emerald: { border: "border-emerald-200 dark:border-emerald-900/40", bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-emerald-900 dark:text-emerald-200", subtext: "text-emerald-700 dark:text-emerald-300" },
+    rose:    { border: "border-rose-200 dark:border-rose-900/40",     bg: "bg-surface/80 dark:bg-[#1B1611]/40", text: "text-rose-900 dark:text-rose-200",     subtext: "text-rose-700 dark:text-rose-300" },
   };
   const c = palette[color];
   return (
-    <div className={cn("rounded-xl border p-3 space-y-1", c.bg, c.border)}>
-      <div className={cn("text-[10px] uppercase tracking-wider font-medium", c.subtext)}>{label}</div>
+    <div className={cn("rounded-xl border p-3 space-y-1", c.bg, c.border)} title={info}>
+      <div className={cn("text-[10px] uppercase tracking-wider font-medium", c.subtext)}>{label}{info ? " ⓘ" : ""}</div>
       <div className={cn("text-2xl font-semibold tabular-nums", c.text)}>{formatEUR(total)}</div>
       <div className={cn("text-[11px]", c.subtext)}>
         {count} {count === 1 ? "encomenda" : "encomendas"} · {helper}

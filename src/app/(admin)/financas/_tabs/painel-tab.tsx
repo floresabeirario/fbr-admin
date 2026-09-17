@@ -37,7 +37,12 @@ import {
   voucherCodesWithCommission,
   orderCommissionSuppressedByVoucher,
   expenseAmountInPeriod,
+  revenueInPeriod,
+  commissionInPeriod,
+  cogsInPeriod,
 } from "@/lib/finance";
+import { monthlyEquivalent } from "@/types/expense";
+import { formatDatePT } from "@/lib/format-date";
 import { FRAME_SIZE_LABELS, FRAME_BACKGROUND_LABELS } from "@/types/database";
 import type { FrameSize, FrameBackground } from "@/types/database";
 import type { Expense } from "@/types/expense";
@@ -137,21 +142,27 @@ export function PainelTab({
     // encomendas que vieram desses vales (não recontar; decisão Maria s116).
     const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
     const aggregate = (start: Date, end: Date) => {
-      const ordersInRange = orders.filter((o) => inRangeISO(o.event_date, start, end));
+      // Dinheiro (receita, custo, comissões): pela DATA DE CADA PAGAMENTO
+      // (mig 111; sem carimbo cai na data do evento). Contagens e
+      // orçamento médio: pela data do evento, porque são sobre encomendas.
       let revenueGross = 0;
       let cogs = 0;
       let commission = 0;
-      let orderCount = 0;
-      let completedCount = 0;
-      for (const o of ordersInRange) {
+      for (const o of orders) {
         if (o.status === "cancelado") continue;
-        const p = orderPnL(o);
-        revenueGross += p.revenue_recognized;
-        cogs += p.cogs_recognized;
+        revenueGross += revenueInPeriod(o, start, end);
+        cogs += cogsInPeriod(o, start, end);
         commission += orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
           ? 0
-          : p.commission_recognized;
+          : commissionInPeriod(o, start, end);
+      }
+      let orderCount = 0;
+      let completedCount = 0;
+      let budgetSum = 0;
+      for (const o of orders) {
+        if (o.status === "cancelado" || !inRangeISO(o.event_date, start, end)) continue;
         orderCount += 1;
+        budgetSum += Number(o.budget) || 0;
         if (o.status === "quadro_recebido") completedCount += 1;
       }
       // Vales 100% pagos não convertidos somam à receita
@@ -188,6 +199,7 @@ export function PainelTab({
         marginPct,
         orderCount,
         completedCount,
+        budgetSum,
       };
     };
     return {
@@ -216,8 +228,22 @@ export function PainelTab({
     return best;
   }, [orders, monthStart, monthEnd]);
 
-  // ── Ticket médio ──
-  const ticketAvg = month.orderCount > 0 ? month.revenueGross / month.orderCount : 0;
+  // ── Orçamento médio das encomendas com evento no período ──
+  // (Antes "ticket médio" = receita ÷ encomendas, que misturava dinheiro
+  // por data de pagamento com encomendas por data do evento.)
+  const ticketAvg = month.orderCount > 0 ? month.budgetSum / month.orderCount : 0;
+
+  // ── Subscrições que começaram neste período (custos fixos novos) ──
+  const newSubs = useMemo(
+    () =>
+      expenses.filter(
+        (e) =>
+          e.is_recurring &&
+          !!e.recurrence_start_date &&
+          inRangeISO(e.recurrence_start_date, monthStart, monthEnd),
+      ),
+    [expenses, monthStart, monthEnd],
+  );
 
   // ── Pipeline pendente (não recebido) ──
   const pendingPipeline = useMemo(() => {
@@ -373,7 +399,7 @@ export function PainelTab({
           subLabel="Concluídas"
           subValue={month.completedCount > 0 ? String(month.completedCount) : undefined}
         />
-        <KpiBox label="Ticket médio" value={formatEUR(ticketAvg)} icon={<Tags className="h-4 w-4" />} color="sky" />
+        <KpiBox label="Orçamento médio" value={formatEUR(ticketAvg)} icon={<Tags className="h-4 w-4" />} color="sky" />
         <KpiBox
           label={`Quadro mais lucrativo (${range.unit === "total" ? "sempre" : range.unit})`}
           value={mostProfitableThisMonth ? formatEUR(mostProfitableThisMonth.pnl.margin_full) : "—"}
@@ -416,6 +442,29 @@ export function PainelTab({
           Despesas categorizadas dinamicamente a partir do tipo definido na despesa: flores/molduras/materiais → COGS variável; software/serviços/transporte/outros → Operacional; taxas → Financeira.
         </p>
       </div>
+
+      {/* Subscrições novas no período — custos fixos que entraram (sessão 174) */}
+      {newSubs.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900/50 p-4 space-y-2">
+          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            Subscrições que começaram neste período ({newSubs.length})
+          </h3>
+          <table className="w-full text-sm">
+            <tbody>
+              {newSubs.map((e) => (
+                <tr key={e.id} className="border-t border-amber-100 dark:border-amber-900/30 first:border-t-0">
+                  <td className="py-1 text-cocoa-900">{e.description}</td>
+                  <td className="py-1 text-xs text-cocoa-700">desde {formatDatePT(e.recurrence_start_date)}</td>
+                  <td className="py-1 text-right tabular-nums text-cocoa-900 w-32">{formatEUR(monthlyEquivalent(e))} /mês</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+            Custos fixos novos: confirma que são mesmo para ficar.
+          </p>
+        </div>
+      )}
 
       {/* Ranking — Onde está o lucro (ano corrente) */}
       <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-4">

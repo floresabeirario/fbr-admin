@@ -18,6 +18,11 @@ import {
   aggregateExpensesByAccountingType,
   expenseAmountInPeriod,
   expensesTotalInPeriod,
+  revenueTranches,
+  revenueInPeriod,
+  commissionInPeriod,
+  cogsInPeriod,
+  outstandingFromOrder,
 } from "@/lib/finance";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
 import { subscriptionSplitDates } from "@/types/expense";
@@ -236,6 +241,93 @@ describe("aggregateExpensesByAccountingType", () => {
     expect(totals.marketing).toBe(7);
     expect(totals.financeira).toBe(1.5);
     expect(totals.investimento).toBe(0);
+  });
+});
+
+// ── Receita por data de pagamento (mig 111) ──
+describe("receita por data de pagamento", () => {
+  const set = { start: new Date(2026, 8, 1), end: new Date(2026, 9, 0, 23, 59, 59) };
+  const dez = { start: new Date(2026, 11, 1), end: new Date(2027, 0, 0, 23, 59, 59) };
+  const nov = { start: new Date(2026, 10, 1), end: new Date(2026, 11, 0, 23, 59, 59) };
+  const base = {
+    budget: 400,
+    status: "entrega_agendada" as const,
+    event_date: "2026-12-12",
+    partner_commission: 40,
+    partner_commission_status: "a_aguardar" as const,
+  };
+
+  it("o sinal conta no mês em que entrou, não no mês do evento", () => {
+    const o = { ...base, payment_status: "30_pago" as const, deposit_paid_at: "2026-09-10T10:00:00Z" };
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
+    expect(revenueInPeriod(o, dez.start, dez.end)).toBe(0);
+  });
+
+  it("as 3 parcelas (30/40/30) caem cada uma na sua data e somam o orçamento", () => {
+    const o = {
+      ...base,
+      payment_status: "100_pago" as const,
+      deposit_paid_at: "2026-09-10T10:00:00Z",
+      second_paid_at: "2026-11-02T10:00:00Z",
+      fully_paid_at: "2026-12-20T10:00:00Z",
+    };
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
+    expect(revenueInPeriod(o, nov.start, nov.end)).toBe(160);
+    expect(revenueInPeriod(o, dez.start, dez.end)).toBe(120);
+    const ano = { start: new Date(2026, 0, 1), end: new Date(2026, 11, 31, 23, 59, 59) };
+    expect(revenueInPeriod(o, ano.start, ano.end)).toBe(400);
+  });
+
+  it("sem carimbos cai na data do evento (encomendas antigas), como antes", () => {
+    const o = { ...base, payment_status: "70_pago" as const };
+    expect(revenueTranches(o).every((t) => !t.stamped && t.at === "2026-12-12")).toBe(true);
+    expect(revenueInPeriod(o, dez.start, dez.end)).toBe(280);
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(0);
+  });
+
+  it("carimbo em falta numa só parcela cai na data do evento só nessa", () => {
+    const o = { ...base, payment_status: "70_pago" as const, deposit_paid_at: "2026-09-10T10:00:00Z" };
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
+    expect(revenueInPeriod(o, dez.start, dez.end)).toBe(160);
+  });
+
+  it("cancelada e por pagar não contam", () => {
+    expect(revenueInPeriod({ ...base, payment_status: "100_pago", status: "cancelado", fully_paid_at: "2026-09-10T10:00:00Z" }, set.start, set.end)).toBe(0);
+    expect(revenueInPeriod({ ...base, payment_status: "100_por_pagar" }, dez.start, dez.end)).toBe(0);
+    expect(revenueTranches({ payment_status: "100_por_pagar" })).toEqual([]);
+  });
+
+  it("a comissão segue as parcelas pagas no período", () => {
+    const o = { ...base, payment_status: "30_pago" as const, deposit_paid_at: "2026-09-10T10:00:00Z" };
+    expect(commissionInPeriod(o, set.start, set.end)).toBe(12);
+    expect(commissionInPeriod({ ...o, partner_commission_status: "nao_aceita" }, set.start, set.end)).toBe(0);
+  });
+
+  it("o custo de produção conta na data dos 100%", () => {
+    const o = {
+      ...base,
+      payment_status: "100_pago" as const,
+      frame_size: "30x40" as const,
+      frame_background: "transparente" as const,
+      museum_glass: "incluido" as const,
+      museum_glass_mini: "incluido" as const,
+      pyramid_frame: false,
+      frame_internal_type: "baixa" as const,
+      extra_small_frames: null,
+      extra_small_frames_qty: null,
+      additional_main_frames: {},
+      production_cost_snapshot: SNAPSHOT,
+      fully_paid_at: "2026-11-02T10:00:00Z",
+    };
+    expect(cogsInPeriod(o, nov.start, nov.end)).toBe(55);
+    expect(cogsInPeriod(o, dez.start, dez.end)).toBe(0);
+    expect(cogsInPeriod({ ...o, payment_status: "70_pago" }, nov.start, nov.end)).toBe(0);
+  });
+
+  it("por receber = orçamento × (1 − % pago), 0 em canceladas", () => {
+    expect(outstandingFromOrder({ budget: 400, payment_status: "30_pago", status: "entrega_agendada" })).toBe(280);
+    expect(outstandingFromOrder({ budget: 400, payment_status: "100_pago", status: "quadro_recebido" })).toBe(0);
+    expect(outstandingFromOrder({ budget: 400, payment_status: "100_por_pagar", status: "cancelado" })).toBe(0);
   });
 });
 

@@ -9,9 +9,11 @@ import {
   Minus,
   Lightbulb,
   RefreshCw,
-  Euro,
-  CalendarRange,
   ShoppingBag,
+  Filter,
+  CalendarClock,
+  Ban,
+  Timer,
   Gift,
   Clock,
   Sparkles,
@@ -28,7 +30,8 @@ import {
   Info,
 } from "lucide-react";
 import { parseISO } from "date-fns";
-import { formatDateTimeLisbon } from "@/lib/format-date";
+import Link from "next/link";
+import { formatDateTimeLisbon, formatDatePT } from "@/lib/format-date";
 import {
   BarChart,
   Bar,
@@ -40,8 +43,6 @@ import {
   Pie,
   Cell,
   Legend,
-  AreaChart,
-  Area,
   CartesianGrid,
 } from "recharts";
 
@@ -73,7 +74,6 @@ import type { Voucher } from "@/types/voucher";
 import {
   computeMetrics,
   generateInsights,
-  monthlyRevenue,
   rangeFromPreset,
   RANGE_PRESET_LABELS,
   type RangePreset,
@@ -145,6 +145,10 @@ const UPSELL_HEX = {
 };
 
 const formatEuro = (value: number): string => formatEUR(value, { rounded: true });
+
+// Cores dos buckets de antecedência: do "depois do evento" (rosa, o caso a
+// vigiar) até "mais de 6 meses antes" (violeta).
+const LEAD_PALETTE = ["#f43f5e", "#f59e0b", "#eab308", "#0ea5e9", "#10b981", "#8b5cf6"];
 
 function PctBadge({ pct }: { pct: number | null }) {
   if (pct === null) {
@@ -355,11 +359,9 @@ export default function MetricasClient({
     [range, initialOrders, initialVouchers, preset],
   );
 
-  const insights = useMemo(() => (metrics ? generateInsights(metrics) : []), [metrics]);
-
-  const monthly = useMemo(
-    () => monthlyRevenue(initialOrders, initialVouchers, 12),
-    [initialOrders, initialVouchers],
+  const insights = useMemo(
+    () => (metrics ? generateInsights(metrics, partnerNames) : []),
+    [metrics, partnerNames],
   );
 
   return (
@@ -375,6 +377,13 @@ export default function MetricasClient({
           </h1>
           <p className="text-sm text-cocoa-700">
             Última actualização: {formatDateTimeLisbon(loadedAt)}
+          </p>
+          <p className="text-xs text-cocoa-700">
+            Receita, custos e lucro vivem nas{" "}
+            <Link href="/financas" className="underline underline-offset-2 hover:text-cocoa-900">
+              Finanças
+            </Link>
+            . Aqui: pedidos, conversão, canais e operação.
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -434,30 +443,35 @@ export default function MetricasClient({
         <>
           {/* KPIs hero — cada um com uma cor temática própria */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Os cartões de receita saíram (sessão 174): viviam também nas
+                Finanças com nomes diferentes. A Métricas fica com pedidos,
+                conversão e operação. */}
             <HeroKpiCard
-              label="Receita do período"
-              value={formatEuro(metrics.revenue)}
-              pct={metrics.showComparison ? metrics.revenuePctChange : undefined}
-              info="Dinheiro JÁ RECEBIDO no período: orçamento de cada encomenda × % já pago (30/70/100%), mais vales 100% pagos ainda não convertidos em preservação. NÃO é o valor total das encomendas se todas pagassem 100%. Conta pela data do evento e exclui canceladas."
+              label="Taxa de confirmação"
+              value={metrics.funnel.confirmedPct !== null ? `${metrics.funnel.confirmedPct}%` : "—"}
+              info="Dos pedidos criados no período, quantos já pagaram o sinal (30% ou mais), mesmo que tenham cancelado depois. 'À espera' = ainda sem sinal e não cancelados."
               sub={
-                metrics.showComparison
-                  ? `vs. ${metrics.comparisonLabel}: ${formatEuro(metrics.revenuePrev)}`
-                  : "Já recebido (orçamento × %pago + vales pagos)"
+                metrics.funnel.confirmedPctPrev !== null
+                  ? `vs. ${metrics.comparisonLabel}: ${metrics.funnel.confirmedPctPrev}% · ${metrics.funnel.pending} à espera`
+                  : `${metrics.funnel.confirmed} com sinal · ${metrics.funnel.pending} à espera`
               }
-              icon={Euro}
+              icon={Filter}
               gradient="bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-green-900/30 dark:border-emerald-900/50"
               iconBg="bg-emerald-500"
               iconColor="text-white"
             />
             <HeroKpiCard
-              label="Receita do ano"
-              value={formatEuro(metrics.yearRevenue)}
-              pct={metrics.yearRevenuePctChange}
-              info="Mesma base da 'Receita do período' mas para o ano civil inteiro: dinheiro já recebido (orçamento × %pago + vales pagos), pela data do evento, sem canceladas. Comparado com o mesmo período do ano passado."
-              sub={`vs. ano passado: ${formatEuro(metrics.yearRevenuePrev)}`}
-              icon={CalendarRange}
-              gradient="bg-gradient-to-br from-sky-50 to-blue-100 border-sky-200 dark:from-sky-950/40 dark:to-blue-900/30 dark:border-sky-900/50"
-              iconBg="bg-sky-500"
+              label="Cancelamentos"
+              value={String(metrics.cancellations.count)}
+              info="Pedidos criados no período que estão cancelados, e a fase em que estavam quando cancelaram (registada desde a mig 111; os antigos aparecem como 'Sem registo')."
+              sub={
+                metrics.cancellations.pct !== null
+                  ? `${metrics.cancellations.pct}% dos pedidos do período`
+                  : "Sem pedidos no período"
+              }
+              icon={Ban}
+              gradient="bg-gradient-to-br from-rose-50 to-red-100 border-rose-200 dark:from-rose-950/40 dark:to-red-900/30 dark:border-rose-900/50"
+              iconBg="bg-rose-500"
               iconColor="text-white"
             />
             <HeroKpiCard
@@ -504,38 +518,177 @@ export default function MetricasClient({
             </div>
           )}
 
-          {/* Receita mensal — agora gradiente em area chart */}
+          {/* Funil pedido → sinal, por canal (sessão 174) */}
           <ChartCard
-            title="Receita por mês (últimos 12 meses)"
-            icon={Euro}
+            title="Funil pedido → sinal, por canal"
+            icon={Filter}
             iconColor="text-emerald-500"
-            info="Cada mês mostra o dinheiro já recebido (orçamento × %pago + vales pagos), pela data do evento, sem canceladas — a mesma base do cartão 'Receita do período'."
+            info="Pedidos criados no período (data de criação) e quantos pagaram o sinal, por canal de aquisição. 'Sem resposta' = o cliente não disse como conheceu a FBR."
           >
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={monthly}>
-                <defs>
-                  <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#34d399" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} />
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => formatEuro(Number(v))} tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(v: unknown) => formatEuro(Number(v))}
-                  contentStyle={tooltipStyle}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#10b981"
-                  strokeWidth={2.5}
-                  fill="url(#revGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] text-sm">
+                  <thead className="text-xs uppercase tracking-wider text-cocoa-700">
+                    <tr>
+                      <th className="text-left py-2">Canal</th>
+                      <th className="text-right py-2">Pedidos</th>
+                      <th className="text-right py-2">Com sinal</th>
+                      <th className="text-right py-2">Taxa</th>
+                      <th className="text-right py-2">Cancelados</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.funnel.byChannel.length === 0 && (
+                      <tr><td colSpan={5} className="py-3 text-center text-cocoa-700 italic">Sem pedidos no período.</td></tr>
+                    )}
+                    {metrics.funnel.byChannel.map((c) => (
+                      <tr key={c.key} className="border-t border-cream-100">
+                        <td className="py-2 text-cocoa-900">{c.label}</td>
+                        <td className="py-2 text-right tabular-nums text-cocoa-900">{c.total}</td>
+                        <td className="py-2 text-right tabular-nums text-emerald-700">{c.confirmed}</td>
+                        <td className={cn("py-2 text-right tabular-nums font-semibold", (c.confirmedPct ?? 0) >= 50 ? "text-emerald-700" : (c.confirmedPct ?? 0) >= 30 ? "text-amber-700" : "text-rose-700")}>
+                          {c.confirmedPct !== null ? `${c.confirmedPct}%` : "—"}
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-rose-700">{c.cancelled}</td>
+                      </tr>
+                    ))}
+                    {metrics.funnel.byChannel.length > 1 && (
+                      <tr className="border-t-2 border-cream-300 font-semibold">
+                        <td className="py-2 text-cocoa-900">Total</td>
+                        <td className="py-2 text-right tabular-nums text-cocoa-900">{metrics.funnel.total}</td>
+                        <td className="py-2 text-right tabular-nums text-emerald-700">{metrics.funnel.confirmed}</td>
+                        <td className="py-2 text-right tabular-nums text-cocoa-900">{metrics.funnel.confirmedPct !== null ? `${metrics.funnel.confirmedPct}%` : "—"}</td>
+                        <td className="py-2 text-right tabular-nums text-rose-700">{metrics.funnel.cancelled}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <MiniKpi
+                icon={Timer}
+                color="text-sky-500"
+                label="Tempo até ao sinal (mediana)"
+                value={metrics.funnel.medianDaysToDeposit !== null ? `${metrics.funnel.medianDaysToDeposit} dias` : "—"}
+                sub={
+                  metrics.funnel.depositSample > 0
+                    ? `${metrics.funnel.depositSample} pedido${metrics.funnel.depositSample === 1 ? "" : "s"} com data de pagamento`
+                    : "Sem datas de pagamento ainda (mig 111)"
+                }
+              />
+            </div>
           </ChartCard>
+
+          {/* Antecedência da reserva — só preservação (pedido da Maria, sessão 174) */}
+          <ChartCard
+            title="Com que antecedência reservam? (preservação)"
+            icon={CalendarClock}
+            iconColor="text-violet-500"
+            info="Dias entre o pedido e a data do evento, só nas encomendas de preservação (nas flores secas e na recriação o evento é sempre no passado). 'Depois do evento' = o pedido chegou depois do casamento. Conta só pedidos desde que o formulário público existe, porque as encomendas importadas do Monday têm a data de criação errada."
+          >
+            {metrics.leadTime.sample === 0 ? (
+              <p className="text-sm text-cocoa-700 italic">Sem pedidos de preservação com data de evento neste período.</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
+                <div className="space-y-3">
+                  <MiniKpi
+                    icon={CalendarClock}
+                    color="text-rose-500"
+                    label="Chegam depois do evento"
+                    value={metrics.leadTime.afterEventPct !== null ? `${metrics.leadTime.afterEventPct}%` : "—"}
+                    sub={`${metrics.leadTime.buckets.find((b) => b.key === "depois")?.count ?? 0} de ${metrics.leadTime.sample} pedidos`}
+                  />
+                  <MiniKpi
+                    icon={Timer}
+                    color="text-violet-500"
+                    label="Antecedência mediana"
+                    value={
+                      metrics.leadTime.medianDays === null
+                        ? "—"
+                        : metrics.leadTime.medianDays < 0
+                          ? `${Math.abs(metrics.leadTime.medianDays)} dias depois`
+                          : `${metrics.leadTime.medianDays} dias antes`
+                    }
+                    sub={metrics.leadTime.since ? `Pedidos desde ${formatDatePT(metrics.leadTime.since.slice(0, 10))}` : undefined}
+                  />
+                </div>
+                <ResponsiveContainer width="100%" height={Math.max(200, metrics.leadTime.buckets.length * 36)}>
+                  <BarChart data={metrics.leadTime.buckets} layout="vertical" margin={{ left: 24, right: 40 }}>
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="label" width={170} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(v: unknown, _n, item) => [`${v} (${(item?.payload as { pct?: number } | undefined)?.pct ?? 0}%)`, "Pedidos"]}
+                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                      {metrics.leadTime.buckets.map((b, idx) => (
+                        <Cell key={b.key} fill={LEAD_PALETTE[idx % LEAD_PALETTE.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </ChartCard>
+
+          {/* Cancelamentos por fase + vales a expirar */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ChartCard
+              title="Cancelamentos por fase"
+              icon={Ban}
+              iconColor="text-rose-500"
+              info="Em que estado estava a encomenda quando foi cancelada (pedidos criados no período). Registado pela base de dados desde a mig 111; os cancelamentos antigos aparecem como 'Sem registo'."
+            >
+              {metrics.cancellations.byPhase.length === 0 ? (
+                <p className="text-sm text-cocoa-700 italic">Sem cancelamentos no período.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {metrics.cancellations.byPhase.map((p) => (
+                      <tr key={p.key} className="border-t border-cream-100 first:border-t-0">
+                        <td className="py-1.5 text-cocoa-900">{p.label}</td>
+                        <td className="py-1.5 text-right tabular-nums font-semibold text-rose-700 w-16">{p.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </ChartCard>
+            <ChartCard
+              title="Vales a expirar nos próximos 3 meses"
+              icon={Gift}
+              iconColor="text-amber-500"
+              info="Vales 100% pagos, ainda sem preservação marcada, cuja validade acaba nos próximos 90 dias. Um lembrete a tempo evita perder o cliente e o crédito. Não depende do período escolhido."
+            >
+              {metrics.expiringVouchers.length === 0 ? (
+                <p className="text-sm text-cocoa-700 italic">Nenhum vale a expirar nos próximos 3 meses.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase tracking-wider text-cocoa-700">
+                    <tr>
+                      <th className="text-left py-1.5">Vale</th>
+                      <th className="text-left py-1.5">Expira</th>
+                      <th className="text-right py-1.5">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.expiringVouchers.map((v) => (
+                      <tr key={v.id} className="border-t border-cream-100">
+                        <td className="py-1.5">
+                          <Link href={`/vale-presente/${v.code}`} className="text-cocoa-900 hover:underline underline-offset-2">
+                            <span className="font-mono text-xs">{v.code}</span>{v.name ? ` · ${v.name}` : ""}
+                          </Link>
+                        </td>
+                        <td className={cn("py-1.5 text-xs tabular-nums", v.daysLeft <= 30 ? "text-rose-700 font-semibold" : "text-cocoa-700")}>
+                          {formatDatePT(v.expiry_date.slice(0, 10))} ({v.daysLeft} d)
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums text-cocoa-900">{formatEuro(v.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </ChartCard>
+          </div>
 
           {/* Encomendas por estado — barras horizontais agora COM cor por estado */}
           {metrics.ordersByStatus.length > 0 && (

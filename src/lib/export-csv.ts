@@ -129,7 +129,9 @@ function escapeCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-function downloadCsv(filename: string, rows: string[][]): void {
+/** Descarrega `rows` como CSV (`;`, BOM, aspas em tudo). Exportado para as
+ *  Finanças construírem as suas próprias tabelas (receitas/despesas). */
+export function downloadCsv(filename: string, rows: string[][]): void {
   const sep = ";";
   const csv = "﻿" + rows.map((r) => r.map(escapeCell).join(sep)).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

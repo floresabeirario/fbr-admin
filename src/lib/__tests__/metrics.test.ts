@@ -54,6 +54,103 @@ function makeVoucher(partial: Partial<Voucher>): Voucher {
   } as unknown as Voucher;
 }
 
+// ── Sessão 174: receita por data de pagamento + funil + antecedência ──
+describe("computeMetrics — sessão 174", () => {
+  it("o sinal conta no mês em que entrou, mesmo com o evento noutro ano", () => {
+    const orders = [
+      makeOrder({ budget: 100, payment_status: "30_pago", event_date: "2026-12-12", deposit_paid_at: "2026-06-20T10:00:00.000Z" }),
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.revenue).toBe(30);
+  });
+
+  it("funil: total, com sinal, cancelados, pendentes e por canal", () => {
+    const orders = [
+      makeOrder({ payment_status: "100_pago", how_found_fbr: "instagram" }),
+      makeOrder({ payment_status: "30_pago", how_found_fbr: "instagram" }),
+      makeOrder({ payment_status: "70_pago", how_found_fbr: "google" }),
+      makeOrder({ payment_status: "100_por_pagar", status: "entrega_flores_agendar", how_found_fbr: "google" }),
+      makeOrder({ payment_status: "100_por_pagar", status: "cancelado", cancelled_from_status: "entrega_agendada", how_found_fbr: "instagram" }),
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.funnel.total).toBe(5);
+    expect(m.funnel.confirmed).toBe(3);
+    expect(m.funnel.cancelled).toBe(1);
+    expect(m.funnel.pending).toBe(1);
+    expect(m.funnel.confirmedPct).toBe(60);
+    const ig = m.funnel.byChannel.find((c) => c.key === "instagram")!;
+    expect(ig.total).toBe(3);
+    expect(ig.confirmed).toBe(2);
+    expect(ig.confirmedPct).toBe(67);
+    expect(m.cancellations.count).toBe(1);
+    expect(m.cancellations.pct).toBe(20);
+    expect(m.cancellations.byPhase[0]).toMatchObject({ key: "entrega_agendada", count: 1 });
+  });
+
+  it("mediana de dias até ao sinal só usa pedidos com data de pagamento", () => {
+    const orders = [
+      makeOrder({ created_at: "2026-06-01T10:00:00.000Z", deposit_paid_at: "2026-06-04T10:00:00.000Z" }),
+      makeOrder({ created_at: "2026-06-01T10:00:00.000Z", deposit_paid_at: "2026-06-11T10:00:00.000Z" }),
+      makeOrder({ created_at: "2026-06-01T10:00:00.000Z" }),
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.funnel.depositSample).toBe(2);
+    expect(m.funnel.medianDaysToDeposit).toBe(7);
+  });
+
+  it("antecedência: só preservação, negativo = depois do evento, buckets e %", () => {
+    const orders = [
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", event_date: "2026-06-10", consent_at: "2026-06-05T10:00:00.000Z" }), // 5 dias antes
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", event_date: "2026-05-20" }), // 16 dias depois
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", event_date: "2026-09-20" }), // ~3,5 meses antes
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", event_date: "2026-05-01", service_type: "emoldurar_secas" }), // excluída
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", event_date: null }), // sem data
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.leadTime.sample).toBe(3);
+    expect(m.leadTime.afterEventPct).toBe(33);
+    expect(m.leadTime.buckets.find((b) => b.key === "depois")!.count).toBe(1);
+    expect(m.leadTime.buckets.find((b) => b.key === "semana")!.count).toBe(1);
+    expect(m.leadTime.buckets.find((b) => b.key === "3_6m")!.count).toBe(1);
+    expect(m.leadTime.since).toBe("2026-06-05T10:00:00.000Z");
+  });
+
+  it("antecedência ignora pedidos anteriores ao 1.º consentimento (importados)", () => {
+    const orders = [
+      makeOrder({ created_at: "2025-01-01T10:00:00.000Z", event_date: "2024-06-10" }), // importado (created_at falso)
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", event_date: "2026-06-10", consent_at: "2026-06-05T10:00:00.000Z" }),
+    ];
+    const all = { start: new Date(1970, 0, 1), end: new Date(2999, 11, 31) };
+    const m = computeMetrics(orders, [], all, TODAY, "desde_sempre");
+    expect(m.leadTime.sample).toBe(1);
+  });
+
+  it("vales pagos sem preservação a expirar em 3 meses, ordenados pelo prazo", () => {
+    const vouchers = [
+      makeVoucher({ code: "AAA111", expiry_date: "2026-08-01", amount: 300 }),
+      makeVoucher({ code: "BBB222", expiry_date: "2026-07-01", amount: 350 }),
+      makeVoucher({ code: "CCC333", expiry_date: "2027-01-01" }),
+      makeVoucher({ code: "DDD444", expiry_date: "2026-07-15", usage_status: "preservacao_agendada" }),
+      makeVoucher({ code: "EEE555", expiry_date: "2026-07-15", payment_status: "100_por_pagar" }),
+    ];
+    const m = computeMetrics([], vouchers, RANGE, TODAY, "este_mes");
+    expect(m.expiringVouchers.map((v) => v.code)).toEqual(["BBB222", "AAA111"]);
+    expect(m.expiringVouchers[0].daysLeft).toBe(19);
+  });
+
+  it("parceiros calados: 2+ encomendas e nenhuma nos últimos 6 meses", () => {
+    const orders = [
+      makeOrder({ partner_id: "p1", created_at: "2025-09-01T10:00:00.000Z" }),
+      makeOrder({ partner_id: "p1", created_at: "2025-10-01T10:00:00.000Z" }),
+      makeOrder({ partner_id: "p2", created_at: "2025-10-01T10:00:00.000Z" }), // só 1
+      makeOrder({ partner_id: "p3", created_at: "2025-01-01T10:00:00.000Z" }),
+      makeOrder({ partner_id: "p3", created_at: "2026-05-01T10:00:00.000Z" }), // activo
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.quietPartners.map((p) => p.partner_id)).toEqual(["p1"]);
+  });
+});
+
 describe("computeMetrics — receita", () => {
   it("encomendas canceladas NÃO contam para a receita (bug sessão 113)", () => {
     const orders = [

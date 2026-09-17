@@ -282,6 +282,101 @@ export function orderCommissionSuppressedByVoucher(
   );
 }
 
+// ── Receita por data de pagamento (mig 111) ─────────────────
+//
+// Os clientes pagam em parcelas (30% / 40% / 30% do orçamento) e, desde a
+// mig 111, a BD carimba o momento de cada uma (deposit_paid_at /
+// second_paid_at / fully_paid_at). A receita conta no PERÍODO EM QUE O
+// DINHEIRO ENTROU (decisão da Maria, sessão 174), e não pela data do
+// evento como até aqui. Encomendas sem carimbo (anteriores à mig 111 sem
+// histórico no audit_log, importadas do Monday) caem na data do evento,
+// para não desaparecerem dos totais. Comissões seguem as mesmas parcelas;
+// o custo de produção (tudo-ou-nada aos 100%) conta na data dos 100%.
+//
+// Percentagens em inteiros (30/40/30) e divisão no fim, para 30+40+30
+// dar exactamente 100 (em vírgula flutuante 0.3+0.4+0.3 ≠ 1).
+
+export type OrderForRevenueDates = Pick<Order, "budget" | "payment_status" | "status" | "event_date"> &
+  Partial<Pick<Order, "deposit_paid_at" | "second_paid_at" | "fully_paid_at">>;
+
+export interface RevenueTranche {
+  /** Data que conta para o período: o carimbo, ou a data do evento se não há. */
+  at: string | null;
+  /** Percentagem do orçamento desta parcela (30 / 40 / 30). */
+  pct: number;
+  /** true = veio do carimbo da BD; false = caiu na data do evento. */
+  stamped: boolean;
+}
+
+export function revenueTranches(
+  o: Pick<Order, "payment_status"> &
+    Partial<Pick<Order, "deposit_paid_at" | "second_paid_at" | "fully_paid_at" | "event_date">>,
+): RevenueTranche[] {
+  const r = paidRatio(o.payment_status);
+  if (r <= 0) return [];
+  const mk = (at: string | null | undefined, pct: number): RevenueTranche => ({
+    at: at ?? o.event_date ?? null,
+    pct,
+    stamped: !!at,
+  });
+  const t: RevenueTranche[] = [mk(o.deposit_paid_at, 30)];
+  if (r >= 0.7) t.push(mk(o.second_paid_at, 40));
+  if (r >= 1) t.push(mk(o.fully_paid_at, 30));
+  return t;
+}
+
+function inPeriodISO(iso: string | null, start: Date, end: Date): boolean {
+  if (!iso) return false;
+  const d = parseISO(iso);
+  return d >= start && d <= end;
+}
+
+/** Percentagem (0-100) do orçamento cujo pagamento entrou no período. */
+export function paidPctInPeriod(
+  o: Parameters<typeof revenueTranches>[0],
+  start: Date,
+  end: Date,
+): number {
+  let pct = 0;
+  for (const t of revenueTranches(o)) if (inPeriodISO(t.at, start, end)) pct += t.pct;
+  return pct;
+}
+
+/** Receita reconhecida no período: orçamento × parcelas pagas nesse período. */
+export function revenueInPeriod(o: OrderForRevenueDates, start: Date, end: Date): number {
+  if (o.status === "cancelado" || !o.budget) return 0;
+  return (Number(o.budget) * paidPctInPeriod(o, start, end)) / 100;
+}
+
+/** Comissão a parceiro no período, proporcional às parcelas pagas nele. */
+export function commissionInPeriod(
+  o: OrderForRevenueDates & Pick<Order, "partner_commission" | "partner_commission_status">,
+  start: Date,
+  end: Date,
+): number {
+  if (o.status === "cancelado") return 0;
+  return (commissionFullFromOrder(o) * paidPctInPeriod(o, start, end)) / 100;
+}
+
+/** Custo de produção no período: tudo-ou-nada, na data em que ficou 100% pago. */
+export function cogsInPeriod(
+  o: OrderForCogs & OrderForRevenueDates,
+  start: Date,
+  end: Date,
+): number {
+  if (o.status === "cancelado" || o.payment_status !== "100_pago") return 0;
+  const at = o.fully_paid_at ?? o.event_date ?? null;
+  return inPeriodISO(at, start, end) ? cogsFullFromOrder(o) : 0;
+}
+
+/** Quanto falta o cliente pagar: orçamento × (1 − % pago). 0 para canceladas. */
+export function outstandingFromOrder(
+  o: Pick<Order, "budget" | "payment_status" | "status">,
+): number {
+  if (o.status === "cancelado" || !o.budget) return 0;
+  return (Number(o.budget) * (100 - Math.round(paidRatio(o.payment_status) * 100))) / 100;
+}
+
 // ── COGS por encomenda ───────────────────────────────────────
 
 type OrderForCogs = Pick<

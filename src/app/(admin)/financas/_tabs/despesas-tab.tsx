@@ -123,11 +123,23 @@ export function DespesasTab({
   const unicasEver = unicas.reduce((s, e) => s + Number(e.amount), 0);
   const subsEver = subscript.reduce((s, e) => s + subscriptionTotalToDate(e, now), 0);
   const totalEver = unicasEver + subsEver;
+  // Facturas em falta (pedido da Maria, sessão 174): o campo existia e
+  // ninguém o somava. Conta únicas e subscrições activas sem factura.
+  const semFactura =
+    unicas.filter((e) => !e.has_invoice).length +
+    activeSubs.filter((e) => !e.has_invoice).length;
 
   return (
     <div className="space-y-4">
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <KpiBox
+          label="Facturas em falta"
+          value={String(semFactura)}
+          icon={<Paperclip className="h-4 w-4" />}
+          color={semFactura > 0 ? "amber" : "emerald"}
+          info="Despesas únicas e subscrições activas sem factura anexada. Pede-as ao fornecedor enquanto é fácil."
+        />
         <KpiBox
           label="Despesas únicas — este mês"
           value={formatEUR(unicasMonth)}
@@ -235,6 +247,13 @@ function DespesasUnicas({
   const [, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<ExpenseCategory | "todas">("todas");
+  // Filtro por ano (pedido da Maria, sessão 174): a lista só tinha pesquisa.
+  const [yearFilter, setYearFilter] = useState<string>("todos");
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    for (const e of expenses) years.add(e.expense_date.slice(0, 4));
+    return [...years].sort((a, b) => b.localeCompare(a));
+  }, [expenses]);
   const [search, setSearch] = useState("");
   const [newExpense, setNewExpense] = useState({
     expense_date: format(new Date(), "yyyy-MM-dd"),
@@ -248,6 +267,7 @@ function DespesasUnicas({
     const q = search.trim().toLowerCase();
     return expenses.filter((e) => {
       if (categoryFilter !== "todas" && e.category !== categoryFilter) return false;
+      if (yearFilter !== "todos" && !e.expense_date.startsWith(yearFilter)) return false;
       if (!q) return true;
       return (
         (e.description ?? "").toLowerCase().includes(q) ||
@@ -255,7 +275,7 @@ function DespesasUnicas({
         (e.notes ?? "").toLowerCase().includes(q)
       );
     });
-  }, [expenses, search, categoryFilter]);
+  }, [expenses, search, categoryFilter, yearFilter]);
 
   function handleCreate() {
     const amount = parseFloat(newExpense.amount.replace(",", "."));
@@ -312,6 +332,17 @@ function DespesasUnicas({
               <SelectItem key={c} value={c}>
                 {EXPENSE_CATEGORY_LABELS[c]}
               </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={yearFilter} onValueChange={(v) => setYearFilter(v ?? "todos")}>
+          <SelectTrigger className="w-[150px] h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os anos</SelectItem>
+            {availableYears.map((y) => (
+              <SelectItem key={y} value={y}>{y}</SelectItem>
             ))}
           </SelectContent>
         </Select>

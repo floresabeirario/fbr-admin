@@ -16,6 +16,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { format, parseISO, startOfYear, endOfYear, getYear } from "date-fns";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -252,8 +253,14 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
                   <td className="px-3 py-2 text-cocoa-700 font-mono text-[11px]">
                     {o.order_id?.slice(0, 8) ?? "—"}
                   </td>
-                  <td className="px-3 py-2 text-cocoa-900 max-w-[180px] truncate" title={o.client_name}>
-                    {o.client_name || "—"}
+                  <td className="px-3 py-2 max-w-[180px] truncate" title={o.client_name}>
+                    {/* Abre o workbench da encomenda (pedido da Maria, sessão 174). */}
+                    <Link
+                      href={`/preservacao/${o.order_id ?? o.id}`}
+                      className="text-cocoa-900 hover:underline underline-offset-2"
+                    >
+                      {o.client_name || "—"}
+                    </Link>
                   </td>
                   <td className="px-3 py-2 text-cocoa-900 tabular-nums">
                     {o.event_date ? format(parseISO(o.event_date), "dd/MM/yyyy") : "—"}

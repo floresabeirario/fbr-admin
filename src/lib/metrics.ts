@@ -18,6 +18,8 @@ import {
   startOfYear,
   endOfYear,
   format,
+  differenceInCalendarDays,
+  addDays,
 } from "date-fns";
 import { pt } from "date-fns/locale";
 import type {
@@ -39,6 +41,8 @@ import {
   commissionFullFromVoucher,
   voucherCodesWithCommission,
   orderCommissionSuppressedByVoucher,
+  revenueInPeriod,
+  paidRatio,
 } from "@/lib/finance";
 import {
   STATUS_LABELS,
@@ -200,34 +204,15 @@ function ordersIn(orders: Order[], range: DateRange): Order[] {
   return orders.filter((o) => inRange(o.created_at, range));
 }
 
-// Encomendas que CONTAM PARA RECEITA no range: pela data do evento (igual às
-// Finanças, para os dois números baterem certo) e excluindo canceladas.
-function revenueOrdersIn(orders: Order[], range: DateRange): Order[] {
-  return orders.filter(
-    (o) => o.status !== "cancelado" && inRange(o.event_date, range),
-  );
-}
-
 // ── Cálculos de receita ──────────────────────────────────────
-// Receita = soma PROPORCIONAL do orçamento das encomendas
-// conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%).
-// Reflecte o dinheiro efectivamente recebido, não o orçamento total.
-// Encomendas CANCELADAS não contam. A janela é pela DATA DO EVENTO
-// (não pela data de criação) para bater certo com `financas-client.tsx`.
-// Vales: contam para receita os 100_pago + preservacao_nao_agendada
-// (se já foi convertido em preservação, contaria duas vezes); janela
-// pela data de criação do vale (igual às Finanças).
+// Receita = dinheiro efectivamente recebido: cada parcela (30/40/30% do
+// orçamento) conta na DATA EM QUE FOI PAGA (mig 111, a mesma base das
+// Finanças; ver `revenueInPeriod` em lib/finance.ts). Encomendas sem
+// carimbo de pagamento caem na data do evento, como antes. CANCELADAS
+// não contam. Vales: contam os 100_pago + preservacao_nao_agendada (se já
+// foi convertido em preservação, contaria duas vezes); janela pela data
+// de criação do vale (igual às Finanças).
 // ============================================================
-
-function orderRevenue(o: Order): number {
-  if (!o.budget) return 0;
-  switch (o.payment_status) {
-    case "100_pago": return Number(o.budget);
-    case "70_pago":  return Number(o.budget) * 0.7;
-    case "30_pago":  return Number(o.budget) * 0.3;
-    default: return 0;
-  }
-}
 
 function voucherRevenue(v: Voucher): number {
   if (v.payment_status !== "100_pago") return 0;
@@ -236,12 +221,42 @@ function voucherRevenue(v: Voucher): number {
 }
 
 function totalRevenue(orders: Order[], vouchers: Voucher[], range: DateRange): number {
-  const ordersSum = revenueOrdersIn(orders, range).reduce((s, o) => s + orderRevenue(o), 0);
+  const ordersSum = orders.reduce((s, o) => s + revenueInPeriod(o, range.start, range.end), 0);
   const vouchersSum = vouchers
     .filter((v) => inRange(v.created_at, range))
     .reduce((s, v) => s + voucherRevenue(v), 0);
   return ordersSum + vouchersSum;
 }
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+// Pedido "confirmado" = já pagou o sinal (>= 30%), seja qual for o estado
+// depois (mesmo que tenha cancelado a seguir).
+function isConfirmed(o: Order): boolean {
+  return paidRatio(o.payment_status) > 0;
+}
+
+// ── Antecedência da reserva (pedido da Maria, sessão 174) ────
+// "Com que antecedência é que os clientes reservam? Acho que há uma grande
+// percentagem que só nos procura depois do casamento." Só faz sentido na
+// PRESERVAÇÃO: nas flores secas e na recriação o evento é sempre no
+// passado. Dias = data do evento − data do pedido (negativo = depois).
+export const LEAD_TIME_BUCKETS: Array<{ key: string; label: string; test: (days: number) => boolean }> = [
+  { key: "depois",   label: "Depois do evento",        test: (d) => d < 0 },
+  { key: "semana",   label: "Na semana do evento",     test: (d) => d >= 0 && d <= 7 },
+  { key: "mes",      label: "Até 1 mês antes",         test: (d) => d > 7 && d <= 30 },
+  { key: "1_3m",     label: "1 a 3 meses antes",       test: (d) => d > 30 && d <= 90 },
+  { key: "3_6m",     label: "3 a 6 meses antes",       test: (d) => d > 90 && d <= 180 },
+  { key: "6m_mais",  label: "Mais de 6 meses antes",   test: (d) => d > 180 },
+];
+
+const VOUCHER_EXPIRY_HORIZON_DAYS = 90;
+const QUIET_PARTNER_MONTHS = 6;
 
 // ── Top-N (parceiros, canais) ────────────────────────────────
 
@@ -362,6 +377,63 @@ export interface MetricsResult {
     sim: number;
     maisInfo: number;
   }>;
+
+  // ── Funil pedido → sinal (sessão 174) ──
+  // Pedidos criados no período: quantos pagaram o sinal, quantos
+  // cancelaram, quantos ainda estão à espera. Por canal de aquisição.
+  funnel: {
+    total: number;
+    confirmed: number;
+    cancelled: number;
+    pending: number;
+    confirmedPct: number | null;
+    confirmedPctPrev: number | null;
+    byChannel: Array<{
+      key: HowFoundFBR | "sem_resposta";
+      label: string;
+      total: number;
+      confirmed: number;
+      cancelled: number;
+      confirmedPct: number | null;
+    }>;
+    /** Mediana de dias entre o pedido e o sinal (só com data de pagamento). */
+    medianDaysToDeposit: number | null;
+    depositSample: number;
+  };
+
+  // ── Cancelamentos (pedidos do período que cancelaram) ──
+  cancellations: {
+    count: number;
+    pct: number | null;
+    byPhase: Array<{ key: string; label: string; count: number }>;
+  };
+
+  // ── Antecedência da reserva (só preservação) ──
+  leadTime: {
+    sample: number;
+    afterEventPct: number | null;
+    /** Mediana de dias: positivo = antes do evento, negativo = depois. */
+    medianDays: number | null;
+    buckets: Array<{ key: string; label: string; count: number; pct: number }>;
+    /** Data do 1.º pedido pelo formulário público (base fiável de datas). */
+    since: string | null;
+  };
+
+  // ── Vales pagos, sem preservação marcada, a expirar em 3 meses ──
+  expiringVouchers: Array<{
+    id: string;
+    code: string;
+    name: string;
+    amount: number;
+    expiry_date: string;
+    daysLeft: number;
+  }>;
+
+  // ── Canais no período anterior (para o insight "canal que caiu") ──
+  acquisitionPrev: Array<{ key: HowFoundFBR; label: string; count: number }>;
+
+  // ── Parceiros calados: com 2+ encomendas, nenhuma nos últimos 6 meses ──
+  quietPartners: Array<{ partner_id: string; lastOrderAt: string; totalOrders: number }>;
 }
 
 export function computeMetrics(
@@ -453,12 +525,16 @@ export function computeMetrics(
   // Vales que já carregam comissão contada → suprime a comissão das
   // encomendas que vieram desses vales (não recontar; ver finance.ts).
   const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
-  for (const o of revenueOrdersIn(orders, range)) {
-    if (!o.partner_id) continue;
+  for (const o of orders) {
+    if (!o.partner_id || o.status === "cancelado") continue;
+    // Receita pela data de pagamento; a comissão entra se houve receita
+    // no período ou se o evento é do período.
+    const rev = revenueInPeriod(o, range.start, range.end);
+    if (rev <= 0 && !inRange(o.event_date, range)) continue;
     const cur =
       partnerStats.get(o.partner_id) ??
       { revenue: 0, commissionsPaid: 0, commissionsDue: 0 };
-    cur.revenue += orderRevenue(o);
+    cur.revenue += rev;
     const fullCommission = orderCommissionSuppressedByVoucher(o, voucherCommissionCodes)
       ? 0
       : commissionFullFromOrder(o);
@@ -558,9 +634,141 @@ export function computeMetrics(
   const extrasOrdersPct =
     newOrders === 0 ? 0 : Math.round((withExtras / newOrders) * 100);
 
+  // ── Funil pedido → sinal ──
+  const pctOf = (part: number, total: number): number | null =>
+    total === 0 ? null : Math.round((part / total) * 100);
+  const confirmedInRange = ordersInRange.filter(isConfirmed);
+  const cancelledInRange = ordersInRange.filter((o) => o.status === "cancelado");
+  const prevOrders = ordersIn(orders, prevRange);
+  const channelMap = new Map<
+    HowFoundFBR | "sem_resposta",
+    { total: number; confirmed: number; cancelled: number }
+  >();
+  for (const o of ordersInRange) {
+    const key = o.how_found_fbr ?? "sem_resposta";
+    const cur = channelMap.get(key) ?? { total: 0, confirmed: 0, cancelled: 0 };
+    cur.total += 1;
+    if (isConfirmed(o)) cur.confirmed += 1;
+    if (o.status === "cancelado") cur.cancelled += 1;
+    channelMap.set(key, cur);
+  }
+  const byChannel = [...channelMap.entries()]
+    .map(([key, v]) => ({
+      key,
+      label: key === "sem_resposta" ? "Sem resposta" : HOW_FOUND_FBR_LABELS[key],
+      ...v,
+      confirmedPct: pctOf(v.confirmed, v.total),
+    }))
+    .sort((a, b) => b.total - a.total);
+  const daysToDeposit = ordersInRange
+    .filter((o) => o.deposit_paid_at)
+    .map((o) => differenceInCalendarDays(parseISO(o.deposit_paid_at!), parseISO(o.created_at)))
+    .filter((d) => d >= 0);
+  const funnel: MetricsResult["funnel"] = {
+    total: ordersInRange.length,
+    confirmed: confirmedInRange.length,
+    cancelled: cancelledInRange.length,
+    pending: ordersInRange.filter((o) => !isConfirmed(o) && o.status !== "cancelado").length,
+    confirmedPct: pctOf(confirmedInRange.length, ordersInRange.length),
+    confirmedPctPrev: showComparison
+      ? pctOf(prevOrders.filter(isConfirmed).length, prevOrders.length)
+      : null,
+    byChannel,
+    medianDaysToDeposit: median(daysToDeposit),
+    depositSample: daysToDeposit.length,
+  };
+
+  // ── Cancelamentos por fase (cancelled_from_status, mig 111) ──
+  const phaseMap = new Map<string, number>();
+  for (const o of cancelledInRange) {
+    const key = o.cancelled_from_status ?? "sem_registo";
+    phaseMap.set(key, (phaseMap.get(key) ?? 0) + 1);
+  }
+  const cancellations: MetricsResult["cancellations"] = {
+    count: cancelledInRange.length,
+    pct: pctOf(cancelledInRange.length, ordersInRange.length),
+    byPhase: [...phaseMap.entries()]
+      .map(([key, count]) => ({
+        key,
+        label: key === "sem_registo" ? "Sem registo" : (STATUS_LABELS[key as OrderStatus] ?? key),
+        count,
+      }))
+      .sort((a, b) => b.count - a.count),
+  };
+
+  // ── Antecedência da reserva (só preservação) ──
+  // Base fiável: só pedidos a partir do 1.º consentimento RGPD registado
+  // (= formulário público a funcionar). As encomendas importadas do Monday
+  // têm created_at = dia da importação, o que distorceria tudo.
+  const consentDates = orders.map((o) => o.consent_at).filter((d): d is string => !!d).sort();
+  const since = consentDates[0] ?? null;
+  const leadDays: number[] = [];
+  for (const o of ordersInRange) {
+    if ((o.service_type ?? "preservacao") !== "preservacao") continue;
+    if (!o.event_date) continue;
+    if (since && o.created_at < since) continue;
+    leadDays.push(differenceInCalendarDays(parseISO(o.event_date), parseISO(o.created_at)));
+  }
+  const leadTime: MetricsResult["leadTime"] = {
+    sample: leadDays.length,
+    afterEventPct: pctOf(leadDays.filter((d) => d < 0).length, leadDays.length),
+    medianDays: median(leadDays),
+    buckets: LEAD_TIME_BUCKETS.map((b) => {
+      const count = leadDays.filter(b.test).length;
+      return { key: b.key, label: b.label, count, pct: leadDays.length === 0 ? 0 : Math.round((count / leadDays.length) * 100) };
+    }),
+    since,
+  };
+
+  // ── Vales a expirar em 3 meses (pagos, sem preservação marcada) ──
+  const horizon = addDays(today, VOUCHER_EXPIRY_HORIZON_DAYS);
+  const expiringVouchers: MetricsResult["expiringVouchers"] = vouchers
+    .filter(
+      (v) =>
+        v.payment_status === "100_pago" &&
+        v.usage_status === "preservacao_nao_agendada" &&
+        !!v.expiry_date,
+    )
+    .map((v) => ({
+      id: v.id,
+      code: v.code,
+      name: v.recipient_name || v.sender_name || "",
+      amount: Number(v.amount),
+      expiry_date: v.expiry_date,
+      daysLeft: differenceInCalendarDays(parseISO(v.expiry_date), today),
+    }))
+    .filter((v) => v.daysLeft >= 0 && parseISO(v.expiry_date) <= horizon)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+
+  // ── Canais no período anterior ──
+  const acquisitionPrev = showComparison
+    ? topByCount<HowFoundFBR>(prevOrders.map((o) => o.how_found_fbr), HOW_FOUND_FBR_LABELS, 10)
+    : [];
+
+  // ── Parceiros calados ──
+  const partnerOrders = new Map<string, { total: number; last: string }>();
+  for (const o of orders) {
+    if (!o.partner_id) continue;
+    const cur = partnerOrders.get(o.partner_id) ?? { total: 0, last: o.created_at };
+    cur.total += 1;
+    if (o.created_at > cur.last) cur.last = o.created_at;
+    partnerOrders.set(o.partner_id, cur);
+  }
+  const quietSince = subMonths(today, QUIET_PARTNER_MONTHS);
+  const quietPartners: MetricsResult["quietPartners"] = [...partnerOrders.entries()]
+    .filter(([, v]) => v.total >= 2 && parseISO(v.last) < quietSince)
+    .map(([partner_id, v]) => ({ partner_id, lastOrderAt: v.last, totalOrders: v.total }))
+    .sort((a, b) => a.lastOrderAt.localeCompare(b.lastOrderAt));
+
   return {
     range,
     generatedAt: new Date().toISOString(),
+    funnel,
+    cancellations,
+    leadTime,
+    expiringVouchers,
+    acquisitionPrev,
+    quietPartners,
     showComparison,
     comparisonLabel: comparisonLabelForPreset(preset),
     revenue,
@@ -595,9 +803,14 @@ export function computeMetrics(
 // Análise simples: detecta variações grandes e devolve frases.
 // ============================================================
 
-export function generateInsights(m: MetricsResult): string[] {
+export function generateInsights(
+  m: MetricsResult,
+  partnerNames: Record<string, string> = {},
+): string[] {
   const out: string[] = [];
 
+  // Só frases que mudam alguma coisa: quedas, fugas, oportunidades. O que
+  // é constante (tamanho mais vendido) já está nos gráficos.
   if (m.revenuePctChange !== null && Math.abs(m.revenuePctChange) >= 20) {
     out.push(
       m.revenuePctChange > 0
@@ -609,21 +822,77 @@ export function generateInsights(m: MetricsResult): string[] {
   if (m.newOrdersPctChange !== null && Math.abs(m.newOrdersPctChange) >= 25) {
     out.push(
       m.newOrdersPctChange > 0
-        ? `${m.newOrdersPctChange}% mais encomendas que o período anterior.`
-        : `${Math.abs(m.newOrdersPctChange)}% menos encomendas que o período anterior.`,
+        ? `${m.newOrdersPctChange}% mais pedidos que o período anterior.`
+        : `${Math.abs(m.newOrdersPctChange)}% menos pedidos que o período anterior.`,
     );
+  }
+
+  // Funil: taxa de confirmação e a sua variação.
+  if (m.funnel.total >= 5 && m.funnel.confirmedPct !== null) {
+    if (m.funnel.confirmedPctPrev !== null) {
+      const diff = m.funnel.confirmedPct - m.funnel.confirmedPctPrev;
+      if (Math.abs(diff) >= 10) {
+        out.push(
+          diff > 0
+            ? `A taxa de confirmação subiu ${diff} pontos (${m.funnel.confirmedPct}% dos pedidos pagaram sinal, contra ${m.funnel.confirmedPctPrev}%).`
+            : `A taxa de confirmação caiu ${Math.abs(diff)} pontos (${m.funnel.confirmedPct}% dos pedidos pagaram sinal, contra ${m.funnel.confirmedPctPrev}%) — ver o que mudou no formulário ou no primeiro contacto.`,
+        );
+      }
+    } else if (m.funnel.confirmedPct < 50) {
+      out.push(`Só ${m.funnel.confirmedPct}% dos pedidos do período pagaram sinal; ${m.funnel.pending} continuam à espera.`);
+    }
+  }
+
+  // Canal que mais caiu face ao período anterior.
+  if (m.acquisitionPrev.length > 0) {
+    let worst: { label: string; current: number; prev: number } | null = null;
+    for (const p of m.acquisitionPrev) {
+      if (p.count < 3) continue;
+      const current = m.topAcquisition.find((c) => c.key === p.key)?.count ?? 0;
+      if (current <= p.count / 2 && (!worst || p.count - current > worst.prev - worst.current)) {
+        worst = { label: p.label, current, prev: p.count };
+      }
+    }
+    if (worst) {
+      out.push(`${worst.label} trouxe ${worst.current} pedido${worst.current === 1 ? "" : "s"}, contra ${worst.prev} no período anterior.`);
+    }
   }
 
   if (m.topAcquisition.length > 0) {
     const top = m.topAcquisition[0];
     const total = m.topAcquisition.reduce((s, x) => s + x.count, 0);
     const pct = total === 0 ? 0 : Math.round((top.count / total) * 100);
-    if (pct >= 40) {
-      out.push(`${top.label} é o canal dominante (${pct}% das encomendas).`);
+    if (pct >= 60) {
+      out.push(`${top.label} é ${pct}% dos pedidos: depender tanto de um canal é um risco.`);
     }
   }
 
-  if (m.vouchersSold > 0 && m.vouchersConvertedPct !== null) {
+  // Cancelamentos.
+  if (m.cancellations.count >= 3 && m.cancellations.pct !== null && m.cancellations.pct >= 15) {
+    const phase = m.cancellations.byPhase[0];
+    out.push(
+      `${m.cancellations.pct}% dos pedidos do período cancelaram (${m.cancellations.count})` +
+        (phase && phase.key !== "sem_registo" ? `, a maior parte em "${phase.label}".` : "."),
+    );
+  }
+
+  // Antecedência (só preservação).
+  if (m.leadTime.sample >= 5 && m.leadTime.afterEventPct !== null) {
+    if (m.leadTime.afterEventPct >= 25) {
+      out.push(
+        `${m.leadTime.afterEventPct}% dos pedidos de preservação chegam depois do evento: vale a pena dizer no site e nas redes que preservar depois do casamento é possível.`,
+      );
+    } else if (m.leadTime.medianDays !== null && m.leadTime.medianDays > 0) {
+      out.push(`Os pedidos de preservação chegam, em mediana, ${m.leadTime.medianDays} dias antes do evento.`);
+    }
+  }
+
+  // Vales.
+  if (m.expiringVouchers.length > 0) {
+    out.push(
+      `${m.expiringVouchers.length} vale${m.expiringVouchers.length === 1 ? "" : "s"} pago${m.expiringVouchers.length === 1 ? "" : "s"} sem preservação marcada expira${m.expiringVouchers.length === 1 ? "" : "m"} nos próximos 3 meses — relembrar.`,
+    );
+  } else if (m.vouchersSold > 0 && m.vouchersConvertedPct !== null) {
     if (m.vouchersConvertedPct >= 50) {
       out.push(`Boa conversão de vales: ${m.vouchersConvertedPct}% já agendaram preservação.`);
     } else if (m.vouchersConvertedPct < 20 && m.vouchersSold >= 3) {
@@ -631,9 +900,15 @@ export function generateInsights(m: MetricsResult): string[] {
     }
   }
 
-  if (m.ordersByFrameSize.length > 0) {
-    const top = m.ordersByFrameSize[0];
-    out.push(`Tamanho mais escolhido: ${top.label} (${top.count} encomendas).`);
+  // Parceiros que deixaram de recomendar.
+  if (m.quietPartners.length > 0) {
+    const names = m.quietPartners
+      .slice(0, 4)
+      .map((p) => partnerNames[p.partner_id] ?? "parceiro sem nome")
+      .join(", ");
+    out.push(
+      `Parceiros sem recomendações há mais de 6 meses: ${names}${m.quietPartners.length > 4 ? ` (+${m.quietPartners.length - 4})` : ""}. Um contacto pode reactivar.`,
+    );
   }
 
   if (m.avgCompletionGlobal && m.avgCompletionRecent) {

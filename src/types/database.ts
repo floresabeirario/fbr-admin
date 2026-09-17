@@ -415,6 +415,18 @@ export interface Order {
   // diferença. NULL = ainda não houve pagamento ou encomenda antiga.
   budget_at_first_payment: number | null;
 
+  // ── Datas de cada pagamento + cancelamento (mig 111) ────────
+  // Carimbadas pelo trigger orders_stamp_payment_cancel quando o
+  // payment_status sobe a >=30% / >=70% / 100% (recuar limpa). Histórico
+  // preenchido a partir do audit_log; NULL = sem data conhecida (a receita
+  // cai na data do evento, ver lib/finance.ts revenueTranches).
+  deposit_paid_at: string | null;
+  second_paid_at: string | null;
+  fully_paid_at: string | null;
+  // Quando foi cancelada e em que estado estava (trigger; NULL se sem histórico).
+  cancelled_at: string | null;
+  cancelled_from_status: OrderStatus | null;
+
   // ── Moldura pirâmide e tipo interno (custos de produção) ────
   // pyramid_frame: cliente escolheu upgrade pirâmide (afecta preço E custo).
   // frame_internal_type: decisão da Maria (só relevante se pyramid=false) —

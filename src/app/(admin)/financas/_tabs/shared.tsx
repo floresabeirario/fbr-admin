@@ -36,6 +36,11 @@ export type FaturacaoOrder = Pick<
   | "partner_commission"
   | "partner_commission_status"
   | "gift_voucher_code"
+  // mig 111 — datas de cada pagamento (a página faz select("*"); podem
+  // vir ausentes antes de a migração correr → tratar como null).
+  | "deposit_paid_at"
+  | "second_paid_at"
+  | "fully_paid_at"
 >;
 export type FaturacaoVoucher = Pick<
   import("@/types/voucher").Voucher,
