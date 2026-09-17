@@ -3,6 +3,7 @@ import type { Partner } from "@/types/partner";
 import type { PublicFigure } from "@/types/public-figure";
 import type { CommissionItem } from "@/lib/commissions";
 import { COMMISSION_PENDING_STATUSES } from "@/lib/commissions";
+import { hydrationSafeDeep } from "@/lib/hydration-text";
 import ParceriasTabs from "./parcerias-tabs";
 
 export default async function ParceriasPage() {
@@ -58,8 +59,8 @@ export default async function ParceriasPage() {
       .in("partner_commission_status", pendingStatuses),
   ]);
 
-  const partners: Partner[] = (partnersRes.data ?? []) as Partner[];
-  const figures: PublicFigure[] = (figuresRes.data ?? []) as PublicFigure[];
+  const partners: Partner[] = hydrationSafeDeep((partnersRes.data ?? []) as Partner[]);
+  const figures: PublicFigure[] = hydrationSafeDeep((figuresRes.data ?? []) as PublicFigure[]);
 
   // Conta encomendas e vales por partner_id
   const ordersCount: Record<string, number> = {};

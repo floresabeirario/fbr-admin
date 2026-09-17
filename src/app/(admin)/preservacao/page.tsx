@@ -3,6 +3,7 @@ import { getCurrentRole, getCurrentEmail } from "@/lib/auth/server";
 import { groupOrders } from "@/lib/supabase/orders";
 import type { Order } from "@/types/database";
 import PreservacaoClient from "./preservacao-client";
+import { hydrationSafeDeep } from "@/lib/hydration-text";
 
 export default async function PreservacaoPage() {
   const supabase = await createClient();
@@ -35,12 +36,12 @@ export default async function PreservacaoPage() {
       .order("name"),
   ]);
 
-  const orders: Order[] = (activeRes.data ?? []) as Order[];
-  const archivedOrders: Order[] = (archivedRes.data ?? []) as Order[];
+  const orders: Order[] = hydrationSafeDeep((activeRes.data ?? []) as Order[]);
+  const archivedOrders: Order[] = hydrationSafeDeep((archivedRes.data ?? []) as Order[]);
   const voucherCodeToId = new Map<string, string>(
     ((vouchersRes.data ?? []) as { id: string; code: string }[]).map((v) => [v.code, v.id]),
   );
-  const partners = (partnersRes.data ?? []) as { id: string; name: string }[];
+  const partners = hydrationSafeDeep((partnersRes.data ?? []) as { id: string; name: string }[]);
   const partnerNameById: Record<string, string> = Object.fromEntries(
     partners.map((p) => [p.id, p.name]),
   );

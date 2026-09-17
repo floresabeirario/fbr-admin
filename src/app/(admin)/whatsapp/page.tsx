@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WhatsappConversation } from "@/types/whatsapp-live";
 import { parseLabelsJson, SETTINGS_KEY } from "@/lib/whatsapp/labels";
+import { hydrationSafeDeep } from "@/lib/hydration-text";
 import WhatsappClient from "./whatsapp-client";
 
 export const dynamic = "force-dynamic";
@@ -38,9 +39,9 @@ export default async function WhatsappPage() {
 
   return (
     <WhatsappClient
-      initialConversations={(convs ?? []) as WhatsappConversation[]}
-      initialLabels={labels}
-      orders={(orders ?? []) as Array<{
+      initialConversations={hydrationSafeDeep((convs ?? []) as WhatsappConversation[])}
+      initialLabels={hydrationSafeDeep(labels)}
+      orders={hydrationSafeDeep((orders ?? []) as Array<{
         id: string;
         order_id: string;
         client_name: string | null;
@@ -48,7 +49,7 @@ export default async function WhatsappPage() {
         status: string;
         drive_folder_url: string | null;
         flowers_photo_url: string | null;
-      }>}
+      }>)}
     />
   );
 }

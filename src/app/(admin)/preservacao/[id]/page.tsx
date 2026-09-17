@@ -11,6 +11,7 @@ import { getBouquetPhotoUrls } from "@/lib/storage/bouquet-photos";
 import type { PartialPublicMessages } from "@/lib/public-status";
 import { markOrderSeenAction } from "../actions";
 import WorkbenchClient, { type DuplicateOrderInfo } from "./workbench-client";
+import { hydrationSafeDeep } from "@/lib/hydration-text";
 import type { OrderWithVoucher } from "@/lib/templates";
 
 export default async function WorkbenchPage({
@@ -49,9 +50,9 @@ export default async function WorkbenchPage({
   if (orderRes.error || !orderRes.data) notFound();
 
   const partnerOptions = (partnersRes.data ?? []) as Pick<Partner, "id" | "name" | "category" | "status">[];
-  const taskTemplates = (templatesRes.data ?? []) as TaskTemplate[];
+  const taskTemplates = hydrationSafeDeep((templatesRes.data ?? []) as TaskTemplate[]);
 
-  let order = orderRes.data as Order;
+  let order = hydrationSafeDeep(orderRes.data as Order);
 
   // Tarefas activas desta encomenda (done + done_at + soft delete filtrados).
   // Carregadas com o ID interno após o lookup acima (`order.id` é UUID).
@@ -61,7 +62,7 @@ export default async function WorkbenchPage({
     .is("deleted_at", null)
     .eq("order_id", order.id)
     .order("created_at", { ascending: false });
-  const orderTasks = (tasksData ?? []) as Task[];
+  const orderTasks = hydrationSafeDeep((tasksData ?? []) as Task[]);
 
   // Se a encomenda tem código de vale-presente associado, verifica se existe um
   // vale activo com esse código — workbench mostra link directo para o vale.
@@ -95,7 +96,7 @@ export default async function WorkbenchPage({
       .select("id, order_id, client_name, email, phone, status, event_date")
       .is("deleted_at", null)
       .neq("id", order.id);
-    duplicateOrders = findDuplicates(order, otherOrders ?? []).map(
+    duplicateOrders = findDuplicates(order, hydrationSafeDeep(otherOrders ?? [])).map(
       ({ record, matchedBy }) => ({
         id: record.id as string,
         order_id: record.order_id as string,

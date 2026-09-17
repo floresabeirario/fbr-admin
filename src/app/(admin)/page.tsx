@@ -5,6 +5,7 @@ import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import type { Task } from "@/types/tasks";
 import DashboardClient from "./dashboard-client";
+import { hydrationSafeDeep } from "@/lib/hydration-text";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -20,9 +21,9 @@ export default async function DashboardPage() {
       .order("due_date", { ascending: true, nullsFirst: false }),
   ]);
 
-  const orders: Order[] = (ordersRes.data ?? []) as Order[];
-  const vouchers: Voucher[] = (vouchersRes.data ?? []) as Voucher[];
-  const tasks: Task[] = (tasksRes.data ?? []) as Task[];
+  const orders: Order[] = hydrationSafeDeep((ordersRes.data ?? []) as Order[]);
+  const vouchers: Voucher[] = hydrationSafeDeep((vouchersRes.data ?? []) as Voucher[]);
+  const tasks: Task[] = hydrationSafeDeep((tasksRes.data ?? []) as Task[]);
 
   const pickups = getUpcomingPickups(orders);
   const alerts = getDashboardAlerts(orders, vouchers);

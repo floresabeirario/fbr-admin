@@ -33,6 +33,41 @@ function isIgnored(message: string): boolean {
   return IGNORED.some((re) => re.test(message));
 }
 
+// Erros de hidratação (#418/#419/#421/#423/#425). Em produção a mensagem
+// do React vem minificada e sem component stack, por isso o registo não
+// diz ONDE o texto divergiu — e já custou duas sessões a adivinhar.
+const HYDRATION = /Minified React error #(418|419|421|423|425)\b|Hydration failed/;
+
+// Caracteres que o parser de HTML come ou converte (CR, controlos C0) —
+// a causa mais comum de mismatch em texto escrito por clientes. Ver
+// src/lib/hydration-text.ts.
+const CONTROLOS = /[\r\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
+
+/**
+ * Pista para juntar ao relatório quando o erro é de hidratação: procura
+ * no DOM texto com caracteres de controlo. Encontrar → é quase de certeza
+ * a causa e diz-se logo qual é o texto; não encontrar → fica excluída
+ * essa hipótese, que também é informação.
+ */
+function hydrationHint(): string {
+  try {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let vistos = 0;
+    let node = walker.nextNode();
+    while (node && vistos < 5000) {
+      vistos += 1;
+      const valor = node.nodeValue ?? "";
+      if (CONTROLOS.test(valor)) {
+        return `[pista] texto com caracteres de controlo: ${JSON.stringify(valor.slice(0, 120))}`;
+      }
+      node = walker.nextNode();
+    }
+    return `[pista] sem caracteres de controlo em ${vistos} nós de texto`;
+  } catch {
+    return "";
+  }
+}
+
 export function ErrorReporter() {
   const sentCount = useRef(0);
   const lastMessage = useRef<string | null>(null);
@@ -44,10 +79,13 @@ export function ErrorReporter() {
       if (isIgnored(message)) return;
       sentCount.current += 1;
       lastMessage.current = message;
+      // Mismatch de hidratação: junta a pista ao stack (que em produção
+      // só tem frames internos do React e não diz nada).
+      const detalhe = HYDRATION.test(message) ? hydrationHint() : "";
       // fire-and-forget; a action engole falhas de propósito
       void reportClientErrorAction({
         message,
-        stack,
+        stack: detalhe ? [stack ?? "", detalhe].join("\n\n").trim() : stack,
         path: window.location.pathname,
         source: "client",
       });

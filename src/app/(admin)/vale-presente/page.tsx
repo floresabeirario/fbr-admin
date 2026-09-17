@@ -3,6 +3,7 @@ import { getCurrentRole } from "@/lib/auth/server";
 import { groupVouchers } from "@/lib/supabase/vouchers";
 import type { Voucher } from "@/types/voucher";
 import ValePresenteClient from "./vale-presente-client";
+import { hydrationSafeDeep } from "@/lib/hydration-text";
 import { voucherMinAmount } from "@/lib/pricing";
 import type { PricingItem } from "@/types/pricing";
 
@@ -24,8 +25,8 @@ export default async function ValePresentePage() {
     supabase.from("pricing_items").select("*").is("deleted_at", null),
   ]);
 
-  const vouchers: Voucher[] = (activeRes.data ?? []) as Voucher[];
-  const archivedVouchers: Voucher[] = (archivedRes.data ?? []) as Voucher[];
+  const vouchers: Voucher[] = hydrationSafeDeep((activeRes.data ?? []) as Voucher[]);
+  const archivedVouchers: Voucher[] = hydrationSafeDeep((archivedRes.data ?? []) as Voucher[]);
   const grouped = groupVouchers(vouchers);
   // O mínimo do vale segue o preço do quadro mais pequeno (Finanças), em
   // vez de estar preso a 300€: sobe sozinho quando esse preço subir.
