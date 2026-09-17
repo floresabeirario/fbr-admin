@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+// ============================================================
+// MÉTRICAS — pedidos, conversão, operação e rede.
+// Reestruturada na sessão 174 ("vai tudo"): 4 secções com título, filtro
+// por tipo de serviço, uma só lógica de cor, distribuições em barras (os
+// círculos não se liam), pedidos por mês, sazonalidade, antecedência,
+// cancelamentos, dias por fase (mig 113), resposta no WhatsApp (mig 113),
+// clientes repetidos e cidades. O dinheiro vive nas Finanças.
+// ============================================================
+
+import React, { useState, useMemo } from "react";
 import { useTheme } from "next-themes";
 import {
   LineChart as LineChartIcon,
@@ -10,10 +19,6 @@ import {
   Lightbulb,
   RefreshCw,
   ShoppingBag,
-  Filter,
-  CalendarClock,
-  Ban,
-  Timer,
   Gift,
   Clock,
   Sparkles,
@@ -28,6 +33,15 @@ import {
   Ticket,
   Sparkle,
   Info,
+  Filter,
+  CalendarClock,
+  Ban,
+  Timer,
+  Users,
+  MapPin,
+  Layers,
+  CalendarDays,
+  Wrench,
 } from "lucide-react";
 import { parseISO } from "date-fns";
 import Link from "next/link";
@@ -39,13 +53,10 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
   Legend,
   CartesianGrid,
 } from "recharts";
-
 import {
   Select,
   SelectTrigger,
@@ -67,8 +78,9 @@ import type {
   FrameBackground,
   FrameSize,
   EventType,
+  ServiceType,
 } from "@/types/database";
-
+import { SERVICE_TYPE_LABELS } from "@/types/database";
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import {
@@ -78,77 +90,75 @@ import {
   RANGE_PRESET_LABELS,
   type RangePreset,
   type DateRange,
+  type StatusHistoryRow,
+  type ResponseTimeRow,
 } from "@/lib/metrics";
 
-// Paleta genérica (usada onde não há cor "natural" por categoria).
-const ACQ_PALETTE       = ["#c084fc", "#60a5fa", "#34d399", "#facc15", "#fb923c"];
+// ── Paleta ───────────────────────────────────────────────────
+// Uma só lógica de cor em toda a página: verde = confirmado/bom, rosa =
+// cancelado/risco, âmbar = à espera/atenção, azul = neutro, cinza = sem
+// resposta. As distribuições de produto usam a paleta categórica; os
+// estados de produção mantêm as cores dos badges da Preservação
+// (STATUS_HEX) para "Flores na prensa" ter a mesma cor em todo o lado.
+const OK = "#10b981";
+const RISK = "#f43f5e";
+const WAIT = "#f59e0b";
+const NEUTRAL = "#0ea5e9";
+const MUTED = "#a8a29e";
+const CAT_PALETTE = ["#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e", "#14b8a6", "#d946ef", "#a3a3a3"];
+const YEAR_PALETTE = ["#a8a29e", "#0ea5e9", "#8b5cf6"];
 
-// Cores semânticas para o fundo do quadro — aproximam o significado real
-// de cada opção em vez de um arco-íris aleatório.
+// Cores "naturais" por categoria — o preto é escuro, o transparente é
+// claro, o CTT é azul onde quer que apareça.
 const FRAME_BACKGROUND_HEX: Record<FrameBackground, string> = {
-  transparente:     "#cbd5e1", // slate-300 (vidro/transparente)
-  preto:            "#374151", // gray-700 (preto, legível)
-  branco:           "#e5e7eb", // gray-200 (branco/claro)
-  fotografia:       "#3b82f6", // blue-500 (fotografia)
-  cor:              "#d946ef", // fuchsia-500 (cor viva)
-  voces_a_escolher: "#94a3b8", // slate-400 (à nossa escolha)
-  nao_sei:          "#a8a29e", // stone-400 (não sei)
-};
-
-// Tamanho de moldura não tem cor "natural" → escala da marca, do mais
-// claro (menor) ao mais escuro (maior).
-const FRAME_SIZE_HEX: Record<FrameSize, string> = {
-  "30x40":          "#D4C19F",
-  "40x50":          "#C4A882",
-  "50x70":          "#9C7B4E",
+  transparente: "#cbd5e1",
+  preto: "#374151",
+  branco: "#e5e7eb",
+  fotografia: "#3b82f6",
+  cor: "#d946ef",
   voces_a_escolher: "#94a3b8",
-  nao_sei:          "#a8a29e",
+  nao_sei: MUTED,
 };
-
-// Tipo de evento — cor distinta e com alguma lógica (casamento rosa,
-// funeral sóbrio, etc.).
+const FRAME_SIZE_HEX: Record<FrameSize, string> = {
+  "30x40": "#D4C19F",
+  "40x50": "#C4A882",
+  "50x70": "#9C7B4E",
+  voces_a_escolher: "#94a3b8",
+  nao_sei: MUTED,
+};
 const EVENT_TYPE_HEX: Record<EventType, string> = {
-  casamento:        "#f472b6", // pink (romance)
-  batizado:         "#60a5fa", // blue
-  funeral:          "#64748b", // slate (sóbrio)
-  pedido_casamento: "#fb7185", // rose
-  outro:            "#a8a29e", // stone
+  casamento: "#f472b6",
+  batizado: "#60a5fa",
+  funeral: "#64748b",
+  pedido_casamento: "#fb7185",
+  outro: MUTED,
 };
-
-// Paletas semânticas — espelham as cores Tailwind usadas como badges
-// noutras zonas da app (types/database.ts, preservacao, entregas-recolhas)
-// para que um cliente "CTT" tenha sempre a mesma cor onde quer que apareça.
 const FLOWER_DELIVERY_HEX: Record<FlowerDeliveryMethod, string> = {
-  maos:           "#10b981", // emerald-500 (em mãos)
-  ctt:            "#0ea5e9", // sky-500 (CTT)
-  recolha_evento: "#8b5cf6", // violet-500 (recolha no local)
-  nao_sei:        "#a8a29e", // stone-400 (não sei)
+  maos: OK,
+  ctt: NEUTRAL,
+  recolha_evento: "#8b5cf6",
+  nao_sei: MUTED,
 };
 const FRAME_DELIVERY_HEX: Record<FrameDeliveryMethod, string> = {
-  maos:    "#10b981",
-  ctt:     "#0ea5e9",
-  nao_sei: "#a8a29e",
+  maos: OK,
+  ctt: NEUTRAL,
+  nao_sei: MUTED,
 };
 const CONTACT_PREF_HEX: Record<ContactPreference, string> = {
-  whatsapp: "#10b981", // verde estilo WhatsApp
-  email:    "#0ea5e9", // sky
+  whatsapp: OK,
+  email: NEUTRAL,
 };
 const COUPON_STATUS_HEX: Record<CouponStatus, string> = {
-  utilizado:     "#10b981", // emerald (sucesso)
-  nao_utilizado: "#f59e0b", // amber (em aberto)
-  na:            "#a8a29e", // stone (não aplicável)
+  utilizado: OK,
+  nao_utilizado: WAIT,
+  na: MUTED,
 };
-// Para upsells: "sim" sólido emerald, "mais info" amber (em dúvida)
-const UPSELL_HEX = {
-  sim:      "#10b981",
-  maisInfo: "#f59e0b",
-};
+// Antecedência: do "depois do evento" (risco) até "mais de 6 meses antes".
+const LEAD_PALETTE = [RISK, WAIT, "#eab308", NEUTRAL, OK, "#8b5cf6"];
 
 const formatEuro = (value: number): string => formatEUR(value, { rounded: true });
 
-// Cores dos buckets de antecedência: do "depois do evento" (rosa, o caso a
-// vigiar) até "mais de 6 meses antes" (violeta).
-const LEAD_PALETTE = ["#f43f5e", "#f59e0b", "#eab308", "#0ea5e9", "#10b981", "#8b5cf6"];
+// ── Componentes de apresentação ──────────────────────────────
 
 function PctBadge({ pct }: { pct: number | null }) {
   if (pct === null) {
@@ -166,20 +176,13 @@ function PctBadge({ pct }: { pct: number | null }) {
         ? "bg-rose-100 text-rose-800 border-rose-300"
         : "bg-stone-100 text-stone-700 border-stone-300";
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold border",
-        cls,
-      )}
-    >
+    <span className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold border", cls)}>
       <Icon className="h-3 w-3" />
       {Math.abs(pct)}%
     </span>
   );
 }
 
-// Card "hero" colorido para os 4 KPIs principais — gradiente suave + ícone
-// grande contrastado para a página parecer mais viva.
 function HeroKpiCard({
   label,
   value,
@@ -199,16 +202,10 @@ function HeroKpiCard({
   gradient: string;
   iconBg: string;
   iconColor: string;
-  /** Explicação do que o valor mede (mostrada num tooltip no ícone ⓘ). */
   info?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-2xl border p-5 space-y-2",
-        gradient,
-      )}
-    >
+    <div className={cn("relative overflow-hidden rounded-2xl border p-5 space-y-2", gradient)}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold text-cocoa-900/70 dark:text-[#E8D5B5]/70">
           {label}
@@ -218,58 +215,49 @@ function HeroKpiCard({
             </span>
           )}
         </div>
-        <div
-          className={cn(
-            "h-9 w-9 shrink-0 rounded-xl flex items-center justify-center shadow-sm",
-            iconBg,
-          )}
-        >
+        <div className={cn("h-9 w-9 shrink-0 rounded-xl flex items-center justify-center shadow-sm", iconBg)}>
           <Icon className={cn("h-5 w-5", iconColor)} />
         </div>
       </div>
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-3xl font-bold text-cocoa-900 tabular-nums">
-          {value}
-        </span>
+        <span className="text-3xl font-bold text-cocoa-900 tabular-nums">{value}</span>
         {pct !== undefined && <PctBadge pct={pct} />}
       </div>
-      {sub && (
-        <div className="text-[11px] text-cocoa-900/60 dark:text-[#E8D5B5]/60">
-          {sub}
-        </div>
-      )}
+      {sub && <div className="text-[11px] text-cocoa-900/60 dark:text-[#E8D5B5]/60">{sub}</div>}
     </div>
   );
 }
 
-// Card secundário, mais sóbrio mas com um acento de cor no ícone.
 function MiniKpi({
   label,
   value,
   sub,
   icon: Icon,
   color,
+  info,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
+  info?: string;
 }) {
   return (
     <div className="rounded-2xl border border-cream-200 bg-surface p-5 space-y-1.5">
       <div className="flex items-center gap-2">
         <Icon className={cn("h-4 w-4", color)} />
-        <div className="text-xs uppercase tracking-wider text-cocoa-700 font-medium">
+        <div className="text-xs uppercase tracking-wider text-cocoa-700 font-medium flex items-center gap-1">
           {label}
+          {info && (
+            <span title={info} className="cursor-help inline-flex text-cocoa-500">
+              <Info className="h-3 w-3" />
+            </span>
+          )}
         </div>
       </div>
-      <div className="text-xl font-semibold text-cocoa-900 tabular-nums">
-        {value}
-      </div>
-      {sub && (
-        <div className="text-[11px] text-cocoa-700">{sub}</div>
-      )}
+      <div className="text-xl font-semibold text-cocoa-900 tabular-nums">{value}</div>
+      {sub && <div className="text-[11px] text-cocoa-700">{sub}</div>}
     </div>
   );
 }
@@ -287,16 +275,10 @@ function ChartCard({
   iconColor?: string;
   children: React.ReactNode;
   className?: string;
-  /** Explicação do que o gráfico mede (tooltip no ícone ⓘ). */
   info?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-cream-200 bg-surface p-5 space-y-3",
-        className,
-      )}
-    >
+    <div className={cn("rounded-2xl border border-cream-200 bg-surface p-5 space-y-3", className)}>
       <h3 className="text-sm font-semibold text-cocoa-900 flex items-center gap-2">
         {Icon && <Icon className={cn("h-4 w-4", iconColor)} />}
         {title}
@@ -311,36 +293,203 @@ function ChartCard({
   );
 }
 
+// Título de secção: divide a página em 4 blocos legíveis.
+function Section({
+  title,
+  sub,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-baseline gap-3 flex-wrap pt-2">
+        <h2 className="text-lg font-semibold text-cocoa-900 flex items-center gap-2">
+          <Icon className="h-5 w-5 text-cocoa-700" />
+          {title}
+        </h2>
+        {sub && <p className="text-xs text-cocoa-700">{sub}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// Distribuição em barras horizontais com contagem e %. Substitui os
+// gráficos circulares (com 5 fatias parecidas não se liam).
+function DistBars({
+  data,
+  fills,
+  emptyText = "Sem dados no período.",
+}: {
+  data: Array<{ label: string; count: number }>;
+  fills?: string[];
+  emptyText?: string;
+}) {
+  const total = data.reduce((s, d) => s + d.count, 0);
+  if (total === 0) {
+    return <p className="text-sm text-cocoa-700 py-6 text-center italic">{emptyText}</p>;
+  }
+  const max = Math.max(...data.map((d) => d.count), 1);
+  return (
+    <div className="space-y-2.5">
+      {data.map((d, i) => {
+        const pct = Math.round((d.count / total) * 100);
+        return (
+          <div key={d.label}>
+            <div className="flex items-baseline justify-between gap-2 text-xs mb-1">
+              <span className="truncate text-cocoa-900">{d.label}</span>
+              <span className="tabular-nums text-cocoa-700 shrink-0">
+                {d.count} · {pct}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-cream-100 dark:bg-[#322821]">
+              <div
+                className="h-2 rounded-full transition-all"
+                style={{ width: `${(d.count / max) * 100}%`, background: fills?.[i] ?? CAT_PALETTE[i % CAT_PALETTE.length] }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FunnelTable({
+  rows,
+  first,
+  totalRow,
+}: {
+  rows: Array<{ key: string; label: string; total: number; confirmed: number; confirmedPct: number | null; cancelled?: number }>;
+  first: string;
+  totalRow?: { total: number; confirmed: number; confirmedPct: number | null; cancelled: number };
+}) {
+  const showCancelled = rows.some((r) => r.cancelled !== undefined);
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[360px] text-sm">
+        <thead className="text-xs uppercase tracking-wider text-cocoa-700">
+          <tr>
+            <th className="text-left py-2">{first}</th>
+            <th className="text-right py-2">Pedidos</th>
+            <th className="text-right py-2">Com sinal</th>
+            <th className="text-right py-2">Taxa</th>
+            {showCancelled && <th className="text-right py-2">Cancelados</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={showCancelled ? 5 : 4} className="py-3 text-center text-cocoa-700 italic">
+                Sem pedidos no período.
+              </td>
+            </tr>
+          )}
+          {rows.map((c) => (
+            <tr key={c.key} className="border-t border-cream-100">
+              <td className="py-2 text-cocoa-900">{c.label}</td>
+              <td className="py-2 text-right tabular-nums text-cocoa-900">{c.total}</td>
+              <td className="py-2 text-right tabular-nums text-emerald-700">{c.confirmed}</td>
+              <td
+                className={cn(
+                  "py-2 text-right tabular-nums font-semibold",
+                  (c.confirmedPct ?? 0) >= 50 ? "text-emerald-700" : (c.confirmedPct ?? 0) >= 30 ? "text-amber-700" : "text-rose-700",
+                )}
+              >
+                {c.confirmedPct !== null ? `${c.confirmedPct}%` : "—"}
+              </td>
+              {showCancelled && <td className="py-2 text-right tabular-nums text-rose-700">{c.cancelled}</td>}
+            </tr>
+          ))}
+          {totalRow && rows.length > 1 && (
+            <tr className="border-t-2 border-cream-300 font-semibold">
+              <td className="py-2 text-cocoa-900">Total</td>
+              <td className="py-2 text-right tabular-nums text-cocoa-900">{totalRow.total}</td>
+              <td className="py-2 text-right tabular-nums text-emerald-700">{totalRow.confirmed}</td>
+              <td className="py-2 text-right tabular-nums text-cocoa-900">
+                {totalRow.confirmedPct !== null ? `${totalRow.confirmedPct}%` : "—"}
+              </td>
+              {showCancelled && <td className="py-2 text-right tabular-nums text-rose-700">{totalRow.cancelled}</td>}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Barra empilhada horizontal — uma linha por upsell, "Sim" + "Mais info".
+function UpsellsBars({
+  data,
+  tooltipStyle,
+  chartGrid,
+}: {
+  data: Array<{ label: string; sim: number; maisInfo: number }>;
+  tooltipStyle: React.CSSProperties;
+  chartGrid: string;
+}) {
+  const hasAny = data.some((d) => d.sim + d.maisInfo > 0);
+  if (!hasAny) {
+    return <p className="text-sm text-cocoa-700 py-6 text-center italic">Sem dados de upsells no período.</p>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(160, data.length * 50)}>
+      <BarChart data={data} layout="vertical" margin={{ left: 24, right: 24 }} stackOffset="sign">
+        <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 11 }} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+        <Bar dataKey="sim" name="Sim" stackId="upsell" fill={OK} />
+        <Bar dataKey="maisInfo" name="Mais info" stackId="upsell" fill={WAIT} radius={[0, 6, 6, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Página ───────────────────────────────────────────────────
+
 interface Props {
   initialOrders: Order[];
   initialVouchers: Voucher[];
   partnerNames: Record<string, string>;
+  statusHistory: StatusHistoryRow[];
+  responseTimes: ResponseTimeRow[];
   loadedAt: string;
 }
+
+type ServiceFilter = "todos" | ServiceType;
 
 export default function MetricasClient({
   initialOrders,
   initialVouchers,
   partnerNames,
+  statusHistory,
+  responseTimes,
   loadedAt,
 }: Props) {
+  // "Desde sempre" por defeito — decisão da Maria (sessão 174), não mudar.
   const [preset, setPreset] = useState<RangePreset>("desde_sempre");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
+  const [service, setService] = useState<ServiceFilter>("todos");
 
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const chartGrid = isDark ? "#322821" : "#E8E0D5";
-  const chartTooltipBg = isDark ? "#1B1611" : "#FFFFFF";
-  const chartTooltipBorder = isDark ? "#322821" : "#E8E0D5";
-  const chartTooltipText = isDark ? "#E8D5B5" : "#3D2B1F";
   const tooltipStyle = {
     borderRadius: 8,
-    border: `1px solid ${chartTooltipBorder}`,
-    background: chartTooltipBg,
-    color: chartTooltipText,
+    border: `1px solid ${isDark ? "#322821" : "#E8E0D5"}`,
+    background: isDark ? "#1B1611" : "#FFFFFF",
+    color: isDark ? "#E8D5B5" : "#3D2B1F",
     fontSize: 12,
   } as const;
+  const axisTick = { fontSize: 11, fill: isDark ? "#E8D5B5" : "#3D2B1F" } as const;
 
   const range: DateRange | null = useMemo(() => {
     if (preset === "personalizado") {
@@ -354,9 +503,22 @@ export default function MetricasClient({
     return rangeFromPreset(preset);
   }, [preset, customStart, customEnd]);
 
+  // Filtro por tipo de serviço: aplica-se às encomendas (os vales não têm
+  // serviço). As encomendas antigas sem service_type são preservação.
+  const orders = useMemo(
+    () =>
+      service === "todos"
+        ? initialOrders
+        : initialOrders.filter((o) => (o.service_type ?? "preservacao") === service),
+    [initialOrders, service],
+  );
+
   const metrics = useMemo(
-    () => (range ? computeMetrics(initialOrders, initialVouchers, range, new Date(), preset) : null),
-    [range, initialOrders, initialVouchers, preset],
+    () =>
+      range
+        ? computeMetrics(orders, initialVouchers, range, new Date(), preset, { statusHistory, responseTimes })
+        : null,
+    [range, orders, initialVouchers, preset, statusHistory, responseTimes],
   );
 
   const insights = useMemo(
@@ -366,27 +528,23 @@ export default function MetricasClient({
 
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
-      {/* Header com fundo gradiente subtil */}
+      {/* Header */}
       <div className="rounded-2xl bg-gradient-to-br from-rose-50 via-amber-50 to-emerald-50 dark:from-rose-950/30 dark:via-amber-950/20 dark:to-emerald-950/30 border border-cream-200 p-4 lg:p-5 flex flex-wrap items-center gap-3">
-        <div className="h-11 w-11 rounded-xl bg-surface/80/80 shadow-sm flex items-center justify-center">
+        <div className="h-11 w-11 rounded-xl bg-surface/80 shadow-sm flex items-center justify-center">
           <LineChartIcon className="h-6 w-6 text-rose-500" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-cocoa-900">
-            Métricas
-          </h1>
-          <p className="text-sm text-cocoa-700">
-            Última actualização: {formatDateTimeLisbon(loadedAt)}
-          </p>
+          <h1 className="text-2xl font-semibold text-cocoa-900">Métricas</h1>
+          <p className="text-sm text-cocoa-700">Última actualização: {formatDateTimeLisbon(loadedAt)}</p>
           <p className="text-xs text-cocoa-700">
             Receita, custos e lucro vivem nas{" "}
             <Link href="/financas" className="underline underline-offset-2 hover:text-cocoa-900">
               Finanças
             </Link>
-            . Aqui: pedidos, conversão, canais e operação.
+            . Aqui: pedidos, conversão, operação e rede.
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
           <Select value={preset} onValueChange={(v) => v && setPreset(v as RangePreset)}>
             <SelectTrigger className="h-9 min-w-[180px] bg-surface">
               <SelectValue labels={RANGE_PRESET_LABELS} />
@@ -399,13 +557,20 @@ export default function MetricasClient({
               ))}
             </SelectContent>
           </Select>
-          <Button
-            size="sm"
-            variant="outline"
-            className="bg-surface"
-            onClick={() => window.location.reload()}
-            title="Actualizar dados"
-          >
+          <Select value={service} onValueChange={(v) => setService((v as ServiceFilter) ?? "todos")}>
+            <SelectTrigger className="h-9 min-w-[200px] bg-surface">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os serviços</SelectItem>
+              {(Object.keys(SERVICE_TYPE_LABELS) as ServiceType[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {SERVICE_TYPE_LABELS[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" className="bg-surface" onClick={() => window.location.reload()} title="Actualizar dados">
             <RefreshCw className="h-3.5 w-3.5 mr-1" />
             Actualizar
           </Button>
@@ -414,22 +579,10 @@ export default function MetricasClient({
 
       {preset === "personalizado" && (
         <div className="flex items-center gap-3 bg-cream-50 border border-cream-200 rounded-xl p-3">
-          <span className="text-xs text-cocoa-700">
-            Período personalizado:
-          </span>
-          <Input
-            type="date"
-            value={customStart}
-            onChange={(e) => setCustomStart(e.target.value)}
-            className="h-8 w-auto text-xs"
-          />
+          <span className="text-xs text-cocoa-700">Período personalizado:</span>
+          <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-8 w-auto text-xs" />
           <span className="text-xs text-cocoa-700">→</span>
-          <Input
-            type="date"
-            value={customEnd}
-            onChange={(e) => setCustomEnd(e.target.value)}
-            className="h-8 w-auto text-xs"
-          />
+          <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="h-8 w-auto text-xs" />
         </div>
       )}
 
@@ -441,69 +594,7 @@ export default function MetricasClient({
 
       {metrics && (
         <>
-          {/* KPIs hero — cada um com uma cor temática própria */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Os cartões de receita saíram (sessão 174): viviam também nas
-                Finanças com nomes diferentes. A Métricas fica com pedidos,
-                conversão e operação. */}
-            <HeroKpiCard
-              label="Taxa de confirmação"
-              value={metrics.funnel.confirmedPct !== null ? `${metrics.funnel.confirmedPct}%` : "—"}
-              info="Dos pedidos criados no período, quantos já pagaram o sinal (30% ou mais), mesmo que tenham cancelado depois. 'À espera' = ainda sem sinal e não cancelados."
-              sub={
-                metrics.funnel.confirmedPctPrev !== null
-                  ? `vs. ${metrics.comparisonLabel}: ${metrics.funnel.confirmedPctPrev}% · ${metrics.funnel.pending} à espera`
-                  : `${metrics.funnel.confirmed} com sinal · ${metrics.funnel.pending} à espera`
-              }
-              icon={Filter}
-              gradient="bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-green-900/30 dark:border-emerald-900/50"
-              iconBg="bg-emerald-500"
-              iconColor="text-white"
-            />
-            <HeroKpiCard
-              label="Cancelamentos"
-              value={String(metrics.cancellations.count)}
-              info="Pedidos criados no período que estão cancelados, e a fase em que estavam quando cancelaram (registada desde a mig 111; os antigos aparecem como 'Sem registo')."
-              sub={
-                metrics.cancellations.pct !== null
-                  ? `${metrics.cancellations.pct}% dos pedidos do período`
-                  : "Sem pedidos no período"
-              }
-              icon={Ban}
-              gradient="bg-gradient-to-br from-rose-50 to-red-100 border-rose-200 dark:from-rose-950/40 dark:to-red-900/30 dark:border-rose-900/50"
-              iconBg="bg-rose-500"
-              iconColor="text-white"
-            />
-            <HeroKpiCard
-              label="Encomendas novas"
-              value={String(metrics.newOrders)}
-              pct={metrics.showComparison ? metrics.newOrdersPctChange : undefined}
-              sub={
-                metrics.showComparison
-                  ? `vs. ${metrics.comparisonLabel}: ${metrics.newOrdersPrev}`
-                  : "Todas as encomendas (data de criação)"
-              }
-              icon={ShoppingBag}
-              gradient="bg-gradient-to-br from-violet-50 to-purple-100 border-violet-200 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-900/50"
-              iconBg="bg-violet-500"
-              iconColor="text-white"
-            />
-            <HeroKpiCard
-              label="Vales vendidos"
-              value={String(metrics.vouchersSold)}
-              sub={
-                metrics.vouchersConvertedPct !== null
-                  ? `${metrics.vouchersConvertedPct}% convertidos em preservação`
-                  : "—"
-              }
-              icon={Gift}
-              gradient="bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200 dark:from-amber-950/40 dark:to-orange-900/30 dark:border-amber-900/50"
-              iconBg="bg-amber-500"
-              iconColor="text-white"
-            />
-          </div>
-
-          {/* Insights — caixa amarela vibrante */}
+          {/* Insights */}
           {insights.length > 0 && (
             <div className="rounded-2xl border border-amber-300 dark:border-amber-900/60 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 dark:from-amber-950/40 dark:via-yellow-950/30 dark:to-amber-950/40 p-5 space-y-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
@@ -518,557 +609,509 @@ export default function MetricasClient({
             </div>
           )}
 
-          {/* Funil pedido → sinal, por canal (sessão 174) */}
-          <ChartCard
-            title="Funil pedido → sinal, por canal"
-            icon={Filter}
-            iconColor="text-emerald-500"
-            info="Pedidos criados no período (data de criação) e quantos pagaram o sinal, por canal de aquisição. 'Sem resposta' = o cliente não disse como conheceu a FBR."
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[480px] text-sm">
-                  <thead className="text-xs uppercase tracking-wider text-cocoa-700">
-                    <tr>
-                      <th className="text-left py-2">Canal</th>
-                      <th className="text-right py-2">Pedidos</th>
-                      <th className="text-right py-2">Com sinal</th>
-                      <th className="text-right py-2">Taxa</th>
-                      <th className="text-right py-2">Cancelados</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {metrics.funnel.byChannel.length === 0 && (
-                      <tr><td colSpan={5} className="py-3 text-center text-cocoa-700 italic">Sem pedidos no período.</td></tr>
-                    )}
-                    {metrics.funnel.byChannel.map((c) => (
-                      <tr key={c.key} className="border-t border-cream-100">
-                        <td className="py-2 text-cocoa-900">{c.label}</td>
-                        <td className="py-2 text-right tabular-nums text-cocoa-900">{c.total}</td>
-                        <td className="py-2 text-right tabular-nums text-emerald-700">{c.confirmed}</td>
-                        <td className={cn("py-2 text-right tabular-nums font-semibold", (c.confirmedPct ?? 0) >= 50 ? "text-emerald-700" : (c.confirmedPct ?? 0) >= 30 ? "text-amber-700" : "text-rose-700")}>
-                          {c.confirmedPct !== null ? `${c.confirmedPct}%` : "—"}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-rose-700">{c.cancelled}</td>
-                      </tr>
-                    ))}
-                    {metrics.funnel.byChannel.length > 1 && (
-                      <tr className="border-t-2 border-cream-300 font-semibold">
-                        <td className="py-2 text-cocoa-900">Total</td>
-                        <td className="py-2 text-right tabular-nums text-cocoa-900">{metrics.funnel.total}</td>
-                        <td className="py-2 text-right tabular-nums text-emerald-700">{metrics.funnel.confirmed}</td>
-                        <td className="py-2 text-right tabular-nums text-cocoa-900">{metrics.funnel.confirmedPct !== null ? `${metrics.funnel.confirmedPct}%` : "—"}</td>
-                        <td className="py-2 text-right tabular-nums text-rose-700">{metrics.funnel.cancelled}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <MiniKpi
-                icon={Timer}
-                color="text-sky-500"
-                label="Tempo até ao sinal (mediana)"
-                value={metrics.funnel.medianDaysToDeposit !== null ? `${metrics.funnel.medianDaysToDeposit} dias` : "—"}
+          {/* ═══════════ 1. PROCURA E CONVERSÃO ═══════════ */}
+          <Section title="Procura e conversão" icon={Filter} sub="Pedidos criados no período, pela data do pedido">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <HeroKpiCard
+                label="Pedidos novos"
+                value={String(metrics.newOrders)}
+                pct={metrics.showComparison ? metrics.newOrdersPctChange : undefined}
+                sub={metrics.showComparison ? `vs. ${metrics.comparisonLabel}: ${metrics.newOrdersPrev}` : "Todos os pedidos (data de criação)"}
+                icon={ShoppingBag}
+                gradient="bg-gradient-to-br from-violet-50 to-purple-100 border-violet-200 dark:from-violet-950/40 dark:to-purple-900/30 dark:border-violet-900/50"
+                iconBg="bg-violet-500"
+                iconColor="text-white"
+              />
+              <HeroKpiCard
+                label="Taxa de confirmação"
+                value={metrics.funnel.confirmedPct !== null ? `${metrics.funnel.confirmedPct}%` : "—"}
+                info="Dos pedidos criados no período, quantos já pagaram o sinal (30% ou mais), mesmo que tenham cancelado depois. 'À espera' = ainda sem sinal e não cancelados."
                 sub={
-                  metrics.funnel.depositSample > 0
-                    ? `${metrics.funnel.depositSample} pedido${metrics.funnel.depositSample === 1 ? "" : "s"} com data de pagamento`
-                    : "Sem datas de pagamento ainda (mig 111)"
+                  metrics.funnel.confirmedPctPrev !== null
+                    ? `vs. ${metrics.comparisonLabel}: ${metrics.funnel.confirmedPctPrev}% · ${metrics.funnel.pending} à espera`
+                    : `${metrics.funnel.confirmed} com sinal · ${metrics.funnel.pending} à espera`
                 }
+                icon={Filter}
+                gradient="bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-200 dark:from-emerald-950/40 dark:to-green-900/30 dark:border-emerald-900/50"
+                iconBg="bg-emerald-500"
+                iconColor="text-white"
+              />
+              <HeroKpiCard
+                label="Cancelamentos"
+                value={String(metrics.cancellations.count)}
+                info="Pedidos criados no período que estão cancelados. A fase em que estavam é registada desde a mig 111; os antigos aparecem como 'Sem registo'."
+                sub={metrics.cancellations.pct !== null ? `${metrics.cancellations.pct}% dos pedidos do período` : "Sem pedidos no período"}
+                icon={Ban}
+                gradient="bg-gradient-to-br from-rose-50 to-red-100 border-rose-200 dark:from-rose-950/40 dark:to-red-900/30 dark:border-rose-900/50"
+                iconBg="bg-rose-500"
+                iconColor="text-white"
+              />
+              <HeroKpiCard
+                label="Vales vendidos"
+                value={String(metrics.vouchersSold)}
+                sub={metrics.vouchersConvertedPct !== null ? `${metrics.vouchersConvertedPct}% convertidos em preservação` : "—"}
+                icon={Gift}
+                gradient="bg-gradient-to-br from-amber-50 to-orange-100 border-amber-200 dark:from-amber-950/40 dark:to-orange-900/30 dark:border-amber-900/50"
+                iconBg="bg-amber-500"
+                iconColor="text-white"
               />
             </div>
-          </ChartCard>
 
-          {/* Antecedência da reserva — só preservação (pedido da Maria, sessão 174) */}
-          <ChartCard
-            title="Com que antecedência reservam? (preservação)"
-            icon={CalendarClock}
-            iconColor="text-violet-500"
-            info="Dias entre o pedido e a data do evento, só nas encomendas de preservação (nas flores secas e na recriação o evento é sempre no passado). 'Depois do evento' = o pedido chegou depois do casamento. Conta só pedidos desde que o formulário público existe, porque as encomendas importadas do Monday têm a data de criação errada."
-          >
-            {metrics.leadTime.sample === 0 ? (
-              <p className="text-sm text-cocoa-700 italic">Sem pedidos de preservação com data de evento neste período.</p>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
-                <div className="space-y-3">
-                  <MiniKpi
-                    icon={CalendarClock}
-                    color="text-rose-500"
-                    label="Chegam depois do evento"
-                    value={metrics.leadTime.afterEventPct !== null ? `${metrics.leadTime.afterEventPct}%` : "—"}
-                    sub={`${metrics.leadTime.buckets.find((b) => b.key === "depois")?.count ?? 0} de ${metrics.leadTime.sample} pedidos`}
-                  />
-                  <MiniKpi
-                    icon={Timer}
-                    color="text-violet-500"
-                    label="Antecedência mediana"
-                    value={
-                      metrics.leadTime.medianDays === null
-                        ? "—"
-                        : metrics.leadTime.medianDays < 0
-                          ? `${Math.abs(metrics.leadTime.medianDays)} dias depois`
-                          : `${metrics.leadTime.medianDays} dias antes`
-                    }
-                    sub={metrics.leadTime.since ? `Pedidos desde ${formatDatePT(metrics.leadTime.since.slice(0, 10))}` : undefined}
-                  />
-                </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, metrics.leadTime.buckets.length * 36)}>
-                  <BarChart data={metrics.leadTime.buckets} layout="vertical" margin={{ left: 24, right: 40 }}>
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="label" width={170} tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      formatter={(v: unknown, _n, item) => [`${v} (${(item?.payload as { pct?: number } | undefined)?.pct ?? 0}%)`, "Pedidos"]}
+            {/* Pedidos por mês, empilhado */}
+            <ChartCard
+              title="Pedidos por mês (últimos 12 meses)"
+              icon={ShoppingBag}
+              iconColor="text-violet-500"
+              info="Pedidos criados em cada mês, desde que o formulário público existe (as encomendas importadas do Monday têm a data de criação errada e ficam de fora). Verde = pagaram sinal; âmbar = à espera; rosa = cancelaram sem sinal. Não depende do período escolhido."
+            >
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={metrics.monthlyRequests} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                  <XAxis dataKey="label" tick={axisTick} />
+                  <YAxis allowDecimals={false} tick={axisTick} width={32} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: chartGrid, opacity: 0.4 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="confirmed" name="Com sinal" stackId="p" fill={OK} />
+                  <Bar dataKey="pending" name="À espera" stackId="p" fill={WAIT} />
+                  <Bar dataKey="cancelled" name="Cancelados" stackId="p" fill={RISK} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            {/* Funil por canal / idioma / serviço */}
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-4">
+              <ChartCard
+                title="Funil pedido → sinal, por canal"
+                icon={Filter}
+                iconColor="text-emerald-500"
+                info="Pedidos criados no período e quantos pagaram o sinal, por canal de aquisição. 'Sem resposta' = o cliente não disse como conheceu a FBR."
+              >
+                <FunnelTable rows={metrics.funnel.byChannel} first="Canal" totalRow={metrics.funnel} />
+              </ChartCard>
+              <div className="space-y-4">
+                <MiniKpi
+                  icon={Timer}
+                  color="text-sky-500"
+                  label="Tempo até ao sinal (mediana)"
+                  value={metrics.funnel.medianDaysToDeposit !== null ? `${metrics.funnel.medianDaysToDeposit} dias` : "—"}
+                  sub={
+                    metrics.funnel.depositSample > 0
+                      ? `${metrics.funnel.depositSample} pedido${metrics.funnel.depositSample === 1 ? "" : "s"} com data de pagamento`
+                      : "Sem datas de pagamento no período"
+                  }
+                />
+                <ChartCard title="Por idioma" icon={MessageCircle} iconColor="text-sky-500">
+                  <FunnelTable rows={metrics.funnel.byLanguage} first="Idioma" />
+                </ChartCard>
+                <ChartCard title="Por serviço" icon={Wrench} iconColor="text-violet-500">
+                  <FunnelTable rows={metrics.funnel.byService} first="Serviço" />
+                </ChartCard>
+              </div>
+            </div>
+
+            {/* Antecedência */}
+            <ChartCard
+              title="Com que antecedência reservam? (preservação)"
+              icon={CalendarClock}
+              iconColor="text-violet-500"
+              info="Dias entre o pedido e a data do evento, só nas encomendas de preservação (nas flores secas e na recriação o evento é sempre no passado). 'Depois do evento' = o pedido chegou depois do casamento. Só pedidos desde que o formulário público existe."
+            >
+              {metrics.leadTime.sample === 0 ? (
+                <p className="text-sm text-cocoa-700 italic">Sem pedidos de preservação com data de evento neste período.</p>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-4 items-start">
+                  <div className="space-y-3">
+                    <MiniKpi
+                      icon={CalendarClock}
+                      color="text-rose-500"
+                      label="Chegam depois do evento"
+                      value={metrics.leadTime.afterEventPct !== null ? `${metrics.leadTime.afterEventPct}%` : "—"}
+                      sub={`${metrics.leadTime.buckets.find((b) => b.key === "depois")?.count ?? 0} de ${metrics.leadTime.sample} pedidos`}
                     />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                      {metrics.leadTime.buckets.map((b, idx) => (
-                        <Cell key={b.key} fill={LEAD_PALETTE[idx % LEAD_PALETTE.length]} />
+                    <MiniKpi
+                      icon={Timer}
+                      color="text-violet-500"
+                      label="Antecedência mediana"
+                      value={
+                        metrics.leadTime.medianDays === null
+                          ? "—"
+                          : metrics.leadTime.medianDays < 0
+                            ? `${Math.abs(metrics.leadTime.medianDays)} dias depois`
+                            : `${metrics.leadTime.medianDays} dias antes`
+                      }
+                      sub={metrics.leadTime.since ? `Pedidos desde ${formatDatePT(metrics.leadTime.since.slice(0, 10))}` : undefined}
+                    />
+                  </div>
+                  <ResponsiveContainer width="100%" height={Math.max(200, metrics.leadTime.buckets.length * 36)}>
+                    <BarChart data={metrics.leadTime.buckets} layout="vertical" margin={{ left: 24, right: 40 }}>
+                      <XAxis type="number" allowDecimals={false} tick={axisTick} />
+                      <YAxis type="category" dataKey="label" width={170} tick={axisTick} />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(v: unknown, _n, item) => [`${v} (${(item?.payload as { pct?: number } | undefined)?.pct ?? 0}%)`, "Pedidos"]}
+                      />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                        {metrics.leadTime.buckets.map((b, idx) => (
+                          <Cell key={b.key} fill={LEAD_PALETTE[idx % LEAD_PALETTE.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </ChartCard>
+
+            {/* Cancelamentos por fase + vales a expirar */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ChartCard
+                title="Cancelamentos por fase"
+                icon={Ban}
+                iconColor="text-rose-500"
+                info="Em que estado estava a encomenda quando foi cancelada (pedidos criados no período). Registado desde a mig 111; os antigos aparecem como 'Sem registo'."
+              >
+                <DistBars
+                  data={metrics.cancellations.byPhase.map((p) => ({ label: p.label, count: p.count }))}
+                  fills={metrics.cancellations.byPhase.map((p) => (p.key === "sem_registo" ? MUTED : (STATUS_HEX[p.key as OrderStatus] ?? RISK)))}
+                  emptyText="Sem cancelamentos no período."
+                />
+              </ChartCard>
+              <ChartCard
+                title="Vales a expirar nos próximos 3 meses"
+                icon={Gift}
+                iconColor="text-amber-500"
+                info="Vales 100% pagos, ainda sem preservação marcada, cuja validade acaba nos próximos 90 dias. Não depende do período escolhido."
+              >
+                {metrics.expiringVouchers.length === 0 ? (
+                  <p className="text-sm text-cocoa-700 italic">Nenhum vale a expirar nos próximos 3 meses.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="text-xs uppercase tracking-wider text-cocoa-700">
+                      <tr>
+                        <th className="text-left py-1.5">Vale</th>
+                        <th className="text-left py-1.5">Expira</th>
+                        <th className="text-right py-1.5">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {metrics.expiringVouchers.map((v) => (
+                        <tr key={v.id} className="border-t border-cream-100">
+                          <td className="py-1.5">
+                            <Link href={`/vale-presente/${v.code}`} className="text-cocoa-900 hover:underline underline-offset-2">
+                              <span className="font-mono text-xs">{v.code}</span>
+                              {v.name ? ` · ${v.name}` : ""}
+                            </Link>
+                          </td>
+                          <td className={cn("py-1.5 text-xs tabular-nums", v.daysLeft <= 30 ? "text-rose-700 font-semibold" : "text-cocoa-700")}>
+                            {formatDatePT(v.expiry_date.slice(0, 10))} ({v.daysLeft} d)
+                          </td>
+                          <td className="py-1.5 text-right tabular-nums text-cocoa-900">{formatEuro(v.amount)}</td>
+                        </tr>
                       ))}
-                    </Bar>
+                    </tbody>
+                  </table>
+                )}
+              </ChartCard>
+            </div>
+
+            {/* Quando chegam os pedidos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ChartCard
+                title="Pedidos por dia da semana"
+                icon={CalendarDays}
+                iconColor="text-sky-500"
+                info="Hora de Lisboa. Pedidos do período, desde que o formulário existe. Diz-te quando vale a pena estar atenta ao WhatsApp."
+              >
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={metrics.requestsByWeekday} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                    <XAxis dataKey="label" tick={axisTick} />
+                    <YAxis allowDecimals={false} tick={axisTick} width={28} />
+                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: chartGrid, opacity: 0.4 }} formatter={(v: unknown) => [String(v), "Pedidos"]} />
+                    <Bar dataKey="count" fill={NEUTRAL} radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-            )}
-          </ChartCard>
+              </ChartCard>
+              <ChartCard title="Pedidos por hora do dia" icon={Clock} iconColor="text-sky-500" info="Hora de Lisboa. Pedidos do período, desde que o formulário existe.">
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={metrics.requestsByHour} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                    <XAxis dataKey="label" tick={{ ...axisTick, fontSize: 9 }} interval={2} />
+                    <YAxis allowDecimals={false} tick={axisTick} width={28} />
+                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: chartGrid, opacity: 0.4 }} formatter={(v: unknown) => [String(v), "Pedidos"]} />
+                    <Bar dataKey="count" fill={NEUTRAL} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
 
-          {/* Cancelamentos por fase + vales a expirar */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ChartCard
-              title="Cancelamentos por fase"
-              icon={Ban}
-              iconColor="text-rose-500"
-              info="Em que estado estava a encomenda quando foi cancelada (pedidos criados no período). Registado pela base de dados desde a mig 111; os cancelamentos antigos aparecem como 'Sem registo'."
-            >
-              {metrics.cancellations.byPhase.length === 0 ? (
-                <p className="text-sm text-cocoa-700 italic">Sem cancelamentos no período.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {metrics.cancellations.byPhase.map((p) => (
-                      <tr key={p.key} className="border-t border-cream-100 first:border-t-0">
-                        <td className="py-1.5 text-cocoa-900">{p.label}</td>
-                        <td className="py-1.5 text-right tabular-nums font-semibold text-rose-700 w-16">{p.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </ChartCard>
-            <ChartCard
-              title="Vales a expirar nos próximos 3 meses"
-              icon={Gift}
-              iconColor="text-amber-500"
-              info="Vales 100% pagos, ainda sem preservação marcada, cuja validade acaba nos próximos 90 dias. Um lembrete a tempo evita perder o cliente e o crédito. Não depende do período escolhido."
-            >
-              {metrics.expiringVouchers.length === 0 ? (
-                <p className="text-sm text-cocoa-700 italic">Nenhum vale a expirar nos próximos 3 meses.</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="text-xs uppercase tracking-wider text-cocoa-700">
-                    <tr>
-                      <th className="text-left py-1.5">Vale</th>
-                      <th className="text-left py-1.5">Expira</th>
-                      <th className="text-right py-1.5">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {metrics.expiringVouchers.map((v) => (
-                      <tr key={v.id} className="border-t border-cream-100">
-                        <td className="py-1.5">
-                          <Link href={`/vale-presente/${v.code}`} className="text-cocoa-900 hover:underline underline-offset-2">
-                            <span className="font-mono text-xs">{v.code}</span>{v.name ? ` · ${v.name}` : ""}
-                          </Link>
-                        </td>
-                        <td className={cn("py-1.5 text-xs tabular-nums", v.daysLeft <= 30 ? "text-rose-700 font-semibold" : "text-cocoa-700")}>
-                          {formatDatePT(v.expiry_date.slice(0, 10))} ({v.daysLeft} d)
-                        </td>
-                        <td className="py-1.5 text-right tabular-nums text-cocoa-900">{formatEuro(v.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </ChartCard>
-          </div>
+            {/* Clientes repetidos + recomendações */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <MiniKpi
+                icon={Users}
+                color="text-violet-500"
+                label="Clientes que voltaram"
+                value={String(metrics.repeatClients.clientsRepeat)}
+                sub={`de ${metrics.repeatClients.clientsTotal} clientes (mesmo email ou telemóvel)`}
+                info="Clientes com 2 ou mais pedidos ao longo do tempo, identificados pelo email ou pelo telemóvel."
+              />
+              <MiniKpi
+                icon={Users}
+                color="text-emerald-500"
+                label="Pedidos de repetentes"
+                value={metrics.repeatClients.repeatOrdersPct !== null ? `${metrics.repeatClients.repeatOrdersPct}%` : "—"}
+                sub="dos pedidos do período vêm de quem já tinha pedido antes"
+              />
+              <MiniKpi
+                icon={Sparkles}
+                color="text-amber-500"
+                label="Recomendações de clientes"
+                value={
+                  metrics.repeatClients.recommendationShareByYear.length > 0
+                    ? `${metrics.repeatClients.recommendationShareByYear[metrics.repeatClients.recommendationShareByYear.length - 1].pct}%`
+                    : "—"
+                }
+                sub={
+                  metrics.repeatClients.recommendationShareByYear.length > 0
+                    ? "por ano: " + metrics.repeatClients.recommendationShareByYear.map((r) => `${r.year}: ${r.pct}%`).join(" · ")
+                    : "Sem dados"
+                }
+                info="Percentagem dos pedidos em que o cliente disse ter conhecido a FBR por recomendação (canal 'Recomendação'), por ano, desde que o formulário existe."
+              />
+            </div>
+          </Section>
 
-          {/* Encomendas por estado — barras horizontais agora COM cor por estado */}
-          {metrics.ordersByStatus.length > 0 && (
-            <ChartCard
-              title="Encomendas por estado (no período)"
-              icon={Sparkles}
-              iconColor="text-violet-500"
-            >
-              <ResponsiveContainer
-                width="100%"
-                height={Math.max(220, metrics.ordersByStatus.length * 32)}
-              >
-                <BarChart
-                  data={metrics.ordersByStatus}
-                  layout="vertical"
-                  margin={{ left: 24, right: 24 }}
-                >
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis
-                    type="category"
-                    dataKey="label"
-                    width={180}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                    {metrics.ordersByStatus.map((row) => (
-                      <Cell
-                        key={row.status}
-                        fill={STATUS_HEX[row.status as OrderStatus]}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          )}
-
-          {/* Distribuições circulares — 3 columns, cada pie com palette própria */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <ChartCard title="Tamanho de moldura" icon={Frame} iconColor="text-violet-500">
-              <PieDist
-                data={metrics.ordersByFrameSize}
-                fills={metrics.ordersByFrameSize.map((d) => FRAME_SIZE_HEX[d.key])}
-              />
-            </ChartCard>
-            <ChartCard title="Tipo de fundo" icon={Palette} iconColor="text-rose-500">
-              <PieDist
-                data={metrics.ordersByFrameBackground}
-                fills={metrics.ordersByFrameBackground.map((d) => FRAME_BACKGROUND_HEX[d.key])}
-              />
-            </ChartCard>
-            <ChartCard title="Tipo de evento" icon={PartyPopper} iconColor="text-emerald-500">
-              <PieDist
-                data={metrics.ordersByEventType}
-                fills={metrics.ordersByEventType.map((d) => EVENT_TYPE_HEX[d.key])}
-              />
-            </ChartCard>
-          </div>
-
-          {/* Logística & comunicação — cores semânticas alinhadas com badges */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <ChartCard title="Método de envio das flores" icon={Car} iconColor="text-violet-500">
-              <PieDist
-                data={metrics.flowerDeliveryDist}
-                fills={metrics.flowerDeliveryDist.map((d) => FLOWER_DELIVERY_HEX[d.key])}
-              />
-            </ChartCard>
-            <ChartCard title="Método de receção do quadro" icon={Package} iconColor="text-sky-500">
-              <PieDist
-                data={metrics.frameDeliveryDist}
-                fills={metrics.frameDeliveryDist.map((d) => FRAME_DELIVERY_HEX[d.key])}
-              />
-            </ChartCard>
-            <ChartCard title="Preferência de contacto" icon={MessageCircle} iconColor="text-emerald-500">
-              <PieDist
-                data={metrics.contactPrefDist}
-                fills={metrics.contactPrefDist.map((d) => CONTACT_PREF_HEX[d.key])}
-              />
-            </ChartCard>
-          </div>
-
-          {/* Cupões 5% + Upsells — duas colunas */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ChartCard title="Utilização de cupões 5%" icon={Ticket} iconColor="text-amber-500">
-              {metrics.couponUsageDist.length === 0 ? (
-                <p className="text-sm text-cocoa-700 py-12 text-center">
-                  Ainda não há cupões emitidos no período.
-                </p>
-              ) : (
-                <PieDist
+          {/* ═══════════ 2. PRODUTO ═══════════ */}
+          <Section title="Produto" icon={Frame} sub="O que os clientes do período escolhem">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <ChartCard title="Tamanho de moldura" icon={Frame} iconColor="text-violet-500">
+                <DistBars data={metrics.ordersByFrameSize} fills={metrics.ordersByFrameSize.map((d) => FRAME_SIZE_HEX[d.key])} />
+              </ChartCard>
+              <ChartCard title="Tipo de fundo" icon={Palette} iconColor="text-rose-500">
+                <DistBars data={metrics.ordersByFrameBackground} fills={metrics.ordersByFrameBackground.map((d) => FRAME_BACKGROUND_HEX[d.key])} />
+              </ChartCard>
+              <ChartCard title="Tipo de evento" icon={PartyPopper} iconColor="text-emerald-500">
+                <DistBars data={metrics.ordersByEventType} fills={metrics.ordersByEventType.map((d) => EVENT_TYPE_HEX[d.key])} />
+              </ChartCard>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <ChartCard title="Interesse em upsells" icon={Sparkle} iconColor="text-emerald-500">
+                <UpsellsBars data={metrics.upsellsBreakdown} tooltipStyle={tooltipStyle} chartGrid={chartGrid} />
+              </ChartCard>
+              <ChartCard title="Utilização de cupões 5%" icon={Ticket} iconColor="text-amber-500">
+                <DistBars
                   data={metrics.couponUsageDist}
                   fills={metrics.couponUsageDist.map((d) => COUPON_STATUS_HEX[d.key])}
+                  emptyText="Ainda não há cupões emitidos no período."
                 />
+              </ChartCard>
+              <MiniKpi
+                icon={Sparkles}
+                color="text-amber-500"
+                label="% pedidos com extras"
+                value={`${metrics.extrasOrdersPct}%`}
+                sub="Pedidos do período com extras no quadro (opções ou notas)"
+              />
+            </div>
+          </Section>
+
+          {/* ═══════════ 3. OPERAÇÃO ═══════════ */}
+          <Section title="Operação" icon={Wrench} sub="Prazos, fases, resposta e logística">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <MiniKpi
+                icon={Clock}
+                color="text-sky-500"
+                label="Tempo médio de conclusão"
+                value={metrics.avgCompletionGlobal !== null ? `${metrics.avgCompletionGlobal} dias` : "—"}
+                sub={metrics.avgCompletionRecent !== null ? `Últimos 6 meses: ${metrics.avgCompletionRecent} dias` : undefined}
+                info="Da criação do pedido à entrega do quadro (encomendas em 'Quadro recebido'), só pedidos desde que o formulário existe."
+              />
+              <MiniKpi
+                icon={MessageCircle}
+                color="text-emerald-500"
+                label="1.ª resposta no WhatsApp (mediana)"
+                value={metrics.whatsappResponse.medianHours !== null ? `${metrics.whatsappResponse.medianHours} h` : "—"}
+                sub={
+                  metrics.whatsappResponse.sample > 0
+                    ? `${metrics.whatsappResponse.within1hPct}% em menos de 1 h · ${metrics.whatsappResponse.within24hPct}% em menos de 24 h · ${metrics.whatsappResponse.sample} pedidos`
+                    : "Sem dados: precisa da migração 113 e de pedidos com conversa no WhatsApp"
+                }
+                info="Tempo entre o pedido (formulário) e a primeira mensagem tua na conversa de WhatsApp com o mesmo telemóvel (últimos 9 dígitos). Só pedidos do período com conversa emparelhada."
+              />
+              <MiniKpi
+                icon={MessageCircle}
+                color="text-amber-500"
+                label="1.ª resposta: 90% em menos de"
+                value={metrics.whatsappResponse.p90Hours !== null ? `${metrics.whatsappResponse.p90Hours} h` : "—"}
+                sub="9 em cada 10 pedidos com conversa tiveram resposta dentro deste tempo"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <ChartCard
+                title="Dias em cada fase (mediana)"
+                icon={Layers}
+                iconColor="text-violet-500"
+                info="Quantos dias uma encomenda fica em cada estado antes de passar ao seguinte, pela ordem de produção. Só fases já concluídas e só pedidos desde que o formulário existe. Precisa da migração 113 (histórico de estados)."
+              >
+                {metrics.phaseDurations.length === 0 ? (
+                  <p className="text-sm text-cocoa-700 italic">Sem histórico de estados ainda (migração 113).</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={Math.max(220, metrics.phaseDurations.length * 30)}>
+                    <BarChart data={metrics.phaseDurations} layout="vertical" margin={{ left: 24, right: 40 }}>
+                      <XAxis type="number" tick={axisTick} unit=" d" />
+                      <YAxis type="category" dataKey="label" width={180} tick={axisTick} />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        formatter={(v: unknown, _n, item) => [`${v} dias (${(item?.payload as { sample?: number } | undefined)?.sample ?? 0} encomendas)`, "Mediana"]}
+                      />
+                      <Bar dataKey="medianDays" radius={[0, 6, 6, 0]}>
+                        {metrics.phaseDurations.map((p) => (
+                          <Cell key={p.status} fill={STATUS_HEX[p.status] ?? NEUTRAL} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+              <ChartCard
+                title="Pedidos do período por estado actual"
+                icon={Sparkles}
+                iconColor="text-violet-500"
+                info="Em que estado estão hoje os pedidos criados no período, pela ordem de produção (cancelados no fim)."
+              >
+                {metrics.ordersByStatus.length === 0 ? (
+                  <p className="text-sm text-cocoa-700 italic">Sem pedidos no período.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={Math.max(220, metrics.ordersByStatus.length * 30)}>
+                    <BarChart data={metrics.ordersByStatus} layout="vertical" margin={{ left: 24, right: 24 }}>
+                      <XAxis type="number" allowDecimals={false} tick={axisTick} />
+                      <YAxis type="category" dataKey="label" width={180} tick={axisTick} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [String(v), "Pedidos"]} />
+                      <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                        {metrics.ordersByStatus.map((row) => (
+                          <Cell key={row.status} fill={STATUS_HEX[row.status as OrderStatus]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </ChartCard>
+            </div>
+
+            <ChartCard
+              title="Sazonalidade: eventos por mês do ano"
+              icon={CalendarDays}
+              iconColor="text-emerald-500"
+              info="Quantos eventos (data do evento, encomendas não canceladas) caem em cada mês, com os últimos anos lado a lado. Mostra a época alta para planear. Não depende do período escolhido."
+            >
+              {metrics.eventSeasonality.years.length === 0 ? (
+                <p className="text-sm text-cocoa-700 italic">Sem eventos com data.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={metrics.eventSeasonality.months.map((m) => ({ label: m.label, ...m.counts }))} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+                    <XAxis dataKey="label" tick={axisTick} />
+                    <YAxis allowDecimals={false} tick={axisTick} width={32} />
+                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: chartGrid, opacity: 0.4 }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {metrics.eventSeasonality.years.map((y, idx) => (
+                      <Bar key={y} dataKey={String(y)} name={String(y)} fill={YEAR_PALETTE[idx % YEAR_PALETTE.length]} radius={[3, 3, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </ChartCard>
-            <ChartCard title="Interesse em upsells" icon={Sparkle} iconColor="text-emerald-500">
-              <UpsellsBars data={metrics.upsellsBreakdown} tooltipStyle={tooltipStyle} chartGrid={chartGrid} />
-            </ChartCard>
-          </div>
 
-          {/* Tempo médio + Extras + Canal — 3 mini cards com ícone colorido */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <MiniKpi
-              icon={Clock}
-              color="text-sky-500"
-              label="Tempo médio de conclusão"
-              value={
-                metrics.avgCompletionGlobal !== null
-                  ? `${metrics.avgCompletionGlobal} dias`
-                  : "—"
-              }
-              sub={
-                metrics.avgCompletionRecent !== null
-                  ? `Últimos 6 meses: ${metrics.avgCompletionRecent} dias`
-                  : undefined
-              }
-            />
-            <MiniKpi
-              icon={Sparkles}
-              color="text-amber-500"
-              label="% encomendas com extras"
-              value={`${metrics.extrasOrdersPct}%`}
-              sub="No período seleccionado"
-            />
-            <MiniKpi
-              icon={Wifi}
-              color="text-fuchsia-500"
-              label="Canal de aquisição #1"
-              value={
-                metrics.topAcquisition.length > 0
-                  ? metrics.topAcquisition[0].label
-                  : "—"
-              }
-              sub={metrics.topAcquisition
-                .slice(0, 3)
-                .map((a) => `${a.label} (${a.count})`)
-                .join(" · ")}
-            />
-          </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              <ChartCard title="Envio das flores" icon={Car} iconColor="text-violet-500">
+                <DistBars data={metrics.flowerDeliveryDist} fills={metrics.flowerDeliveryDist.map((d) => FLOWER_DELIVERY_HEX[d.key])} />
+              </ChartCard>
+              <ChartCard title="Receção do quadro" icon={Package} iconColor="text-sky-500">
+                <DistBars data={metrics.frameDeliveryDist} fills={metrics.frameDeliveryDist.map((d) => FRAME_DELIVERY_HEX[d.key])} />
+              </ChartCard>
+              <ChartCard title="Preferência de contacto" icon={MessageCircle} iconColor="text-emerald-500">
+                <DistBars data={metrics.contactPrefDist} fills={metrics.contactPrefDist.map((d) => CONTACT_PREF_HEX[d.key])} />
+              </ChartCard>
+              <ChartCard
+                title="Cidades dos eventos"
+                icon={MapPin}
+                iconColor="text-rose-500"
+                info="Cidade aproximada a partir da morada do evento (o segmento antes de 'Portugal', sem código postal). Pedidos do período. Útil para escolher onde procurar parceiros."
+              >
+                <DistBars
+                  data={metrics.topCities.map((c) => ({ label: c.city, count: c.count }))}
+                  emptyText="Sem moradas de evento no período."
+                />
+              </ChartCard>
+            </div>
+          </Section>
 
-          {/* Top canais de aquisição — barras coloridas */}
-          {metrics.topAcquisition.length > 0 && (
-            <ChartCard
-              title="Top 5 canais de aquisição"
-              icon={Wifi}
-              iconColor="text-fuchsia-500"
-            >
-              <ResponsiveContainer width="100%" height={Math.max(160, metrics.topAcquisition.length * 36)}>
-                <BarChart
-                  data={metrics.topAcquisition}
-                  layout="vertical"
-                  margin={{ left: 24, right: 24 }}
+          {/* ═══════════ 4. REDE ═══════════ */}
+          <Section title="Rede" icon={Wifi} sub="De onde vêm os pedidos e quem os recomenda">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <ChartCard
+                title="Top 5 canais de aquisição"
+                icon={Wifi}
+                iconColor="text-fuchsia-500"
+                info="Como os clientes do período disseram ter conhecido a FBR."
+              >
+                <DistBars data={metrics.topAcquisition} />
+              </ChartCard>
+              {metrics.topPartners.length > 0 ? (
+                <ChartCard
+                  title="Top 5 parceiros (receita + comissões)"
+                  icon={Trophy}
+                  iconColor="text-amber-500"
+                  info="Receita = dinheiro recebido das encomendas deste parceiro no período (parcelas pela data de pagamento; sem data, pela data do evento). Comissões em valor total acordado: 'Paga' = já liquidada; 'Por pagar' = em dívida; 'Total' = soma. Estados 'N/A' e 'Não aceita' não contam."
                 >
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                    {metrics.topAcquisition.map((_, idx) => (
-                      <Cell key={idx} fill={ACQ_PALETTE[idx % ACQ_PALETTE.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          )}
-
-          {/* Top parceiros — agora com nomes resolvidos + cor */}
-          {metrics.topPartners.length > 0 && (
-            <ChartCard
-              title="Top 5 parceiros (receita + comissões)"
-              icon={Trophy}
-              iconColor="text-amber-500"
-              info="Receita = dinheiro recebido das encomendas deste parceiro no período (parcelas pela data de pagamento; sem data, pela data do evento). Comissões em valor total acordado (não proporcional ao que a cliente já pagou): 'Paga' = já liquidada ao parceiro; 'Por pagar' = ainda em dívida; 'Total' = soma das duas. Estados 'N/A' e 'Não aceita' não contam."
-            >
-              {/* overflow-x-auto + min-w: 6 colunas de € não cabem num telemóvel;
-                  ganha scroll horizontal em vez de esmagar. No PC nada muda. */}
-              <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead className="text-xs uppercase tracking-wider text-cocoa-700">
-                  <tr>
-                    <th className="text-left py-2">#</th>
-                    <th className="text-left py-2">Parceiro</th>
-                    <th className="text-right py-2">Receita</th>
-                    <th className="text-right py-2" title="Comissão já liquidada ao parceiro (estado 'Paga')">Comissão paga</th>
-                    <th className="text-right py-2" title="Comissão ainda em dívida ao parceiro (parceiro informado / a aguardar)">Por pagar</th>
-                    <th className="text-right py-2" title="Soma da comissão paga + por pagar">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {metrics.topPartners.map((p, idx) => {
-                    const podiumColor =
-                      idx === 0
-                        ? "text-amber-500"
-                        : idx === 1
-                          ? "text-stone-500"
-                          : idx === 2
-                            ? "text-orange-600"
-                            : "text-cocoa-700";
-                    const podiumIcon = idx < 3 ? <Trophy className={cn("h-4 w-4", podiumColor)} /> : null;
-                    return (
-                      <tr
-                        key={p.partner_id}
-                        className="border-t border-cream-100 hover:bg-cream-50 transition-colors"
-                      >
-                        <td className="py-2 w-10">
-                          <div className="flex items-center gap-1.5">
-                            {podiumIcon}
-                            <span className="text-xs font-semibold text-cocoa-700">
-                              {idx + 1}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2 text-cocoa-900 font-medium">
-                          <a
-                            href={`/parcerias/${p.partner_id}`}
-                            className="hover:underline"
-                          >
-                            {partnerNames[p.partner_id] ?? p.partner_id.slice(0, 8) + "…"}
-                          </a>
-                        </td>
-                        <td className="py-2 text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
-                          {formatEuro(p.revenue)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-emerald-700/80 dark:text-emerald-400/80">
-                          {formatEuro(p.commissionsPaid)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums text-amber-700 dark:text-amber-400">
-                          {formatEuro(p.commissionsDue)}
-                        </td>
-                        <td className="py-2 text-right tabular-nums font-semibold text-cocoa-900">
-                          {formatEuro(p.commissionsTotal)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              </div>
-            </ChartCard>
-          )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-sm">
+                      <thead className="text-xs uppercase tracking-wider text-cocoa-700">
+                        <tr>
+                          <th className="text-left py-2">#</th>
+                          <th className="text-left py-2">Parceiro</th>
+                          <th className="text-right py-2">Receita</th>
+                          <th className="text-right py-2">Comissão paga</th>
+                          <th className="text-right py-2">Por pagar</th>
+                          <th className="text-right py-2">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metrics.topPartners.map((p, idx) => {
+                          const podiumColor = idx === 0 ? "text-amber-500" : idx === 1 ? "text-stone-500" : idx === 2 ? "text-orange-600" : "text-cocoa-700";
+                          return (
+                            <tr key={p.partner_id} className="border-t border-cream-100 hover:bg-cream-50 transition-colors">
+                              <td className="py-2 w-10">
+                                <div className="flex items-center gap-1.5">
+                                  {idx < 3 && <Trophy className={cn("h-4 w-4", podiumColor)} />}
+                                  <span className="text-xs font-semibold text-cocoa-700">{idx + 1}</span>
+                                </div>
+                              </td>
+                              <td className="py-2 text-cocoa-900 font-medium">
+                                <Link href={`/parcerias/${p.partner_id}`} className="hover:underline">
+                                  {partnerNames[p.partner_id] ?? p.partner_id.slice(0, 8) + "…"}
+                                </Link>
+                              </td>
+                              <td className="py-2 text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">{formatEuro(p.revenue)}</td>
+                              <td className="py-2 text-right tabular-nums text-emerald-700/80 dark:text-emerald-400/80">{formatEuro(p.commissionsPaid)}</td>
+                              <td className="py-2 text-right tabular-nums text-amber-700 dark:text-amber-400">{formatEuro(p.commissionsDue)}</td>
+                              <td className="py-2 text-right tabular-nums font-semibold text-cocoa-900">{formatEuro(p.commissionsTotal)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </ChartCard>
+              ) : (
+                <ChartCard title="Top 5 parceiros" icon={Trophy} iconColor="text-amber-500">
+                  <p className="text-sm text-cocoa-700 italic">Sem encomendas com parceiro no período.</p>
+                </ChartCard>
+              )}
+            </div>
+          </Section>
         </>
       )}
     </div>
-  );
-}
-
-// Stacked bar horizontal — uma linha por upsell, segmentos "Sim" + "Mais info".
-// Mostra rapidamente quais extras geram mais interesse.
-function UpsellsBars({
-  data,
-  tooltipStyle,
-  chartGrid,
-}: {
-  data: Array<{ label: string; sim: number; maisInfo: number }>;
-  tooltipStyle: React.CSSProperties;
-  chartGrid: string;
-}) {
-  const hasAny = data.some((d) => d.sim + d.maisInfo > 0);
-  if (!hasAny) {
-    return (
-      <p className="text-sm text-cocoa-700 py-12 text-center">
-        Sem dados de upsells no período.
-      </p>
-    );
-  }
-  return (
-    <ResponsiveContainer width="100%" height={Math.max(160, data.length * 50)}>
-      <BarChart data={data} layout="vertical" margin={{ left: 24, right: 24 }} stackOffset="sign">
-        <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} horizontal={false} />
-        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-        <YAxis type="category" dataKey="label" width={160} tick={{ fontSize: 11 }} />
-        <Tooltip contentStyle={tooltipStyle} />
-        <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-        <Bar dataKey="sim" name="Sim" stackId="upsell" fill={UPSELL_HEX.sim} radius={[0, 0, 0, 0]} />
-        <Bar dataKey="maisInfo" name="Mais info" stackId="upsell" fill={UPSELL_HEX.maisInfo} radius={[0, 6, 6, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function renderPieSliceLabel(props: {
-  cx?: number;
-  cy?: number;
-  midAngle?: number;
-  innerRadius?: number;
-  outerRadius?: number;
-  percent?: number;
-  value?: number;
-}) {
-  const { cx, cy, midAngle, innerRadius, outerRadius, percent, value } = props;
-  if (
-    cx == null ||
-    cy == null ||
-    midAngle == null ||
-    innerRadius == null ||
-    outerRadius == null ||
-    value == null
-  ) {
-    return null;
-  }
-  if ((percent ?? 0) < 0.06) return null;
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="#ffffff"
-      textAnchor="middle"
-      dominantBaseline="central"
-      fontSize={11}
-      fontWeight={600}
-      style={{ pointerEvents: "none" }}
-    >
-      {value}
-    </text>
-  );
-}
-
-function PieDist({
-  data,
-  palette,
-  fills,
-}: {
-  data: Array<{ label: string; count: number }>;
-  palette?: string[];
-  /** Cores pré-mapeadas por índice (espelha 1:1 com `data`). Sobrepõe-se a `palette`. */
-  fills?: string[];
-}) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-  if (data.length === 0) {
-    return (
-      <p className="text-sm text-cocoa-700 py-12 text-center">
-        Sem dados no período.
-      </p>
-    );
-  }
-  const colorAt = (idx: number): string => {
-    if (fills && fills[idx]) return fills[idx];
-    if (palette && palette.length > 0) return palette[idx % palette.length];
-    return "#a8a29e";
-  };
-  return (
-    <ResponsiveContainer width="100%" height={220}>
-      <PieChart>
-        <Pie
-          data={data}
-          dataKey="count"
-          nameKey="label"
-          cx="50%"
-          cy="50%"
-          outerRadius={75}
-          innerRadius={32}
-          paddingAngle={2}
-          label={renderPieSliceLabel}
-          labelLine={false}
-        >
-          {data.map((_, idx) => (
-            <Cell key={idx} fill={colorAt(idx)} />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={{
-            borderRadius: 8,
-            border: `1px solid ${isDark ? "#322821" : "#E8E0D5"}`,
-            background: isDark ? "#1B1611" : "#FFFFFF",
-            color: isDark ? "#E8D5B5" : "#3D2B1F",
-            fontSize: 12,
-          }}
-        />
-        <Legend
-          verticalAlign="bottom"
-          iconSize={8}
-          wrapperStyle={{ fontSize: 11 }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
   );
 }

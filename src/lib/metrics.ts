@@ -19,9 +19,13 @@ import {
   endOfYear,
   format,
   differenceInCalendarDays,
+  differenceInHours,
   addDays,
+  getYear,
+  getMonth,
 } from "date-fns";
 import { pt } from "date-fns/locale";
+import { lisbonWallClock } from "@/lib/format-date";
 import type {
   Order,
   OrderStatus,
@@ -34,6 +38,13 @@ import type {
   ContactPreference,
   CouponStatus,
   YesNoInfo,
+  FormLanguage,
+  ServiceType,
+} from "@/types/database";
+import {
+  ORDER_STATUS_SEQUENCE,
+  FORM_LANGUAGE_LABELS,
+  SERVICE_TYPE_LABELS,
 } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import {
@@ -241,6 +252,31 @@ function isConfirmed(o: Order): boolean {
   return paidRatio(o.payment_status) > 0;
 }
 
+// Funil agrupado por uma chave qualquer (canal, idioma, serviço).
+function groupFunnel(
+  orders: Order[],
+  keyOf: (o: Order) => string,
+  labelOf: (key: string) => string,
+): Array<{ key: string; label: string; total: number; confirmed: number; cancelled: number; confirmedPct: number | null }> {
+  const map = new Map<string, { total: number; confirmed: number; cancelled: number }>();
+  for (const o of orders) {
+    const key = keyOf(o);
+    const cur = map.get(key) ?? { total: 0, confirmed: 0, cancelled: 0 };
+    cur.total += 1;
+    if (isConfirmed(o)) cur.confirmed += 1;
+    if (o.status === "cancelado") cur.cancelled += 1;
+    map.set(key, cur);
+  }
+  return [...map.entries()]
+    .map(([key, v]) => ({
+      key,
+      label: labelOf(key),
+      ...v,
+      confirmedPct: v.total === 0 ? null : Math.round((v.confirmed / v.total) * 100),
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
 // ── Antecedência da reserva (pedido da Maria, sessão 174) ────
 // "Com que antecedência é que os clientes reservam? Acho que há uma grande
 // percentagem que só nos procura depois do casamento." Só faz sentido na
@@ -257,6 +293,54 @@ export const LEAD_TIME_BUCKETS: Array<{ key: string; label: string; test: (days:
 
 const VOUCHER_EXPIRY_HORIZON_DAYS = 90;
 const QUIET_PARTNER_MONTHS = 6;
+
+// ── Dados externos às encomendas (mig 113) ───────────────────
+// Histórico de estados (order_status_history) e tempo até à 1.ª resposta
+// no WhatsApp (função whatsapp_first_response). Opcionais: antes da mig
+// 113 correr, a página passa listas vazias e os cartões dizem "sem dados".
+export interface StatusHistoryRow {
+  order_id: string;
+  from_status: string | null;
+  to_status: string;
+  changed_at: string;
+}
+export interface ResponseTimeRow {
+  order_id: string;
+  requested_at: string;
+  first_reply_at: string;
+  hours: number;
+}
+export interface MetricsExtras {
+  statusHistory?: StatusHistoryRow[];
+  responseTimes?: ResponseTimeRow[];
+}
+
+const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+/**
+ * Cidade aproximada a partir da morada do evento (texto livre do Google
+ * Places: "Quinta X, Rua Y, 3040-123 Coimbra, Portugal"). Fica com o
+ * segmento antes de "Portugal" (ou o último), sem código postal.
+ */
+export function cityFromLocation(loc: string | null | undefined): string | null {
+  if (!loc) return null;
+  const parts = loc.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  let seg = parts[parts.length - 1];
+  if (/^portugal$/i.test(seg) && parts.length >= 2) seg = parts[parts.length - 2];
+  seg = seg.replace(/^\d{4}(-\d{3})?\s*/, "").trim();
+  return seg || null;
+}
+
+// Chave de cliente para detectar repetentes: email (minúsculas) ou, na
+// falta, os últimos 9 dígitos do telemóvel.
+function clientKey(o: Pick<Order, "email" | "phone">): string | null {
+  const email = (o.email ?? "").trim().toLowerCase();
+  if (email) return `e:${email}`;
+  const digits = (o.phone ?? "").replace(/\D/g, "");
+  if (digits.length >= 9) return `t:${digits.slice(-9)}`;
+  return null;
+}
 
 // ── Top-N (parceiros, canais) ────────────────────────────────
 
@@ -408,6 +492,45 @@ export interface MetricsResult {
     /** Mediana de dias entre o pedido e o sinal (só com data de pagamento). */
     medianDaysToDeposit: number | null;
     depositSample: number;
+    byLanguage: Array<{ key: FormLanguage | "sem_idioma"; label: string; total: number; confirmed: number; confirmedPct: number | null }>;
+    byService: Array<{ key: ServiceType; label: string; total: number; confirmed: number; confirmedPct: number | null }>;
+  };
+
+  // ── Pedidos por mês (últimos 12 meses, desde o formulário) ──
+  monthlyRequests: Array<{ month: string; label: string; confirmed: number; pending: number; cancelled: number }>;
+
+  // ── Sazonalidade: eventos por mês do ano, anos sobrepostos (até 3) ──
+  eventSeasonality: {
+    years: number[];
+    months: Array<{ month: number; label: string; counts: Record<string, number> }>;
+  };
+
+  // ── Quando chegam os pedidos (hora de Lisboa, desde o formulário) ──
+  requestsByWeekday: Array<{ key: number; label: string; count: number }>;
+  requestsByHour: Array<{ hour: number; label: string; count: number }>;
+
+  // ── Cidades dos eventos (aproximadas a partir da morada) ──
+  topCities: Array<{ city: string; count: number }>;
+
+  // ── Clientes repetidos e peso das recomendações de clientes ──
+  repeatClients: {
+    clientsTotal: number;
+    clientsRepeat: number;
+    /** % dos pedidos do período feitos por quem já tinha pedido antes. */
+    repeatOrdersPct: number | null;
+    recommendationShareByYear: Array<{ year: number; total: number; pct: number }>;
+  };
+
+  // ── Dias em cada fase de produção (mig 113; só pedidos desde o formulário) ──
+  phaseDurations: Array<{ status: OrderStatus; label: string; medianDays: number | null; sample: number }>;
+
+  // ── Tempo até à 1.ª resposta no WhatsApp (mig 113) ──
+  whatsappResponse: {
+    sample: number;
+    medianHours: number | null;
+    p90Hours: number | null;
+    within1hPct: number | null;
+    within24hPct: number | null;
   };
 
   // ── Cancelamentos (pedidos do período que cancelaram) ──
@@ -451,6 +574,7 @@ export function computeMetrics(
   range: DateRange,
   today: Date = new Date(),
   preset: RangePreset = "este_mes",
+  extras: MetricsExtras = {},
 ): MetricsResult {
   const ordersInRange = ordersIn(orders, range);
   // Baseline coerente com o preset: mês anterior para presets mensais,
@@ -474,6 +598,12 @@ export function computeMetrics(
   const newOrdersPrev = ordersIn(orders, prevRange).length;
 
   // Distribuições
+  // Pela ORDEM DE PRODUÇÃO (não por contagem), para se ler como um
+  // pipeline; "cancelado" no fim.
+  const statusRank = (s: OrderStatus) => {
+    const i = ORDER_STATUS_SEQUENCE.indexOf(s);
+    return i === -1 ? 999 : i;
+  };
   const ordersByStatus = (Object.keys(STATUS_LABELS) as OrderStatus[])
     .map((status) => ({
       status,
@@ -481,7 +611,7 @@ export function computeMetrics(
       count: ordersInRange.filter((o) => o.status === status).length,
     }))
     .filter((s) => s.count > 0)
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => statusRank(a.status) - statusRank(b.status));
 
   const ordersByFrameSize = topByCount<FrameSize>(
     ordersInRange.map((o) => o.frame_size),
@@ -691,6 +821,16 @@ export function computeMetrics(
     byChannel,
     medianDaysToDeposit: median(daysToDeposit),
     depositSample: daysToDeposit.length,
+    byLanguage: groupFunnel(
+      ordersInRange,
+      (o) => o.form_language ?? "sem_idioma",
+      (k) => (k === "sem_idioma" ? "Sem idioma" : FORM_LANGUAGE_LABELS[k as FormLanguage]),
+    ) as MetricsResult["funnel"]["byLanguage"],
+    byService: groupFunnel(
+      ordersInRange,
+      (o) => o.service_type ?? "preservacao",
+      (k) => SERVICE_TYPE_LABELS[k as ServiceType],
+    ) as MetricsResult["funnel"]["byService"],
   };
 
   // ── Cancelamentos por fase (cancelled_from_status, mig 111) ──
@@ -771,6 +911,154 @@ export function computeMetrics(
     .map(([partner_id, v]) => ({ partner_id, lastOrderAt: v.last, totalOrders: v.total }))
     .sort((a, b) => a.lastOrderAt.localeCompare(b.lastOrderAt));
 
+  // ── Pedidos por mês (últimos 12 meses), só desde o formulário ──
+  const formEra = (o: Order) => !since || o.created_at >= since;
+  const monthlyRequests: MetricsResult["monthlyRequests"] = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = subMonths(today, i);
+    const mr = { start: startOfMonth(m), end: endOfMonth(m) };
+    const inMonth = orders.filter((o) => formEra(o) && inRange(o.created_at, mr));
+    monthlyRequests.push({
+      month: format(m, "yyyy-MM"),
+      label: format(m, "MMM yy", { locale: pt }),
+      confirmed: inMonth.filter(isConfirmed).length,
+      cancelled: inMonth.filter((o) => !isConfirmed(o) && o.status === "cancelado").length,
+      pending: inMonth.filter((o) => !isConfirmed(o) && o.status !== "cancelado").length,
+    });
+  }
+
+  // ── Sazonalidade dos eventos (não canceladas), até 3 anos ──
+  const seasonYears = new Set<number>();
+  for (const o of orders) {
+    if (o.status === "cancelado" || !o.event_date) continue;
+    seasonYears.add(getYear(parseISO(o.event_date)));
+  }
+  const years = [...seasonYears].sort((a, b) => b - a).slice(0, 3).sort((a, b) => a - b);
+  const seasonMonths: MetricsResult["eventSeasonality"]["months"] = Array.from({ length: 12 }, (_, i) => {
+    const label = format(new Date(2026, i, 1), "MMM", { locale: pt });
+    const counts: Record<string, number> = {};
+    for (const y of years) counts[String(y)] = 0;
+    return { month: i + 1, label: label.charAt(0).toUpperCase() + label.slice(1), counts };
+  });
+  for (const o of orders) {
+    if (o.status === "cancelado" || !o.event_date) continue;
+    const d = parseISO(o.event_date);
+    const y = String(getYear(d));
+    if (!(y in seasonMonths[0].counts)) continue;
+    seasonMonths[getMonth(d)].counts[y] += 1;
+  }
+  const eventSeasonality: MetricsResult["eventSeasonality"] = { years, months: seasonMonths };
+
+  // ── Quando chegam os pedidos (hora de Lisboa), no período e desde o formulário ──
+  const weekdayCounts = Array(7).fill(0) as number[];
+  const hourCounts = Array(24).fill(0) as number[];
+  for (const o of ordersInRange) {
+    if (!formEra(o)) continue;
+    const wall = lisbonWallClock(parseISO(o.created_at));
+    weekdayCounts[(wall.getDay() + 6) % 7] += 1;
+    hourCounts[wall.getHours()] += 1;
+  }
+  const requestsByWeekday = weekdayCounts.map((count, key) => ({ key, label: WEEKDAY_LABELS[key], count }));
+  const requestsByHour = hourCounts.map((count, hour) => ({ hour, label: `${String(hour).padStart(2, "0")}h`, count }));
+
+  // ── Cidades dos eventos (pedidos do período) ──
+  const cityCounts = new Map<string, number>();
+  for (const o of ordersInRange) {
+    const city = cityFromLocation(o.event_location);
+    if (!city) continue;
+    cityCounts.set(city, (cityCounts.get(city) ?? 0) + 1);
+  }
+  const topCities = [...cityCounts.entries()]
+    .map(([city, count]) => ({ city, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  // ── Clientes repetidos ──
+  const byClient = new Map<string, string[]>(); // key → created_at das encomendas
+  for (const o of orders) {
+    const k = clientKey(o);
+    if (!k) continue;
+    const list = byClient.get(k) ?? [];
+    list.push(o.created_at);
+    byClient.set(k, list);
+  }
+  let repeatOrders = 0;
+  let keyedInRange = 0;
+  for (const o of ordersInRange) {
+    const k = clientKey(o);
+    if (!k) continue;
+    keyedInRange += 1;
+    if ((byClient.get(k) ?? []).some((c) => c < o.created_at)) repeatOrders += 1;
+  }
+  const recByYear = new Map<number, { total: number; rec: number }>();
+  for (const o of orders) {
+    if (!formEra(o)) continue;
+    const y = getYear(parseISO(o.created_at));
+    const cur = recByYear.get(y) ?? { total: 0, rec: 0 };
+    cur.total += 1;
+    if (o.how_found_fbr === "recomendacao") cur.rec += 1;
+    recByYear.set(y, cur);
+  }
+  const repeatClients: MetricsResult["repeatClients"] = {
+    clientsTotal: byClient.size,
+    clientsRepeat: [...byClient.values()].filter((l) => l.length >= 2).length,
+    repeatOrdersPct: pctOf(repeatOrders, keyedInRange),
+    recommendationShareByYear: [...recByYear.entries()]
+      .map(([year, v]) => ({ year, total: v.total, pct: v.total === 0 ? 0 : Math.round((v.rec / v.total) * 100) }))
+      .sort((a, b) => a.year - b.year),
+  };
+
+  // ── Dias em cada fase (histórico de estados) ──
+  const orderById = new Map(orders.map((o) => [o.id, o]));
+  const historyByOrder = new Map<string, StatusHistoryRow[]>();
+  for (const h of extras.statusHistory ?? []) {
+    const o = orderById.get(h.order_id);
+    if (!o || !formEra(o)) continue;
+    const list = historyByOrder.get(h.order_id) ?? [];
+    list.push(h);
+    historyByOrder.set(h.order_id, list);
+  }
+  const daysByStatus = new Map<OrderStatus, number[]>();
+  for (const list of historyByOrder.values()) {
+    list.sort((a, b) => a.changed_at.localeCompare(b.changed_at));
+    for (let i = 0; i < list.length - 1; i++) {
+      const status = list[i].to_status as OrderStatus;
+      const hours = differenceInHours(parseISO(list[i + 1].changed_at), parseISO(list[i].changed_at));
+      if (hours < 0) continue;
+      const arr = daysByStatus.get(status) ?? [];
+      arr.push(Math.round((hours / 24) * 10) / 10);
+      daysByStatus.set(status, arr);
+    }
+  }
+  const phaseDurations: MetricsResult["phaseDurations"] = ORDER_STATUS_SEQUENCE
+    .filter((s) => (daysByStatus.get(s) ?? []).length > 0)
+    .map((s) => {
+      const arr = daysByStatus.get(s) ?? [];
+      const sorted = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      const med = sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      return { status: s, label: STATUS_LABELS[s], medianDays: Math.round(med * 10) / 10, sample: arr.length };
+    });
+
+  // ── Tempo até à 1.ª resposta no WhatsApp (pedidos do período) ──
+  const respHours = (extras.responseTimes ?? [])
+    .filter((r) => orderById.has(r.order_id) && inRange(r.requested_at, range))
+    .map((r) => Number(r.hours))
+    .filter((h) => Number.isFinite(h) && h >= 0)
+    .sort((a, b) => a - b);
+  const p90 = respHours.length === 0 ? null : respHours[Math.min(respHours.length - 1, Math.ceil(respHours.length * 0.9) - 1)];
+  const whatsappResponse: MetricsResult["whatsappResponse"] = {
+    sample: respHours.length,
+    medianHours: respHours.length === 0 ? null : (() => {
+      const mid = Math.floor(respHours.length / 2);
+      const m = respHours.length % 2 === 1 ? respHours[mid] : (respHours[mid - 1] + respHours[mid]) / 2;
+      return Math.round(m * 10) / 10;
+    })(),
+    p90Hours: p90 === null ? null : Math.round(p90 * 10) / 10,
+    within1hPct: pctOf(respHours.filter((h) => h <= 1).length, respHours.length),
+    within24hPct: pctOf(respHours.filter((h) => h <= 24).length, respHours.length),
+  };
+
   return {
     range,
     generatedAt: new Date().toISOString(),
@@ -780,6 +1068,14 @@ export function computeMetrics(
     expiringVouchers,
     acquisitionPrev,
     quietPartners,
+    monthlyRequests,
+    eventSeasonality,
+    requestsByWeekday,
+    requestsByHour,
+    topCities,
+    repeatClients,
+    phaseDurations,
+    whatsappResponse,
     showComparison,
     comparisonLabel: comparisonLabelForPreset(preset),
     revenue,
@@ -909,6 +1205,30 @@ export function generateInsights(
     } else if (m.vouchersConvertedPct < 20 && m.vouchersSold >= 3) {
       out.push(`Só ${m.vouchersConvertedPct}% dos vales foram convertidos — talvez relembrar os clientes.`);
     }
+  }
+
+  // Resposta no WhatsApp.
+  if (m.whatsappResponse.sample >= 5 && m.whatsappResponse.medianHours !== null) {
+    if (m.whatsappResponse.medianHours > 24) {
+      out.push(`A primeira resposta no WhatsApp demora, em mediana, ${m.whatsappResponse.medianHours} h. Responder no próprio dia costuma pesar na decisão.`);
+    } else if (m.whatsappResponse.within1hPct !== null && m.whatsappResponse.within1hPct >= 50) {
+      out.push(`${m.whatsappResponse.within1hPct}% dos pedidos têm resposta no WhatsApp em menos de 1 hora 👏`);
+    }
+  }
+
+  // Fase onde as encomendas mais ficam paradas.
+  if (m.phaseDurations.length > 0) {
+    const slowest = [...m.phaseDurations]
+      .filter((p) => p.sample >= 3 && p.medianDays !== null)
+      .sort((a, b) => (b.medianDays ?? 0) - (a.medianDays ?? 0))[0];
+    if (slowest && (slowest.medianDays ?? 0) >= 30) {
+      out.push(`A fase onde as encomendas mais ficam é "${slowest.label}": ${slowest.medianDays} dias em mediana (${slowest.sample} encomendas).`);
+    }
+  }
+
+  // Clientes repetidos.
+  if (m.repeatClients.repeatOrdersPct !== null && m.repeatClients.repeatOrdersPct >= 15 && m.funnel.total >= 5) {
+    out.push(`${m.repeatClients.repeatOrdersPct}% dos pedidos do período são de clientes que já tinham pedido antes.`);
   }
 
   // Parceiros que deixaram de recomendar.

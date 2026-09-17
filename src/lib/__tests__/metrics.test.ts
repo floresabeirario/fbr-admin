@@ -10,6 +10,7 @@ import {
   rangeFromPreset,
   baselineRangeForPreset,
   pctChange,
+  cityFromLocation,
   type DateRange,
 } from "@/lib/metrics";
 import type { Order } from "@/types/database";
@@ -148,6 +149,91 @@ describe("computeMetrics — sessão 174", () => {
     ];
     const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
     expect(m.quietPartners.map((p) => p.partner_id)).toEqual(["p1"]);
+  });
+});
+
+// ── Sessão 174, "vai tudo": funil por idioma/serviço, quando chegam os
+// pedidos, cidades, repetentes, fases e resposta no WhatsApp ──
+describe("computeMetrics — métricas novas", () => {
+  it("funil por idioma e por serviço; estados pela ordem de produção", () => {
+    const orders = [
+      makeOrder({ form_language: "pt", service_type: "preservacao", payment_status: "100_pago", status: "quadro_recebido" }),
+      makeOrder({ form_language: "en", service_type: "emoldurar_secas", payment_status: "100_por_pagar", status: "entrega_flores_agendar" }),
+      makeOrder({ form_language: "pt", service_type: null as unknown as Order["service_type"], payment_status: "30_pago", status: "flores_na_prensa" }),
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.funnel.byLanguage.find((l) => l.key === "pt")).toMatchObject({ total: 2, confirmed: 2, confirmedPct: 100 });
+    expect(m.funnel.byService.find((s) => s.key === "preservacao")).toMatchObject({ total: 2 });
+    expect(m.ordersByStatus.map((s) => s.status)).toEqual(["entrega_flores_agendar", "flores_na_prensa", "quadro_recebido"]);
+  });
+
+  it("cidade aproximada a partir da morada do evento", () => {
+    expect(cityFromLocation("Quinta X, Rua Y, 3040-123 Coimbra, Portugal")).toBe("Coimbra");
+    expect(cityFromLocation("Lisboa, Portugal")).toBe("Lisboa");
+    expect(cityFromLocation("Porto")).toBe("Porto");
+    expect(cityFromLocation("")).toBeNull();
+    expect(cityFromLocation(null)).toBeNull();
+  });
+
+  it("clientes repetidos: mesmo email ou telemóvel", () => {
+    const orders = [
+      makeOrder({ email: "Ana@x.pt", created_at: "2026-01-05T10:00:00.000Z" }),
+      makeOrder({ email: "ana@x.pt", created_at: "2026-06-05T10:00:00.000Z" }), // repete (email)
+      makeOrder({ email: null, phone: "+351 912 345 678", created_at: "2026-02-01T10:00:00.000Z" }),
+      makeOrder({ email: null, phone: "912345678", created_at: "2026-06-06T10:00:00.000Z" }), // repete (telemóvel)
+      makeOrder({ email: "novo@x.pt", created_at: "2026-06-07T10:00:00.000Z" }),
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    expect(m.repeatClients.clientsTotal).toBe(3);
+    expect(m.repeatClients.clientsRepeat).toBe(2);
+    expect(m.repeatClients.repeatOrdersPct).toBe(67); // 2 dos 3 pedidos de Junho
+  });
+
+  it("dias em cada fase a partir do histórico, só fases concluídas", () => {
+    const o = makeOrder({ id: "o1", created_at: "2026-06-01T10:00:00.000Z", consent_at: "2026-06-01T10:00:00.000Z" });
+    const history = [
+      { order_id: "o1", from_status: null, to_status: "entrega_flores_agendar", changed_at: "2026-06-01T10:00:00.000Z" },
+      { order_id: "o1", from_status: "entrega_flores_agendar", to_status: "entrega_agendada", changed_at: "2026-06-03T10:00:00.000Z" },
+      { order_id: "o1", from_status: "entrega_agendada", to_status: "flores_na_prensa", changed_at: "2026-06-10T10:00:00.000Z" },
+    ];
+    const m = computeMetrics([o], [], RANGE, TODAY, "este_mes", { statusHistory: history });
+    expect(m.phaseDurations).toEqual([
+      { status: "entrega_flores_agendar", label: expect.any(String), medianDays: 2, sample: 1 },
+      { status: "entrega_agendada", label: expect.any(String), medianDays: 7, sample: 1 },
+    ]);
+  });
+
+  it("tempo até à 1.ª resposta no WhatsApp: mediana, p90 e % em 1h/24h", () => {
+    const orders = ["a", "b", "c", "d"].map((id) => makeOrder({ id }));
+    const responseTimes = [
+      { order_id: "a", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 0.5 },
+      { order_id: "b", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 3 },
+      { order_id: "c", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 30 },
+      { order_id: "d", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 1 },
+      { order_id: "zzz", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 100 }, // encomenda arquivada: ignorada
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes", { responseTimes });
+    expect(m.whatsappResponse.sample).toBe(4);
+    expect(m.whatsappResponse.medianHours).toBe(2);
+    expect(m.whatsappResponse.within1hPct).toBe(50);
+    expect(m.whatsappResponse.within24hPct).toBe(75);
+    expect(m.whatsappResponse.p90Hours).toBe(30);
+  });
+
+  it("pedidos por mês empilhados e sazonalidade dos eventos", () => {
+    const orders = [
+      makeOrder({ created_at: "2026-06-05T10:00:00.000Z", consent_at: "2026-06-05T10:00:00.000Z", payment_status: "100_pago", event_date: "2026-09-12" }),
+      makeOrder({ created_at: "2026-06-06T10:00:00.000Z", payment_status: "100_por_pagar", status: "entrega_flores_agendar", event_date: "2025-09-20" }),
+      makeOrder({ created_at: "2026-05-06T10:00:00.000Z", payment_status: "100_por_pagar", status: "cancelado", event_date: "2026-06-01" }), // antes do formulário: fora dos meses
+    ];
+    const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes");
+    const jun = m.monthlyRequests.find((r) => r.month === "2026-06")!;
+    expect(jun).toMatchObject({ confirmed: 1, pending: 1, cancelled: 0 });
+    expect(m.monthlyRequests.find((r) => r.month === "2026-05")).toMatchObject({ confirmed: 0, pending: 0, cancelled: 0 });
+    expect(m.eventSeasonality.years).toEqual([2025, 2026]);
+    const set = m.eventSeasonality.months.find((x) => x.month === 9)!;
+    expect(set.counts["2025"]).toBe(1);
+    expect(set.counts["2026"]).toBe(1);
   });
 });
 

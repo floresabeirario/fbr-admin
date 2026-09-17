@@ -392,7 +392,7 @@ export function PainelTab({
       {/* 4 KPIs secundários */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiBox
-          label={range.unit === "mês" ? "Encomendas no mês" : range.unit === "ano" ? "Encomendas no ano" : "Encomendas (total)"}
+          label={range.unit === "mês" ? "Eventos no mês" : range.unit === "ano" ? "Eventos no ano" : "Eventos (total)"}
           value={String(month.orderCount)}
           icon={<Package className="h-4 w-4" />}
           color="sky"
