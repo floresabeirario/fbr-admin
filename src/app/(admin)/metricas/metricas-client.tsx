@@ -862,7 +862,7 @@ export default function MetricasClient({
               title="Top 5 parceiros (receita + comissões)"
               icon={Trophy}
               iconColor="text-amber-500"
-              info="Receita = dinheiro já recebido das encomendas deste parceiro (orçamento × %pago). Comissões em valor total acordado (não proporcional ao que a cliente já pagou): 'Paga' = já liquidada ao parceiro; 'Por pagar' = ainda em dívida; 'Total' = soma das duas. Estados 'N/A' e 'Não aceita' não contam."
+              info="Receita = dinheiro recebido das encomendas deste parceiro no período (parcelas pela data de pagamento; sem data, pela data do evento). Comissões em valor total acordado (não proporcional ao que a cliente já pagou): 'Paga' = já liquidada ao parceiro; 'Por pagar' = ainda em dívida; 'Total' = soma das duas. Estados 'N/A' e 'Não aceita' não contam."
             >
               {/* overflow-x-auto + min-w: 6 colunas de € não cabem num telemóvel;
                   ganha scroll horizontal em vez de esmagar. No PC nada muda. */}

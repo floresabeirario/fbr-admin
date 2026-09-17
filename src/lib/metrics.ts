@@ -281,8 +281,17 @@ function topByCount<K extends string>(
 // encomendas em "Quadro recebido".
 // ============================================================
 
-function avgCompletionDays(orders: Order[], range: DateRange | null = null): number | null {
-  const completed = orders.filter((o) => o.status === "quadro_recebido");
+// `since` = 1.º consentimento do formulário público: as encomendas
+// importadas do Monday têm created_at = dia da importação, o que dava
+// tempos de conclusão falsos (auditoria da sessão 174).
+function avgCompletionDays(
+  orders: Order[],
+  range: DateRange | null = null,
+  since: string | null = null,
+): number | null {
+  const completed = orders.filter(
+    (o) => o.status === "quadro_recebido" && (!since || o.created_at >= since),
+  );
   const inRangeFilter = range
     ? completed.filter((o) => inRange(o.frame_delivery_date ?? o.updated_at, range))
     : completed;
@@ -499,11 +508,17 @@ export function computeMetrics(
   );
 
   // Tempo médio
-  const avgCompletionGlobal = avgCompletionDays(orders);
+  // Base fiável de datas de criação: só pedidos desde o 1.º consentimento
+  // RGPD (formulário público). As importadas do Monday têm created_at do
+  // dia da importação. Usado no tempo de conclusão e na antecedência.
+  const consentDates = orders.map((o) => o.consent_at).filter((d): d is string => !!d).sort();
+  const since = consentDates[0] ?? null;
+
+  const avgCompletionGlobal = avgCompletionDays(orders, null, since);
   const avgCompletionRecent = avgCompletionDays(orders, {
     start: subMonths(today, 6),
     end: today,
-  });
+  }, since);
 
   // Vales
   const vouchersInRange = vouchers.filter((v) => inRange(v.created_at, range));
@@ -697,11 +712,7 @@ export function computeMetrics(
   };
 
   // ── Antecedência da reserva (só preservação) ──
-  // Base fiável: só pedidos a partir do 1.º consentimento RGPD registado
-  // (= formulário público a funcionar). As encomendas importadas do Monday
-  // têm created_at = dia da importação, o que distorceria tudo.
-  const consentDates = orders.map((o) => o.consent_at).filter((d): d is string => !!d).sort();
-  const since = consentDates[0] ?? null;
+  // Base fiável: `since` (ver acima).
   const leadDays: number[] = [];
   for (const o of ordersInRange) {
     if ((o.service_type ?? "preservacao") !== "preservacao") continue;
