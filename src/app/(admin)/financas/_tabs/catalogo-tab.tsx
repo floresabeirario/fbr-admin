@@ -6,11 +6,12 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { TrendingUp, Wand2 } from "lucide-react";
+import { TrendingUp, Wand2, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatEUR } from "@/lib/format";
+import { formatDateTimeLisbon } from "@/lib/format-date";
 import { toast } from "sonner";
 import type { PricingItem } from "@/types/pricing";
 import type { ProductionCostItem } from "@/types/production-cost";
@@ -28,6 +29,10 @@ export function CatalogoTab({
   productionCosts: ProductionCostItem[];
   canEdit: boolean;
 }) {
+  // Custos de produção dobrados por defeito (sessão 174): mudam raramente
+  // e são 6 tabelas; no dia-a-dia o que se usa são os preços e margens em
+  // cima. O backfill de snapshots (manutenção pontual) vive lá dentro.
+  const [showCosts, setShowCosts] = useState(false);
   return (
     <div className="space-y-6">
       <MargemTeoricaSection
@@ -35,8 +40,34 @@ export function CatalogoTab({
         productionCosts={productionCosts}
         canEdit={canEdit}
       />
-      <CustosTab items={productionCosts} canEdit={canEdit} />
-      {canEdit && <BackfillCogsSection />}
+      <div className="rounded-2xl border border-cream-200 bg-surface">
+        <button
+          type="button"
+          onClick={() => setShowCosts((v) => !v)}
+          aria-expanded={showCosts}
+          className="w-full flex items-center gap-3 p-4 text-left rounded-2xl hover:bg-cream-50/60 dark:hover:bg-cream-950/20 transition-colors"
+        >
+          <div className="h-9 w-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+            <Layers className="h-5 w-5 text-amber-700 dark:text-amber-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-cocoa-900">Custos de produção</h2>
+            <p className="text-xs text-cocoa-700 mt-0.5">
+              Custos unitários de moldura, vidro, impressão e consumíveis. É daqui que saem o custo e a margem das tabelas em cima. Mudam raramente.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-cocoa-700 shrink-0">
+            {showCosts ? "Esconder" : "Mostrar"}
+            {showCosts ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
+        {showCosts && (
+          <div className="border-t border-cream-200 p-4 space-y-6">
+            <CustosTab items={productionCosts} canEdit={canEdit} />
+            {canEdit && <BackfillCogsSection />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -139,6 +170,26 @@ const SIZES: SizeMeta[] = [
   { key: "20x25_mini", label: "Moldura 20x25 (mini)",   costSize: "mini_20x25", baseCategory: "extra",      baseKey: "mini_frame", photoSuppKey: "fotografia_mini"  },
 ];
 
+// Serviço "emoldurar flores já secas" (mig 094): só o preço-base por
+// tamanho difere (secas_30x40…), sem mini; fundos, vidro museu e extras
+// são partilhados com a preservação. Mostra-se na mesma tabela do Bloco 1
+// através de um selector, para não duplicar linhas.
+type Servico = "preservacao" | "secas";
+const SERVICOS: Array<{ key: Servico; label: string }> = [
+  { key: "preservacao", label: "Preservação" },
+  { key: "secas",       label: "Flores secas" },
+];
+const SIZES_SECAS: SizeMeta[] = [
+  { key: "30x40", label: "Moldura 30x40 (A3)", costSize: "30x40", baseCategory: "base_frame", baseKey: "secas_30x40", photoSuppKey: "fotografia_30x40" },
+  { key: "40x50", label: "Moldura 40x50",      costSize: "40x50", baseCategory: "base_frame", baseKey: "secas_40x50", photoSuppKey: "fotografia_40x50" },
+  { key: "50x70", label: "Moldura 50x70",      costSize: "50x70", baseCategory: "base_frame", baseKey: "secas_50x70", photoSuppKey: "fotografia_50x70" },
+];
+
+// Bloco 4 — suplemento da moldura pirâmide: um só preço por encomenda
+// (pricing_items.extra.pyramid_frame, aplicado em lib/pricing.ts quando
+// pyramid_frame=true). O custo extra é por tamanho.
+const PYRAMID_SIZES = ["30x40", "40x50", "50x70"] as const;
+
 const BACKGROUNDS: Array<{ key: BgKey; label: string }> = [
   { key: "transparente", label: "Fundo transparente (vidro/vidro)" },
   { key: "preto",        label: "Fundo preto / branco / cor" },
@@ -154,6 +205,20 @@ function MargemTeoricaSection({
   productionCosts: ProductionCostItem[];
   canEdit: boolean;
 }) {
+  const [servico, setServico] = useState<Servico>("preservacao");
+  const sizes = servico === "secas" ? SIZES_SECAS : SIZES;
+
+  // Item de preço alterado mais recentemente (o trigger da BD mantém o
+  // updated_at). Responde ao "desde quando é que este preço está assim".
+  const lastChanged = useMemo(() => {
+    let best: PricingItem | null = null;
+    for (const p of pricing) {
+      if (p.deleted_at !== null) continue;
+      if (!best || p.updated_at > best.updated_at) best = p;
+    }
+    return best;
+  }, [pricing]);
+
   // Snapshot vivo dos custos — para reusar `computeProductionCost` nos
   // quadros principais e garantir paridade exacta com o cálculo real.
   const snapshot = useMemo(
@@ -257,6 +322,32 @@ function MargemTeoricaSection({
     item: findPricing("glass_supplement", `museum_glass_${sz.key}`),
     cost: glassExtraCost(sz.costSize),
   }));
+
+  // ── Moldura pirâmide (Bloco 4) ──
+  // Custo extra = quanto a moldura pirâmide custa a mais do que a baixa,
+  // no mesmo tamanho. Usa-se vidro sobre cartão (preto/branco/cor/foto,
+  // a montagem mais comum); com vidro sobre vidro a diferença é parecida.
+  const frameCost = (
+    costSize: (typeof PYRAMID_SIZES)[number],
+    frameType: "baixa" | "piramide",
+  ): number | null => {
+    const line = productionCosts.find(
+      (c) =>
+        c.deleted_at === null &&
+        c.kind === "frame" &&
+        c.size_key === costSize &&
+        c.frame_type === frameType &&
+        c.glass_type === "vidro_cartao",
+    );
+    return line ? Number(line.cost) : null;
+  };
+  const pyramidItem = findPricing("extra", "pyramid_frame");
+  const pyramidRows = PYRAMID_SIZES.map((size) => {
+    const pyr = frameCost(size, "piramide");
+    const base = frameCost(size, "baixa");
+    const cost = pyr === null || base === null ? 0 : Math.max(0, pyr - base);
+    return { size, cost };
+  });
   const consumablesCostByProduct = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of productionCosts) {
@@ -280,13 +371,47 @@ function MargemTeoricaSection({
             Margem teórica — preços, custos e lucro por quadro
           </h2>
           <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-            Edita <strong>Base</strong> e <strong>Supl.</strong> (fotografia). <strong>Custo</strong> e <strong>Margem</strong> calculam-se a partir das tabelas em baixo. Combinações menos comuns (caixa, pirâmide, vidro/vidro) vivem só nessas tabelas.
+            Edita <strong>Base</strong> e <strong>Supl.</strong> (fotografia). <strong>Custo</strong> e <strong>Margem</strong> calculam-se a partir das tabelas de custos (dobradas em baixo). A moldura caixa vive só nessas tabelas: o cliente paga o mesmo, só a margem muda.
             {!canEdit && <span className="block mt-1 italic">Modo leitura — só administradores podem editar.</span>}
           </p>
+          {lastChanged && (
+            <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-1">
+              Última alteração: <strong>{lastChanged.label}</strong>, {formatDateTimeLisbon(lastChanged.updated_at)}. Passa o rato por cima de um preço para ver quando mudou.
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Bloco 1 — Quadros */}
+      {/* Bloco 1 — Quadros (Preservação / Flores secas partilham a tabela) */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex rounded-full border border-emerald-200 dark:border-emerald-900/50 bg-surface p-0.5" role="tablist" aria-label="Serviço">
+          {SERVICOS.map((s) => {
+            const active = s.key === servico;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setServico(s.key)}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                  active
+                    ? "bg-cocoa-900 text-surface dark:bg-[#E8D5B5] dark:text-[#1B1611]"
+                    : "text-cocoa-700 hover:text-cocoa-900",
+                )}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+        {servico === "secas" && (
+          <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 italic">
+            Emoldurar flores já secas: só o preço-base difere. Fundos, vidro museu e extras são os mesmos da preservação.
+          </p>
+        )}
+      </div>
       {/* overflow-x-auto + min-w: no telemóvel a tabela ganha scroll horizontal
           em vez de esmagar as colunas. No PC nada muda (já cabe folgada). */}
       <div className="rounded-xl bg-surface overflow-hidden overflow-x-auto border border-emerald-200/60 dark:border-emerald-900/40">
@@ -303,7 +428,7 @@ function MargemTeoricaSection({
             </tr>
           </thead>
           <tbody>
-            {SIZES.map((size) => {
+            {sizes.map((size) => {
               const baseItem = sizeBase(size);
               const supplItem = sizePhotoSupp(size);
               const basePrice = Number(baseItem?.price ?? 0);
@@ -488,6 +613,64 @@ function MargemTeoricaSection({
           {" "}<strong>Custo extra</strong> é quanto o vidro museu custa a mais do que o normal (o vidro normal seria comprado de qualquer maneira); edita-se na tabela <em>Custo do vidro</em> em baixo. O <strong>Bloco 1</strong> assume vidro museu, e é dessa base que o desconto é feito quando o cliente escolhe vidro normal.
         </p>
       </div>
+
+      {/* Bloco 4 — Moldura pirâmide (suplemento único, custo extra por tamanho) */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 uppercase tracking-wide">
+          Moldura pirâmide (suplemento)
+        </h3>
+        <div className="rounded-xl bg-surface overflow-hidden overflow-x-auto border border-emerald-200/60 dark:border-emerald-900/40">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead className="bg-emerald-100/60 dark:bg-emerald-900/30 text-xs uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Tamanho</th>
+                <th className="text-right px-3 py-2 font-medium w-28">Suplemento (€)</th>
+                <th className="text-right px-3 py-2 font-medium w-24">Custo extra</th>
+                <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
+                <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pyramidRows.map(({ size, cost }, idx) => {
+                const price = Number(pyramidItem?.price ?? 0);
+                const margin = price - cost;
+                const marginPct = price > 0 ? (margin / price) * 100 : 0;
+                return (
+                  <tr key={size} className="border-t border-emerald-100 dark:border-emerald-900/30">
+                    <td className="px-3 py-2 text-cocoa-900">{size}</td>
+                    {idx === 0 ? (
+                      <td
+                        rowSpan={pyramidRows.length}
+                        className="px-2 py-2 text-right align-middle border-l border-emerald-100/60"
+                      >
+                        <EditableEuro item={pyramidItem} field="price" canEdit={canEdit} align="right" />
+                      </td>
+                    ) : null}
+                    <td className="px-3 py-2 text-right tabular-nums text-rose-700">
+                      {formatEUR(cost)}
+                    </td>
+                    <td className={cn(
+                      "px-3 py-2 text-right tabular-nums font-semibold",
+                      margin >= 0 ? "text-emerald-700" : "text-rose-700",
+                    )}>
+                      {formatEUR(margin)}
+                    </td>
+                    <td className={cn(
+                      "px-3 py-2 text-right tabular-nums font-semibold",
+                      marginPct >= 50 ? "text-emerald-700" : marginPct >= 30 ? "text-amber-700" : "text-rose-700",
+                    )}>
+                      {price > 0 ? `${marginPct.toFixed(0)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-emerald-800/70 italic">
+          Um só valor por encomenda, igual para todos os tamanhos; entra no orçamento quando a encomenda tem <strong>moldura pirâmide</strong>. <strong>Custo extra</strong> é quanto a moldura pirâmide custa a mais do que a baixa (vidro sobre cartão; com fundo transparente a diferença é parecida); edita-se na tabela de custos por tamanho em baixo.
+        </p>
+      </div>
     </div>
   );
 }
@@ -560,6 +743,7 @@ function EditableEuro({
       disabled={!canEdit || saving}
       inputMode="decimal"
       placeholder="0"
+      title={`Última alteração: ${formatDateTimeLisbon(item.updated_at)}`}
       className={cn(
         "h-8 w-24 text-sm font-medium tabular-nums",
         align === "right" && "text-right",

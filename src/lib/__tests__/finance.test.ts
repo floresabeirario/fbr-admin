@@ -16,6 +16,8 @@ import {
   cogsRecognizedFromOrder,
   orderPnL,
   aggregateExpensesByAccountingType,
+  expenseAmountInPeriod,
+  expensesTotalInPeriod,
 } from "@/lib/finance";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
 
@@ -233,5 +235,111 @@ describe("aggregateExpensesByAccountingType", () => {
     expect(totals.marketing).toBe(7);
     expect(totals.financeira).toBe(1.5);
     expect(totals.investimento).toBe(0);
+  });
+});
+
+// ── Despesas por período (subscrições contam todos os meses) ──
+//
+// Bug corrigido na sessão 174: a Faturação/Painel somavam `amount` pela
+// `expense_date`, logo uma subscrição mensal só contava no mês em que
+// começou. Estes testes fixam o comportamento certo.
+describe("expenseAmountInPeriod", () => {
+  const NOW = new Date(2026, 8, 17); // 17/09/2026
+  const month = (y: number, m: number) => ({
+    start: new Date(y, m - 1, 1),
+    end: new Date(y, m, 0, 23, 59, 59, 999),
+  });
+  const year = (y: number) => ({
+    start: new Date(y, 0, 1),
+    end: new Date(y, 11, 31, 23, 59, 59, 999),
+  });
+  const ALL = { start: new Date(1970, 0, 1), end: new Date(2999, 11, 31) };
+
+  const unica = {
+    expense_date: "2026-09-05",
+    amount: 40,
+    is_recurring: false,
+    recurrence_period: null,
+    recurrence_start_date: null,
+    recurrence_end_date: null,
+  };
+  const mensal = {
+    expense_date: "2026-03-10",
+    amount: 20,
+    is_recurring: true,
+    recurrence_period: "monthly" as const,
+    recurrence_start_date: "2026-03-10",
+    recurrence_end_date: null,
+  };
+  const anual = {
+    ...mensal,
+    amount: 120,
+    recurrence_period: "yearly" as const,
+    expense_date: "2026-01-01",
+    recurrence_start_date: "2026-01-01",
+  };
+
+  it("despesa única conta inteira no mês da sua data e 0 fora dele", () => {
+    const s = month(2026, 9);
+    expect(expenseAmountInPeriod(unica, s.start, s.end, NOW)).toBe(40);
+    const a = month(2026, 8);
+    expect(expenseAmountInPeriod(unica, a.start, a.end, NOW)).toBe(0);
+  });
+
+  it("subscrição mensal conta em CADA mês activo, não só no de início", () => {
+    const mar = month(2026, 3);
+    const jun = month(2026, 6);
+    const set = month(2026, 9);
+    expect(expenseAmountInPeriod(mensal, mar.start, mar.end, NOW)).toBe(20);
+    expect(expenseAmountInPeriod(mensal, jun.start, jun.end, NOW)).toBe(20);
+    expect(expenseAmountInPeriod(mensal, set.start, set.end, NOW)).toBe(20);
+  });
+
+  it("subscrição não conta antes de começar nem depois do mês corrente", () => {
+    const fev = month(2026, 2);
+    const out = month(2026, 10);
+    expect(expenseAmountInPeriod(mensal, fev.start, fev.end, NOW)).toBe(0);
+    expect(expenseAmountInPeriod(mensal, out.start, out.end, NOW)).toBe(0);
+  });
+
+  it("subscrição terminada não conta depois do mês de fim", () => {
+    const terminada = { ...mensal, recurrence_end_date: "2026-05-31" };
+    const mai = month(2026, 5);
+    const jun = month(2026, 6);
+    expect(expenseAmountInPeriod(terminada, mai.start, mai.end, NOW)).toBe(20);
+    expect(expenseAmountInPeriod(terminada, jun.start, jun.end, NOW)).toBe(0);
+  });
+
+  it("no ano soma só os meses activos até hoje (Mar→Set = 7 meses)", () => {
+    const y = year(2026);
+    expect(expenseAmountInPeriod(mensal, y.start, y.end, NOW)).toBe(140);
+  });
+
+  it("subscrição anual entra a 1/12 por mês", () => {
+    const abr = month(2026, 4);
+    expect(expenseAmountInPeriod(anual, abr.start, abr.end, NOW)).toBeCloseTo(10);
+    const y = year(2026);
+    expect(expenseAmountInPeriod(anual, y.start, y.end, NOW)).toBeCloseTo(90); // Jan→Set
+  });
+
+  it("'desde sempre' com subscrição aberta pára no mês corrente", () => {
+    expect(expenseAmountInPeriod(mensal, ALL.start, ALL.end, NOW)).toBe(140);
+  });
+
+  it("intervalo específico nunca ultrapassa o total pago", () => {
+    const custom = {
+      ...mensal,
+      amount: 41.7,
+      recurrence_period: "custom" as const,
+      recurrence_start_date: "2025-01-01",
+      recurrence_end_date: "2026-02-28",
+    };
+    expect(expenseAmountInPeriod(custom, ALL.start, ALL.end, NOW)).toBeLessThanOrEqual(41.7);
+    expect(expenseAmountInPeriod(custom, ALL.start, ALL.end, NOW)).toBeGreaterThan(40);
+  });
+
+  it("expensesTotalInPeriod soma únicas e subscrições", () => {
+    const s = month(2026, 9);
+    expect(expensesTotalInPeriod([unica, mensal, anual], s.start, s.end, NOW)).toBeCloseTo(70);
   });
 });

@@ -14,6 +14,8 @@
 // IMPORTANTE: este ficheiro não importa nada de React. É 100% puro
 // para poder ser usado em server actions, views SQL helpers, e tests.
 
+import { parseISO } from "date-fns";
+import { monthlyEquivalent } from "@/types/expense";
 import type { Expense, ExpenseCategory } from "@/types/expense";
 import type { Order, PartnerCommissionStatus, PaymentStatus } from "@/types/database";
 import type { VoucherPaymentStatus } from "@/types/voucher";
@@ -87,6 +89,84 @@ export function aggregateExpensesByAccountingType(
     totals[type] += Number(e.amount);
   }
   return totals;
+}
+
+// ── Despesas por período ─────────────────────────────────────
+//
+// Uma despesa ÚNICA conta inteira no período em que cai a sua data.
+// Uma SUBSCRIÇÃO não tem "uma data": custa em todos os meses em que
+// está activa. Aqui conta-se o custo mensal equivalente (mensal = valor;
+// anual = valor ÷ 12; intervalo = total ÷ meses) por cada mês do período
+// em que a subscrição esteve activa — mês de início e mês de fim
+// inclusive, como em `subscriptionTotalToDate` — e nunca para além do
+// mês corrente (`now`): o que ainda não foi pago não é despesa.
+//
+// Antes disto (sessão 174), a Faturação e o Painel somavam `amount` pela
+// `expense_date`: uma subscrição mensal contava uma única vez (no mês em
+// que começou) e uma anual caía inteira num só mês, o que inflava o lucro
+// de todos os outros meses. A aba Despesas já fazia as contas certas.
+
+export type ExpenseForPeriod = Pick<
+  Expense,
+  | "expense_date"
+  | "amount"
+  | "is_recurring"
+  | "recurrence_period"
+  | "recurrence_start_date"
+  | "recurrence_end_date"
+>;
+
+// Índice absoluto de mês (ano × 12 + mês) para contar meses entre datas.
+function monthIndex(d: Date): number {
+  return d.getFullYear() * 12 + d.getMonth();
+}
+
+/**
+ * Quanto uma despesa custa dentro do período [start, end].
+ * - Única: o valor inteiro se `expense_date` cai no período, senão 0.
+ * - Subscrição: custo mensal equivalente × meses do período em que está
+ *   activa, sem contar meses depois do mês de `now`.
+ */
+export function expenseAmountInPeriod(
+  e: ExpenseForPeriod,
+  start: Date,
+  end: Date,
+  now: Date,
+): number {
+  if (!e.is_recurring) {
+    if (!e.expense_date) return 0;
+    const d = parseISO(e.expense_date);
+    return d >= start && d <= end ? Number(e.amount) : 0;
+  }
+  if (!e.recurrence_start_date) return 0;
+  const firstActive = monthIndex(parseISO(e.recurrence_start_date));
+  const lastActive = Math.min(
+    e.recurrence_end_date ? monthIndex(parseISO(e.recurrence_end_date)) : Infinity,
+    monthIndex(now),
+  );
+  const from = Math.max(firstActive, monthIndex(start));
+  const to = Math.min(lastActive, monthIndex(end));
+  const months = to - from + 1;
+  if (months <= 0) return 0;
+  const total = months * monthlyEquivalent(e);
+  // Intervalo específico: `amount` é o total do intervalo inteiro. A
+  // contagem inclusiva de meses pode passar por excesso, daí o tecto.
+  if (e.recurrence_period === "custom" && e.recurrence_end_date) {
+    return Math.min(total, Number(e.amount));
+  }
+  return total;
+}
+
+/** Soma de `expenseAmountInPeriod` para uma lista de despesas. */
+export function expensesTotalInPeriod(
+  expenses: ReadonlyArray<ExpenseForPeriod>,
+  start: Date,
+  end: Date,
+  now: Date,
+): number {
+  let total = 0;
+  for (const e of expenses) total += expenseAmountInPeriod(e, start, end, now);
+  return total;
 }
 
 // ── Razão de pagamento ───────────────────────────────────────

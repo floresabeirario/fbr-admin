@@ -9,15 +9,24 @@ import {
   Receipt,
   TrendingUp,
   ArrowUpRight,
-  ArrowDownRight,
-  CreditCard,
   Calendar as CalendarIcon,
   Sparkles,
   Frame,
   Handshake,
 } from "lucide-react";
-import { format, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, getYear } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear, getYear } from "date-fns";
 import { pt } from "date-fns/locale";
+import { useTheme } from "next-themes";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 import {
   Select,
   SelectContent,
@@ -33,6 +42,7 @@ import {
   voucherCodesWithCommission,
   orderCommissionSuppressedByVoucher,
   cogsRecognizedFromOrder,
+  expensesTotalInPeriod,
   paidRatio as paidRatioOf,
 } from "@/lib/finance";
 import type { Expense } from "@/types/expense";
@@ -43,9 +53,9 @@ import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
 const INFO_RECEITA =
   "Dinheiro JÁ RECEBIDO no período: orçamento × % já pago (30/70/100%) de cada encomenda (sem canceladas, pela data do evento) + vales 100% pagos ainda não convertidos. NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
 const INFO_DESPESAS =
-  "Despesas lançadas no período (únicas + subscrições), pela data da despesa.";
+  "Despesas únicas pela data da despesa + subscrições activas no período, ao custo mensal equivalente (anual ÷ 12), em cada mês até ao mês actual. A mesma base da aba Despesas.";
 const INFO_COGS =
-  "Custo de produção reconhecido: só conta os materiais das encomendas 100% pagas (tudo-ou-nada). Encomendas a 30/70% ainda não entram.";
+  "Custo de produção reconhecido: materiais de cada encomenda (snapshot capturado na criação: tamanho, fundo, tipo de moldura e extras), contados só quando a encomenda está 100% paga (tudo-ou-nada). Encomendas a 30/70% ainda não entram; encomendas antigas sem snapshot contam 0. Atribuído ao período pela data do evento.";
 const INFO_COMISSOES =
   "Comissões a parceiros, proporcionais ao % já pago, nos estados que contam (parceiro informado / a aguardar / paga). 'N/A' e 'Não aceita' não entram. Inclui comissões de vales recomendados (só quando o vale está 100% pago); contam uma única vez no vale e não recontam quando este vira preservação.";
 const INFO_LUCRO =
@@ -83,6 +93,18 @@ export function FaturacaoTab({
   const now = useMemo(() => new Date(), []);
   const currentYear = getYear(now);
 
+  // Cores do gráfico consoante o tema (mesmo padrão da Métricas).
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  const chartGrid = isDark ? "#322821" : "#E8E0D5";
+  const tooltipStyle = {
+    borderRadius: 8,
+    border: `1px solid ${isDark ? "#322821" : "#E8E0D5"}`,
+    background: isDark ? "#1B1611" : "#FFFFFF",
+    color: isDark ? "#E8D5B5" : "#3D2B1F",
+    fontSize: 12,
+  } as const;
+
   // Anos disponíveis: encomendas pela data do evento; vales pela data de criação;
   // despesas pela data da despesa. Garante que o ano actual aparece sempre.
   const availableYears = useMemo(() => {
@@ -108,19 +130,13 @@ export function FaturacaoTab({
   // "all" = totais desde sempre (sem filtro de ano)
   const [selectedYear, setSelectedYear] = useState<number | "all">(currentYear);
   const isAllTime = selectedYear === "all";
-  const isCurrentYear = selectedYear === currentYear;
 
   // Quando "Todos": range artificial gigantesco que apanha tudo.
   // Quando ano específico: range Jan→Dez desse ano.
   const yearStart = isAllTime ? new Date(1970, 0, 1) : startOfYear(new Date(selectedYear as number, 0, 1));
   const yearEnd = isAllTime ? new Date(2999, 11, 31) : endOfYear(new Date(selectedYear as number, 11, 31));
 
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
-  const prevMonthStart = startOfMonth(subMonths(now, 1));
-  const prevMonthEnd = endOfMonth(subMonths(now, 1));
-
-  const inRange = (iso: string | null, start: Date, end: Date): boolean => {
+  const inRange =(iso: string | null, start: Date, end: Date): boolean => {
     if (!iso) return false;
     const d = parseISO(iso);
     return d >= start && d <= end;
@@ -174,36 +190,20 @@ export function FaturacaoTab({
     pipelineBuckets.em_producao.total +
     pipelineBuckets.recebido.total;
 
-  // KPIs mensais: orders pela data do evento; vales pela data de criação.
-  const revenueOrdersMonth = orders
-    .filter((o) => inRange(o.event_date, monthStart, monthEnd))
-    .reduce((s, o) => s + revenueFromOrder(o), 0);
-  const revenueVouchersMonth = vouchers
-    .filter((v) => inRange(v.created_at, monthStart, monthEnd))
-    .reduce((s, v) => s + revenueFromVoucher(v), 0);
-  const revenueMonth = revenueOrdersMonth + revenueVouchersMonth;
-
-  const revenuePrevMonth =
-    orders.filter((o) => inRange(o.event_date, prevMonthStart, prevMonthEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
-    vouchers.filter((v) => inRange(v.created_at, prevMonthStart, prevMonthEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
-
-  // "Receita do ano" passa a ser "Receita total" quando isAllTime.
+  // KPIs anuais (o mês corrente vive no Painel): encomendas pela data do
+  // evento; vales pela data de criação. "Receita do ano" passa a ser
+  // "Receita total" quando isAllTime.
   const revenueYear =
     orders.filter((o) => inRange(o.event_date, yearStart, yearEnd)).reduce((s, o) => s + revenueFromOrder(o), 0) +
     vouchers.filter((v) => inRange(v.created_at, yearStart, yearEnd)).reduce((s, v) => s + revenueFromVoucher(v), 0);
 
-  const expensesMonth = expenses
-    .filter((e) => inRange(e.expense_date, monthStart, monthEnd))
-    .reduce((s, e) => s + Number(e.amount), 0);
-  const expensesYear = expenses
-    .filter((e) => inRange(e.expense_date, yearStart, yearEnd))
-    .reduce((s, e) => s + Number(e.amount), 0);
+  // Despesas: únicas pela data + subscrições em cada mês activo (ver
+  // `expenseAmountInPeriod` em lib/finance.ts — antes as subscrições só
+  // contavam no mês em que começavam).
+  const expensesYear = expensesTotalInPeriod(expenses, yearStart, yearEnd, now);
 
   // Custo de produção (COGS) por período: atribuído à mesma janela em que a
   // receita conta, ou seja, pela data do evento da encomenda.
-  const cogsMonth = orders
-    .filter((o) => inRange(o.event_date, monthStart, monthEnd))
-    .reduce((s, o) => s + cogsFromOrder(o), 0);
   const cogsYear = orders
     .filter((o) => inRange(o.event_date, yearStart, yearEnd))
     .reduce((s, o) => s + cogsFromOrder(o), 0);
@@ -230,21 +230,14 @@ export function FaturacaoTab({
     vouchers
       .filter((v) => inRange(v.created_at, start, end))
       .reduce((s, v) => s + commissionFullFromVoucher(v), 0);
-  const commissionMonth =
-    orderCommissionInRange(monthStart, monthEnd) +
-    voucherCommissionInRange(monthStart, monthEnd);
   const commissionYear =
     orderCommissionInRange(yearStart, yearEnd) +
     voucherCommissionInRange(yearStart, yearEnd);
 
   // Receita líquida = bruta − comissões (mostrado como sub-texto debaixo
   // do KPI principal, sem inflar a grelha com mais um KPI por linha).
-  const revenueNetMonth = revenueMonth - commissionMonth;
   const revenueNetYear = revenueYear - commissionYear;
-
-  const profitMonth = revenueMonth - expensesMonth - cogsMonth - commissionMonth;
   const profitYear = revenueYear - expensesYear - cogsYear - commissionYear;
-  const monthDelta = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : null;
 
   // Gráfico:
   //  - ano específico: 12 barras (Jan→Dez desse ano)
@@ -259,7 +252,7 @@ export function FaturacaoTab({
         const rev =
           orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
           vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
-        const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
+        const exp = expensesTotalInPeriod(expenses, start, end, now);
         const cogs = orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + cogsFromOrder(o), 0);
         return {
           key: String(y),
@@ -277,20 +270,19 @@ export function FaturacaoTab({
       const rev =
         orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + revenueFromOrder(o), 0) +
         vouchers.filter((v) => inRange(v.created_at, start, end)).reduce((s, v) => s + revenueFromVoucher(v), 0);
-      const exp = expenses.filter((e) => inRange(e.expense_date, start, end)).reduce((s, e) => s + Number(e.amount), 0);
+      const exp = expensesTotalInPeriod(expenses, start, end, now);
       const cogs = orders.filter((o) => inRange(o.event_date, start, end)).reduce((s, o) => s + cogsFromOrder(o), 0);
+      const monthLabel = format(start, "MMM", { locale: pt });
       buckets.push({
         key: format(start, "yyyy-MM"),
-        label: format(start, "MMM", { locale: pt }),
+        label: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
         revenue: rev,
         expenses: exp,
         cogs,
       });
     }
     return buckets;
-  }, [orders, vouchers, expenses, selectedYear, isAllTime, availableYears]);
-
-  const maxBarValue = Math.max(...chartData.map((m) => Math.max(m.revenue, m.expenses, m.cogs)), 1);
+  }, [orders, vouchers, expenses, selectedYear, isAllTime, availableYears, now]);
 
   return (
     <div className="space-y-4">
@@ -321,68 +313,26 @@ export function FaturacaoTab({
         </p>
       </div>
 
-      {/* KPIs principais — Receita / Despesas / COGS / Comissões / Lucro
-          A receita mostra "líquida" (= bruta − comissões) como sub-texto. */}
+      {/* KPIs do ano (ou totais) — Receita / Despesas / Custo de produção /
+          Comissões / Lucro. O mês corrente vive no Painel; aqui só a série
+          anual, para não mostrar o mesmo número em dois sítios com nomes
+          diferentes (sessão 174). A receita é a bruta; a líquida (= bruta −
+          comissões) aparece como sub-texto, como no Painel ao contrário. */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {isCurrentYear ? (
-          <>
-            <KpiBox
-              label="Receita do mês"
-              value={formatEUR(revenueMonth)}
-              icon={<TrendingUp className="h-4 w-4" />}
-              color="emerald"
-              info={INFO_RECEITA}
-              delta={monthDelta}
-              subLabel="Líquida"
-              subValue={commissionMonth > 0 ? formatEUR(revenueNetMonth) : undefined}
-            />
-            <KpiBox label="Despesas do mês" value={formatEUR(expensesMonth)} icon={<ArrowDownRight className="h-4 w-4" />} color="rose" info={INFO_DESPESAS} />
-            <KpiBox label="Custo de produção" value={formatEUR(cogsMonth)} icon={<Frame className="h-4 w-4" />} color="amber" info={INFO_COGS} />
-            <KpiBox label="Comissões do mês" value={formatEUR(commissionMonth)} icon={<Handshake className="h-4 w-4" />} color="violet" info={INFO_COMISSOES} />
-            <KpiBox
-              label="Lucro do mês"
-              value={formatEUR(profitMonth)}
-              icon={<CreditCard className="h-4 w-4" />}
-              color={profitMonth >= 0 ? "emerald" : "rose"}
-              info={INFO_LUCRO}
-            />
-          </>
-        ) : (
-          <>
-            <KpiBox
-              label={isAllTime ? "Receita total" : `Receita ${selectedYear}`}
-              value={formatEUR(revenueYear)}
-              icon={<ArrowUpRight className="h-4 w-4" />}
-              color="sky"
-              info={INFO_RECEITA}
-              subLabel="Líquida"
-              subValue={commissionYear > 0 ? formatEUR(revenueNetYear) : undefined}
-            />
-            <KpiBox label={isAllTime ? "Despesas totais" : `Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" info={INFO_DESPESAS} />
-            <KpiBox label={isAllTime ? "Custo produção total" : `Custo produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" info={INFO_COGS} />
-            <KpiBox label={isAllTime ? "Comissões totais" : `Comissões ${selectedYear}`} value={formatEUR(commissionYear)} icon={<Handshake className="h-4 w-4" />} color="violet" info={INFO_COMISSOES} />
-            <KpiBox label={isAllTime ? "Lucro total" : `Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} info={INFO_LUCRO} />
-          </>
-        )}
+        <KpiBox
+          label={isAllTime ? "Receita bruta total" : `Receita bruta ${selectedYear}`}
+          value={formatEUR(revenueYear)}
+          icon={<ArrowUpRight className="h-4 w-4" />}
+          color="sky"
+          info={INFO_RECEITA}
+          subLabel="Líquida"
+          subValue={commissionYear > 0 ? formatEUR(revenueNetYear) : undefined}
+        />
+        <KpiBox label={isAllTime ? "Despesas totais" : `Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" info={INFO_DESPESAS} />
+        <KpiBox label={isAllTime ? "Custo de produção total" : `Custo de produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" info={INFO_COGS} />
+        <KpiBox label={isAllTime ? "Comissões totais" : `Comissões ${selectedYear}`} value={formatEUR(commissionYear)} icon={<Handshake className="h-4 w-4" />} color="violet" info={INFO_COMISSOES} />
+        <KpiBox label={isAllTime ? "Lucro total" : `Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} info={INFO_LUCRO} />
       </div>
-
-      {isCurrentYear && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <KpiBox
-            label={`Receita ${selectedYear}`}
-            value={formatEUR(revenueYear)}
-            icon={<ArrowUpRight className="h-4 w-4" />}
-            color="sky"
-            info={INFO_RECEITA}
-            subLabel="Líquida"
-            subValue={commissionYear > 0 ? formatEUR(revenueNetYear) : undefined}
-          />
-          <KpiBox label={`Despesas ${selectedYear}`} value={formatEUR(expensesYear)} icon={<Receipt className="h-4 w-4" />} color="rose" info={INFO_DESPESAS} />
-          <KpiBox label={`Custo produção ${selectedYear}`} value={formatEUR(cogsYear)} icon={<Frame className="h-4 w-4" />} color="amber" info={INFO_COGS} />
-          <KpiBox label={`Comissões ${selectedYear}`} value={formatEUR(commissionYear)} icon={<Handshake className="h-4 w-4" />} color="violet" info={INFO_COMISSOES} />
-          <KpiBox label={`Lucro ${selectedYear}`} value={formatEUR(profitYear)} icon={<TrendingUp className="h-4 w-4" />} color={profitYear >= 0 ? "emerald" : "rose"} info={INFO_LUCRO} />
-        </div>
-      )}
 
       {/* Pipeline financeiro por estado da encomenda — 4 buckets do menos para o mais certo */}
       <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30 dark:border-violet-900/50 p-4 sm:p-5">
@@ -440,53 +390,35 @@ export function FaturacaoTab({
         </div>
       </div>
 
-      {/* Bar chart: 12 meses do ano ou 1 barra por ano se "Todos" */}
+      {/* Gráfico: 12 meses do ano ou 1 barra por ano se "Todos". Recharts
+          como na Métricas (eixos, valores e tooltip), em vez das barras em
+          divs sem escala. As explicações de cada número vivem nos ⓘ dos
+          cartões em cima. */}
       <div className="rounded-xl border border-cream-200 bg-surface p-5 space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-sm font-semibold text-cocoa-900">
-            {isAllTime ? "Receita vs despesas vs custo de produção por ano" : `Receita vs despesas vs custo de produção — ${selectedYear}`}
-          </h3>
-          <div className="flex items-center gap-3 text-xs text-cocoa-700">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-emerald-400" />Receita
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-rose-400" />Despesas
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-amber-400" />Produção
-            </span>
-          </div>
-        </div>
-        <div className="flex items-end gap-1 h-48">
-          {chartData.map((m) => (
-            <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
-              <div className="w-full flex items-end justify-center gap-0.5 h-40">
-                <div
-                  className="w-2 sm:w-2.5 bg-emerald-400 rounded-t transition-all"
-                  style={{ height: `${(m.revenue / maxBarValue) * 100}%` }}
-                  title={`Receita: ${formatEUR(m.revenue)}`}
-                />
-                <div
-                  className="w-2 sm:w-2.5 bg-rose-400 rounded-t transition-all"
-                  style={{ height: `${(m.expenses / maxBarValue) * 100}%` }}
-                  title={`Despesas: ${formatEUR(m.expenses)}`}
-                />
-                <div
-                  className="w-2 sm:w-2.5 bg-amber-400 rounded-t transition-all"
-                  style={{ height: `${(m.cogs / maxBarValue) * 100}%` }}
-                  title={`Custo de produção: ${formatEUR(m.cogs)}`}
-                />
-              </div>
-              <span className="text-[10px] text-cocoa-700 capitalize">{m.label}</span>
-            </div>
-          ))}
-        </div>
+        <h3 className="text-sm font-semibold text-cocoa-900">
+          {isAllTime ? "Receita vs despesas vs custo de produção por ano" : `Receita vs despesas vs custo de produção — ${selectedYear}`}
+        </h3>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={chartData} barGap={2} barCategoryGap="25%">
+            <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+            <YAxis
+              tickFormatter={(v) => formatEUR(Number(v), { rounded: true })}
+              tick={{ fontSize: 11 }}
+              width={72}
+            />
+            <Tooltip
+              formatter={(v: unknown) => formatEUR(Number(v))}
+              contentStyle={tooltipStyle}
+              cursor={{ fill: chartGrid, opacity: 0.4 }}
+            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="revenue" name="Receita" fill="#34d399" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="expenses" name="Despesas" fill="#fb7185" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="cogs" name="Custo de produção" fill="#fbbf24" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
-
-      <p className="text-xs text-cocoa-700 italic px-1">
-        <strong>Receita (bruta)</strong> = soma proporcional do orçamento das encomendas conforme o estado de pagamento (100%=100%, 70%=70%, 30%=30%) + vales 100% pagos ainda não convertidos em preservação (evita dupla contagem). <strong>Receita líquida</strong> (mostrada por baixo quando aplicável) = receita bruta − comissões a parceiros. <strong>Custo de produção</strong> = soma do COGS de cada encomenda (snapshot capturado na criação, calculado a partir do tamanho, fundo, tipo de moldura e extras), <strong>contado apenas quando a encomenda está 100% paga</strong> (encomendas a 30%/70%/por pagar contribuem 0). <strong>Comissões</strong> = parte da receita devida a parceiros recomendadores, contada proporcional ao % pago; estados “N/A” e “Não aceita” não somam. <strong>Despesas</strong> = custos fixos (subscrições + únicos) na data da despesa. <strong>Lucro</strong> = receita bruta − despesas − custo de produção − comissões. Encomendas, comissões e custo de produção atribuídos ao período pela data do evento; vales pela data de criação. Encomendas anteriores à mig 034 não têm snapshot e não somam para o COGS. Para métricas mais detalhadas, ver a aba Métricas.
-      </p>
     </div>
   );
 }

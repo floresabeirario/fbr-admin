@@ -181,7 +181,7 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
       {/* Totais em destaque */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiBox label="Receita" value={formatEUR(totals.revenue)} icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
-        <KpiBox label="COGS" value={formatEUR(totals.cogs)} icon={<Frame className="h-4 w-4" />} color="amber" />
+        <KpiBox label="Custo de produção" value={formatEUR(totals.cogs)} icon={<Frame className="h-4 w-4" />} color="amber" />
         <KpiBox label="Comissões" value={formatEUR(totals.commission)} icon={<Handshake className="h-4 w-4" />} color="violet" />
         <KpiBox label="Margem €" value={formatEUR(totals.margin)} icon={<CreditCard className="h-4 w-4" />} color={totals.margin >= 0 ? "emerald" : "rose"} />
         <KpiBox
@@ -217,7 +217,7 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
               >
                 Preço {sortArrow("budget")}
               </th>
-              <th className="text-right px-3 py-2 font-medium w-24">COGS</th>
+              <th className="text-right px-3 py-2 font-medium w-24">Custo prod.</th>
               <th className="text-right px-3 py-2 font-medium w-24">Comissão</th>
               <th
                 className="text-right px-3 py-2 font-medium cursor-pointer hover:text-cocoa-900 w-24"
@@ -281,7 +281,7 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
       </div>
 
       <p className="text-xs text-cocoa-700 italic px-1">
-        <strong>Margem €</strong> = Preço − COGS − Comissão (valores plenos da encomenda, independentemente do %pago). <strong>COGS</strong> a 0 = encomenda anterior à mig 034 ou sem snapshot. <strong>Comissão</strong> a 0 = sem parceiro ou estado “N/A”/“Não aceita”. Para análise por período (mensal/anual), ver Painel e Faturação.
+        <strong>Margem €</strong> = Preço − Custo de produção − Comissão (valores plenos da encomenda, independentemente do %pago). <strong>Custo de produção</strong> a 0 = encomenda antiga sem snapshot de custos. <strong>Comissão</strong> a 0 = sem parceiro ou estado “N/A”/“Não aceita”. Para análise por período (mensal/anual), ver Painel e Faturação.
       </p>
     </div>
   );

@@ -28,6 +28,7 @@ import {
   commissionFullFromVoucher,
   voucherCodesWithCommission,
   orderCommissionSuppressedByVoucher,
+  expenseAmountInPeriod,
 } from "@/lib/finance";
 import { FRAME_SIZE_LABELS, FRAME_BACKGROUND_LABELS } from "@/types/database";
 import type { FrameSize, FrameBackground } from "@/types/database";
@@ -89,8 +90,13 @@ export function PainelTab({
         .filter((v) => inRangeISO(v.created_at, start, end))
         .reduce((s, v) => s + commissionFullFromVoucher(v), 0);
       commission += voucherCommission;
-      const expensesInRange = expenses.filter((e) => inRangeISO(e.expense_date, start, end));
-      const expensesTotal = expensesInRange.reduce((s, e) => s + Number(e.amount), 0);
+      // Cada despesa entra com o valor que lhe cabe no período: únicas
+      // pela data, subscrições ao custo mensal em cada mês activo (antes
+      // as subscrições só contavam no mês em que começavam).
+      const expensesInRange = expenses
+        .map((e) => ({ category: e.category, amount: expenseAmountInPeriod(e, start, end, now) }))
+        .filter((e) => e.amount > 0);
+      const expensesTotal = expensesInRange.reduce((s, e) => s + e.amount, 0);
       const expensesByType = aggregateExpensesByAccountingType(expensesInRange);
       const revenueNet = revenueGross - commission;
       const profit = revenueGross - cogs - commission - expensesTotal;
@@ -112,7 +118,7 @@ export function PainelTab({
       month: aggregate(monthStart, monthEnd),
       prevMonth: aggregate(prevMonthStart, prevMonthEnd),
     };
-  }, [orders, vouchers, expenses, monthStart, monthEnd, prevMonthStart, prevMonthEnd]);
+  }, [orders, vouchers, expenses, now, monthStart, monthEnd, prevMonthStart, prevMonthEnd]);
 
   const revenueDelta = prevMonth.revenueGross > 0
     ? ((month.revenueGross - prevMonth.revenueGross) / prevMonth.revenueGross) * 100
@@ -234,7 +240,7 @@ export function PainelTab({
           subLabel="Bruta"
           subValue={month.commission > 0 ? formatEUR(month.revenueGross) : undefined}
         />
-        <KpiBox label="COGS" value={formatEUR(month.cogs)} icon={<Frame className="h-4 w-4" />} color="amber" />
+        <KpiBox label="Custo de produção" value={formatEUR(month.cogs)} icon={<Frame className="h-4 w-4" />} color="amber" />
         <KpiBox label="Comissões" value={formatEUR(month.commission)} icon={<Handshake className="h-4 w-4" />} color="violet" />
         <KpiBox label="Despesas" value={formatEUR(month.expensesTotal)} icon={<Receipt className="h-4 w-4" />} color="rose" />
         <KpiBox
@@ -355,7 +361,7 @@ function RankingTable({
             <th className="text-left px-3 py-2 font-medium">Categoria</th>
             <th className="text-right px-3 py-2 font-medium w-16">Nº</th>
             <th className="text-right px-3 py-2 font-medium w-24">Receita</th>
-            <th className="text-right px-3 py-2 font-medium w-24">COGS</th>
+            <th className="text-right px-3 py-2 font-medium w-24">Custo prod.</th>
             <th className="text-right px-3 py-2 font-medium w-24">Comissão</th>
             <th className="text-right px-3 py-2 font-medium w-24">Margem €</th>
             <th className="text-right px-3 py-2 font-medium w-20">Margem %</th>

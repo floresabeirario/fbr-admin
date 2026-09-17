@@ -78,7 +78,7 @@ const TABS: TabDef[] = [
   {
     key: "faturacao",
     label: "Faturação",
-    helper: "Receita e lucro mensal",
+    helper: "Receita e lucro por ano",
     icon: TrendingUp,
     accent: "text-emerald-600",
     bgInactive: "bg-emerald-100",
