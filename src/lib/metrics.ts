@@ -521,16 +521,27 @@ export interface MetricsResult {
     recommendationShareByYear: Array<{ year: number; total: number; pct: number }>;
   };
 
-  // ── Dias em cada fase de produção (mig 113; só pedidos desde o formulário) ──
-  phaseDurations: Array<{ status: OrderStatus; label: string; medianDays: number | null; sample: number }>;
+  // ── Dias em cada fase de produção (mig 113) ──
+  // "done" = encomendas que já saíram da fase (quanto tempo lá ficaram);
+  // "now" = encomendas que estão na fase neste momento (há quanto tempo).
+  phaseDurations: Array<{
+    status: OrderStatus;
+    label: string;
+    doneMedianDays: number | null;
+    doneSample: number;
+    nowCount: number;
+    nowMedianDays: number | null;
+  }>;
 
   // ── Tempo até à 1.ª resposta no WhatsApp (mig 113) ──
   whatsappResponse: {
     sample: number;
     medianHours: number | null;
-    p90Hours: number | null;
     within1hPct: number | null;
     within24hPct: number | null;
+    within7dPct: number | null;
+    /** Pedidos com conversa cuja 1.ª mensagem tua chegou mais de 7 dias depois. */
+    over7dCount: number;
   };
 
   // ── Cancelamentos (pedidos do período que cancelaram) ──
@@ -1009,54 +1020,80 @@ export function computeMetrics(
   };
 
   // ── Dias em cada fase (histórico de estados) ──
+  // Todas as encomendas não canceladas contam. Nas importadas do Monday a
+  // 1.ª linha (criação) tem a data da importação, por isso o segmento que
+  // começa nela é ignorado; as transições seguintes são reais.
   const orderById = new Map(orders.map((o) => [o.id, o]));
   const historyByOrder = new Map<string, StatusHistoryRow[]>();
   for (const h of extras.statusHistory ?? []) {
     const o = orderById.get(h.order_id);
-    if (!o || !formEra(o)) continue;
+    if (!o || o.status === "cancelado") continue;
     const list = historyByOrder.get(h.order_id) ?? [];
     list.push(h);
     historyByOrder.set(h.order_id, list);
   }
-  const daysByStatus = new Map<OrderStatus, number[]>();
-  for (const list of historyByOrder.values()) {
+  const doneDays = new Map<OrderStatus, number[]>();
+  const nowDays = new Map<OrderStatus, number[]>();
+  const medianOf = (arr: number[]): number | null => {
+    if (arr.length === 0) return null;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const med = sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    return Math.round(med * 10) / 10;
+  };
+  for (const [orderId, list] of historyByOrder.entries()) {
+    const o = orderById.get(orderId)!;
     list.sort((a, b) => a.changed_at.localeCompare(b.changed_at));
-    for (let i = 0; i < list.length - 1; i++) {
-      const status = list[i].to_status as OrderStatus;
-      const hours = differenceInHours(parseISO(list[i + 1].changed_at), parseISO(list[i].changed_at));
-      if (hours < 0) continue;
-      const arr = daysByStatus.get(status) ?? [];
-      arr.push(Math.round((hours / 24) * 10) / 10);
-      daysByStatus.set(status, arr);
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      if (row.from_status === null && !formEra(o)) continue; // criação com data falsa
+      const status = row.to_status as OrderStatus;
+      if (i < list.length - 1) {
+        const hours = differenceInHours(parseISO(list[i + 1].changed_at), parseISO(row.changed_at));
+        if (hours < 0) continue;
+        const arr = doneDays.get(status) ?? [];
+        arr.push(Math.round((hours / 24) * 10) / 10);
+        doneDays.set(status, arr);
+      } else if (o.status === status && status !== "quadro_recebido") {
+        // Fase actual: há quanto tempo está nela (a data do último estado
+        // é a da mudança, mesmo que o histórico tenha sido preenchido depois).
+        const hours = differenceInHours(today, parseISO(row.changed_at));
+        if (hours < 0) continue;
+        const arr = nowDays.get(status) ?? [];
+        arr.push(Math.round((hours / 24) * 10) / 10);
+        nowDays.set(status, arr);
+      }
     }
   }
   const phaseDurations: MetricsResult["phaseDurations"] = ORDER_STATUS_SEQUENCE
-    .filter((s) => (daysByStatus.get(s) ?? []).length > 0)
-    .map((s) => {
-      const arr = daysByStatus.get(s) ?? [];
-      const sorted = [...arr].sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      const med = sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-      return { status: s, label: STATUS_LABELS[s], medianDays: Math.round(med * 10) / 10, sample: arr.length };
-    });
+    .filter((s) => (doneDays.get(s) ?? []).length > 0 || (nowDays.get(s) ?? []).length > 0)
+    .map((s) => ({
+      status: s,
+      label: STATUS_LABELS[s],
+      doneMedianDays: medianOf(doneDays.get(s) ?? []),
+      doneSample: (doneDays.get(s) ?? []).length,
+      nowCount: (nowDays.get(s) ?? []).length,
+      nowMedianDays: medianOf(nowDays.get(s) ?? []),
+    }));
 
   // ── Tempo até à 1.ª resposta no WhatsApp (pedidos do período) ──
+  // Aproximação: 1.ª mensagem enviada na conversa com o mesmo telemóvel
+  // depois do pedido. Quando a resposta foi por email/Instagram, a 1.ª
+  // mensagem no WhatsApp pode chegar semanas depois sobre outra coisa;
+  // daí contar à parte os "mais de 7 dias" em vez de os deixar puxar
+  // as medianas.
   const respHours = (extras.responseTimes ?? [])
     .filter((r) => orderById.has(r.order_id) && inRange(r.requested_at, range))
     .map((r) => Number(r.hours))
     .filter((h) => Number.isFinite(h) && h >= 0)
     .sort((a, b) => a - b);
-  const p90 = respHours.length === 0 ? null : respHours[Math.min(respHours.length - 1, Math.ceil(respHours.length * 0.9) - 1)];
   const whatsappResponse: MetricsResult["whatsappResponse"] = {
     sample: respHours.length,
-    medianHours: respHours.length === 0 ? null : (() => {
-      const mid = Math.floor(respHours.length / 2);
-      const m = respHours.length % 2 === 1 ? respHours[mid] : (respHours[mid - 1] + respHours[mid]) / 2;
-      return Math.round(m * 10) / 10;
-    })(),
-    p90Hours: p90 === null ? null : Math.round(p90 * 10) / 10,
+    medianHours: medianOf(respHours),
     within1hPct: pctOf(respHours.filter((h) => h <= 1).length, respHours.length),
     within24hPct: pctOf(respHours.filter((h) => h <= 24).length, respHours.length),
+    within7dPct: pctOf(respHours.filter((h) => h <= 24 * 7).length, respHours.length),
+    over7dCount: respHours.filter((h) => h > 24 * 7).length,
   };
 
   return {
@@ -1216,13 +1253,13 @@ export function generateInsights(
     }
   }
 
-  // Fase onde as encomendas mais ficam paradas.
+  // Fase onde as encomendas mais ficam paradas (já concluídas, com amostra).
   if (m.phaseDurations.length > 0) {
     const slowest = [...m.phaseDurations]
-      .filter((p) => p.sample >= 3 && p.medianDays !== null)
-      .sort((a, b) => (b.medianDays ?? 0) - (a.medianDays ?? 0))[0];
-    if (slowest && (slowest.medianDays ?? 0) >= 30) {
-      out.push(`A fase onde as encomendas mais ficam é "${slowest.label}": ${slowest.medianDays} dias em mediana (${slowest.sample} encomendas).`);
+      .filter((p) => p.doneSample >= 3 && p.doneMedianDays !== null)
+      .sort((a, b) => (b.doneMedianDays ?? 0) - (a.doneMedianDays ?? 0))[0];
+    if (slowest && (slowest.doneMedianDays ?? 0) >= 30 && slowest.status !== "flores_na_prensa") {
+      out.push(`A fase onde as encomendas mais ficam é "${slowest.label}": ${slowest.doneMedianDays} dias em mediana (${slowest.doneSample} encomendas).`);
     }
   }
 

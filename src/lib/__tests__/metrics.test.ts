@@ -189,35 +189,49 @@ describe("computeMetrics — métricas novas", () => {
     expect(m.repeatClients.repeatOrdersPct).toBe(67); // 2 dos 3 pedidos de Junho
   });
 
-  it("dias em cada fase a partir do histórico, só fases concluídas", () => {
-    const o = makeOrder({ id: "o1", created_at: "2026-06-01T10:00:00.000Z", consent_at: "2026-06-01T10:00:00.000Z" });
+  it("dias em cada fase: fases concluídas e fase actual (há quanto tempo)", () => {
+    // o1 já saiu de 2 fases e está na prensa desde 10/06 (TODAY = 12/06 → 2 dias).
+    const o1 = makeOrder({ id: "o1", created_at: "2026-06-01T10:00:00.000Z", consent_at: "2026-06-01T10:00:00.000Z", status: "flores_na_prensa" });
+    // o2 importada (created_at antes do formulário): o segmento da criação é ignorado,
+    // a transição real seguinte conta.
+    const o2 = makeOrder({ id: "o2", created_at: "2026-05-01T10:00:00.000Z", status: "reconstrucao_botanica" });
     const history = [
       { order_id: "o1", from_status: null, to_status: "entrega_flores_agendar", changed_at: "2026-06-01T10:00:00.000Z" },
       { order_id: "o1", from_status: "entrega_flores_agendar", to_status: "entrega_agendada", changed_at: "2026-06-03T10:00:00.000Z" },
       { order_id: "o1", from_status: "entrega_agendada", to_status: "flores_na_prensa", changed_at: "2026-06-10T10:00:00.000Z" },
+      { order_id: "o2", from_status: null, to_status: "flores_na_prensa", changed_at: "2026-05-01T10:00:00.000Z" },
+      { order_id: "o2", from_status: "flores_na_prensa", to_status: "reconstrucao_botanica", changed_at: "2026-06-11T10:00:00.000Z" },
     ];
-    const m = computeMetrics([o], [], RANGE, TODAY, "este_mes", { statusHistory: history });
-    expect(m.phaseDurations).toEqual([
-      { status: "entrega_flores_agendar", label: expect.any(String), medianDays: 2, sample: 1 },
-      { status: "entrega_agendada", label: expect.any(String), medianDays: 7, sample: 1 },
-    ]);
+    const m = computeMetrics([o1, o2], [], RANGE, TODAY, "este_mes", { statusHistory: history });
+    const byStatus = Object.fromEntries(m.phaseDurations.map((p) => [p.status, p]));
+    expect(byStatus.entrega_flores_agendar).toMatchObject({ doneMedianDays: 2, doneSample: 1, nowCount: 0 });
+    expect(byStatus.entrega_agendada).toMatchObject({ doneMedianDays: 7, doneSample: 1, nowCount: 0 });
+    // Na prensa: o1 está lá agora há ~1,5 dias (depende do fuso da máquina:
+    // 10/06 10:00Z até 12/06 00:00 local); o segmento falso da o2 (desde a
+    // importação) não conta como concluído.
+    expect(byStatus.flores_na_prensa).toMatchObject({ doneSample: 0, nowCount: 1 });
+    expect(byStatus.flores_na_prensa.nowMedianDays).toBeGreaterThan(1);
+    expect(byStatus.flores_na_prensa.nowMedianDays).toBeLessThan(2.5);
+    expect(byStatus.reconstrucao_botanica).toMatchObject({ nowCount: 1 });
   });
 
-  it("tempo até à 1.ª resposta no WhatsApp: mediana, p90 e % em 1h/24h", () => {
-    const orders = ["a", "b", "c", "d"].map((id) => makeOrder({ id }));
+  it("tempo até à 1.ª resposta no WhatsApp: mediana e % em 1h/24h/7d, com os lentos à parte", () => {
+    const orders = ["a", "b", "c", "d", "e"].map((id) => makeOrder({ id }));
     const responseTimes = [
       { order_id: "a", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 0.5 },
       { order_id: "b", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 3 },
       { order_id: "c", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 30 },
       { order_id: "d", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 1 },
+      { order_id: "e", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 634 }, // respondeu por email; WhatsApp só semanas depois
       { order_id: "zzz", requested_at: "2026-06-05T10:00:00.000Z", first_reply_at: "", hours: 100 }, // encomenda arquivada: ignorada
     ];
     const m = computeMetrics(orders, [], RANGE, TODAY, "este_mes", { responseTimes });
-    expect(m.whatsappResponse.sample).toBe(4);
-    expect(m.whatsappResponse.medianHours).toBe(2);
-    expect(m.whatsappResponse.within1hPct).toBe(50);
-    expect(m.whatsappResponse.within24hPct).toBe(75);
-    expect(m.whatsappResponse.p90Hours).toBe(30);
+    expect(m.whatsappResponse.sample).toBe(5);
+    expect(m.whatsappResponse.medianHours).toBe(3);
+    expect(m.whatsappResponse.within1hPct).toBe(40);
+    expect(m.whatsappResponse.within24hPct).toBe(60);
+    expect(m.whatsappResponse.within7dPct).toBe(80);
+    expect(m.whatsappResponse.over7dCount).toBe(1);
   });
 
   it("pedidos por mês empilhados e sazonalidade dos eventos", () => {

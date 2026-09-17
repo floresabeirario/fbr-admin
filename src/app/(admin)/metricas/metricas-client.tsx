@@ -159,6 +159,15 @@ const LEAD_PALETTE = [RISK, WAIT, "#eab308", NEUTRAL, OK, "#8b5cf6"];
 
 const formatEuro = (value: number): string => formatEUR(value, { rounded: true });
 
+// Horas legíveis: minutos abaixo de 1 h, horas até 2 dias, dias a partir daí
+// (634 h lê-se mal; "26 dias" lê-se).
+function formatHours(h: number | null): string {
+  if (h === null) return "—";
+  if (h < 1) return `${Math.round(h * 60)} min`;
+  if (h < 48) return `${Math.round(h * 10) / 10} h`;
+  return `${Math.round(h / 24)} dias`;
+}
+
 // ── Componentes de apresentação ──────────────────────────────
 
 function PctBadge({ pct }: { pct: number | null }) {
@@ -943,45 +952,57 @@ export default function MetricasClient({
                 icon={MessageCircle}
                 color="text-emerald-500"
                 label="1.ª resposta no WhatsApp (mediana)"
-                value={metrics.whatsappResponse.medianHours !== null ? `${metrics.whatsappResponse.medianHours} h` : "—"}
+                value={formatHours(metrics.whatsappResponse.medianHours)}
                 sub={
                   metrics.whatsappResponse.sample > 0
-                    ? `${metrics.whatsappResponse.within1hPct}% em menos de 1 h · ${metrics.whatsappResponse.within24hPct}% em menos de 24 h · ${metrics.whatsappResponse.sample} pedidos`
-                    : "Sem dados: precisa da migração 113 e de pedidos com conversa no WhatsApp"
+                    ? `${metrics.whatsappResponse.within1hPct}% em menos de 1 h · ${metrics.whatsappResponse.within24hPct}% em menos de 24 h · ${metrics.whatsappResponse.within7dPct}% em menos de 7 dias · ${metrics.whatsappResponse.sample} pedidos`
+                    : "Sem dados: precisa de pedidos com conversa no WhatsApp"
                 }
-                info="Tempo entre o pedido (formulário) e a primeira mensagem tua na conversa de WhatsApp com o mesmo telemóvel (últimos 9 dígitos). Só pedidos do período com conversa emparelhada."
+                info="Tempo entre o pedido (formulário) e a primeira mensagem tua na conversa de WhatsApp com o mesmo telemóvel (últimos 9 dígitos). Só pedidos do período com conversa emparelhada. É uma aproximação: quando respondes por email ou Instagram, a primeira mensagem no WhatsApp pode ser semanas depois, sobre outra coisa."
               />
               <MiniKpi
                 icon={MessageCircle}
                 color="text-amber-500"
-                label="1.ª resposta: 90% em menos de"
-                value={metrics.whatsappResponse.p90Hours !== null ? `${metrics.whatsappResponse.p90Hours} h` : "—"}
-                sub="9 em cada 10 pedidos com conversa tiveram resposta dentro deste tempo"
+                label="Sem resposta no WhatsApp em 7 dias"
+                value={metrics.whatsappResponse.sample > 0 ? String(metrics.whatsappResponse.over7dCount) : "—"}
+                sub={
+                  metrics.whatsappResponse.sample > 0
+                    ? `de ${metrics.whatsappResponse.sample} pedidos com conversa. Normalmente respondeste por outro canal; vale a pena confirmar.`
+                    : "Sem dados"
+                }
+                info="Pedidos com conversa de WhatsApp em que a tua primeira mensagem só chegou mais de 7 dias depois do pedido. Ficam fora das medianas para não as distorcer."
               />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <ChartCard
-                title="Dias em cada fase (mediana)"
+                title="Dias em cada fase"
                 icon={Layers}
                 iconColor="text-violet-500"
-                info="Quantos dias uma encomenda fica em cada estado antes de passar ao seguinte, pela ordem de produção. Só fases já concluídas e só pedidos desde que o formulário existe. Precisa da migração 113 (histórico de estados)."
+                info="Por fase, duas barras: 'Já passaram' = mediana de dias que as encomendas que já saíram dessa fase lá ficaram; 'Estão agora' = quantas encomendas estão nessa fase neste momento e há quantos dias (mediana). Todas as encomendas não canceladas; nas importadas do Monday só contam as mudanças de estado feitas depois da importação."
               >
                 {metrics.phaseDurations.length === 0 ? (
                   <p className="text-sm text-cocoa-700 italic">Sem histórico de estados ainda (migração 113).</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={Math.max(220, metrics.phaseDurations.length * 30)}>
-                    <BarChart data={metrics.phaseDurations} layout="vertical" margin={{ left: 24, right: 40 }}>
+                  <ResponsiveContainer width="100%" height={Math.max(260, metrics.phaseDurations.length * 44)}>
+                    <BarChart data={metrics.phaseDurations} layout="vertical" margin={{ left: 24, right: 48 }} barGap={2} barCategoryGap="25%">
                       <XAxis type="number" tick={axisTick} unit=" d" />
                       <YAxis type="category" dataKey="label" width={180} tick={axisTick} />
                       <Tooltip
                         contentStyle={tooltipStyle}
-                        formatter={(v: unknown, _n, item) => [`${v} dias (${(item?.payload as { sample?: number } | undefined)?.sample ?? 0} encomendas)`, "Mediana"]}
+                        formatter={(v: unknown, name, item) => {
+                          const p = item?.payload as { doneSample?: number; nowCount?: number } | undefined;
+                          return name === "Já passaram"
+                            ? [`${v ?? 0} dias (${p?.doneSample ?? 0} encomendas)`, name]
+                            : [`${v ?? 0} dias (${p?.nowCount ?? 0} encomendas)`, name];
+                        }}
                       />
-                      <Bar dataKey="medianDays" radius={[0, 6, 6, 0]}>
-                        {metrics.phaseDurations.map((p) => (
-                          <Cell key={p.status} fill={STATUS_HEX[p.status] ?? NEUTRAL} />
-                        ))}
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="doneMedianDays" name="Já passaram" fill={NEUTRAL} radius={[0, 6, 6, 0]}>
+                        <LabelList dataKey="doneSample" position="right" style={{ fontSize: 10, fill: axisTick.fill }} formatter={(v: unknown) => (Number(v) > 0 ? `${v} enc.` : "")} />
+                      </Bar>
+                      <Bar dataKey="nowMedianDays" name="Estão agora" fill={WAIT} radius={[0, 6, 6, 0]}>
+                        <LabelList dataKey="nowCount" position="right" style={{ fontSize: 10, fill: axisTick.fill }} formatter={(v: unknown) => (Number(v) > 0 ? `${v} enc.` : "")} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
