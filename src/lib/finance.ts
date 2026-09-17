@@ -184,6 +184,17 @@ export function paidRatio(status: PaymentStatus): number {
   }
 }
 
+/**
+ * Encomenda CONFIRMADA = já pagou o sinal (>= 30%). Sem sinal é um pedido,
+ * não um cliente (regra da Maria, sessão 174): nunca entra em rankings,
+ * contagens de eventos, "por receber", lucro por encomenda nem comissões.
+ * O dinheiro em si já só conta parcelas pagas, por isso não precisava
+ * desta guarda; os cartões que olham para o orçamento precisam.
+ */
+export function isConfirmedOrder(o: Pick<Order, "payment_status">): boolean {
+  return paidRatio(o.payment_status) > 0;
+}
+
 // ── Comissões a parceiros como dedução à receita ─────────────
 
 // Estados em que a comissão é considerada "obrigação pendente ou

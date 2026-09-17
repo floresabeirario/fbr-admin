@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatEUR } from "@/lib/format";
-import { orderPnL } from "@/lib/finance";
+import { orderPnL, isConfirmedOrder } from "@/lib/finance";
 import { STATUS_LABELS } from "@/types/database";
 import { KpiBox, inRangeISO, type FaturacaoOrder } from "./shared";
 
@@ -64,11 +64,12 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
     [selectedYear],
   );
 
-  // Encomendas no período (sem cancelados) — antes do filtro por snapshot.
-  // Usado para contar quantas estão escondidas pelo toggle.
+  // Encomendas no período (sem canceladas nem pré-reservas sem sinal: uma
+  // pré-reserva ainda não é um cliente, regra da Maria na sessão 174) —
+  // antes do filtro por snapshot. Usado para contar as escondidas pelo toggle.
   const inPeriod = useMemo(() => {
     return orders
-      .filter((o) => o.status !== "cancelado")
+      .filter((o) => o.status !== "cancelado" && isConfirmedOrder(o))
       .filter((o) => inRangeISO(o.event_date, yearStart, yearEnd));
   }, [orders, yearStart, yearEnd]);
 
@@ -174,7 +175,7 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
         </div>
         <p className="text-xs text-cocoa-700 italic">
           {rows.length} {rows.length === 1 ? "encomenda" : "encomendas"}
-          {hideWithoutSnapshot && hiddenCount > 0 ? ` (${hiddenCount} escondidas sem COGS)` : " (cancelado excluído)"}
+          {hideWithoutSnapshot && hiddenCount > 0 ? ` (${hiddenCount} escondidas sem custo)` : " (canceladas e pré-reservas sem sinal excluídas)"}
           . Valores plenos (não proporcionais ao %pago). Clica nas colunas para ordenar.
         </p>
       </div>
@@ -288,7 +289,7 @@ export function PnLTab({ orders }: { orders: FaturacaoOrder[] }) {
       </div>
 
       <p className="text-xs text-cocoa-700 italic px-1">
-        <strong>Margem €</strong> = Preço − Custo de produção − Comissão (valores plenos da encomenda, independentemente do %pago). <strong>Custo de produção</strong> a 0 = encomenda antiga sem snapshot de custos. <strong>Comissão</strong> a 0 = sem parceiro ou estado “N/A”/“Não aceita”. Para análise por período (mensal/anual), ver Painel e Faturação.
+        Só encomendas com sinal pago (pré-reservas ficam de fora). <strong>Margem €</strong> = Preço − Custo de produção − Comissão (valores plenos da encomenda, independentemente do %pago). <strong>Custo de produção</strong> a 0 = encomenda antiga sem snapshot de custos. <strong>Comissão</strong> a 0 = sem parceiro ou estado “N/A”/“Não aceita”. Para análise por período (mensal/anual), ver Painel e Faturação.
       </p>
     </div>
   );

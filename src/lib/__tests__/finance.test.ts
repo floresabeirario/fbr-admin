@@ -23,6 +23,7 @@ import {
   commissionInPeriod,
   cogsInPeriod,
   outstandingFromOrder,
+  isConfirmedOrder,
 } from "@/lib/finance";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
 import { subscriptionSplitDates } from "@/types/expense";
@@ -322,6 +323,12 @@ describe("receita por data de pagamento", () => {
     expect(cogsInPeriod(o, nov.start, nov.end)).toBe(55);
     expect(cogsInPeriod(o, dez.start, dez.end)).toBe(0);
     expect(cogsInPeriod({ ...o, payment_status: "70_pago" }, nov.start, nov.end)).toBe(0);
+  });
+
+  it("confirmada = sinal pago; pré-reserva sem sinal não é cliente", () => {
+    expect(isConfirmedOrder({ payment_status: "30_pago" })).toBe(true);
+    expect(isConfirmedOrder({ payment_status: "100_pago" })).toBe(true);
+    expect(isConfirmedOrder({ payment_status: "100_por_pagar" })).toBe(false);
   });
 
   it("por receber = orçamento × (1 − % pago), 0 em canceladas", () => {

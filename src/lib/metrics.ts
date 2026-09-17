@@ -53,7 +53,7 @@ import {
   voucherCodesWithCommission,
   orderCommissionSuppressedByVoucher,
   revenueInPeriod,
-  paidRatio,
+  isConfirmedOrder,
 } from "@/lib/finance";
 import {
   STATUS_LABELS,
@@ -247,10 +247,8 @@ function median(values: number[]): number | null {
 }
 
 // Pedido "confirmado" = já pagou o sinal (>= 30%), seja qual for o estado
-// depois (mesmo que tenha cancelado a seguir).
-function isConfirmed(o: Order): boolean {
-  return paidRatio(o.payment_status) > 0;
-}
+// depois (mesmo que tenha cancelado a seguir). Definição única em finance.ts.
+const isConfirmed = (o: Order): boolean => isConfirmedOrder(o);
 
 // Funil agrupado por uma chave qualquer (canal, idioma, serviço).
 function groupFunnel(
@@ -682,7 +680,8 @@ export function computeMetrics(
   // encomendas que vieram desses vales (não recontar; ver finance.ts).
   const voucherCommissionCodes = voucherCodesWithCommission(vouchers);
   for (const o of orders) {
-    if (!o.partner_id || o.status === "cancelado") continue;
+    // Sem sinal pago não há receita nem comissão devida (pré-reserva).
+    if (!o.partner_id || o.status === "cancelado" || !isConfirmed(o)) continue;
     // Receita pela data de pagamento; a comissão entra se houve receita
     // no período ou se o evento é do período.
     const rev = revenueInPeriod(o, range.start, range.end);

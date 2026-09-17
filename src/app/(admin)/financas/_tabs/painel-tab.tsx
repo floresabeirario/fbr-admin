@@ -40,6 +40,8 @@ import {
   revenueInPeriod,
   commissionInPeriod,
   cogsInPeriod,
+  isConfirmedOrder,
+  outstandingFromOrder,
 } from "@/lib/finance";
 import { monthlyEquivalent } from "@/types/expense";
 import { formatDatePT } from "@/lib/format-date";
@@ -156,11 +158,13 @@ export function PainelTab({
           ? 0
           : commissionInPeriod(o, start, end);
       }
+      // Só encomendas CONFIRMADAS (sinal pago): uma pré-reserva ainda não é
+      // um evento nem um cliente (regra da Maria, sessão 174).
       let orderCount = 0;
       let completedCount = 0;
       let budgetSum = 0;
       for (const o of orders) {
-        if (o.status === "cancelado" || !inRangeISO(o.event_date, start, end)) continue;
+        if (o.status === "cancelado" || !isConfirmedOrder(o) || !inRangeISO(o.event_date, start, end)) continue;
         orderCount += 1;
         budgetSum += Number(o.budget) || 0;
         if (o.status === "quadro_recebido") completedCount += 1;
@@ -221,7 +225,10 @@ export function PainelTab({
     let best: { order: FaturacaoOrder; pnl: ReturnType<typeof orderPnL> } | null = null;
     for (const o of orders) {
       if (!inRangeISO(o.event_date, monthStart, monthEnd)) continue;
-      if (o.status === "cancelado") continue;
+      if (o.status === "cancelado" || !isConfirmedOrder(o)) continue;
+      // Sem snapshot de custos a margem seria 100% (custo 0): não é
+      // "mais lucrativo", é desconhecido.
+      if (!o.production_cost_snapshot) continue;
       const p = orderPnL(o);
       if (!best || p.margin_full > best.pnl.margin_full) best = { order: o, pnl: p };
     }
@@ -245,15 +252,18 @@ export function PainelTab({
     [expenses, monthStart, monthEnd],
   );
 
-  // ── Pipeline pendente (não recebido) ──
-  const pendingPipeline = useMemo(() => {
-    let total = 0;
+  // ── Por receber (confirmadas) + orçamento das pré-reservas sem sinal ──
+  // Antes era "pipeline pendente" = soma de orçamentos de tudo o que não
+  // estava recebido, pré-reservas incluídas; misturava clientes com pedidos.
+  const receivables = useMemo(() => {
+    let due = 0;
+    let unconfirmed = 0;
     for (const o of orders) {
       if (o.status === "cancelado") continue;
-      if (o.status === "quadro_recebido") continue;
-      total += Number(o.budget) || 0;
+      if (isConfirmedOrder(o)) due += outstandingFromOrder(o);
+      else unconfirmed += Number(o.budget) || 0;
     }
-    return total;
+    return { due, unconfirmed };
   }, [orders]);
 
   // ── Conversão vale → preservação ──
@@ -273,7 +283,7 @@ export function PainelTab({
     };
     for (const o of orders) {
       if (!inRangeISO(o.event_date, yearStart, yearEnd)) continue;
-      if (o.status === "cancelado") continue;
+      if (o.status === "cancelado" || !isConfirmedOrder(o)) continue;
       const p = orderPnL(o);
       const key = o.pyramid_frame ? "piramide" : (o.frame_size ?? "indef");
       const label = o.pyramid_frame
@@ -300,7 +310,7 @@ export function PainelTab({
     };
     for (const o of orders) {
       if (!inRangeISO(o.event_date, yearStart, yearEnd)) continue;
-      if (o.status === "cancelado") continue;
+      if (o.status === "cancelado" || !isConfirmedOrder(o)) continue;
       const p = orderPnL(o);
       const key = o.frame_background ?? "indef";
       const label = o.frame_background && o.frame_background in FRAME_BACKGROUND_LABELS
@@ -399,7 +409,14 @@ export function PainelTab({
           subLabel="Concluídas"
           subValue={month.completedCount > 0 ? String(month.completedCount) : undefined}
         />
-        <KpiBox label="Orçamento médio" value={formatEUR(ticketAvg)} icon={<Tags className="h-4 w-4" />} color="sky" />
+        <KpiBox
+          label="Orçamento médio"
+          value={formatEUR(ticketAvg)}
+          icon={<Tags className="h-4 w-4" />}
+          color="sky"
+          subLabel="Conversão vales"
+          subValue={voucherConversion !== null ? `${voucherConversion.toFixed(0)}%` : undefined}
+        />
         <KpiBox
           label={`Quadro mais lucrativo (${range.unit === "total" ? "sempre" : range.unit})`}
           value={mostProfitableThisMonth ? formatEUR(mostProfitableThisMonth.pnl.margin_full) : "—"}
@@ -409,12 +426,13 @@ export function PainelTab({
           subValue={mostProfitableThisMonth ? `${mostProfitableThisMonth.order.client_name} · ${mostProfitableThisMonth.pnl.margin_pct.toFixed(0)}%` : undefined}
         />
         <KpiBox
-          label="Pipeline pendente"
-          value={formatEUR(pendingPipeline)}
+          label="Por receber"
+          value={formatEUR(receivables.due)}
           icon={<ArrowDownRight className="h-4 w-4" />}
           color="violet"
-          subLabel="Conversão vales"
-          subValue={voucherConversion !== null ? `${voucherConversion.toFixed(0)}%` : undefined}
+          info="Quanto falta os clientes confirmados pagarem: orçamento × (1 − % pago) das encomendas com sinal, não canceladas, em qualquer período. Pré-reservas sem sinal ficam de fora e aparecem em baixo só como referência."
+          subLabel="Pré-reservas sem sinal"
+          subValue={receivables.unconfirmed > 0 ? formatEUR(receivables.unconfirmed) : undefined}
         />
       </div>
 
@@ -473,7 +491,7 @@ export function PainelTab({
             Onde está o lucro — {rankingYearLabel}
           </h3>
           <p className="text-xs text-cocoa-700 italic">
-            Agregação pelo orçamento e custo plenos (não proporcionais). Cancelado excluído.
+            Orçamento e custo plenos (não proporcionais). Só encomendas com sinal pago; canceladas fora. Encomendas antigas sem snapshot de custos contam custo 0.
           </p>
         </div>
 

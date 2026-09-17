@@ -54,6 +54,7 @@ import {
   commissionInPeriod,
   cogsInPeriod,
   outstandingFromOrder,
+  isConfirmedOrder,
 } from "@/lib/finance";
 import type { Expense } from "@/types/expense";
 import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
@@ -69,7 +70,7 @@ const INFO_COGS =
 const INFO_COMISSOES =
   "Comissões a parceiros, proporcionais às parcelas pagas no período, nos estados que contam (parceiro informado / a aguardar / paga). 'N/A' e 'Não aceita' não entram. Inclui comissões de vales recomendados (só quando o vale está 100% pago); contam uma única vez no vale e não recontam quando este vira preservação.";
 const INFO_POR_RECEBER =
-  "Quanto falta os clientes pagarem: orçamento × (1 − % pago) das encomendas não canceladas com evento neste período. Dinheiro que ainda vai entrar se tudo correr bem.";
+  "Quanto falta os clientes CONFIRMADOS pagarem: orçamento × (1 − % pago) das encomendas com sinal pago, não canceladas, com evento neste período. Pré-reservas sem sinal não contam (estão em 'Não confirmado').";
 const INFO_LUCRO =
   "Receita recebida − despesas − custo de produção − comissões, no período.";
 
@@ -217,6 +218,7 @@ export function FaturacaoTab({
   let outstandingCount = 0;
   for (const o of orders) {
     if (!inRange(o.event_date, yearStart, yearEnd)) continue;
+    if (!isConfirmedOrder(o)) continue; // pré-reserva sem sinal não é "por receber"
     const due = outstandingFromOrder(o);
     if (due > 0) {
       outstandingTotal += due;
