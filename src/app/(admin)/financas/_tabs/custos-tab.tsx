@@ -322,7 +322,7 @@ export function CustosTab({
           </table>
         </div>
         <p className="text-[11px] text-cocoa-700 italic">
-          A tabela das molduras em cima <strong>já assume vidro museu</strong> (era o que todos os quadros levavam até 26/08/2026). Quando o cliente escolhe vidro normal, o custo da encomenda desce pela <strong>diferença entre estas duas linhas</strong>, e aparece no detalhe do custo como uma linha negativa.
+          Os valores das molduras em cima <strong>incluem vidro museu</strong> (era o que todos os quadros levavam até 26/08/2026, e foi assim que foram medidos). Mas o <strong>vidro normal é o default</strong>: em cada encomenda com vidro normal ou por decidir, o custo desce pela <strong>diferença entre estas duas linhas</strong> (linha negativa no detalhe), e o Catálogo em cima já mostra os custos com vidro normal. Só “Sim” e as encomendas antigas ficam com o custo do museu.
           {" "}Só a diferença conta, por isso não é preciso mexer nos valores das molduras.
         </p>
       </div>

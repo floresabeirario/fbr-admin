@@ -185,9 +185,10 @@ const SIZES_SECAS: SizeMeta[] = [
   { key: "50x70", label: "Moldura 50x70",      costSize: "50x70", baseCategory: "base_frame", baseKey: "secas_50x70", photoSuppKey: "fotografia_50x70" },
 ];
 
-// Bloco 4 — suplemento da moldura pirâmide: um só preço por encomenda
-// (pricing_items.extra.pyramid_frame, aplicado em lib/pricing.ts quando
-// pyramid_frame=true). O custo extra é por tamanho.
+// Bloco 4 — suplemento da moldura pirâmide, POR TAMANHO (mig 110:
+// pricing_items.extra.pyramid_frame_<size>, aplicado em lib/pricing.ts
+// quando pyramid_frame=true). Correcção da Maria na sessão 174: "moldura
+// pirâmide tem suplemento por tamanho".
 const PYRAMID_SIZES = ["30x40", "40x50", "50x70"] as const;
 
 const BACKGROUNDS: Array<{ key: BgKey; label: string }> = [
@@ -253,12 +254,19 @@ function MargemTeoricaSection({
   // Para 30x40/40x50/50x70 reusamos computeProductionCost para paridade.
   // Para o mini não dá (mini é add-on do main no fluxo real); calculo
   // manualmente: frame line + photo print se fotografia.
+  //
+  // Com VIDRO NORMAL (decisão da Maria, sessão 174): as linhas de custo das
+  // molduras incluem vidro museu (Excel de Maio, quando todos o levavam),
+  // por isso passa-se museum_glass: "nao" para o cálculo devolver a
+  // diferença. O custo extra do museu vive no Bloco 3 e só entra quando o
+  // cliente escolhe "Sim".
   function rowCost(size: SizeMeta, bg: BgKey): number {
     if (size.key !== "20x25_mini") {
       const bd = computeProductionCost(
         {
           frame_size: size.key as "30x40" | "40x50" | "50x70",
           frame_background: bg,
+          museum_glass: "nao",
           pyramid_frame: false,
           frame_internal_type: "baixa",
           extra_small_frames: "nao",
@@ -268,7 +276,9 @@ function MargemTeoricaSection({
       );
       return bd?.total ?? 0;
     }
-    // Mini standalone — frame mini baixa + photo print mini se fotografia.
+    // Mini standalone — frame mini baixa + photo print mini se fotografia,
+    // menos a diferença do vidro museu (o mini também leva vidro normal
+    // por defeito).
     const glass = bg === "transparente" ? "vidro_vidro" : "vidro_cartao";
     const frame = snapshot.items.find(
       (l) =>
@@ -282,7 +292,10 @@ function MargemTeoricaSection({
           (l) => l.kind === "photo_print" && l.size_key === "mini_20x25",
         )
       : null;
-    return Number(frame?.cost ?? 0) + Number(photo?.cost ?? 0);
+    return Math.max(
+      0,
+      Number(frame?.cost ?? 0) + Number(photo?.cost ?? 0) - glassExtraCost("mini_20x25"),
+    );
   }
 
   // ── Extras autónomos (Bloco 2) — ornamento + pendente ──
@@ -341,13 +354,15 @@ function MargemTeoricaSection({
     );
     return line ? Number(line.cost) : null;
   };
-  const pyramidItem = findPricing("extra", "pyramid_frame");
   const pyramidRows = PYRAMID_SIZES.map((size) => {
     const pyr = frameCost(size, "piramide");
     const base = frameCost(size, "baixa");
     const cost = pyr === null || base === null ? 0 : Math.max(0, pyr - base);
-    return { size, cost };
+    return { size, item: findPricing("extra", `pyramid_frame_${size}`), cost };
   });
+  // Enquanto a mig 110 não corre os 3 itens não existem: aviso em vez de
+  // três "item em falta" sem explicação.
+  const pyramidMissing = pyramidRows.some((r) => r.item === null);
   const consumablesCostByProduct = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of productionCosts) {
@@ -371,7 +386,7 @@ function MargemTeoricaSection({
             Margem teórica — preços, custos e lucro por quadro
           </h2>
           <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-            Edita <strong>Base</strong> e <strong>Supl.</strong> (fotografia). <strong>Custo</strong> e <strong>Margem</strong> calculam-se a partir das tabelas de custos (dobradas em baixo). A moldura caixa vive só nessas tabelas: o cliente paga o mesmo, só a margem muda.
+            Edita <strong>Base</strong> e <strong>Supl.</strong> (fotografia). <strong>Custo</strong> e <strong>Margem</strong> calculam-se a partir das tabelas de custos (dobradas em baixo), <strong>com vidro normal</strong>; o vidro museu só soma quando o cliente o escolhe (Bloco 3). A moldura caixa vive só nessas tabelas: o cliente paga o mesmo, só a margem muda.
             {!canEdit && <span className="block mt-1 italic">Modo leitura — só administradores podem editar.</span>}
           </p>
           {lastChanged && (
@@ -610,7 +625,7 @@ function MargemTeoricaSection({
         </div>
         <p className="text-[11px] text-emerald-800/70 italic">
           Só entra no orçamento quando o cliente escolhe <strong>Sim</strong> no vidro museu. Encomendas anteriores a 26/08/2026 ficaram em <strong>“Incluído”</strong> e nunca somam este valor. O do 20x25 é cobrado <strong>por cada mini-quadro</strong>.
-          {" "}<strong>Custo extra</strong> é quanto o vidro museu custa a mais do que o normal (o vidro normal seria comprado de qualquer maneira); edita-se na tabela <em>Custo do vidro</em> em baixo. O <strong>Bloco 1</strong> assume vidro museu, e é dessa base que o desconto é feito quando o cliente escolhe vidro normal.
+          {" "}<strong>Custo extra</strong> é quanto o vidro museu custa a mais do que o normal (o vidro normal seria comprado de qualquer maneira); edita-se na tabela <em>Custo do vidro</em> em baixo. O <strong>Bloco 1</strong> assume vidro normal; este custo extra soma-se ao quadro quando o cliente escolhe <strong>Sim</strong>.
         </p>
       </div>
 
@@ -631,21 +646,16 @@ function MargemTeoricaSection({
               </tr>
             </thead>
             <tbody>
-              {pyramidRows.map(({ size, cost }, idx) => {
-                const price = Number(pyramidItem?.price ?? 0);
+              {pyramidRows.map(({ size, item, cost }) => {
+                const price = Number(item?.price ?? 0);
                 const margin = price - cost;
                 const marginPct = price > 0 ? (margin / price) * 100 : 0;
                 return (
                   <tr key={size} className="border-t border-emerald-100 dark:border-emerald-900/30">
                     <td className="px-3 py-2 text-cocoa-900">{size}</td>
-                    {idx === 0 ? (
-                      <td
-                        rowSpan={pyramidRows.length}
-                        className="px-2 py-2 text-right align-middle border-l border-emerald-100/60"
-                      >
-                        <EditableEuro item={pyramidItem} field="price" canEdit={canEdit} align="right" />
-                      </td>
-                    ) : null}
+                    <td className="px-2 py-2 text-right">
+                      <EditableEuro item={item} field="price" canEdit={canEdit} align="right" />
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-rose-700">
                       {formatEUR(cost)}
                     </td>
@@ -667,8 +677,13 @@ function MargemTeoricaSection({
             </tbody>
           </table>
         </div>
+        {pyramidMissing && (
+          <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+            Os preços por tamanho ainda não existem na base de dados: falta correr a migração 110 no SQL Editor. Até lá o orçamento usa o valor único antigo.
+          </p>
+        )}
         <p className="text-[11px] text-emerald-800/70 italic">
-          Um só valor por encomenda, igual para todos os tamanhos; entra no orçamento quando a encomenda tem <strong>moldura pirâmide</strong>. <strong>Custo extra</strong> é quanto a moldura pirâmide custa a mais do que a baixa (vidro sobre cartão; com fundo transparente a diferença é parecida); edita-se na tabela de custos por tamanho em baixo.
+          Um valor por tamanho, cobrado por cada quadro com <strong>moldura pirâmide</strong>. <strong>Custo extra</strong> é quanto a moldura pirâmide custa a mais do que a baixa (vidro sobre cartão; com fundo transparente a diferença é parecida); edita-se na tabela de custos por tamanho em baixo.
         </p>
       </div>
     </div>

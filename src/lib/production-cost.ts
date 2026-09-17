@@ -100,6 +100,17 @@ function findGlassLine(
  * de vidro museu. Zero quando o snapshot é anterior à mig 105 (não tem as
  * linhas kind='glass') — nesse caso não se inventa desconto nenhum.
  */
+// O vidro normal é o default do custo (decisão da Maria, sessão 174: "quero
+// que o default seja vidro normal e se a pessoa quiser museu, aí se
+// adapta"). Só 'sim' e 'incluido' levam museu; 'nao' e 'nao_sei' (por
+// decidir) contam com vidro normal. Ausente/null = encomenda anterior à
+// mig 104, que levou museu dentro do preço.
+export function assumesNormalGlass(
+  choice: "incluido" | "sim" | "nao" | "nao_sei" | null | undefined,
+): boolean {
+  return choice === "nao" || choice === "nao_sei";
+}
+
 function glassSaving(snapshot: ProductionCostSnapshot, size: string): number {
   const museu = findGlassLine(snapshot, size, "museu");
   const normal = findGlassLine(snapshot, size, "normal");
@@ -190,7 +201,7 @@ export function computeProductionCost(
         });
       }
     }
-    if (order.museum_glass === "nao") {
+    if (assumesNormalGlass(order.museum_glass)) {
       const saving = glassSaving(snapshot, sk);
       if (saving > 0) {
         lines.push({
@@ -226,15 +237,15 @@ export function computeProductionCost(
 
   // 3b. Vidro normal em vez de vidro museu (mig 105).
   //     Os custos das molduras (kind='frame') assumem vidro museu, porque
-  //     até 26/08/2026 todos os quadros o levavam. Quando o cliente
-  //     escolhe vidro normal, devolve-se a diferença: uma linha negativa,
-  //     visível no detalhe, em vez de um número que muda sem explicação.
+  //     até 26/08/2026 todos os quadros o levavam. Quando o quadro leva
+  //     vidro normal, devolve-se a diferença: uma linha negativa, visível
+  //     no detalhe, em vez de um número que muda sem explicação.
   //
-  //     Só desconta em 'nao' (decisão firme). Em 'sim' e 'incluido' o
-  //     quadro leva mesmo vidro museu; em 'nao_sei' fica o custo maior,
-  //     para a margem não aparecer inflacionada antes de a escolha estar
-  //     fechada. Ausente (encomenda anterior à mig 104) = levou museu.
-  if (order.museum_glass === "nao" && sizeKey) {
+  //     O vidro normal é o DEFAULT (decisão da Maria, sessão 174): desconta
+  //     em 'nao' e também em 'nao_sei' (por decidir); só 'sim' e 'incluido'
+  //     ficam com o custo do museu. Ausente (encomenda anterior à mig 104)
+  //     = levou museu. Ver `assumesNormalGlass`.
+  if (assumesNormalGlass(order.museum_glass) && sizeKey) {
     const saving = glassSaving(snapshot, sizeKey);
     if (saving > 0) {
       lines.push({
@@ -251,7 +262,7 @@ export function computeProductionCost(
   //     pequenos, ou o inverso. Cada mini leva o seu vidro, por isso o
   //     desconto multiplica pela quantidade.
   if (
-    order.museum_glass_mini === "nao" &&
+    assumesNormalGlass(order.museum_glass_mini) &&
     order.extra_small_frames === "sim" &&
     order.extra_small_frames_qty &&
     order.extra_small_frames_qty > 0

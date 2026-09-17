@@ -147,6 +147,10 @@ const RESUMO_LABELS: Record<string, { pt: string; en: string }> = {
   "extra:christmas_ornament": { pt: "Ornamento de Natal", en: "Christmas ornament" },
   "extra:necklace_pendant": { pt: "Pendente para colar", en: "Necklace pendant" },
   "extra:pyramid_frame": { pt: "Moldura pirâmide", en: "Pyramid frame" },
+  // Por tamanho desde a mig 110 (a chave genérica fica para snapshots antigos).
+  "extra:pyramid_frame_30x40": { pt: "Moldura pirâmide", en: "Pyramid frame" },
+  "extra:pyramid_frame_40x50": { pt: "Moldura pirâmide", en: "Pyramid frame" },
+  "extra:pyramid_frame_50x70": { pt: "Moldura pirâmide", en: "Pyramid frame" },
 };
 
 // Frase pronta sobre o vidro do quadro (mig 104), para as mensagens não

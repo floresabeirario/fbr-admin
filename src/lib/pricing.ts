@@ -208,6 +208,25 @@ export function computePricingSnapshot(
         });
       }
     }
+    // Pirâmide por tamanho também nos adicionais (decisão da Maria,
+    // sessão 174): cada quadro leva a sua moldura pirâmide, tal como leva
+    // a sua impressão e o seu vidro. Genérico como fallback (mig 110).
+    if (order.pyramid_frame) {
+      const p =
+        findItem(pricing, "extra", `pyramid_frame_${size}`) ??
+        findItem(pricing, "extra", "pyramid_frame");
+      if (p && p.price > 0) {
+        lines.push({
+          category: p.category,
+          key: p.key,
+          label: p.label,
+          qty,
+          unit_price: p.price,
+          subtotal: p.price * qty,
+          variant: "additional",
+        });
+      }
+    }
   }
 
   // 3. Extras por unidade — só conta se a opção for "sim" E houver qty > 0
@@ -298,11 +317,16 @@ export function computePricingSnapshot(
     }
   }
 
-  // 4. Moldura pirâmide — upsell visível ao cliente (cobrado).
-  //    O preço é editável pela Maria em Finanças (pricing_items.extra.pyramid_frame).
-  //    Quando o cliente não escolhe pirâmide, este item não entra no snapshot.
+  // 4. Moldura pirâmide — upsell visível ao cliente (cobrado). O preço é
+  //    POR TAMANHO (mig 110: pricing_items.extra.pyramid_frame_<size>),
+  //    editável em Finanças → Catálogo → "Moldura pirâmide"; segue o
+  //    tamanho efectivo (provisório = 30x40, como a base). O item genérico
+  //    `pyramid_frame` (mig 033) fica como fallback enquanto a mig 110 não
+  //    corre. Quando o cliente não escolhe pirâmide, nada entra no snapshot.
   if (order.pyramid_frame) {
-    const pyr = findItem(pricing, "extra", "pyramid_frame");
+    const pyr =
+      findItem(pricing, "extra", `pyramid_frame_${effectiveSize}`) ??
+      findItem(pricing, "extra", "pyramid_frame");
     if (pyr) {
       lines.push({
         category: pyr.category,

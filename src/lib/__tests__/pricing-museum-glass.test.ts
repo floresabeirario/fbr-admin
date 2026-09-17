@@ -209,12 +209,17 @@ describe("custo de produção do vidro", () => {
     expect(custo({ museum_glass: "nao" })).toBe(31.86);
   });
 
-  it('não desconta em "sim", "incluido" nem "nao_sei"', () => {
+  it('não desconta em "sim" nem "incluido" (o quadro leva mesmo museu)', () => {
     expect(custo({ museum_glass: "sim" })).toBe(50.4);
     expect(custo({ museum_glass: "incluido" })).toBe(50.4);
-    // "nao_sei" fica no custo maior de propósito: mais vale a margem
-    // aparecer conservadora do que inflacionada antes de o cliente decidir.
-    expect(custo({ museum_glass: "nao_sei" })).toBe(50.4);
+  });
+
+  it('"nao_sei" conta com vidro normal: é o default (decisão Maria, sessão 174)', () => {
+    // "quero que o default seja vidro normal e se a pessoa quiser museu,
+    // aí se adapta". Antes ficava no custo maior até o cliente decidir.
+    expect(custo({ museum_glass: "nao_sei" })).toBe(31.86);
+    // Ausente = encomenda anterior à mig 104, que levou museu no preço.
+    expect(custo({ museum_glass: undefined })).toBe(50.4);
   });
 
   it("desconta também o vidro de cada mini-quadro", () => {
