@@ -108,11 +108,11 @@ export function FinanceCard({
             explicação foi para um tooltip (ⓘ) para poupar espaço; o
             link público funciona sem pagamento registado a partir do
             momento em que a encomenda fica agendada (ver mig 076).
-            Some quando já não falta receber nada: aí o método de cada
-            parcela está no livro e isto passa a ser ruído. NÃO some ao
-            primeiro pagamento, porque o caso normal é o sinal vir por
-            transferência e só o resto ser em mão. */}
-        {falta > 0 && (
+            Some assim que há pagamentos registados: isto é a INTENÇÃO
+            que a cliente declarou antes de pagar ("vou pagar em mão") e,
+            a partir do momento em que entra dinheiro, o método real está
+            no livro, com ícone. Regra dela (sessão 178). */}
+        {payments.length === 0 && (
           <div className="flex items-center gap-1.5">
             <CheckRow
               label="Pagamento em dinheiro à entrega"
