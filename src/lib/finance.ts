@@ -17,7 +17,12 @@
 import { parseISO } from "date-fns";
 import { monthlyEquivalent } from "@/types/expense";
 import type { Expense, ExpenseCategory } from "@/types/expense";
-import type { Order, PartnerCommissionStatus, PaymentStatus } from "@/types/database";
+import type {
+  Order,
+  OrderPayment,
+  PartnerCommissionStatus,
+  PaymentStatus,
+} from "@/types/database";
 import type { VoucherPaymentStatus } from "@/types/voucher";
 import { computeProductionCost } from "@/lib/production-cost";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
@@ -182,6 +187,78 @@ export function paidRatio(status: PaymentStatus): number {
     case "30_pago":  return 0.3;
     default:         return 0;
   }
+}
+
+// ── Livro de pagamentos (mig 114) ────────────────────────────
+// `payment_status` é a FASE DA COBRANÇA e é a Maria que a decide; o
+// dinheiro vive no livro `order_payments`. Os dois eixos são separados de
+// propósito: uma falta de 50 cêntimos combinada com a cliente ("não tenho
+// trocos, fica para a próxima") não pode fazer a encomenda aparecer como
+// se a parcela não tivesse sido paga, e o momento de cobrar a diferença é
+// dela (às vezes na fase dos 40%, às vezes na última).
+
+/** Quanto falta receber ao todo. 0 quando está pago ou pago a mais. */
+export function outstandingTotal(
+  budget: number | null | undefined,
+  amountPaid: number | null | undefined,
+): number {
+  if (budget == null) return 0;
+  return Math.max(0, Math.round((Number(budget) - Number(amountPaid ?? 0)) * 100) / 100);
+}
+
+/**
+ * Quanto falta para fechar uma fase de cobrança: o marco acumulado dessa
+ * fase sobre o orçamento ACTUAL, menos tudo o que já entrou.
+ *
+ * É a conta que a Maria faz à mão em cada mensagem. Exemplo real: 90€
+ * pagos, quadro passou a 500€, fase "70%" → 0,7 × 500 − 90 = 260€ (e não
+ * 40% de 500€). Se o orçamento subiu desde o último pagamento, a
+ * diferença aparece aqui sozinha, e o que ficou em atraso de uma fase
+ * anterior arrasta-se para a seguinte sem ninguém ter de se lembrar.
+ */
+export function dueAtPhase(
+  budget: number | null | undefined,
+  phase: PaymentStatus,
+  amountPaid: number | null | undefined,
+): number {
+  if (budget == null) return 0;
+  const devido = Number(budget) * paidRatio(phase);
+  return Math.max(0, Math.round((devido - Number(amountPaid ?? 0)) * 100) / 100);
+}
+
+/**
+ * Que fase de cobrança o dinheiro já cobre. **Só para SUGERIR** à Maria
+ * que faça a fase avançar — nunca para decidir por ela, porque a fase é
+ * dela e há casos legítimos em que o dinheiro não chega ao marco (os tais
+ * 50 cêntimos) e a parcela está dada de qualquer forma.
+ *
+ * Recebe as entradas (linhas positivas) e não a soma líquida: uma
+ * devolução num cancelamento não deve apagar a história de uma encomenda
+ * que chegou a ser paga.
+ *
+ * O ramo do orçamento nulo/zero é obrigatório, não defensivo: sem ele
+ * `10 >= 0` sugeriria "100% pago" numa encomenda sem orçamento.
+ */
+export function paymentPhaseReached(
+  budget: number | null | undefined,
+  paidIn: number | null | undefined,
+): PaymentStatus {
+  const paid = Number(paidIn ?? 0);
+  if (budget == null || budget <= 0) return paid > 0 ? "30_pago" : "100_por_pagar";
+  if (paid >= budget - 0.01) return "100_pago";
+  if (paid >= budget * 0.7 - 0.01) return "70_pago";
+  if (paid >= budget * 0.3 - 0.01) return "30_pago";
+  return "100_por_pagar";
+}
+
+/** Soma das entradas (ignora devoluções) de um conjunto de pagamentos. */
+export function paymentsIn(payments: ReadonlyArray<Pick<OrderPayment, "amount">>): number {
+  return payments.reduce((s, p) => (Number(p.amount) > 0 ? s + Number(p.amount) : s), 0);
+}
+
+/** Soma líquida (entradas menos devoluções) — espelha orders.amount_paid. */
+export function paymentsNet(payments: ReadonlyArray<Pick<OrderPayment, "amount">>): number {
+  return payments.reduce((s, p) => s + Number(p.amount), 0);
 }
 
 /**

@@ -427,6 +427,17 @@ export interface Order {
   cancelled_at: string | null;
   cancelled_from_status: OrderStatus | null;
 
+  // ── Soma do livro de pagamentos (mig 114) ───────────────────
+  // Soma das linhas de order_payments (entradas menos devoluções),
+  // mantida por trigger na BD. DERIVADO: nunca escrever à mão.
+  //
+  // Este é o dinheiro; `payment_status` é a fase da cobrança. Para saber
+  // se entrou algo use `amount_paid > 0`, e para o que falta use
+  // `outstandingTotal()`/`dueAtPhase()` de lib/finance.ts — nunca
+  // `budget × paidRatio()`, que assume que a cliente pagou exactamente o
+  // marco e que o orçamento nunca mudou.
+  amount_paid: number;
+
   // ── Moldura pirâmide e tipo interno (custos de produção) ────
   // pyramid_frame: cliente escolheu upgrade pirâmide (afecta preço E custo).
   // frame_internal_type: decisão da Maria (só relevante se pyramid=false) —
@@ -476,7 +487,58 @@ export type OrderInsert = Partial<Omit<Order, "id" | "order_id" | "created_at" |
 // Tipo para actualizar uma encomenda existente.
 // `order_id` é editável (admin pode corrigir IDs ao importar encomendas
 // antigas). `id` (UUID) e `created_at` continuam imutáveis.
-export type OrderUpdate = Partial<Omit<Order, "id" | "created_at">>;
+// `amount_paid` é derivado do livro order_payments por trigger na BD
+// (mig 114) — escrevê-lo daqui seria sobreposto na gravação seguinte.
+export type OrderUpdate = Partial<Omit<Order, "id" | "created_at" | "amount_paid">>;
+
+// ── Livro de pagamentos (mig 114) ────────────────────────────
+// Uma linha por pagamento REALMENTE recebido numa encomenda. É a fonte
+// de verdade do dinheiro, e `orders.amount_paid` é a soma mantida por
+// trigger.
+//
+// NÃO determina `orders.payment_status`: esse é a FASE DA COBRANÇA e
+// continua a ser decidido pela Maria. Os dois eixos são separados de
+// propósito, porque guardar só a percentagem não dava resposta a três
+// situações reais dela: a cliente transferir uma quantia que não bate com
+// nenhum marco; a encomenda crescer depois do sinal, com o acerto a ser
+// pago sem mudar o degrau (e portanto sem deixar rasto); e o momento de
+// pedir a diferença ser decisão dela, caso a caso.
+
+export type PaymentMethod = "transferencia" | "mbway" | "dinheiro" | "vale" | "outro";
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  transferencia: "Transferência",
+  mbway: "MB WAY",
+  dinheiro: "Dinheiro",
+  vale: "Vale-presente",
+  outro: "Outro",
+};
+
+export interface OrderPayment {
+  id: string;
+  order_id: string;
+  // Euros desta parcela. NEGATIVO = devolução ao cliente (reembolso de
+  // cancelamento). Nunca 0 (constraint na BD).
+  amount: number;
+  // Data em que o dinheiro entrou, não a data em que foi registado.
+  // É a base da receita por período nas Finanças.
+  paid_at: string;
+  method: PaymentMethod;
+  // Código do vale creditado (só com method "vale"). Índice único por
+  // encomenda impede creditar o mesmo vale duas vezes.
+  voucher_code: string | null;
+  // Valor ou data reconstruídos do histórico, não confirmados pela
+  // Maria. A UI assinala-os; passa a false quando ela corrige a linha.
+  is_estimated: boolean;
+  note: string | null;
+  invoice_url: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export type OrderPaymentInsert = Pick<OrderPayment, "order_id" | "amount" | "paid_at"> &
+  Partial<Pick<OrderPayment, "method" | "voucher_code" | "is_estimated" | "note" | "invoice_url">>;
 
 // ── Agrupamento visual de estados ────────────────────────────
 

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentRole, getCurrentEmail } from "@/lib/auth/server";
 import { notFound } from "next/navigation";
-import type { Order } from "@/types/database";
+import type { Order, OrderPayment } from "@/types/database";
 import type { Partner } from "@/types/partner";
 import type { Task, TaskTemplate } from "@/types/tasks";
 import { loadIntegration } from "@/lib/google/oauth";
@@ -63,6 +63,17 @@ export default async function WorkbenchPage({
     .eq("order_id", order.id)
     .order("created_at", { ascending: false });
   const orderTasks = hydrationSafeDeep((tasksData ?? []) as Task[]);
+
+  // Livro de pagamentos (mig 114), por ordem cronológica como num
+  // extracto. Tolerante à migração ainda não ter corrido: nesse caso a
+  // query falha e o cartão mostra "sem pagamentos registados".
+  const { data: paymentsData } = await supabase
+    .from("order_payments")
+    .select("*")
+    .eq("order_id", order.id)
+    .order("paid_at", { ascending: true })
+    .order("created_at", { ascending: true });
+  const orderPayments = hydrationSafeDeep((paymentsData ?? []) as OrderPayment[]);
 
   // Se a encomenda tem código de vale-presente associado, verifica se existe um
   // vale activo com esse código — workbench mostra link directo para o vale.
@@ -147,6 +158,7 @@ export default async function WorkbenchPage({
       partners={partnerOptions}
       taskTemplates={taskTemplates}
       orderTasks={orderTasks}
+      orderPayments={orderPayments}
       currentEmail={currentEmail}
       linkedVoucherCode={linkedVoucherCode}
       duplicateOrders={duplicateOrders}

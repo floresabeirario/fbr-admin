@@ -7,6 +7,19 @@
 
 ---
 
+## Sessão 173 — movida na sessão 178
+
+### Sessão 173 (2026-09-17) — Análise global do negócio (sem código, nada committado)
+
+- **Pedido dela:** *"analisa tudo o que puderes"*: alterações, ideias, estratégias para mais clientes, processos, apresentação, serviços, gestão.
+- **Base:** código dos 4 repos, copy do site (como funciona, opções, termos, FAQ), templates, guia de voz, memórias das análises de 06/07 e 17/09 (sessão 170) e um re-corte **semanal** do export Umami. Sem acesso à BD (só anon key local, e a mig 109 fechou a leitura) → a parte de encomendas/conversão/margens ficou por fazer.
+- **Achado novo (Umami, sem tráfego pago):** o funil do formulário caiu a partir da semana de 31/08: até 05/09 abriam 111 e enviavam 49 (44%); desde 06/09 abriram 29 e enviaram 7 (24%). Coincide com o vidro museu pago no site (26/08) e o resumo do orçamento ao vivo (06/09). Amostra pequena: é um sinal, não uma prova. Verificação proposta: query 7 do ficheiro abaixo + gravações Clarity de `/reservar-preservacao` desde 06/09 + Dashboard de Métricas Set/2025 vs Set/2026.
+- **Ficheiro:** `_privado/diagnostico-negocio-2026-09-17.sql` (11 queries só de leitura: conversão pedido→sinal por mês/canal, dias até ao sinal, fase dos cancelamentos, tempo da 1.ª resposta WhatsApp, adesão ao vidro museu, receita por tamanho, vales, `sent_echo`, recomendações). Ela corre no SQL Editor e cola os resultados.
+- **Recomendações (detalhe na memória `project_analise_negocio_2026-09`):** nada aprovado ainda; não implementar sem OK explícito.
+- **Smoke:** n/a. **Migração:** nenhuma.
+
+---
+
 ## Sessão 170 — movida na sessão 175
 
 ### Sessão 170 (2026-09-17) — Análise estratégica de tráfego (Umami + Clarity + Search Console) + mig 109 + títulos EN

@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin, requireUser } from "@/lib/auth/server";
+import { requireAdmin, requireUser, getCurrentEmail } from "@/lib/auth/server";
 import { sendPushToAdmins } from "@/lib/push/send";
 import { formatDatePT } from "@/lib/format-date";
 import { generateUniqueCouponCode } from "@/lib/coupon";
@@ -28,7 +28,15 @@ import {
   calendarDateBecomesAvailable,
   effectiveCalendarDate,
 } from "@/lib/google/calendar-date";
-import type { OrderInsert, OrderUpdate, OrderStatus, Order, PaymentStatus } from "@/types/database";
+import type {
+  OrderInsert,
+  OrderUpdate,
+  OrderStatus,
+  Order,
+  OrderPayment,
+  PaymentMethod,
+  PaymentStatus,
+} from "@/types/database";
 import { isPreservacaoDesignStatus } from "@/types/database";
 import {
   detectTriggeredMoments,
@@ -1076,4 +1084,146 @@ export async function hardDeleteOrderAction(
   const { error } = await supabase.from("orders").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/preservacao");
+}
+
+// ── Livro de pagamentos (mig 114) ────────────────────────────
+// O dinheiro vive em `order_payments`; `payment_status` continua a ser a
+// FASE DA COBRANÇA e é a Maria que a decide. Por isso nenhuma destas
+// acções mexe no `payment_status`: há casos legítimos em que o dinheiro
+// não chega ao marco e a parcela está dada de qualquer forma (a cliente
+// que não tinha os 50 cêntimos e combinou deixar para a parcela
+// seguinte). O `orders.amount_paid` é actualizado por trigger na BD.
+//
+// Estas acções são DELIBERADAMENTE independentes da fila do autosave do
+// workbench: a fila é tipada `OrderUpdate` (só colunas de `orders`) e o
+// cliente despacha server actions uma de cada vez, logo um INSERT noutra
+// tabela à espera atrás de uma gravação de campos podia ser cancelado por
+// um refresh — foi exactamente o bug da sessão 176.
+
+function parsePaymentAmount(value: unknown): number | string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "Valor inválido.";
+  const rounded = Math.round(n * 100) / 100;
+  if (rounded === 0) return "O valor não pode ser zero.";
+  // Travão de sanidade contra um zero a mais por engano. Não é uma regra
+  // de negócio: é só para um deslize de teclado não passar em silêncio.
+  if (Math.abs(rounded) > 1_000_000) return "Valor fora do razoável.";
+  return rounded;
+}
+
+function parsePaymentDate(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = new Date(value + "T12:00:00Z");
+  if (Number.isNaN(d.getTime())) return null;
+  return value;
+}
+
+export async function addOrderPaymentAction(
+  orderId: string,
+  input: {
+    amount: number;
+    paid_at: string;
+    method?: PaymentMethod;
+    note?: string | null;
+    invoice_url?: string | null;
+  },
+): Promise<ActionResult<OrderPayment>> {
+  await requireAdmin();
+
+  const amount = parsePaymentAmount(input.amount);
+  if (typeof amount === "string") return { ok: false, error: amount };
+  const paidAt = parsePaymentDate(input.paid_at);
+  if (!paidAt) return { ok: false, error: "Data inválida." };
+
+  const supabase = await createClient();
+  const email = await getCurrentEmail();
+  const { data, error } = await supabase
+    .from("order_payments")
+    .insert({
+      order_id: orderId,
+      amount,
+      paid_at: paidAt,
+      method: input.method ?? "transferencia",
+      note: input.note?.trim() || null,
+      invoice_url: input.invoice_url?.trim() || null,
+      created_by: email,
+    })
+    .select()
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/preservacao");
+  revalidatePath(`/preservacao/${orderId}`);
+  revalidatePath("/financas");
+  return { ok: true, data: data as OrderPayment };
+}
+
+export async function updateOrderPaymentAction(
+  paymentId: string,
+  input: {
+    amount?: number;
+    paid_at?: string;
+    method?: PaymentMethod;
+    note?: string | null;
+    invoice_url?: string | null;
+  },
+): Promise<ActionResult<OrderPayment>> {
+  await requireAdmin();
+
+  // Corrigir uma linha é afirmar que o valor passou a ser de confiança:
+  // a marca de "estimado" cai sozinha, sem mais um clique.
+  const patch: Record<string, unknown> = { is_estimated: false };
+
+  if (input.amount !== undefined) {
+    const amount = parsePaymentAmount(input.amount);
+    if (typeof amount === "string") return { ok: false, error: amount };
+    patch.amount = amount;
+  }
+  if (input.paid_at !== undefined) {
+    const paidAt = parsePaymentDate(input.paid_at);
+    if (!paidAt) return { ok: false, error: "Data inválida." };
+    patch.paid_at = paidAt;
+  }
+  if (input.method !== undefined) patch.method = input.method;
+  if (input.note !== undefined) patch.note = input.note?.trim() || null;
+  if (input.invoice_url !== undefined) patch.invoice_url = input.invoice_url?.trim() || null;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("order_payments")
+    .update(patch)
+    .eq("id", paymentId)
+    .select()
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  const payment = data as OrderPayment;
+  revalidatePath("/preservacao");
+  revalidatePath(`/preservacao/${payment.order_id}`);
+  revalidatePath("/financas");
+  return { ok: true, data: payment };
+}
+
+export async function deleteOrderPaymentAction(
+  paymentId: string,
+): Promise<ActionResult<{ orderId: string }>> {
+  await requireAdmin();
+  const supabase = await createClient();
+  // Precisa do order_id para revalidar a página certa, e o DELETE não o
+  // devolve de forma fiável depois de a linha desaparecer.
+  const { data: row, error: readErr } = await supabase
+    .from("order_payments")
+    .select("order_id")
+    .eq("id", paymentId)
+    .single();
+  if (readErr) return { ok: false, error: readErr.message };
+
+  const { error } = await supabase.from("order_payments").delete().eq("id", paymentId);
+  if (error) return { ok: false, error: error.message };
+
+  const orderId = (row as { order_id: string }).order_id;
+  revalidatePath("/preservacao");
+  revalidatePath(`/preservacao/${orderId}`);
+  revalidatePath("/financas");
+  return { ok: true, data: { orderId } };
 }

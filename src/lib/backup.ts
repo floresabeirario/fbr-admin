@@ -38,6 +38,7 @@ const PAGE_SIZE = 1000; // limite por resposta do PostgREST
 // Todas as tabelas das migrações excepto google_integration (segredos).
 export const BACKUP_TABLES = [
   "orders",
+  "order_payments",
   "vouchers",
   "partners",
   "tasks",

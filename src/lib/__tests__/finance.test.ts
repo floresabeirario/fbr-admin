@@ -24,6 +24,11 @@ import {
   cogsInPeriod,
   outstandingFromOrder,
   isConfirmedOrder,
+  paymentPhaseReached,
+  outstandingTotal,
+  dueAtPhase,
+  paymentsIn,
+  paymentsNet,
 } from "@/lib/finance";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
 import { subscriptionSplitDates } from "@/types/expense";
@@ -469,5 +474,121 @@ describe("expenseAmountInPeriod", () => {
   it("expensesTotalInPeriod soma únicas e subscrições", () => {
     const s = month(2026, 9);
     expect(expensesTotalInPeriod([unica, mensal, anual], s.start, s.end, NOW)).toBeCloseTo(70);
+  });
+});
+
+// ── Livro de pagamentos (mig 114) ────────────────────────────
+// `payment_status` é a FASE DA COBRANÇA (decidida pela Maria) e o
+// dinheiro vive no livro. Estes testes fixam as contas que ela fazia de
+// cabeça em cada mensagem às clientes.
+
+describe("outstandingTotal", () => {
+  it("é o orçamento menos o que entrou", () => {
+    expect(outstandingTotal(500, 350)).toBe(150);
+    expect(outstandingTotal(500, 0)).toBe(500);
+  });
+
+  it("pago a mais não fica negativo", () => {
+    expect(outstandingTotal(500, 520)).toBe(0);
+  });
+
+  it("sem orçamento devolve 0 em vez de rebentar", () => {
+    expect(outstandingTotal(null, 100)).toBe(0);
+  });
+});
+
+describe("dueAtPhase", () => {
+  it("é o marco da fase sobre o orçamento ACTUAL menos o que entrou", () => {
+    // Caso real (Maria João, 04/10/2026): 90€ pagos do quadro de 300€, o
+    // quadro passou a 500€, e na fase dos 70% o valor a pedir foi
+    // 0,7 × 500 − 90 = 260€. NÃO 40% de 500€ = 200€.
+    expect(dueAtPhase(500, "70_pago", 90)).toBe(260);
+  });
+
+  it("o acerto por subida de orçamento aparece sozinho", () => {
+    // Caso real (Isabelle): 241,50€ eram 70% de 345€; o quadro passou a
+    // 615€ e na mesma fase passaram a faltar 189€.
+    expect(dueAtPhase(345, "70_pago", 241.5)).toBe(0);
+    expect(dueAtPhase(615, "70_pago", 241.5)).toBe(189);
+  });
+
+  it("uma falta combinada com a cliente arrasta-se para a fase seguinte", () => {
+    // Devia 230,50€, não tinha os 50 cêntimos, ficaram para a próxima.
+    // A fase fica dada (é decisão dela) e os 0,50€ continuam a aparecer.
+    expect(dueAtPhase(500, "70_pago", 349.5)).toBe(0.5);
+    // Na fase seguinte somam-se ao resto sem ninguém se lembrar deles.
+    expect(dueAtPhase(500, "100_pago", 349.5)).toBe(150.5);
+  });
+
+  it("já pago a mais do que a fase pede devolve 0", () => {
+    expect(dueAtPhase(500, "30_pago", 350)).toBe(0);
+  });
+
+  it("fase sem nada pago pede 0 (ninguém deve nada antes do sinal)", () => {
+    expect(dueAtPhase(500, "100_por_pagar", 0)).toBe(0);
+  });
+});
+
+describe("paymentPhaseReached (só para sugerir, nunca para decidir)", () => {
+  it("diz que fase o dinheiro já cobre", () => {
+    expect(paymentPhaseReached(500, 0)).toBe("100_por_pagar");
+    expect(paymentPhaseReached(500, 150)).toBe("30_pago");
+    expect(paymentPhaseReached(500, 350)).toBe("70_pago");
+    expect(paymentPhaseReached(500, 500)).toBe("100_pago");
+  });
+
+  it("um pagamento abaixo do 1.º marco não finge ser sinal", () => {
+    expect(paymentPhaseReached(500, 10)).toBe("100_por_pagar");
+  });
+
+  it("pagar a mais do que o orçamento continua a ser 100%", () => {
+    expect(paymentPhaseReached(500, 520)).toBe("100_pago");
+  });
+
+  it("os 50 cêntimos a faltar NÃO chegam ao marco — e é por isso que isto só sugere", () => {
+    // A fase fica dada porque foi o que ela combinou com a cliente; se
+    // esta função mandasse, a encomenda aparecia como não paga.
+    expect(paymentPhaseReached(500, 349.5)).toBe("30_pago");
+  });
+
+  it("tolera cêntimos a menos em cada marco (transferências redondas)", () => {
+    expect(paymentPhaseReached(500, 149.99)).toBe("30_pago");
+    expect(paymentPhaseReached(500, 349.99)).toBe("70_pago");
+    expect(paymentPhaseReached(500, 499.99)).toBe("100_pago");
+  });
+
+  it("orçamento nulo ou zero nunca sugere 100% pago", () => {
+    expect(paymentPhaseReached(null, 10)).toBe("30_pago");
+    expect(paymentPhaseReached(0, 10)).toBe("30_pago");
+    expect(paymentPhaseReached(null, 0)).toBe("100_por_pagar");
+    expect(paymentPhaseReached(undefined, undefined)).toBe("100_por_pagar");
+  });
+});
+
+describe("paymentsIn / paymentsNet", () => {
+  const linhas = [{ amount: 150 }, { amount: 200 }, { amount: -50 }];
+
+  it("paymentsIn ignora devoluções", () => {
+    expect(paymentsIn(linhas)).toBe(350);
+  });
+
+  it("paymentsNet desconta devoluções", () => {
+    expect(paymentsNet(linhas)).toBe(300);
+  });
+
+  it("uma devolução total não apaga a história de uma encomenda confirmada", () => {
+    // Cancelou e foi reembolsada: o dinheiro já não está (net 0), mas a
+    // encomenda chegou a ser paga, e a sugestão de fase tem de continuar
+    // a saber isso — senão uma devolução fazia a encomenda parecer que
+    // nunca pagou nada.
+    const reembolsada = [{ amount: 150 }, { amount: -150 }];
+    expect(paymentsNet(reembolsada)).toBe(0);
+    expect(paymentsIn(reembolsada)).toBe(150);
+    expect(paymentPhaseReached(500, paymentsIn(reembolsada))).toBe("30_pago");
+  });
+
+  it("sem linhas dá zero nos dois", () => {
+    expect(paymentsIn([])).toBe(0);
+    expect(paymentsNet([])).toBe(0);
   });
 });

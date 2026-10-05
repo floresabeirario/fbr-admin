@@ -62,6 +62,10 @@ describe("schema-drift: types ↔ migrações", () => {
     expect(missingColumns("voucher.ts", "Voucher", "vouchers")).toEqual([]);
   });
 
+  it("todas as propriedades de OrderPayment existem como colunas de order_payments", () => {
+    expect(missingColumns("database.ts", "OrderPayment", "order_payments")).toEqual([]);
+  });
+
   it("uma coluna inventada seria apanhada (regressão total_budget)", () => {
     const cols = schema.get("orders")!;
     expect(cols.has("budget")).toBe(true);

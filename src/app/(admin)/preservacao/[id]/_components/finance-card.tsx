@@ -4,7 +4,7 @@
 // dinheiro à entrega, acerto de pagamento e faturas. Extraído do
 // workbench-client.tsx (refactor sessão 128).
 
-import { Wallet, Info, AlertTriangle, Paperclip } from "lucide-react";
+import { Wallet, Info, Paperclip } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,13 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Order, PaymentStatus } from "@/types/database";
+import type { Order, OrderPayment, PaymentStatus } from "@/types/database";
 import { PAYMENT_STATUS_LABELS, SIM_NAO_LABELS } from "@/types/database";
 import { formatEUR } from "@/lib/format";
-import { computeBudgetAdjustment } from "@/lib/budget-adjustment";
+import { outstandingTotal } from "@/lib/finance";
 import { Card, CardSummary, Field, CheckRow, inp, sel } from "./layout";
 import { BudgetSnapshotBadge } from "./budget-badges";
 import { computeInvoiceFlags, type UpdateFn } from "./shared";
+import { PaymentsBlock } from "./payments-block";
 
 const PAYMENT_COLORS: Record<string, string> = {
   "100_pago":      "text-green-800 bg-green-100 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900",
@@ -31,32 +32,30 @@ const PAYMENT_COLORS: Record<string, string> = {
 
 export function FinanceCard({
   local,
+  payments,
   canEdit,
   update,
   onPaymentStatusChange,
 }: {
   local: Order;
+  payments: OrderPayment[];
   canEdit: boolean;
   update: UpdateFn;
   onPaymentStatusChange: (s: PaymentStatus) => void;
 }) {
   const { hasAnyPayment, invoiceSlotsVisible, missingInvoice } = computeInvoiceFlags(local);
 
-  // Acerto de pagamento: o orçamento subiu depois do sinal (normalmente
-  // porque o tamanho da moldura foi decidido na fase de design e ficou
-  // mais caro). Mostra os números para pedir a diferença ao cliente.
-  const budgetAdjustment = computeBudgetAdjustment(
-    local.budget,
-    local.budget_at_first_payment,
-    local.payment_status,
-  );
+  // Quanto falta receber, a partir do livro de pagamentos (mig 114).
+  // Substituiu o painel de "acerto" que calculava isto a partir do
+  // orçamento no 1.º pagamento: agora o valor sai dos euros reais.
+  const falta = outstandingTotal(local.budget, local.amount_paid);
 
   // ── Colapso automático ───────────────────────────────────────
-  // Só quando não resta nada por fazer: 100% pago, sem fatura em falta
-  // e sem acerto pendente. Cancelado também colapsa.
+  // Só quando não resta nada por fazer: fase fechada, sem fatura em
+  // falta e sem dinheiro por receber. Cancelado também colapsa.
   const autoCollapsed =
     local.status === "cancelado" ||
-    (local.payment_status === "100_pago" && !missingInvoice && !budgetAdjustment);
+    (local.payment_status === "100_pago" && !missingInvoice && falta === 0);
   const summary = (
     <CardSummary amount={local.budget != null ? formatEUR(local.budget) : undefined}>
       {PAYMENT_STATUS_LABELS[local.payment_status]}
@@ -123,37 +122,16 @@ export function FinanceCard({
           </span>
         </div>
 
-        {/* Acerto de pagamento: orçamento subiu depois do sinal */}
-        {budgetAdjustment && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs space-y-1.5">
-            <div className="flex items-center gap-1.5 font-semibold text-amber-900">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              Orçamento subiu depois do 1.º pagamento
-            </div>
-            <div className="text-amber-800 space-y-0.5">
-              <div className="flex items-center justify-between gap-2">
-                <span>Antes / agora</span>
-                <span className="tabular-nums font-medium">
-                  {formatEUR(budgetAdjustment.oldBudget, { compact: true })} → {formatEUR(budgetAdjustment.newBudget, { compact: true })}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span>Já recebido ({Math.round(budgetAdjustment.paidFraction * 100)}% × {formatEUR(budgetAdjustment.oldBudget, { compact: true })})</span>
-                <span className="tabular-nums font-medium">{formatEUR(budgetAdjustment.paidAmount, { compact: true })}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span>No valor actual: 30% / 70% / 100%</span>
-                <span className="tabular-nums">
-                  {formatEUR(budgetAdjustment.sinal, { compact: true })} · {formatEUR(budgetAdjustment.cumul70, { compact: true })} · {formatEUR(budgetAdjustment.full, { compact: true })}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2 border-t border-amber-200 pt-1.5 font-semibold text-amber-900">
-              <span>Para chegar aos {Math.round(budgetAdjustment.nextFraction * 100)}%, pedir</span>
-              <span className="tabular-nums">{formatEUR(budgetAdjustment.missing, { compact: true })}</span>
-            </div>
-          </div>
-        )}
+        {/* Livro de pagamentos: o que entrou, o que falta, e o registo
+            de cada parcela (mig 114). */}
+        <PaymentsBlock
+          orderId={local.id}
+          payments={payments}
+          budget={local.budget}
+          phase={local.payment_status}
+          canEdit={canEdit}
+          onSuggestPhase={onPaymentStatusChange}
+        />
 
         {/* Pediu fatura — Sim/Não com NIF inline à direita do Sim */}
         <div className="space-y-1.5">

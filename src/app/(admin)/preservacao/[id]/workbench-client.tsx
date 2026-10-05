@@ -30,7 +30,7 @@ import { updateOrderAction, deleteOrderAction } from "../actions";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type { PartnerOption } from "@/components/partner-combobox";
-import type { Order, OrderUpdate, PaymentStatus } from "@/types/database";
+import type { Order, OrderPayment, OrderUpdate, PaymentStatus } from "@/types/database";
 import type { Task, TaskTemplate } from "@/types/tasks";
 import { Card } from "./_components/layout";
 import {
@@ -75,6 +75,7 @@ export default function WorkbenchClient({
   partners = [],
   taskTemplates = [],
   orderTasks = [],
+  orderPayments = [],
   currentEmail = "",
   linkedVoucherCode = null,
   duplicateOrders = [],
@@ -86,6 +87,8 @@ export default function WorkbenchClient({
   partners?: PartnerOption[];
   taskTemplates?: TaskTemplate[];
   orderTasks?: Task[];
+  /** Livro de pagamentos da encomenda (mig 114), por ordem cronológica. */
+  orderPayments?: OrderPayment[];
   currentEmail?: string;
   /** Código de vale existente quando `gift_voucher_code` corresponde a um vale activo. */
   linkedVoucherCode?: string | null;
@@ -540,7 +543,7 @@ export default function WorkbenchClient({
                 />
               </Card>
 
-              <FinanceCard local={local} canEdit={canEdit} update={update} onPaymentStatusChange={onPaymentStatusChange} />
+              <FinanceCard local={local} payments={orderPayments} canEdit={canEdit} update={update} onPaymentStatusChange={onPaymentStatusChange} />
               <PartnershipCard local={local} partners={partners} update={update} onPartnerChange={onPartnerChange} />
               <DeliveryFeedbackCard local={local} update={update} />
               <CouponCard local={local} update={update} />
