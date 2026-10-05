@@ -35,8 +35,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Order, PaymentStatus } from "@/types/database";
-import { PAYMENT_STATUS_LABELS, SIM_NAO_LABELS } from "@/types/database";
+import type { Order, PaymentMethod, PaymentStatus } from "@/types/database";
+import {
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_STATUS_LABELS,
+  SIM_NAO_LABELS,
+} from "@/types/database";
 import { inp, sel } from "./layout";
 
 /** Pedido de confirmação ao alterar um campo preenchido pelo cliente. */
@@ -55,6 +59,12 @@ export function PaymentChangeDialog({
   setNeedsInvoice,
   nif,
   setNif,
+  amount,
+  setAmount,
+  paidAt,
+  setPaidAt,
+  method,
+  setMethod,
   onClose,
   onConfirm,
 }: {
@@ -64,6 +74,13 @@ export function PaymentChangeDialog({
   setNeedsInvoice: (v: boolean) => void;
   nif: string;
   setNif: (v: string) => void;
+  /** Valor a registar no livro, já preenchido com o que falta para esta fase. */
+  amount: string;
+  setAmount: (v: string) => void;
+  paidAt: string;
+  setPaidAt: (v: string) => void;
+  method: PaymentMethod;
+  setMethod: (v: PaymentMethod) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -85,6 +102,60 @@ export function PaymentChangeDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Registo do pagamento no livro (mig 114). O valor vem
+              preenchido com o que falta para esta fase, calculado sobre o
+              orçamento actual: é o que a cliente paga na esmagadora
+              maioria dos casos. Apagar o valor salta o registo, para os
+              casos em que o dinheiro ainda não entrou ou já foi
+              registado à mão. */}
+          <div className="rounded-lg border border-cream-200 bg-cream-50/60 px-3 py-3 space-y-2.5">
+            <div className="flex items-start gap-2">
+              <Wallet className="h-4 w-4 text-cocoa-700 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-cocoa-900">Quanto entrou</p>
+                <p className="text-xs text-cocoa-700 mt-0.5">
+                  Fica registado no livro de pagamentos. Se a cliente pagou outro valor,
+                  corrige aqui; se o dinheiro ainda não entrou, apaga o valor.
+                </p>
+              </div>
+            </div>
+            <div className="ml-6 grid grid-cols-[1fr_1fr] gap-2">
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-cocoa-700">
+                  €
+                </span>
+                <Input
+                  className={inp + " pl-6"}
+                  type="number"
+                  step={0.01}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="Sem registo"
+                />
+              </div>
+              <Input
+                className={inp}
+                type="date"
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+              />
+            </div>
+            <div className="ml-6">
+              <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
+                <SelectTrigger className={sel + " w-full"}>
+                  <SelectValue labels={PAYMENT_METHOD_LABELS} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {PAYMENT_METHOD_LABELS[m]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-3 space-y-2">
             <div className="flex items-start gap-2">
               <Paperclip className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />

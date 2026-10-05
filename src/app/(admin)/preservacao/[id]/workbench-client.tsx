@@ -26,11 +26,19 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { AlertTriangle, CheckSquare, Trash2 } from "lucide-react";
-import { updateOrderAction, deleteOrderAction } from "../actions";
+import { toast } from "sonner";
+import { updateOrderAction, deleteOrderAction, addOrderPaymentAction } from "../actions";
+import { dueAtPhase } from "@/lib/finance";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type { PartnerOption } from "@/components/partner-combobox";
-import type { Order, OrderPayment, OrderUpdate, PaymentStatus } from "@/types/database";
+import type {
+  Order,
+  OrderPayment,
+  OrderUpdate,
+  PaymentMethod,
+  PaymentStatus,
+} from "@/types/database";
 import type { Task, TaskTemplate } from "@/types/tasks";
 import { Card } from "./_components/layout";
 import {
@@ -129,6 +137,12 @@ export default function WorkbenchClient({
   const [paymentDialog, setPaymentDialog] = useState<null | { newStatus: PaymentStatus }>(null);
   const [dialogNeedsInvoice, setDialogNeedsInvoice] = useState(false);
   const [dialogNif, setDialogNif] = useState("");
+  // Registo do pagamento ao mudar de fase (mig 114): o valor vem
+  // preenchido com o que falta para a fase nova, para não ser preciso
+  // escrevê-lo à mão no caso normal.
+  const [dialogAmount, setDialogAmount] = useState("");
+  const [dialogPaidAt, setDialogPaidAt] = useState("");
+  const [dialogMethod, setDialogMethod] = useState<PaymentMethod>("transferencia");
 
   // Diálogo de "Quadro recebido" — pede data de entrega
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
@@ -373,6 +387,13 @@ export default function WorkbenchClient({
     if (newStatus === "100_pago" || newStatus === "70_pago" || newStatus === "30_pago") {
       setDialogNeedsInvoice(local.needs_invoice);
       setDialogNif(local.nif ?? "");
+      // Quanto falta para fechar a fase nova, sobre o orçamento actual.
+      // É o que a cliente paga na esmagadora maioria das vezes, por isso
+      // é o valor por defeito. Recuar a fase dá 0 e não regista nada.
+      const falta = dueAtPhase(local.budget, newStatus, local.amount_paid);
+      setDialogAmount(falta > 0 ? String(falta) : "");
+      setDialogPaidAt(new Date().toISOString().slice(0, 10));
+      setDialogMethod(local.cash_on_delivery ? "dinheiro" : "transferencia");
       setPaymentDialog({ newStatus });
     } else {
       update("payment_status", newStatus);
@@ -390,6 +411,21 @@ export default function WorkbenchClient({
     pendingRef.current = { ...pendingRef.current, ...updates };
     clearTimeout(timerRef.current);
     setPaymentDialog(null);
+
+    // Registo do pagamento: acção própria, fora da fila do autosave (é
+    // um INSERT noutra tabela, e a fila despacha uma de cada vez).
+    // Valor vazio = a Maria optou por não registar agora.
+    const amount = Number(dialogAmount);
+    if (dialogAmount.trim() && Number.isFinite(amount) && amount !== 0) {
+      void addOrderPaymentAction(local.id, {
+        amount,
+        paid_at: dialogPaidAt,
+        method: dialogMethod,
+      }).then((res) => {
+        if (!res.ok) toast.error("Pagamento não registado: " + res.error);
+        else router.refresh();
+      });
+    }
     flush();
   }
 
@@ -577,6 +613,12 @@ export default function WorkbenchClient({
         setNeedsInvoice={setDialogNeedsInvoice}
         nif={dialogNif}
         setNif={setDialogNif}
+        amount={dialogAmount}
+        setAmount={setDialogAmount}
+        paidAt={dialogPaidAt}
+        setPaidAt={setDialogPaidAt}
+        method={dialogMethod}
+        setMethod={setDialogMethod}
         onClose={() => setPaymentDialog(null)}
         onConfirm={confirmPaymentDialog}
       />
