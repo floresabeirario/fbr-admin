@@ -27,8 +27,14 @@ import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { AlertTriangle, CheckSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { updateOrderAction, deleteOrderAction, addOrderPaymentAction } from "../actions";
+import {
+  updateOrderAction,
+  deleteOrderAction,
+  addOrderPaymentAction,
+  deleteOrderPaymentAction,
+} from "../actions";
 import { dueAtPhase } from "@/lib/finance";
+import { formatEUR } from "@/lib/format";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type { PartnerOption } from "@/components/partner-combobox";
@@ -36,7 +42,6 @@ import type {
   Order,
   OrderPayment,
   OrderUpdate,
-  PaymentMethod,
   PaymentStatus,
 } from "@/types/database";
 import type { Task, TaskTemplate } from "@/types/tasks";
@@ -64,7 +69,6 @@ import {
   MetaFooter,
 } from "./_components/closing-cards";
 import {
-  PaymentChangeDialog,
   ClientEditDialog,
   PaymentReminderDialog,
   DeliveryDateDialog,
@@ -132,17 +136,6 @@ export default function WorkbenchClient({
   // Tentativas de gravação falhadas seguidas — afastam a retentativa
   // (4s, 8s, 16s, depois 30s) para não martelar um servidor em baixo.
   const retryRef = useRef(0);
-
-  // Diálogo de mudança de pagamento (alerta para comprovativo + NIF)
-  const [paymentDialog, setPaymentDialog] = useState<null | { newStatus: PaymentStatus }>(null);
-  const [dialogNeedsInvoice, setDialogNeedsInvoice] = useState(false);
-  const [dialogNif, setDialogNif] = useState("");
-  // Registo do pagamento ao mudar de fase (mig 114): o valor vem
-  // preenchido com o que falta para a fase nova, para não ser preciso
-  // escrevê-lo à mão no caso normal.
-  const [dialogAmount, setDialogAmount] = useState("");
-  const [dialogPaidAt, setDialogPaidAt] = useState("");
-  const [dialogMethod, setDialogMethod] = useState<PaymentMethod>("transferencia");
 
   // Diálogo de "Quadro recebido" — pede data de entrega
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
@@ -382,51 +375,55 @@ export default function WorkbenchClient({
     setDeliveryDialogOpen(false);
   }
 
-  function onPaymentStatusChange(newStatus: PaymentStatus) {
+  // Mudar a fase grava a fase E regista logo o pagamento, sem diálogo
+  // nenhum pelo meio (pedido dela, sessão 178: "dá trabalho; não é
+  // melhor estar automaticamente confirmado e, se eu quiser alterar,
+  // clico no lápis?"). O valor é o que falta para fechar a fase nova,
+  // sobre o orçamento actual, que é o que a cliente paga na esmagadora
+  // maioria das vezes; o lápis na linha do livro corrige os outros.
+  //
+  // O que o diálogo antigo fazia continua a existir noutros sítios: o
+  // lembrete da fatura é o MissingInvoiceAlert do workbench, o NIF tem
+  // campo próprio no cartão Finanças, e a pasta Drive tem botão no hero.
+  //
+  // O toast com "Anular" é a salvaguarda contra um clique errado no
+  // selector — sem custar um passo a quem acertou.
+  async function onPaymentStatusChange(newStatus: PaymentStatus) {
     if (newStatus === local.payment_status) return;
-    if (newStatus === "100_pago" || newStatus === "70_pago" || newStatus === "30_pago") {
-      setDialogNeedsInvoice(local.needs_invoice);
-      setDialogNif(local.nif ?? "");
-      // Quanto falta para fechar a fase nova, sobre o orçamento actual.
-      // É o que a cliente paga na esmagadora maioria das vezes, por isso
-      // é o valor por defeito. Recuar a fase dá 0 e não regista nada.
-      const falta = dueAtPhase(local.budget, newStatus, local.amount_paid);
-      setDialogAmount(falta > 0 ? String(falta) : "");
-      setDialogPaidAt(new Date().toISOString().slice(0, 10));
-      setDialogMethod(local.cash_on_delivery ? "dinheiro" : "transferencia");
-      setPaymentDialog({ newStatus });
-    } else {
-      update("payment_status", newStatus);
-    }
-  }
+    update("payment_status", newStatus);
 
-  function confirmPaymentDialog() {
-    if (!paymentDialog) return;
-    const updates: OrderUpdate = { payment_status: paymentDialog.newStatus };
-    if (dialogNeedsInvoice !== local.needs_invoice) updates.needs_invoice = dialogNeedsInvoice;
-    if (dialogNeedsInvoice && dialogNif.trim() !== (local.nif ?? "").trim()) {
-      updates.nif = dialogNif.trim() || null;
-    }
-    setLocal((prev) => ({ ...prev, ...updates }));
-    pendingRef.current = { ...pendingRef.current, ...updates };
-    clearTimeout(timerRef.current);
-    setPaymentDialog(null);
+    // Recuar a fase (ou já ter o dinheiro todo) dá 0: não regista nada.
+    const falta = dueAtPhase(local.budget, newStatus, local.amount_paid);
+    if (falta <= 0) return;
 
-    // Registo do pagamento: acção própria, fora da fila do autosave (é
-    // um INSERT noutra tabela, e a fila despacha uma de cada vez).
-    // Valor vazio = a Maria optou por não registar agora.
-    const amount = Number(dialogAmount);
-    if (dialogAmount.trim() && Number.isFinite(amount) && amount !== 0) {
-      void addOrderPaymentAction(local.id, {
-        amount,
-        paid_at: dialogPaidAt,
-        method: dialogMethod,
-      }).then((res) => {
-        if (!res.ok) toast.error("Pagamento não registado: " + res.error);
-        else router.refresh();
+    // Gravar a fase ANTES de registar: o INSERT faz router.refresh() e,
+    // sem isto, o servidor devolvia a encomenda com a fase antiga.
+    await flush();
+
+    void addOrderPaymentAction(local.id, {
+      amount: falta,
+      paid_at: new Date().toISOString().slice(0, 10),
+      method: local.cash_on_delivery ? "dinheiro" : "transferencia",
+    }).then((res) => {
+      if (!res.ok) {
+        toast.error("Pagamento não registado: " + res.error);
+        return;
+      }
+      router.refresh();
+      const paymentId = res.data.id;
+      toast.success(`Registado ${formatEUR(falta, { compact: true })}`, {
+        description: "Corrige no lápis se a cliente pagou outro valor.",
+        action: {
+          label: "Anular",
+          onClick: () => {
+            void deleteOrderPaymentAction(paymentId).then((r) => {
+              if (!r.ok) toast.error("Não deu para anular: " + r.error);
+              else router.refresh();
+            });
+          },
+        },
       });
-    }
-    flush();
+    });
   }
 
   // Escolha do parceiro recomendador: aplica partner_id + auto-preenchimento
@@ -605,23 +602,6 @@ export default function WorkbenchClient({
           )}
         </div>
       </div>
-
-      <PaymentChangeDialog
-        dialog={paymentDialog}
-        local={local}
-        needsInvoice={dialogNeedsInvoice}
-        setNeedsInvoice={setDialogNeedsInvoice}
-        nif={dialogNif}
-        setNif={setDialogNif}
-        amount={dialogAmount}
-        setAmount={setDialogAmount}
-        paidAt={dialogPaidAt}
-        setPaidAt={setDialogPaidAt}
-        method={dialogMethod}
-        setMethod={setDialogMethod}
-        onClose={() => setPaymentDialog(null)}
-        onConfirm={confirmPaymentDialog}
-      />
 
       <ClientEditDialog
         dialog={clientEditDialog}

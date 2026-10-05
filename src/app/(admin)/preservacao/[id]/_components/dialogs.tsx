@@ -1,19 +1,20 @@
 "use client";
 
-// Diálogos do workbench: mudança de pagamento, confirmação de edição de
-// campo do cliente, lembretes de pagamento 40%/30%, data de entrega do
-// quadro e arquivar. O ESTADO dos diálogos vive no workbench-client
-// (é aberto pelos handlers de status/pagamento de lá); aqui só está a
-// apresentação. Extraídos do workbench-client.tsx (refactor sessão 128).
+// Diálogos do workbench: confirmação de edição de campo do cliente,
+// lembretes de pagamento 40%/30%, data de entrega do quadro e arquivar.
+// O ESTADO dos diálogos vive no workbench-client (é aberto pelos
+// handlers de lá); aqui só está a apresentação. Extraídos do
+// workbench-client.tsx (refactor sessão 128).
+//
+// O diálogo de mudança de pagamento saiu na sessão 178: mudar a fase
+// passou a registar o pagamento sozinho, e o que ele lembrava vive
+// noutros sítios (MissingInvoiceAlert, campo do NIF no cartão Finanças,
+// botão da pasta Drive no hero).
 
 import {
   Loader2,
-  ExternalLink,
   AlertTriangle,
   Camera,
-  FolderOpen,
-  Paperclip,
-  Receipt,
   Wallet,
   Package,
   Trash2,
@@ -28,20 +29,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { Order, PaymentMethod, PaymentStatus } from "@/types/database";
-import {
-  PAYMENT_METHOD_LABELS,
-  PAYMENT_STATUS_LABELS,
-  SIM_NAO_LABELS,
-} from "@/types/database";
-import { inp, sel } from "./layout";
+import type { Order } from "@/types/database";
+import { inp } from "./layout";
 
 /** Pedido de confirmação ao alterar um campo preenchido pelo cliente. */
 export type ClientEditRequest = {
@@ -50,186 +39,6 @@ export type ClientEditRequest = {
   newDisplay: string;
   apply: () => void;
 };
-
-/* ── Diálogo de mudança de pagamento (comprovativo + NIF) ─────── */
-export function PaymentChangeDialog({
-  dialog,
-  local,
-  needsInvoice,
-  setNeedsInvoice,
-  nif,
-  setNif,
-  amount,
-  setAmount,
-  paidAt,
-  setPaidAt,
-  method,
-  setMethod,
-  onClose,
-  onConfirm,
-}: {
-  dialog: null | { newStatus: PaymentStatus };
-  local: Order;
-  needsInvoice: boolean;
-  setNeedsInvoice: (v: boolean) => void;
-  nif: string;
-  setNif: (v: string) => void;
-  /** Valor a registar no livro, já preenchido com o que falta para esta fase. */
-  amount: string;
-  setAmount: (v: string) => void;
-  paidAt: string;
-  setPaidAt: (v: string) => void;
-  method: PaymentMethod;
-  setMethod: (v: PaymentMethod) => void;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog open={!!dialog} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-cocoa-900">
-            <Receipt className="h-4 w-4 text-emerald-600" />
-            Pagamento atualizado
-          </DialogTitle>
-          <DialogDescription className="text-cocoa-700">
-            Vais marcar este pagamento como{" "}
-            <strong className="text-cocoa-900">
-              {dialog ? PAYMENT_STATUS_LABELS[dialog.newStatus] : ""}
-            </strong>
-            . Antes de confirmar, vê estas duas coisas:
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          {/* Registo do pagamento no livro (mig 114). O valor vem
-              preenchido com o que falta para esta fase, calculado sobre o
-              orçamento actual: é o que a cliente paga na esmagadora
-              maioria dos casos. Apagar o valor salta o registo, para os
-              casos em que o dinheiro ainda não entrou ou já foi
-              registado à mão. */}
-          <div className="rounded-lg border border-cream-200 bg-cream-50/60 px-3 py-3 space-y-2.5">
-            <div className="flex items-start gap-2">
-              <Wallet className="h-4 w-4 text-cocoa-700 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-cocoa-900">Quanto entrou</p>
-                <p className="text-xs text-cocoa-700 mt-0.5">
-                  Fica registado no livro de pagamentos. Se a cliente pagou outro valor,
-                  corrige aqui; se o dinheiro ainda não entrou, apaga o valor.
-                </p>
-              </div>
-            </div>
-            <div className="ml-6 grid grid-cols-[1fr_1fr] gap-2">
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-cocoa-700">
-                  €
-                </span>
-                <Input
-                  className={inp + " pl-6"}
-                  type="number"
-                  step={0.01}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Sem registo"
-                />
-              </div>
-              <Input
-                className={inp}
-                type="date"
-                value={paidAt}
-                onChange={(e) => setPaidAt(e.target.value)}
-              />
-            </div>
-            <div className="ml-6">
-              <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
-                <SelectTrigger className={sel + " w-full"}>
-                  <SelectValue labels={PAYMENT_METHOD_LABELS} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {PAYMENT_METHOD_LABELS[m]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-3 space-y-2">
-            <div className="flex items-start gap-2">
-              <Paperclip className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-              <div className="flex-1 text-sm text-cocoa-900">
-                <p className="font-medium">Anexa o comprovativo à pasta Drive</p>
-                <p className="text-xs text-cocoa-700 mt-0.5">
-                  Guarda o screenshot/PDF da transferência na pasta desta encomenda.
-                </p>
-              </div>
-            </div>
-            {local.drive_folder_url ? (
-              <a
-                href={local.drive_folder_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-6 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline"
-              >
-                <FolderOpen className="h-3 w-3" />
-                Abrir pasta Drive
-                <ExternalLink className="h-3 w-3 opacity-60" />
-              </a>
-            ) : (
-              <p className="ml-6 text-[11px] text-amber-700 italic">
-                Esta encomenda ainda não tem pasta Drive associada.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-cocoa-700">O cliente pediu fatura com NIF?</Label>
-            <div className="flex gap-2 items-stretch">
-              <Select
-                value={needsInvoice ? "sim" : "nao"}
-                onValueChange={(v) => setNeedsInvoice(v === "sim")}
-              >
-                <SelectTrigger className={`${sel} ${needsInvoice ? "shrink-0 w-24" : "flex-1"}`}>
-                  <SelectValue labels={SIM_NAO_LABELS} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sim">Sim</SelectItem>
-                  <SelectItem value="nao">Não</SelectItem>
-                </SelectContent>
-              </Select>
-              {needsInvoice && (
-                <Input
-                  className={inp + " flex-1 min-w-0"}
-                  value={nif}
-                  onChange={(e) => setNif(e.target.value)}
-                  placeholder="NIF (9 dígitos)"
-                  autoFocus
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2 sm:gap-0">
-          <button
-            onClick={onClose}
-            className="h-9 px-4 rounded-lg border border-cream-200 bg-surface text-sm text-cocoa-900 hover:bg-cream-50 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            className="h-9 px-4 rounded-lg bg-btn-primary text-sm text-btn-primary-fg font-medium hover:bg-btn-primary-hover transition-colors"
-          >
-            Confirmar
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* ── Diálogo de confirmação de edição de campo do cliente ─────── */
 export function ClientEditDialog({
