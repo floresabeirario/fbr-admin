@@ -107,20 +107,26 @@ export function FinanceCard({
         {/* Pagamento em dinheiro à entrega — marcador interno. A
             explicação foi para um tooltip (ⓘ) para poupar espaço; o
             link público funciona sem pagamento registado a partir do
-            momento em que a encomenda fica agendada (ver mig 076). */}
-        <div className="flex items-center gap-1.5">
-          <CheckRow
-            label="Pagamento em dinheiro à entrega"
-            checked={local.cash_on_delivery}
-            onChange={(v) => update("cash_on_delivery", v)}
-          />
-          <span
-            title="O cliente paga em mão ao entregar as flores. O link de acompanhamento já funciona assim que a encomenda fica agendada — não é preciso registar pagamento."
-            className="cursor-help text-cocoa-400 shrink-0"
-          >
-            <Info className="h-3.5 w-3.5" />
-          </span>
-        </div>
+            momento em que a encomenda fica agendada (ver mig 076).
+            Some quando já não falta receber nada: aí o método de cada
+            parcela está no livro e isto passa a ser ruído. NÃO some ao
+            primeiro pagamento, porque o caso normal é o sinal vir por
+            transferência e só o resto ser em mão. */}
+        {falta > 0 && (
+          <div className="flex items-center gap-1.5">
+            <CheckRow
+              label="Pagamento em dinheiro à entrega"
+              checked={local.cash_on_delivery}
+              onChange={(v) => update("cash_on_delivery", v)}
+            />
+            <span
+              title="O cliente paga em mão ao entregar as flores. O link de acompanhamento já funciona assim que a encomenda fica agendada — não é preciso registar pagamento."
+              className="cursor-help text-cocoa-400 shrink-0"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </span>
+          </div>
+        )}
 
         {/* Livro de pagamentos: o que entrou, o que falta, e o registo
             de cada parcela (mig 114). */}

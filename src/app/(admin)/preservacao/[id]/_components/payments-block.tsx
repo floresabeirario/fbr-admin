@@ -14,7 +14,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, Loader2, Pencil, X, Info } from "lucide-react";
+import {
+  Plus,
+  Save,
+  Trash2,
+  Loader2,
+  Pencil,
+  X,
+  Info,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Gift,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +52,15 @@ import {
 import { inp, sel } from "./layout";
 
 const hoje = () => new Date().toISOString().slice(0, 10);
+
+// Ícone por método, para se ver à vista se entrou em dinheiro ou não.
+const METHOD_ICONS: Record<PaymentMethod, LucideIcon> = {
+  transferencia: CreditCard,
+  mbway: Smartphone,
+  dinheiro: Banknote,
+  vale: Gift,
+  outro: Wallet,
+};
 
 type Draft = {
   amount: string;
@@ -171,8 +194,23 @@ export function PaymentsBlock({
               <span className="w-[72px] shrink-0 text-[11px] tabular-nums text-cocoa-600">
                 {formatDatePT(p.paid_at)}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-cocoa-600">
-                {PAYMENT_METHOD_LABELS[p.method]}
+              <span className="flex min-w-0 flex-1 items-center gap-1 text-[11px] text-cocoa-600">
+                {(() => {
+                  const Icon = METHOD_ICONS[p.method];
+                  return (
+                    <Icon
+                      className={`h-3.5 w-3.5 shrink-0 ${
+                        p.method === "dinheiro" ? "text-emerald-600" : "text-cocoa-500"
+                      }`}
+                      aria-label={PAYMENT_METHOD_LABELS[p.method]}
+                    />
+                  );
+                })()}
+                {/* O nome do método só em desktop: no telemóvel o ícone
+                    chega e a linha não parte. */}
+                <span className="hidden truncate sm:inline">
+                  {PAYMENT_METHOD_LABELS[p.method]}
+                </span>
                 {p.is_estimated && (
                   <span
                     title={
