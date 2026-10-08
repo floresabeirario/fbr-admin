@@ -36,6 +36,7 @@ import {
   IDEA_STATUS_COLORS,
 } from "@/types/idea";
 import { createIdeaAction, updateIdeaAction, archiveIdeaAction } from "./actions";
+import { foldSearch } from "@/lib/search-text";
 
 type GroupBy = "importance" | "theme" | "status";
 
@@ -54,15 +55,15 @@ export default function IdeiasClient({
   const [showCompleted, setShowCompleted] = useState(false);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     return initialIdeas.filter((i) => {
       if (!showCompleted && (i.status === "concluida" || i.status === "rejeitada")) {
         return false;
       }
       if (!q) return true;
       return (
-        i.title.toLowerCase().includes(q) ||
-        (i.description ?? "").toLowerCase().includes(q)
+        foldSearch(i.title).includes(q) ||
+        foldSearch(i.description).includes(q)
       );
     });
   }, [initialIdeas, showCompleted, search]);

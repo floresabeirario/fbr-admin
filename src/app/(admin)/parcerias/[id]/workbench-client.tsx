@@ -223,7 +223,7 @@ export default function PartnerWorkbenchClient({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto">
+      <div data-scroll-restore="workbench" className="flex-1 overflow-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4">
           {/* ── ESQUERDA: comunicações + histórico + acções ─ */}
           <aside className="lg:col-span-4 space-y-4">

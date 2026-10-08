@@ -66,6 +66,7 @@ import { updatePartnerAction } from "./actions";
 import NovoParceiroSheet from "./novo-parceiro-sheet";
 import PortugalMap from "./portugal-map";
 import CommissionsView from "./commissions-view";
+import { useSessionSearch } from "@/hooks/use-session-search";
 
 // ── Utilitários ──────────────────────────────────────────────
 
@@ -428,7 +429,8 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
   const activeCategory = parceriasView.activeCategory;
   const viewMode = parceriasView.viewMode;
   const setViewMode = (v: ViewMode) => updateParceriasStorage({ viewMode: v });
-  const [search, setSearch] = useState("");
+  // Fica guardada ao abrir uma ficha e voltar atrás (sessionStorage).
+  const [search, setSearch] = useSessionSearch("parcerias");
   // Grupos vazios começam colapsados por default (o utilizador pode abrir).
   // "rejeitado" também começa colapsado mesmo quando tem parceiros: é o
   // fim-de-linha desta vista — só interessa quando especificamente
@@ -645,7 +647,7 @@ export default function ParceriasClient({ initialPartners, ordersCount, vouchers
       )}
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
+      <div data-scroll-restore="parcerias-lista" className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
         {initialPartners.length === 0 ? (
           <EmptyState category={activeCategory} onCreate={() => setSheetOpen(true)} />
         ) : viewMode === "tabela" ? (

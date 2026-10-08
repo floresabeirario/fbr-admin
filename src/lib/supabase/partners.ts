@@ -4,6 +4,7 @@ import type {
   PartnerStatus,
 } from "@/types/partner";
 import { PARTNER_STATUS_ORDER } from "@/types/partner";
+import { foldSearch } from "@/lib/search-text";
 
 // ── Ordenação ────────────────────────────────────────────────
 
@@ -78,19 +79,19 @@ export function partnerStats(partners: Partner[]) {
 // ── Procura ──────────────────────────────────────────────────
 
 export function searchPartners(partners: Partner[], query: string): Partner[] {
-  const q = query.trim().toLowerCase();
+  const q = foldSearch(query);
   if (!q) return partners;
   return partners.filter((p) => {
     return (
-      p.name.toLowerCase().includes(q) ||
-      (p.contact_person?.toLowerCase().includes(q) ?? false) ||
-      (p.email?.toLowerCase().includes(q) ?? false) ||
-      (p.location_label?.toLowerCase().includes(q) ?? false) ||
-      (p.notes?.toLowerCase().includes(q) ?? false) ||
+      foldSearch(p.name).includes(q) ||
+      foldSearch(p.contact_person).includes(q) ||
+      foldSearch(p.email).includes(q) ||
+      foldSearch(p.location_label).includes(q) ||
+      foldSearch(p.notes).includes(q) ||
       p.phones.some(
         (ph) =>
-          ph.number.toLowerCase().includes(q) ||
-          (ph.label?.toLowerCase().includes(q) ?? false)
+          foldSearch(ph.number).includes(q) ||
+          foldSearch(ph.label).includes(q)
       )
     );
   });

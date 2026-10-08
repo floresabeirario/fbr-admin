@@ -29,6 +29,7 @@ import {
   updateCompetitorAction,
   archiveCompetitorAction,
 } from "../actions";
+import { foldSearch } from "@/lib/search-text";
 
 export function CompeticaoTab({
   competitors,
@@ -42,12 +43,12 @@ export function CompeticaoTab({
 
   const filtered = useMemo(() => {
     if (!search.trim()) return competitors;
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     return competitors.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.location_label ?? "").toLowerCase().includes(q) ||
-        c.websites.some((w) => w.toLowerCase().includes(q)),
+        foldSearch(c.name).includes(q) ||
+        foldSearch(c.location_label).includes(q) ||
+        c.websites.some((w) => foldSearch(w).includes(q)),
     );
   }, [competitors, search]);
 

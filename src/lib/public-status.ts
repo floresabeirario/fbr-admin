@@ -191,6 +191,20 @@ export function getPublicPhase(status: OrderStatus): PublicPhase {
   return STATUS_TO_PUBLIC_PHASE[status];
 }
 
+/**
+ * A mudança de estado leva a encomenda para outra fase pública? Nesse caso
+ * o texto personalizado da fase antiga deixa de fazer sentido e volta-se
+ * ao texto por defeito da fase nova. Dentro da mesma fase pública (há
+ * estados internos que partilham fase) o texto personalizado mantém-se.
+ */
+export function publicPhaseChanges(
+  prevStatus: OrderStatus | null | undefined,
+  nextStatus: OrderStatus | null | undefined,
+): boolean {
+  if (!prevStatus || !nextStatus || prevStatus === nextStatus) return false;
+  return STATUS_TO_PUBLIC_PHASE[prevStatus] !== STATUS_TO_PUBLIC_PHASE[nextStatus];
+}
+
 export function getPublicLabel(phase: PublicPhase, lang: "pt" | "en"): string {
   return lang === "pt" ? PUBLIC_PHASE_LABEL_PT[phase] : PUBLIC_PHASE_LABEL_EN[phase];
 }

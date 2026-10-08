@@ -34,6 +34,7 @@ import {
   RECIPE_DIFFICULTY_ORDER,
 } from "@/types/recipe";
 import { createRecipeAction } from "./actions";
+import { foldSearch } from "@/lib/search-text";
 
 export default function LivroReceitasClient({
   initialRecipes,
@@ -50,14 +51,14 @@ export default function LivroReceitasClient({
   const [pending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     return initialRecipes.filter((r) => {
       if (difficulty !== "todas" && r.difficulty !== difficulty) return false;
       if (!q) return true;
       return (
-        r.flower_name.toLowerCase().includes(q) ||
-        (r.scientific_name ?? "").toLowerCase().includes(q) ||
-        (r.intro ?? "").toLowerCase().includes(q)
+        foldSearch(r.flower_name).includes(q) ||
+        foldSearch(r.scientific_name).includes(q) ||
+        foldSearch(r.intro).includes(q)
       );
     });
   }, [initialRecipes, search, difficulty]);

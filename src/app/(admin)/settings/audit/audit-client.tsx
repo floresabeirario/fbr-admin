@@ -33,6 +33,7 @@ import {
   AUDIT_ACTION_COLORS,
   diffValues,
 } from "@/types/audit";
+import { foldSearch } from "@/lib/search-text";
 
 const ACTION_ICONS: Record<AuditAction, React.ComponentType<{ className?: string }>> = {
   INSERT: Plus,
@@ -87,13 +88,13 @@ export default function AuditClient({
   }
 
   const filteredEntries = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     if (!q) return entries;
     return entries.filter(
       (e) =>
-        (e.changed_by_email ?? "").toLowerCase().includes(q) ||
-        e.record_id.toLowerCase().includes(q) ||
-        e.table_name.toLowerCase().includes(q),
+        foldSearch(e.changed_by_email).includes(q) ||
+        foldSearch(e.record_id).includes(q) ||
+        foldSearch(e.table_name).includes(q),
     );
   }, [entries, search]);
 

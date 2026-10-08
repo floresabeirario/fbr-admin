@@ -34,6 +34,7 @@ import { StaleDataBanner } from "@/components/stale-data-banner";
 import { ErrorReporter } from "@/components/error-reporter";
 import { PushToggle } from "@/components/push-toggle";
 import { startNavigationProgress } from "@/components/navigation-progress";
+import { ScrollRestoration } from "@/components/scroll-restoration";
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -595,7 +596,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main */}
-      <main className="flex-1 min-w-0 h-full overflow-auto">
+      <main id="admin-main" className="flex-1 min-w-0 h-full overflow-auto">
+        <ScrollRestoration containerId="admin-main" />
         {children}
       </main>
 

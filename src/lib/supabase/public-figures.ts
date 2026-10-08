@@ -1,5 +1,6 @@
 import type { PublicFigure, FigureStatus } from "@/types/public-figure";
 import { FIGURE_STATUS_ORDER } from "@/types/public-figure";
+import { foldSearch } from "@/lib/search-text";
 
 // ── Ordenação ────────────────────────────────────────────────
 // Prioridade primeiro (alta → baixa), depois nome.
@@ -44,23 +45,23 @@ export function groupFiguresByStatus(figures: PublicFigure[]): FiguresGroupedByS
 // ── Procura ──────────────────────────────────────────────────
 
 export function searchFigures(figures: PublicFigure[], query: string): PublicFigure[] {
-  const q = query.trim().toLowerCase();
+  const q = foldSearch(query);
   if (!q) return figures;
   return figures.filter((f) => {
     return (
-      f.name.toLowerCase().includes(q) ||
-      (f.partner_name?.toLowerCase().includes(q) ?? false) ||
-      (f.instagram_handle?.toLowerCase().includes(q) ?? false) ||
-      (f.partner_instagram?.toLowerCase().includes(q) ?? false) ||
-      (f.tiktok_handle?.toLowerCase().includes(q) ?? false) ||
-      (f.email?.toLowerCase().includes(q) ?? false) ||
-      (f.agency_name?.toLowerCase().includes(q) ?? false) ||
-      (f.notes?.toLowerCase().includes(q) ?? false) ||
-      f.tags.some((t) => t.toLowerCase().includes(q)) ||
+      foldSearch(f.name).includes(q) ||
+      foldSearch(f.partner_name).includes(q) ||
+      foldSearch(f.instagram_handle).includes(q) ||
+      foldSearch(f.partner_instagram).includes(q) ||
+      foldSearch(f.tiktok_handle).includes(q) ||
+      foldSearch(f.email).includes(q) ||
+      foldSearch(f.agency_name).includes(q) ||
+      foldSearch(f.notes).includes(q) ||
+      f.tags.some((t) => foldSearch(t).includes(q)) ||
       f.phones.some(
         (ph) =>
-          ph.number.toLowerCase().includes(q) ||
-          (ph.label?.toLowerCase().includes(q) ?? false),
+          foldSearch(ph.number).includes(q) ||
+          foldSearch(ph.label).includes(q),
       )
     );
   });

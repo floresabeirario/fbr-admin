@@ -141,6 +141,9 @@ import {
 } from "./_styles";
 import CalendarView from "./calendar-view";
 import TimelineView from "./timeline-view";
+import { foldSearch, matchesSearch } from "@/lib/search-text";
+import { parsePhoneQuery, phoneMatches } from "@/lib/phone-search";
+import { useSessionSearch } from "@/hooks/use-session-search";
 
 // ── Formatação ────────────────────────────────────────────────
 
@@ -949,7 +952,8 @@ export default function PreservacaoClient({
   partnerNameById,
 }: Props) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  // Fica guardada ao abrir uma ficha e voltar atrás (sessionStorage).
+  const [search, setSearch] = useSessionSearch("preservacao");
   // Grupos vazios começam colapsados por default; o utilizador pode abrir.
   // "Concluídos" e "Cancelamentos" começam SEMPRE colapsados (mesmo com
   // encomendas dentro) — são grupos de fim-de-linha, raramente precisam
@@ -1143,13 +1147,15 @@ export default function PreservacaoClient({
 
   const activeFiltersCount = countActiveFilters(filters);
 
-  const searchedOrders = search.trim()
+  // Pesquisa: nome, noivos, ID, email, local (sem acentos) e telemóvel
+  // (só dígitos, como na pesquisa global: "+351 910 843 885" = "910843885").
+  const searchTerm = foldSearch(search);
+  const searchPhone = parsePhoneQuery(search);
+  const searchedOrders = searchTerm
     ? ordersWithOptimistic.filter(
         (o) =>
-          o.client_name.toLowerCase().includes(search.toLowerCase()) ||
-          o.order_id.toLowerCase().includes(search.toLowerCase()) ||
-          o.email?.toLowerCase().includes(search.toLowerCase()) ||
-          o.event_location?.toLowerCase().includes(search.toLowerCase())
+          matchesSearch(searchTerm, o.client_name, o.couple_names, o.order_id, o.email, o.event_location) ||
+          (searchPhone !== null && phoneMatches(o.phone, searchPhone))
       )
     : ordersWithOptimistic;
   const baseFiltered = activeFiltersCount > 0
@@ -1428,7 +1434,7 @@ export default function PreservacaoClient({
       )}
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto p-3 sm:p-6">
+      <div data-scroll-restore="preservacao-lista" className="flex-1 overflow-auto p-3 sm:p-6">
         {/* Abas de tipo de serviço + botão de ordenação da vista Cards.
             Na vista Tabela as abas NÃO aparecem aqui: vão dentro da ViewsBar,
             na mesma linha que Vista/Filtros/Colunas, para não haver duas

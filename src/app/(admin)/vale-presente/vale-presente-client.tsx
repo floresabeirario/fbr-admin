@@ -53,6 +53,8 @@ import {
   restoreVoucherAction,
   hardDeleteVoucherAction,
 } from "./actions";
+import { foldSearch } from "@/lib/search-text";
+import { useSessionSearch } from "@/hooks/use-session-search";
 
 // ── Formatação ────────────────────────────────────────────────
 
@@ -434,7 +436,8 @@ interface Props {
 
 export default function ValePresenteClient({ initialVouchers, initialGrouped, archivedVouchers, canEdit, minAmount }: Props) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  // Fica guardada ao abrir uma ficha e voltar atrás (sessionStorage).
+  const [search, setSearch] = useSessionSearch("vale-presente");
   // Grupos vazios começam colapsados por default; o utilizador pode abrir.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const empty = new Set<string>();
@@ -450,10 +453,10 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
   const filtered = search.trim()
     ? initialVouchers.filter(
         (v) =>
-          v.sender_name.toLowerCase().includes(search.toLowerCase()) ||
-          v.recipient_name.toLowerCase().includes(search.toLowerCase()) ||
-          v.code.toLowerCase().includes(search.toLowerCase()) ||
-          v.sender_email?.toLowerCase().includes(search.toLowerCase())
+          foldSearch(v.sender_name).includes(foldSearch(search)) ||
+          foldSearch(v.recipient_name).includes(foldSearch(search)) ||
+          foldSearch(v.code).includes(foldSearch(search)) ||
+          foldSearch(v.sender_email).includes(foldSearch(search))
       )
     : initialVouchers;
 
@@ -604,7 +607,7 @@ export default function ValePresenteClient({ initialVouchers, initialGrouped, ar
       )}
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
+      <div data-scroll-restore="vale-lista" className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
         {showArchived ? (
           <ArchivedVouchersView vouchers={archivedVouchers} onOpen={openVoucher} />
         ) : initialVouchers.length === 0 ? (

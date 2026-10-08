@@ -23,7 +23,12 @@ export default async function DashboardPage() {
 
   const orders: Order[] = hydrationSafeDeep((ordersRes.data ?? []) as Order[]);
   const vouchers: Voucher[] = hydrationSafeDeep((vouchersRes.data ?? []) as Voucher[]);
-  const tasks: Task[] = hydrationSafeDeep((tasksRes.data ?? []) as Task[]);
+  // Tarefas abertas de encomendas canceladas não aparecem (as novas já
+  // fecham sozinhas ao cancelar; isto apanha as que ficaram de antes).
+  const cancelledOrderIds = new Set(orders.filter((o) => o.status === "cancelado").map((o) => o.id));
+  const tasks: Task[] = hydrationSafeDeep((tasksRes.data ?? []) as Task[]).filter(
+    (t) => t.done || !t.order_id || !cancelledOrderIds.has(t.order_id),
+  );
 
   const pickups = getUpcomingPickups(orders);
   const alerts = getDashboardAlerts(orders, vouchers);

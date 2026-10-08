@@ -65,6 +65,7 @@ import {
   updateSystemSettingAction,
   updateTemplateAction,
 } from "./actions";
+import { foldSearch } from "@/lib/search-text";
 
 const STATUS_KEYS = Object.keys(STATUS_LABELS) as OrderStatus[];
 
@@ -100,14 +101,14 @@ export default function TemplatesClient({
   const [createInitial, setCreateInitial] = useState<Partial<MessageTemplate> | null>(null);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     return templates
       .filter((t) => (showArchived ? t.deleted_at !== null : t.deleted_at === null))
       .filter((t) => (filterLang === "all" ? true : t.language === filterLang))
       .filter((t) => (filterCategory === "all" ? true : t.category === filterCategory))
       .filter((t) =>
         q
-          ? t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)
+          ? foldSearch(t.name).includes(q) || foldSearch(t.body).includes(q)
           : true,
       );
   }, [templates, search, filterLang, filterCategory, showArchived]);

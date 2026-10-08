@@ -44,6 +44,7 @@ import {
 } from "@/lib/public-status";
 import { PublicStatusMessageDialog } from "@/components/public-status-message-dialog";
 import { updateOrderPublicStatusAction } from "./actions";
+import { foldSearch } from "@/lib/search-text";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -89,17 +90,17 @@ export default function StatusClient({
   const [editing, setEditing] = useState<Order | null>(null);
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = foldSearch(search);
     const list = initialOrders.filter((o) => {
       const phase = STATUS_TO_PUBLIC_PHASE[o.status];
       if (hideArchived && (phase === 12 || phase === "cancelada")) return false;
       if (phaseFilter !== "todas" && phase !== phaseFilter) return false;
       if (!term) return true;
       return (
-        o.client_name.toLowerCase().includes(term) ||
-        (o.couple_names ?? "").toLowerCase().includes(term) ||
-        o.order_id.toLowerCase().includes(term) ||
-        (o.email ?? "").toLowerCase().includes(term)
+        foldSearch(o.client_name).includes(term) ||
+        foldSearch(o.couple_names).includes(term) ||
+        foldSearch(o.order_id).includes(term) ||
+        foldSearch(o.email).includes(term)
       );
     });
     // Ordena por data do evento ascendente — mais próxima primeiro; sem data fica no fim.

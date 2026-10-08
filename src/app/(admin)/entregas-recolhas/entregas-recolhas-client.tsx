@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import type { Order, OrderStatus } from "@/types/database";
 import { EVENT_TYPE_LABELS } from "@/types/database";
 import LogisticsMap, { type MapMarker } from "./logistics-map";
+import { foldSearch } from "@/lib/search-text";
 
 type LogisticsKind = "recolha_evento" | "envio_ctt_flores" | "envio_ctt_quadro";
 
@@ -208,14 +209,14 @@ export default function EntregasRecolhasClient({ orders }: { orders: Order[] }) 
   );
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     return allItems.filter((i) => {
       if (kindFilter !== "todas" && i.kind !== kindFilter) return false;
       if (!q) return true;
       return (
-        i.order.client_name.toLowerCase().includes(q) ||
-        i.location.toLowerCase().includes(q) ||
-        i.order.order_id.toLowerCase().includes(q)
+        foldSearch(i.order.client_name).includes(q) ||
+        foldSearch(i.location).includes(q) ||
+        foldSearch(i.order.order_id).includes(q)
       );
     });
   }, [allItems, kindFilter, search]);

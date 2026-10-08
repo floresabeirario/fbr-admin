@@ -236,7 +236,7 @@ export default function FiguraWorkbenchClient({ figure: initial, costBySize, ord
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto">
+      <div data-scroll-restore="workbench" className="flex-1 overflow-auto">
         {/* Alertas */}
         {(eventSoon || staleContact) && (
           <div className="px-4 pt-4 space-y-2">

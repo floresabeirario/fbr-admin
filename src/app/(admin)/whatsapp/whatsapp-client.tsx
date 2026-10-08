@@ -50,6 +50,7 @@ import {
   setConversationCategoryAction,
   saveWhatsappLabelsAction,
 } from "./actions";
+import { foldSearch } from "@/lib/search-text";
 
 type OrderLite = {
   id: string;
@@ -555,7 +556,7 @@ export default function WhatsappClient({ initialConversations, initialLabels, or
   }, [supabase]);
 
   const filteredConvs = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = foldSearch(search);
     return conversations
       .filter((c) => c.archived === showArchived)
       .filter((c) => {
@@ -569,10 +570,10 @@ export default function WhatsappClient({ initialConversations, initialLabels, or
       .filter((c) => {
         if (!term) return true;
         return (
-          (c.contact_name?.toLowerCase().includes(term) ?? false) ||
+          foldSearch(c.contact_name).includes(term) ||
           c.phone_e164.includes(term) ||
           (c.display_phone?.includes(term) ?? false) ||
-          (c.last_message_preview?.toLowerCase().includes(term) ?? false)
+          foldSearch(c.last_message_preview).includes(term)
         );
       })
       .sort(sortByLastMessage);
@@ -804,9 +805,9 @@ function ConversationViewer({
 
   // Filtro de mensagens por termo de pesquisa
   const visibleMessages = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = foldSearch(searchTerm);
     if (!term) return messages;
-    return messages.filter((m) => (m.text ?? "").toLowerCase().includes(term));
+    return messages.filter((m) => foldSearch(m.text).includes(term));
   }, [messages, searchTerm]);
 
   const linkedOrders = useMemo(() =>

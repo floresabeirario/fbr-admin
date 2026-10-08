@@ -52,6 +52,7 @@ import type { Order } from "@/types/database";
 import { phoneToWaMe } from "@/lib/format-phone";
 import { boldForWhatsapp } from "@/lib/rich-text";
 import { buildMailtoHref } from "@/lib/mailto";
+import { foldSearch } from "@/lib/search-text";
 
 const SETTING_DEFAULTS: SystemSettingsMap = {
   payment_account_holder: "",
@@ -185,10 +186,10 @@ export default function TemplatePicker(props: PickerProps) {
   // Pesquisa: filtra por nome e conteúdo, mantendo a separação
   // sugeridos / restantes.
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     if (!q) return ranked;
     const matches = (t: MessageTemplate) =>
-      t.name.toLowerCase().includes(q) || t.body.toLowerCase().includes(q);
+      foldSearch(t.name).includes(q) || foldSearch(t.body).includes(q);
     return {
       suggested: ranked.suggested.filter(matches),
       others: ranked.others.filter(matches),

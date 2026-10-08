@@ -410,7 +410,7 @@ export default function VoucherWorkbenchClient({
       )}
 
       <fieldset disabled={!canEdit} className="contents">
-        <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6">
+        <div data-scroll-restore="workbench" className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6">
           <div className="max-w-7xl mx-auto space-y-4">
             {/* ── HERO full-width — protagonista visual do vale ── */}
             <Hero

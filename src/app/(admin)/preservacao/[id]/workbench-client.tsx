@@ -468,7 +468,7 @@ export default function WorkbenchClient({
           card recebe um `order-N` em mobile (e `lg:order-none` em desktop)
           para a Maria conseguir reordenar Finanças → Comunicações → Envio
           → Flores independentemente da coluna em que vivem em desktop. */}
-      <div className="flex-1 overflow-auto">
+      <div data-scroll-restore="workbench" className="flex-1 overflow-auto">
         <div className="max-w-[1400px] mx-auto p-2 sm:p-4 lg:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
 

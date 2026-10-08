@@ -421,7 +421,7 @@ export default function FigurasClient({ initialFigures }: Props) {
       </div>
 
       {/* Conteúdo */}
-      <div className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
+      <div data-scroll-restore="figuras-lista" className="flex-1 overflow-auto px-3 sm:px-6 py-3 sm:py-6 space-y-4">
         {initialFigures.length === 0 ? (
           <EmptyState onCreate={() => setSheetOpen(true)} />
         ) : (

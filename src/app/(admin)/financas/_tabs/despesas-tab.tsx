@@ -61,6 +61,7 @@ import {
   changeSubscriptionAmountFromAction,
 } from "../actions";
 import { KpiBox } from "./shared";
+import { foldSearch } from "@/lib/search-text";
 
 type DespesasSubTab = "unicas" | "subscricoes";
 
@@ -264,15 +265,15 @@ function DespesasUnicas({
   });
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = foldSearch(search);
     return expenses.filter((e) => {
       if (categoryFilter !== "todas" && e.category !== categoryFilter) return false;
       if (yearFilter !== "todos" && !e.expense_date.startsWith(yearFilter)) return false;
       if (!q) return true;
       return (
-        (e.description ?? "").toLowerCase().includes(q) ||
-        (e.supplier ?? "").toLowerCase().includes(q) ||
-        (e.notes ?? "").toLowerCase().includes(q)
+        foldSearch(e.description).includes(q) ||
+        foldSearch(e.supplier).includes(q) ||
+        foldSearch(e.notes).includes(q)
       );
     });
   }, [expenses, search, categoryFilter, yearFilter]);

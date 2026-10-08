@@ -39,6 +39,7 @@ import type {
   PaymentStatus,
 } from "@/types/database";
 import { isPreservacaoDesignStatus } from "@/types/database";
+import { publicPhaseChanges } from "@/lib/public-status";
 import {
   detectTriggeredMoments,
   dueDateFromOffset,
@@ -413,6 +414,9 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   // (ex.: entrar em "Quadro recebido" → lembrete de pedir opinião). Cada
   // um gera 1 tarefa-lembrete após o UPDATE.
   let triggeredMoments: CommsMoment[] = [];
+  // Encomenda acabou de ser cancelada → as tarefas dela que estavam abertas
+  // (faturas, cadência, lembretes) fecham sozinhas.
+  let closeOrderTasks = false;
   let prevCommsDone: string[] = [];
 
   if (needsPrev) {
@@ -610,6 +614,20 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         updates.payment_status ?? (prev.payment_status as Order["payment_status"]);
       const nextStatus = updates.status ?? (prev.status as Order["status"]);
 
+      // Texto do status público: se o estado muda de fase pública, o texto
+      // personalizado era da fase antiga e o cliente continuaria a lê-lo.
+      // Volta ao texto por defeito da fase nova (o null é o "usar o default").
+      if (
+        publicPhaseChanges(prev.status as OrderStatus | null, updates.status) &&
+        updates.public_status_message_pt === undefined &&
+        updates.public_status_message_en === undefined
+      ) {
+        updates.public_status_message_pt = null;
+        updates.public_status_message_en = null;
+      }
+
+      closeOrderTasks = statusBecomesCancelled(prev.status as Order["status"], updates.status);
+
       if (statusBecomesCancelled(prev.status as Order["status"], updates.status) && prev.calendar_event_id) {
         calendarAction = "delete";
       } else if (
@@ -735,6 +753,24 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
           `[updateOrderAction] Fase de pagamento gravada em ${id} mas o registo no livro falhou: ${payErr.message}`,
         );
       }
+    }
+  }
+
+  // Cancelada: fecha as tarefas abertas ligadas a esta encomenda, para não
+  // ficarem a ocupar o Dashboard. Silencioso em falha — o cancelamento já
+  // está gravado e as tarefas podem sempre fechar-se à mão.
+  if (closeOrderTasks) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error: closeErr } = await supabase
+      .from("tasks")
+      .update({ done: true, done_at: new Date().toISOString(), done_by: user?.id ?? null })
+      .eq("order_id", id)
+      .eq("done", false)
+      .is("deleted_at", null);
+    if (closeErr) {
+      console.error(`[updateOrderAction] Falhou fechar tarefas da encomenda cancelada ${id}:`, closeErr.message);
+    } else {
+      revalidatePath("/");
     }
   }
 
