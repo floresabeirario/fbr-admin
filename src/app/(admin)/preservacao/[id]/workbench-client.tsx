@@ -26,15 +26,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/components/navigation-progress";
 import { AlertTriangle, CheckSquare, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import {
-  updateOrderAction,
-  deleteOrderAction,
-  addOrderPaymentAction,
-  deleteOrderPaymentAction,
-} from "../actions";
-import { dueAtPhase } from "@/lib/finance";
-import { formatEUR } from "@/lib/format";
+import { updateOrderAction, deleteOrderAction } from "../actions";
 import WorkbenchTasksBlock from "@/components/workbench-tasks-block";
 import { computeAmountOptionsFromBudget } from "@/lib/task-templates";
 import type { PartnerOption } from "@/components/partner-combobox";
@@ -375,55 +367,14 @@ export default function WorkbenchClient({
     setDeliveryDialogOpen(false);
   }
 
-  // Mudar a fase grava a fase E regista logo o pagamento, sem diálogo
-  // nenhum pelo meio (pedido dela, sessão 178: "dá trabalho; não é
-  // melhor estar automaticamente confirmado e, se eu quiser alterar,
-  // clico no lápis?"). O valor é o que falta para fechar a fase nova,
-  // sobre o orçamento actual, que é o que a cliente paga na esmagadora
-  // maioria das vezes; o lápis na linha do livro corrige os outros.
-  //
-  // O que o diálogo antigo fazia continua a existir noutros sítios: o
-  // lembrete da fatura é o MissingInvoiceAlert do workbench, o NIF tem
-  // campo próprio no cartão Finanças, e a pasta Drive tem botão no hero.
-  //
-  // O toast com "Anular" é a salvaguarda contra um clique errado no
-  // selector — sem custar um passo a quem acertou.
-  async function onPaymentStatusChange(newStatus: PaymentStatus) {
+  // Mudar a fase grava a fase e o REGISTO DO PAGAMENTO acontece no
+  // servidor, dentro de updateOrderAction (mig 114). Fica la e nao aqui
+  // porque o payment_status tambem se muda pelo selector da lista da
+  // Preservacao, que nunca passa por este ficheiro — ter a regra no
+  // cliente deixava esse caminho sem registo nenhum (sessao 178).
+  function onPaymentStatusChange(newStatus: PaymentStatus) {
     if (newStatus === local.payment_status) return;
     update("payment_status", newStatus);
-
-    // Recuar a fase (ou já ter o dinheiro todo) dá 0: não regista nada.
-    const falta = dueAtPhase(local.budget, newStatus, local.amount_paid);
-    if (falta <= 0) return;
-
-    // Gravar a fase ANTES de registar: o INSERT faz router.refresh() e,
-    // sem isto, o servidor devolvia a encomenda com a fase antiga.
-    await flush();
-
-    void addOrderPaymentAction(local.id, {
-      amount: falta,
-      paid_at: new Date().toISOString().slice(0, 10),
-      method: local.cash_on_delivery ? "dinheiro" : "transferencia",
-    }).then((res) => {
-      if (!res.ok) {
-        toast.error("Pagamento não registado: " + res.error);
-        return;
-      }
-      router.refresh();
-      const paymentId = res.data.id;
-      toast.success(`Registado ${formatEUR(falta, { compact: true })}`, {
-        description: "Corrige no lápis se a cliente pagou outro valor.",
-        action: {
-          label: "Anular",
-          onClick: () => {
-            void deleteOrderPaymentAction(paymentId).then((r) => {
-              if (!r.ok) toast.error("Não deu para anular: " + r.error);
-              else router.refresh();
-            });
-          },
-        },
-      });
-    });
   }
 
   // Escolha do parceiro recomendador: aplica partner_id + auto-preenchimento

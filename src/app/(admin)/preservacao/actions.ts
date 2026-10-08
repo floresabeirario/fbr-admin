@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin, requireUser, getCurrentEmail } from "@/lib/auth/server";
 import { sendPushToAdmins } from "@/lib/push/send";
 import { formatDatePT } from "@/lib/format-date";
+import { paidRatio, dueAtPhase } from "@/lib/finance";
 import { generateUniqueCouponCode } from "@/lib/coupon";
 import { computePricingSnapshot } from "@/lib/pricing";
 import { buildProductionCostSnapshot } from "@/lib/production-cost";
@@ -390,6 +391,13 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
   let voucherToMark: string | null = null;
   let captureProductionSnapshot = false;
+  // Fase de cobranca que acabou de SUBIR — dispara o registo automatico do
+  // pagamento no livro (mig 114). Vive aqui, no servidor, e nao no cliente,
+  // porque o payment_status muda por dois caminhos: o cartao Financas do
+  // workbench e o selector da linha na lista da Preservacao. A primeira
+  // versao so tratava do workbench e as mudancas feitas na lista nao
+  // registavam nada (sessao 178).
+  let paymentPhaseRaised: PaymentStatus | null = null;
   // Push aos admins quando a data de entrega das flores (recolha ou entrega
   // em mãos) é preenchida pela 1ª vez — a logística das flores ficou marcada.
   let flowerDateFilledPush: string | null = null;
@@ -411,7 +419,7 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
     const { data: prev } = await supabase
       .from("orders")
       .select(
-        "payment_status, status, service_type, client_photos, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, pricing_snapshot, frame_size, frame_background, museum_glass, museum_glass_mini, pyramid_frame, extra_small_frames, extra_small_frames_qty, additional_main_frames, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
+        "payment_status, status, service_type, client_photos, drive_folder_id, calendar_event_id, event_date, client_name, event_type, couple_names, event_location, flower_delivery_method, pickup_address, pickup_date, pickup_time_from, pickup_time_to, pickup_notes, pickup_contact_name, pickup_contact_phone, hand_delivery_date, hand_delivery_time_from, hand_delivery_time_to, hand_delivery_contact_name, hand_delivery_contact_phone, hand_delivery_notes, email, phone, contact_preference, gift_voucher_code, invoice_url_sinal, invoice_url_intermedio, invoice_url_final, comms_moments_done, budget, budget_at_first_payment, amount_paid, cash_on_delivery, pricing_snapshot, frame_size, frame_background, museum_glass, museum_glass_mini, pyramid_frame, extra_small_frames, extra_small_frames_qty, additional_main_frames, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty",
       )
       .eq("id", id)
       .single();
@@ -446,6 +454,16 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         prev.payment_status !== "100_pago"
       ) {
         captureProductionSnapshot = true;
+      }
+
+      // A fase de cobranca subiu: regista-se o pagamento no livro depois
+      // do UPDATE (precisa do orcamento ja gravado). Recuar nao regista.
+      if (
+        updates.payment_status !== undefined &&
+        paidRatio(updates.payment_status) >
+          paidRatio(prev.payment_status as PaymentStatus)
+      ) {
+        paymentPhaseRaised = updates.payment_status;
       }
 
       // Âncora para o acerto de pagamento: guarda o orçamento (em €) no
@@ -691,6 +709,34 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   if (error) throw new Error(error.message);
 
   const updatedOrder = data as Order;
+
+  // ── Registo automatico do pagamento (mig 114) ───────────────
+  // A fase subiu, por isso entrou dinheiro: cria-se a linha com o que
+  // falta para fechar essa fase, sobre o orcamento JA GRAVADO (pode ter
+  // sido recalculado acima). Se o livro ja cobre a fase, dueAtPhase da 0
+  // e nao se cria nada — e isso que torna isto idempotente quando a fase
+  // vai e volta. Falhar aqui nao pode deitar abaixo a gravacao da fase.
+  if (paymentPhaseRaised) {
+    const falta = dueAtPhase(
+      updatedOrder.budget,
+      paymentPhaseRaised,
+      updatedOrder.amount_paid,
+    );
+    if (falta > 0) {
+      const { error: payErr } = await supabase.from("order_payments").insert({
+        order_id: id,
+        amount: falta,
+        paid_at: new Date().toISOString().slice(0, 10),
+        method: updatedOrder.cash_on_delivery ? "dinheiro" : "transferencia",
+        created_by: await getCurrentEmail(),
+      });
+      if (payErr) {
+        console.error(
+          `[updateOrderAction] Fase de pagamento gravada em ${id} mas o registo no livro falhou: ${payErr.message}`,
+        );
+      }
+    }
+  }
 
   // Push aos admins: data de entrega das flores acabou de ser marcada.
   // Best-effort, fora do caminho crítico — nunca atrasa/falha o UPDATE.
