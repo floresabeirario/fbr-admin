@@ -391,7 +391,7 @@ export function orderCommissionSuppressedByVoucher(
 // (Antes da mig 114 atribuía-se-lhe receita na data do evento.)
 
 export type WithPayments = {
-  payments?: readonly Pick<OrderPayment, "amount" | "paid_at">[] | null;
+  payments?: readonly Pick<OrderPayment, "amount" | "paid_at" | "method">[] | null;
 };
 
 export type OrderForRevenue = Pick<Order, "status"> & WithPayments;
@@ -402,15 +402,43 @@ function inPeriodISO(iso: string | null, start: Date, end: Date): boolean {
   return d >= start && d <= end;
 }
 
-/** Euros que entraram nesta encomenda dentro do período. */
+/**
+ * Euros que entraram nesta encomenda dentro do período.
+ *
+ * O crédito de vale-presente (`method: "vale"`) NÃO conta: esse dinheiro
+ * já foi reconhecido como receita quando o vale foi vendido e pago
+ * (decisão da Maria, 08/10/2026 — a receita de um vale fica no mês em
+ * que entrou, em vez de saltar para a encomenda quando é usado e tirar
+ * o valor a um mês já fechado). Para o que a cliente deve, porém, o vale
+ * conta: é `orders.amount_paid`, que inclui estas linhas.
+ */
 export function revenueInPeriod(o: OrderForRevenue, start: Date, end: Date): number {
   if (o.status === "cancelado") return 0;
   let total = 0;
   for (const p of o.payments ?? []) {
+    if (p.method === "vale") continue;
     if (inPeriodISO(p.paid_at, start, end)) total += Number(p.amount);
   }
   return total;
 }
+
+/**
+ * Receita de um vale-presente: o valor dele, desde que pago. Conta
+ * SEMPRE, use-se ou não numa preservação — e é por isso que o crédito do
+ * vale não conta do lado da encomenda (ver `revenueInPeriod`). A janela é
+ * a data de criação do vale, que é quando é pago na prática.
+ *
+ * Até 08/10/2026 esta função zerava os vales já convertidos em
+ * preservação, o que fazia a receita sair retroactivamente do mês da
+ * venda no dia em que a cliente marcasse o serviço.
+ */
+export function voucherRevenue(
+  v: Pick<VoucherForRevenue, "payment_status" | "amount">,
+): number {
+  return v.payment_status === "100_pago" ? Number(v.amount) : 0;
+}
+
+type VoucherForRevenue = { payment_status: string; amount: number };
 
 /**
  * Comissão a parceiro no período, proporcional ao dinheiro que entrou

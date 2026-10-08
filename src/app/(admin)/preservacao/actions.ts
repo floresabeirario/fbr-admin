@@ -63,6 +63,58 @@ export type ActionResult<T> =
 //
 // Silencioso em falha — não bloqueia a operação principal. Idempotente:
 // o `.neq("usage_status", "preservacao_agendada")` evita writes inúteis.
+/**
+ * Mete no livro o crédito de um vale-presente que acabou de ser
+ * associado a uma encomenda (mig 115). Pedido da Maria: a linha tem de
+ * aparecer sozinha quando o código é metido, como o pagamento aparece
+ * quando a fase muda — não ser mais uma coisa para ela fazer.
+ *
+ * O crédito nunca passa o orçamento: o que sobra do vale fica como
+ * crédito da cliente e vive no texto das mensagens ({credito_vale}).
+ * Só vales JÁ PAGOS geram linha — um vale por pagar não é dinheiro.
+ *
+ * Silencioso em falha, como o markVoucherAsScheduled ao lado: não pode
+ * deitar abaixo a gravação da encomenda. Idempotente pelo índice único
+ * (order_id, voucher_code) WHERE method = 'vale'.
+ */
+async function addVoucherCreditLine(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  order: Order,
+  voucherCode: string,
+): Promise<void> {
+  try {
+    const code = voucherCode.toUpperCase();
+    const { data: voucher } = await supabase
+      .from("vouchers")
+      .select("amount, payment_status, created_at")
+      .eq("code", code)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!voucher || voucher.payment_status !== "100_pago") return;
+
+    const valor = Number(voucher.amount);
+    if (!Number.isFinite(valor) || valor <= 0) return;
+    const budget = Number(order.budget ?? 0);
+    const credito = budget > 0 ? Math.min(valor, budget) : valor;
+
+    const { error } = await supabase.from("order_payments").insert({
+      order_id: order.id,
+      amount: Math.round(credito * 100) / 100,
+      // O dinheiro entrou quando o vale foi comprado, não hoje.
+      paid_at: String(voucher.created_at).slice(0, 10),
+      method: "vale",
+      voucher_code: code,
+      created_by: await getCurrentEmail(),
+    });
+    // 23505 = já existe (índice único): o vale já estava creditado.
+    if (error && error.code !== "23505") {
+      console.error(`[addVoucherCreditLine] ${code} em ${order.id}:`, error.message);
+    }
+  } catch (err) {
+    console.error("[addVoucherCreditLine] Excepção:", err);
+  }
+}
+
 async function markVoucherAsScheduled(
   // Note: tipo inferido para evitar import circular com supabase/server.
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -391,6 +443,9 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
   let triggerDriveCreation = false;
   let calendarAction: "create" | "update" | "delete" | "none" = "none";
   let voucherToMark: string | null = null;
+  // Código de vale que acabou de SAIR da encomenda: a linha de crédito
+  // correspondente tem de desaparecer do livro (mig 115).
+  let voucherUnlinked: string | null = null;
   let captureProductionSnapshot = false;
   // Fase de cobranca que acabou de SUBIR — dispara o registo automatico do
   // pagamento no livro (mig 114). Vive aqui, no servidor, e nao no cliente,
@@ -447,6 +502,13 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
         updates.gift_voucher_code !== prev.gift_voucher_code
       ) {
         voucherToMark = updates.gift_voucher_code;
+      }
+      if (
+        updates.gift_voucher_code !== undefined &&
+        !updates.gift_voucher_code &&
+        prev.gift_voucher_code
+      ) {
+        voucherUnlinked = prev.gift_voucher_code as string;
       }
 
       // Snapshot de custos de produção: capturar na transição para 100%
@@ -869,7 +931,25 @@ export async function updateOrderAction(id: string, updates: OrderUpdate): Promi
 
   if (voucherToMark) {
     await markVoucherAsScheduled(supabase, voucherToMark);
+    await addVoucherCreditLine(supabase, updatedOrder, voucherToMark);
     revalidatePath("/vale-presente");
+    revalidatePath("/financas");
+  }
+  if (voucherUnlinked) {
+    // Tirar o código tem de tirar o crédito: senão a encomenda ficava a
+    // parecer paga por um vale que já não lhe está associado.
+    const { error } = await supabase
+      .from("order_payments")
+      .delete()
+      .eq("order_id", id)
+      .eq("method", "vale")
+      .eq("voucher_code", voucherUnlinked.toUpperCase());
+    if (error) {
+      console.error(
+        `[updateOrderAction] Código de vale removido de ${id} mas a linha do livro ficou: ${error.message}`,
+      );
+    }
+    revalidatePath("/financas");
   }
 
   // Criar tarefas "Enviar fatura — {nome} ({slot})" para cada link de

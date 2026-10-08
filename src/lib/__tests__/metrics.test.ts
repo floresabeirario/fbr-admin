@@ -314,14 +314,18 @@ describe("computeMetrics — receita", () => {
     expect(m.revenue).toBeCloseTo(100 + 70 + 30 + 0);
   });
 
-  it("vales: 100% pagos contam, excepto os já convertidos em preservação (dupla contagem)", () => {
+  it("vales: todos os 100% pagos contam, mesmo os já usados numa preservação", () => {
+    // Decisão da Maria (08/10/2026): a receita de um vale fica no mês em
+    // que foi pago. Antes, usar o vale tirava-lhe a receita ao mês da
+    // venda retroactivamente. Quem deixa de contar é o crédito do lado
+    // da encomenda (linha method="vale"), ver finance.test.ts.
     const vouchers = [
       makeVoucher({ amount: 300 }), // conta
-      makeVoucher({ amount: 400, usage_status: "preservacao_agendada" }), // NÃO conta
-      makeVoucher({ amount: 500, payment_status: "100_por_pagar" }), // NÃO conta
+      makeVoucher({ amount: 400, usage_status: "preservacao_agendada" }), // conta na mesma
+      makeVoucher({ amount: 500, payment_status: "100_por_pagar" }), // não, ainda não foi pago
     ];
     const m = computeMetrics([], vouchers, RANGE, TODAY, "personalizado");
-    expect(m.revenue).toBe(300);
+    expect(m.revenue).toBe(700);
   });
 });
 

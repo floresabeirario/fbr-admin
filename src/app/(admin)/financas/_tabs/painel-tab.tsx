@@ -42,6 +42,7 @@ import {
   cogsInPeriod,
   isConfirmedOrder,
   outstandingFromOrder,
+  voucherRevenue,
 } from "@/lib/finance";
 import { monthlyEquivalent } from "@/types/expense";
 import { formatDatePT } from "@/lib/format-date";
@@ -169,12 +170,12 @@ export function PainelTab({
         budgetSum += Number(o.budget) || 0;
         if (o.status === "quadro_recebido") completedCount += 1;
       }
-      // Vales 100% pagos não convertidos somam à receita
-      const voucherRevenue = vouchers
+      // Vales 100% pagos somam à receita no mês em que foram pagos,
+      // usem-se ou não numa preservação depois (o crédito do vale fica
+      // de fora do lado da encomenda — ver revenueInPeriod).
+      revenueGross += vouchers
         .filter((v) => inRangeISO(v.created_at, start, end))
-        .filter((v) => v.payment_status === "100_pago" && v.usage_status !== "preservacao_agendada")
-        .reduce((s, v) => s + Number(v.amount), 0);
-      revenueGross += voucherRevenue;
+        .reduce((s, v) => s + voucherRevenue(v), 0);
       // Comissões dos vales com parceiro — contam uma única vez no vale, só
       // quando 100% pago (decisão Maria s116). Período = data de criação.
       const voucherCommission = vouchers

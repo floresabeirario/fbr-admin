@@ -54,6 +54,7 @@ import {
   orderCommissionSuppressedByVoucher,
   revenueInPeriod,
   isConfirmedOrder,
+  voucherRevenue,
   type WithPayments,
 } from "@/lib/finance";
 import {
@@ -234,11 +235,6 @@ function ordersIn(orders: OrderWithPayments[], range: DateRange): OrderWithPayme
 // de criação do vale (igual às Finanças).
 // ============================================================
 
-function voucherRevenue(v: Voucher): number {
-  if (v.payment_status !== "100_pago") return 0;
-  if (v.usage_status === "preservacao_agendada") return 0;
-  return Number(v.amount);
-}
 
 function totalRevenue(orders: OrderWithPayments[], vouchers: Voucher[], range: DateRange): number {
   const ordersSum = orders.reduce((s, o) => s + revenueInPeriod(o, range.start, range.end), 0);

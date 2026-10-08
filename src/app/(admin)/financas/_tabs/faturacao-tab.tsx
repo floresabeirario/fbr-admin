@@ -55,6 +55,7 @@ import {
   cogsInPeriod,
   outstandingFromOrder,
   isConfirmedOrder,
+  voucherRevenue,
 } from "@/lib/finance";
 import type { Expense } from "@/types/expense";
 import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
@@ -62,7 +63,7 @@ import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
 // Explicações dos KPIs (tooltips ⓘ) — para ficar claro o que cada número
 // mede, sobretudo porque os clientes pagam em parcelas.
 const INFO_RECEITA =
-  "Dinheiro que ENTROU no período: cada pagamento registado no livro conta na data em que foi recebido. Sem canceladas. Mais vales 100% pagos ainda não convertidos (pela data de criação). NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
+  "Dinheiro que ENTROU no período: cada pagamento registado no livro conta na data em que foi recebido. Sem canceladas. Mais vales 100% pagos, pela data em que foram pagos (o crédito do vale não volta a contar na encomenda). NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
 const INFO_DESPESAS =
   "Despesas únicas pela data da despesa + subscrições activas no período, ao custo mensal equivalente (anual ÷ 12), em cada mês até ao mês actual. A mesma base da aba Despesas.";
 const INFO_COGS =
@@ -88,11 +89,7 @@ export function FaturacaoTab({
   // sem carimbo caem na data do evento, como antes. Vales pela data de
   // criação (100% pagos e não convertidos, para não contar a dobrar com a
   // encomenda). Canceladas nunca contam. Tudo em lib/finance.ts.
-  const revenueFromVoucher = (v: FaturacaoVoucher): number => {
-    if (v.payment_status !== "100_pago") return 0;
-    if (v.usage_status === "preservacao_agendada") return 0; // evita dupla contagem com a encomenda
-    return Number(v.amount);
-  };
+  const revenueFromVoucher = (v: FaturacaoVoucher): number => voucherRevenue(v);
   const ordersRevenueIn = useCallback(
     (start: Date, end: Date): number =>
       orders.reduce((s, o) => s + revenueInPeriod(o, start, end), 0),
@@ -238,6 +235,8 @@ export function FaturacaoTab({
       if (o.status === "cancelado") continue;
       // Uma linha por pagamento recebido (mig 114), com o valor real.
       for (const pay of o.payments ?? []) {
+        // O crédito do vale já tem linha própria na secção dos vales.
+        if (pay.method === "vale") continue;
         if (!inRange(pay.paid_at, yearStart, yearEnd)) continue;
         items.push({
           at: parseISO(pay.paid_at),

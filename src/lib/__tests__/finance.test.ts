@@ -30,6 +30,7 @@ import {
   paymentsNet,
 } from "@/lib/finance";
 import type { ProductionCostSnapshot } from "@/types/production-cost";
+import type { PaymentMethod } from "@/types/database";
 import { subscriptionSplitDates } from "@/types/expense";
 
 // Snapshot mínimo com uma moldura 30x40 baixa/vidro-vidro a 55€.
@@ -263,7 +264,11 @@ describe("receita por data de pagamento", () => {
     partner_commission_status: "a_aguardar" as const,
   };
 
-  const pag = (amount: number, paid_at: string) => ({ amount, paid_at });
+  const pag = (amount: number, paid_at: string, method: PaymentMethod = "transferencia") => ({
+    amount,
+    paid_at,
+    method,
+  });
 
   it("o pagamento conta no mês em que entrou, não no mês do evento", () => {
     const o = { ...base, payments: [pag(120, "2026-09-10")] };
@@ -301,6 +306,14 @@ describe("receita por data de pagamento", () => {
     const o = { ...base, payments: [pag(120, "2026-09-10"), pag(-120, "2026-11-05")] };
     expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
     expect(revenueInPeriod(o, nov.start, nov.end)).toBe(-120);
+  });
+
+  it("o crédito do vale não conta na encomenda (já contou no vale)", () => {
+    // Decisão de 08/10/2026: a receita de um vale fica no mês em que ele
+    // foi pago. Se a encomenda a contasse outra vez, o mesmo dinheiro
+    // entrava duas vezes nas Finanças.
+    const o = { ...base, payments: [pag(300, "2026-09-10", "vale"), pag(100, "2026-09-11")] };
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(100);
   });
 
   it("cancelada não conta, mesmo com pagamentos no livro", () => {
