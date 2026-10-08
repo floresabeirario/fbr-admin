@@ -41,7 +41,16 @@ export type FaturacaoOrder = Pick<
   | "deposit_paid_at"
   | "second_paid_at"
   | "fully_paid_at"
->;
+  // mig 114 — soma do livro de pagamentos, mantida por trigger.
+  | "amount_paid"
+> & {
+  /**
+   * Linhas do livro de pagamentos desta encomenda (mig 114), anexadas em
+   * memória pela página. É daqui que sai a receita por período: a data e
+   * o valor são os reais, e já não uma percentagem do orçamento de hoje.
+   */
+  payments: import("@/types/database").OrderPayment[];
+};
 export type FaturacaoVoucher = Pick<
   import("@/types/voucher").Voucher,
   | "id"

@@ -82,10 +82,10 @@ import type {
   ServiceType,
 } from "@/types/database";
 import { SERVICE_TYPE_LABELS } from "@/types/database";
-import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import {
   computeMetrics,
+  type OrderWithPayments,
   generateInsights,
   rangeFromPreset,
   RANGE_PRESET_LABELS,
@@ -470,7 +470,7 @@ function UpsellsBars({
 // ── Página ───────────────────────────────────────────────────
 
 interface Props {
-  initialOrders: Order[];
+  initialOrders: OrderWithPayments[];
   initialVouchers: Voucher[];
   partnerNames: Record<string, string>;
   statusHistory: StatusHistoryRow[];

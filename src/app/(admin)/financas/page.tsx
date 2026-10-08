@@ -4,7 +4,7 @@ import type { Competitor } from "@/types/competitor";
 import type { PricingItem } from "@/types/pricing";
 import type { ProductionCostItem } from "@/types/production-cost";
 import type { Expense } from "@/types/expense";
-import type { Order } from "@/types/database";
+import type { Order, OrderPayment } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
 import FinancasClient from "./financas-client";
 
@@ -15,7 +15,7 @@ export default async function FinancasPage() {
   const role = await getCurrentRole();
   const canEdit = role === "admin";
 
-  const [competitorsRes, pricingRes, productionCostRes, expensesRes, ordersRes, vouchersRes] = await Promise.all([
+  const [competitorsRes, pricingRes, productionCostRes, expensesRes, ordersRes, paymentsRes, vouchersRes] = await Promise.all([
     supabase
       .from("competitors")
       .select("*")
@@ -46,6 +46,10 @@ export default async function FinancasPage() {
       .select("*")
       .is("deleted_at", null),
     supabase
+      .from("order_payments")
+      .select("*")
+      .order("paid_at", { ascending: true }),
+    supabase
       .from("vouchers")
       .select("id, code, created_at, amount, payment_status, usage_status, partner_commission, partner_commission_status")
       .is("deleted_at", null),
@@ -55,7 +59,19 @@ export default async function FinancasPage() {
   const pricing: PricingItem[] = (pricingRes.data ?? []) as PricingItem[];
   const productionCosts: ProductionCostItem[] = (productionCostRes.data ?? []) as ProductionCostItem[];
   const expenses: Expense[] = (expensesRes.data ?? []) as Expense[];
-  const orders = (ordersRes.data ?? []) as Order[];
+  // Livro de pagamentos agrupado por encomenda e anexado em memória: as
+  // Finanças precisam da data e do valor de CADA linha para atribuir a
+  // receita ao período certo, não chega a soma em orders.amount_paid.
+  const paymentsByOrder = new Map<string, OrderPayment[]>();
+  for (const p of (paymentsRes.data ?? []) as OrderPayment[]) {
+    const list = paymentsByOrder.get(p.order_id);
+    if (list) list.push(p);
+    else paymentsByOrder.set(p.order_id, [p]);
+  }
+  const orders = ((ordersRes.data ?? []) as Order[]).map((o) => ({
+    ...o,
+    payments: paymentsByOrder.get(o.id) ?? [],
+  }));
   const vouchers = (vouchersRes.data ?? []) as Pick<Voucher, "id" | "code" | "created_at" | "amount" | "payment_status" | "usage_status" | "partner_commission" | "partner_commission_status">[];
 
   return (

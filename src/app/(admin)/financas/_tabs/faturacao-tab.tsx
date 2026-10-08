@@ -22,6 +22,7 @@ import { formatDatePT, formatDateLisbon } from "@/lib/format-date";
 import { STATUS_LABELS } from "@/types/database";
 import { VOUCHER_USAGE_STATUS_LABELS } from "@/types/voucher";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_PAYMENT_METHOD_LABELS } from "@/types/expense";
+import { PAYMENT_METHOD_LABELS } from "@/types/database";
 import { pt } from "date-fns/locale";
 import { useTheme } from "next-themes";
 import {
@@ -50,7 +51,6 @@ import {
   expensesTotalInPeriod,
   expenseAmountInPeriod,
   revenueInPeriod,
-  revenueTranches,
   commissionInPeriod,
   cogsInPeriod,
   outstandingFromOrder,
@@ -62,7 +62,7 @@ import { KpiBox, type FaturacaoOrder, type FaturacaoVoucher } from "./shared";
 // Explicações dos KPIs (tooltips ⓘ) — para ficar claro o que cada número
 // mede, sobretudo porque os clientes pagam em parcelas.
 const INFO_RECEITA =
-  "Dinheiro que ENTROU no período: cada parcela (30% / 40% / 30% do orçamento) conta na data em que foi paga; encomendas antigas sem essa data contam pela data do evento. Sem canceladas. Mais vales 100% pagos ainda não convertidos (pela data de criação). NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
+  "Dinheiro que ENTROU no período: cada pagamento registado no livro conta na data em que foi recebido. Sem canceladas. Mais vales 100% pagos ainda não convertidos (pela data de criação). NÃO é o total se todas pagassem 100%. 'Líquida' = depois de descontar comissões a parceiros.";
 const INFO_DESPESAS =
   "Despesas únicas pela data da despesa + subscrições activas no período, ao custo mensal equivalente (anual ÷ 12), em cada mês até ao mês actual. A mesma base da aba Despesas.";
 const INFO_COGS =
@@ -235,21 +235,22 @@ export function FaturacaoTab({
   const exportRevenueCsv = () => {
     const items: Array<{ at: Date; row: string[] }> = [];
     for (const o of orders) {
-      if (o.status === "cancelado" || !o.budget) continue;
-      for (const t of revenueTranches(o)) {
-        if (!t.at || !inRange(t.at, yearStart, yearEnd)) continue;
+      if (o.status === "cancelado") continue;
+      // Uma linha por pagamento recebido (mig 114), com o valor real.
+      for (const pay of o.payments ?? []) {
+        if (!inRange(pay.paid_at, yearStart, yearEnd)) continue;
         items.push({
-          at: parseISO(t.at),
+          at: parseISO(pay.paid_at),
           row: [
-            t.stamped ? formatDateLisbon(t.at) : formatDatePT(t.at),
+            formatDatePT(pay.paid_at),
             "Encomenda",
             o.client_name,
             o.order_id,
-            `${t.pct}%`,
-            eur((Number(o.budget) * t.pct) / 100),
+            PAYMENT_METHOD_LABELS[pay.method],
+            eur(Number(pay.amount)),
             formatDatePT(o.event_date),
             STATUS_LABELS[o.status],
-            t.stamped ? "data do pagamento" : "data do evento (sem data de pagamento)",
+            pay.is_estimated ? "valor estimado do histórico" : "",
           ],
         });
       }
@@ -263,17 +264,17 @@ export function FaturacaoTab({
           "Vale",
           v.code,
           "",
-          "100%",
+          "Vale-presente",
           eur(Number(v.amount)),
           "",
           VOUCHER_USAGE_STATUS_LABELS[v.usage_status],
-          "data de criação",
+          "pela data de criação do vale",
         ],
       });
     }
     items.sort((a, b) => a.at.getTime() - b.at.getTime());
     downloadCsv(`fbr-receitas-${yearLabel}`, [
-      ["Data", "Tipo", "Cliente / Vale", "ID", "Parcela", "Valor (€)", "Data do evento", "Estado", "Base da data"],
+      ["Data", "Tipo", "Cliente / Vale", "ID", "Método", "Valor (€)", "Data do evento", "Estado", "Nota"],
       ...items.map((i) => i.row),
     ]);
   };

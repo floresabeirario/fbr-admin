@@ -54,6 +54,7 @@ import {
   orderCommissionSuppressedByVoucher,
   revenueInPeriod,
   isConfirmedOrder,
+  type WithPayments,
 } from "@/lib/finance";
 import {
   STATUS_LABELS,
@@ -211,7 +212,15 @@ function inRange(dateStr: string | null | undefined, range: DateRange): boolean 
 }
 
 // Encomendas criadas no range (usado para "encomendas novas" e distribuições)
-function ordersIn(orders: Order[], range: DateRange): Order[] {
+/**
+ * Encomenda com o livro de pagamentos anexado (mig 114). A página das
+ * Métricas agrupa `order_payments` por encomenda e cola-o aqui, porque a
+ * receita conta pela data de cada pagamento. Sem isto a receita daria 0
+ * em silêncio.
+ */
+export type OrderWithPayments = Order & WithPayments;
+
+function ordersIn(orders: OrderWithPayments[], range: DateRange): OrderWithPayments[] {
   return orders.filter((o) => inRange(o.created_at, range));
 }
 
@@ -231,7 +240,7 @@ function voucherRevenue(v: Voucher): number {
   return Number(v.amount);
 }
 
-function totalRevenue(orders: Order[], vouchers: Voucher[], range: DateRange): number {
+function totalRevenue(orders: OrderWithPayments[], vouchers: Voucher[], range: DateRange): number {
   const ordersSum = orders.reduce((s, o) => s + revenueInPeriod(o, range.start, range.end), 0);
   const vouchersSum = vouchers
     .filter((v) => inRange(v.created_at, range))
@@ -252,7 +261,7 @@ const isConfirmed = (o: Order): boolean => isConfirmedOrder(o);
 
 // Funil agrupado por uma chave qualquer (canal, idioma, serviço).
 function groupFunnel(
-  orders: Order[],
+  orders: OrderWithPayments[],
   keyOf: (o: Order) => string,
   labelOf: (key: string) => string,
 ): Array<{ key: string; label: string; total: number; confirmed: number; cancelled: number; confirmedPct: number | null }> {
@@ -367,7 +376,7 @@ function topByCount<K extends string>(
 // importadas do Monday têm created_at = dia da importação, o que dava
 // tempos de conclusão falsos (auditoria da sessão 174).
 function avgCompletionDays(
-  orders: Order[],
+  orders: OrderWithPayments[],
   range: DateRange | null = null,
   since: string | null = null,
 ): number | null {
@@ -578,7 +587,7 @@ export interface MetricsResult {
 }
 
 export function computeMetrics(
-  orders: Order[],
+  orders: OrderWithPayments[],
   vouchers: Voucher[],
   range: DateRange,
   today: Date = new Date(),
@@ -1302,7 +1311,7 @@ export interface MonthRevenue {
 }
 
 export function monthlyRevenue(
-  orders: Order[],
+  orders: OrderWithPayments[],
   vouchers: Voucher[],
   monthsBack: number = 12,
   today: Date = new Date(),

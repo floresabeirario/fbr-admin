@@ -12,6 +12,7 @@ import {
   pctChange,
   cityFromLocation,
   type DateRange,
+  type OrderWithPayments,
 } from "@/lib/metrics";
 import type { Order } from "@/types/database";
 import type { Voucher } from "@/types/voucher";
@@ -23,8 +24,34 @@ const RANGE: DateRange = {
 };
 const TODAY = new Date(2026, 5, 12);
 
-function makeOrder(partial: Partial<Order>): Order {
-  return {
+// As encomendas de teste levam o livro de pagamentos (mig 114) já
+// preenchido com o que a fase diz que foi pago, na data do carimbo (ou
+// na do evento, como as encomendas antigas sem histórico). É o que o
+// sistema real tem depois do backfill; um teste que queira outra coisa
+// passa `payments` explicitamente.
+function defaultPayments(o: {
+  payment_status?: string;
+  budget?: number | null;
+  deposit_paid_at?: string | null;
+  event_date?: string | null;
+  created_at?: string | null;
+}): Array<{ amount: number; paid_at: string }> {
+  const ratio =
+    o.payment_status === "100_pago" ? 1
+    : o.payment_status === "70_pago" ? 0.7
+    : o.payment_status === "30_pago" ? 0.3
+    : 0;
+  const budget = Number(o.budget ?? 0);
+  if (ratio <= 0 || budget <= 0) return [];
+  const at = (o.deposit_paid_at ?? o.event_date ?? o.created_at ?? "").slice(0, 10);
+  if (!at) return [];
+  return [{ amount: Math.round(budget * ratio * 100) / 100, paid_at: at }];
+}
+
+function makeOrder(
+  partial: Partial<Order> & { payments?: Array<{ amount: number; paid_at: string }> },
+): OrderWithPayments {
+  const merged = {
     id: Math.random().toString(36).slice(2),
     created_at: "2026-06-05T10:00:00.000Z",
     updated_at: "2026-06-05T10:00:00.000Z",
@@ -41,7 +68,11 @@ function makeOrder(partial: Partial<Order>): Order {
     christmas_ornaments: null,
     necklace_pendants: null,
     ...partial,
-  } as unknown as Order;
+  };
+  return {
+    ...merged,
+    payments: partial.payments ?? defaultPayments(merged),
+  } as unknown as OrderWithPayments;
 }
 
 function makeVoucher(partial: Partial<Voucher>): Voucher {

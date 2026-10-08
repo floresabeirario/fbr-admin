@@ -262,14 +262,20 @@ export function paymentsNet(payments: ReadonlyArray<Pick<OrderPayment, "amount">
 }
 
 /**
- * Encomenda CONFIRMADA = já pagou o sinal (>= 30%). Sem sinal é um pedido,
- * não um cliente (regra da Maria, sessão 174): nunca entra em rankings,
+ * Encomenda CONFIRMADA = já entrou dinheiro. Sem pagamento é um pedido,
+ * não uma cliente (regra da Maria, sessão 174): nunca entra em rankings,
  * contagens de eventos, "por receber", lucro por encomenda nem comissões.
- * O dinheiro em si já só conta parcelas pagas, por isso não precisava
- * desta guarda; os cartões que olham para o orçamento precisam.
+ *
+ * Olha primeiro para os euros do livro, para apanhar também um sinal
+ * parcial que não chegue ao marco dos 30%. A fase conta como alternativa
+ * porque é a declaração dela de que houve pagamento, e há encomendas
+ * antigas dadas por pagas cujo valor nunca foi registado (orçamento em
+ * branco, por isso o backfill da mig 114 não as conseguiu converter).
  */
-export function isConfirmedOrder(o: Pick<Order, "payment_status">): boolean {
-  return paidRatio(o.payment_status) > 0;
+export function isConfirmedOrder(
+  o: Pick<Order, "payment_status"> & Partial<Pick<Order, "amount_paid">>,
+): boolean {
+  return Number(o.amount_paid ?? 0) > 0 || paidRatio(o.payment_status) > 0;
 }
 
 // ── Comissões a parceiros como dedução à receita ─────────────
@@ -370,48 +376,25 @@ export function orderCommissionSuppressedByVoucher(
   );
 }
 
-// ── Receita por data de pagamento (mig 111) ─────────────────
+// ── Receita a partir do livro de pagamentos (mig 114) ───────
 //
-// Os clientes pagam em parcelas (30% / 40% / 30% do orçamento) e, desde a
-// mig 111, a BD carimba o momento de cada uma (deposit_paid_at /
-// second_paid_at / fully_paid_at). A receita conta no PERÍODO EM QUE O
-// DINHEIRO ENTROU (decisão da Maria, sessão 174), e não pela data do
-// evento como até aqui. Encomendas sem carimbo (anteriores à mig 111 sem
-// histórico no audit_log, importadas do Monday) caem na data do evento,
-// para não desaparecerem dos totais. Comissões seguem as mesmas parcelas;
-// o custo de produção (tudo-ou-nada aos 100%) conta na data dos 100%.
+// A receita conta no período em que O DINHEIRO ENTROU (decisão da Maria,
+// sessão 174), e desde a mig 114 isso sai das linhas REAIS de
+// `order_payments` (valor + data) em vez de uma percentagem aplicada ao
+// orçamento de hoje. Foi essa aproximação que mentia quando a cliente
+// pagava uma quantia diferente do marco, ou quando a encomenda crescia
+// depois de já ter havido pagamentos.
 //
-// Percentagens em inteiros (30/40/30) e divisão no fim, para 30+40+30
-// dar exactamente 100 (em vírgula flutuante 0.3+0.4+0.3 ≠ 1).
+// As linhas vão anexadas a cada encomenda em memória (`payments`),
+// carregadas pelas páginas das Finanças e das Métricas. Uma encomenda sem
+// linhas contribui 0: é a verdade, não há registo de dinheiro a entrar.
+// (Antes da mig 114 atribuía-se-lhe receita na data do evento.)
 
-export type OrderForRevenueDates = Pick<Order, "budget" | "payment_status" | "status" | "event_date"> &
-  Partial<Pick<Order, "deposit_paid_at" | "second_paid_at" | "fully_paid_at">>;
+export type WithPayments = {
+  payments?: readonly Pick<OrderPayment, "amount" | "paid_at">[] | null;
+};
 
-export interface RevenueTranche {
-  /** Data que conta para o período: o carimbo, ou a data do evento se não há. */
-  at: string | null;
-  /** Percentagem do orçamento desta parcela (30 / 40 / 30). */
-  pct: number;
-  /** true = veio do carimbo da BD; false = caiu na data do evento. */
-  stamped: boolean;
-}
-
-export function revenueTranches(
-  o: Pick<Order, "payment_status"> &
-    Partial<Pick<Order, "deposit_paid_at" | "second_paid_at" | "fully_paid_at" | "event_date">>,
-): RevenueTranche[] {
-  const r = paidRatio(o.payment_status);
-  if (r <= 0) return [];
-  const mk = (at: string | null | undefined, pct: number): RevenueTranche => ({
-    at: at ?? o.event_date ?? null,
-    pct,
-    stamped: !!at,
-  });
-  const t: RevenueTranche[] = [mk(o.deposit_paid_at, 30)];
-  if (r >= 0.7) t.push(mk(o.second_paid_at, 40));
-  if (r >= 1) t.push(mk(o.fully_paid_at, 30));
-  return t;
-}
+export type OrderForRevenue = Pick<Order, "status"> & WithPayments;
 
 function inPeriodISO(iso: string | null, start: Date, end: Date): boolean {
   if (!iso) return false;
@@ -419,36 +402,42 @@ function inPeriodISO(iso: string | null, start: Date, end: Date): boolean {
   return d >= start && d <= end;
 }
 
-/** Percentagem (0-100) do orçamento cujo pagamento entrou no período. */
-export function paidPctInPeriod(
-  o: Parameters<typeof revenueTranches>[0],
-  start: Date,
-  end: Date,
-): number {
-  let pct = 0;
-  for (const t of revenueTranches(o)) if (inPeriodISO(t.at, start, end)) pct += t.pct;
-  return pct;
+/** Euros que entraram nesta encomenda dentro do período. */
+export function revenueInPeriod(o: OrderForRevenue, start: Date, end: Date): number {
+  if (o.status === "cancelado") return 0;
+  let total = 0;
+  for (const p of o.payments ?? []) {
+    if (inPeriodISO(p.paid_at, start, end)) total += Number(p.amount);
+  }
+  return total;
 }
 
-/** Receita reconhecida no período: orçamento × parcelas pagas nesse período. */
-export function revenueInPeriod(o: OrderForRevenueDates, start: Date, end: Date): number {
-  if (o.status === "cancelado" || !o.budget) return 0;
-  return (Number(o.budget) * paidPctInPeriod(o, start, end)) / 100;
-}
-
-/** Comissão a parceiro no período, proporcional às parcelas pagas nele. */
+/**
+ * Comissão a parceiro no período, proporcional ao dinheiro que entrou
+ * nele: a comissão é devida à medida que a encomenda é paga.
+ */
 export function commissionInPeriod(
-  o: OrderForRevenueDates & Pick<Order, "partner_commission" | "partner_commission_status">,
+  o: OrderForRevenue &
+    Pick<Order, "budget" | "partner_commission" | "partner_commission_status">,
   start: Date,
   end: Date,
 ): number {
   if (o.status === "cancelado") return 0;
-  return (commissionFullFromOrder(o) * paidPctInPeriod(o, start, end)) / 100;
+  const budget = Number(o.budget ?? 0);
+  if (budget <= 0) return 0;
+  return (commissionFullFromOrder(o) * revenueInPeriod(o, start, end)) / budget;
 }
 
-/** Custo de produção no período: tudo-ou-nada, na data em que ficou 100% pago. */
+/**
+ * Custo de produção no período: tudo-ou-nada, na data em que a encomenda
+ * ficou dada por paga. Continua a seguir a FASE (e o seu carimbo) e não o
+ * livro, porque é a Maria que decide quando a cobrança está fechada —
+ * pode faltar meia dúzia de cêntimos combinados com a cliente.
+ */
 export function cogsInPeriod(
-  o: OrderForCogs & OrderForRevenueDates,
+  o: OrderForCogs &
+    Pick<Order, "status" | "event_date"> &
+    Partial<Pick<Order, "fully_paid_at">>,
   start: Date,
   end: Date,
 ): number {
@@ -457,12 +446,12 @@ export function cogsInPeriod(
   return inPeriodISO(at, start, end) ? cogsFullFromOrder(o) : 0;
 }
 
-/** Quanto falta o cliente pagar: orçamento × (1 − % pago). 0 para canceladas. */
+/** Quanto falta o cliente pagar. 0 para canceladas. */
 export function outstandingFromOrder(
-  o: Pick<Order, "budget" | "payment_status" | "status">,
+  o: Pick<Order, "budget" | "status"> & Partial<Pick<Order, "amount_paid">>,
 ): number {
-  if (o.status === "cancelado" || !o.budget) return 0;
-  return (Number(o.budget) * (100 - Math.round(paidRatio(o.payment_status) * 100))) / 100;
+  if (o.status === "cancelado") return 0;
+  return outstandingTotal(o.budget, o.amount_paid);
 }
 
 // ── COGS por encomenda ───────────────────────────────────────
@@ -525,18 +514,21 @@ export interface OrderPnL {
 }
 
 type OrderForPnL = OrderForCogs &
-  Pick<Order, "budget" | "partner_commission" | "partner_commission_status">;
+  Pick<Order, "budget" | "partner_commission" | "partner_commission_status"> &
+  Partial<Pick<Order, "amount_paid">>;
 
 export function orderPnL(order: OrderForPnL): OrderPnL {
-  const ratio = paidRatio(order.payment_status);
   const isFullyPaid = order.payment_status === "100_pago";
   const revenue_full = Number(order.budget ?? 0);
   const cogs_full = cogsFullFromOrder(order);
   const commission_full = commissionFullFromOrder(order);
   const margin_full = revenue_full - cogs_full - commission_full;
-  const revenue_recognized = revenue_full * ratio;
+  // Receita reconhecida = euros que entraram mesmo (mig 114), e já não
+  // uma fracção do orçamento de hoje.
+  const revenue_recognized = Number(order.amount_paid ?? 0);
   const cogs_recognized = isFullyPaid ? cogs_full : 0;
-  const commission_recognized = commission_full * ratio;
+  const paidShare = revenue_full > 0 ? revenue_recognized / revenue_full : 0;
+  const commission_recognized = commission_full * paidShare;
   return {
     revenue_full,
     revenue_recognized,
@@ -547,6 +539,6 @@ export function orderPnL(order: OrderForPnL): OrderPnL {
     margin_full,
     margin_recognized: revenue_recognized - cogs_recognized - commission_recognized,
     margin_pct: revenue_full > 0 ? (margin_full / revenue_full) * 100 : 0,
-    paid_ratio: ratio,
+    paid_ratio: paidShare,
   };
 }

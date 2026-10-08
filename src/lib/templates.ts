@@ -10,6 +10,7 @@
 import { format, parseISO } from "date-fns";
 import { pt, enUS } from "date-fns/locale";
 import type { Order } from "@/types/database";
+import { dueAtPhase } from "@/lib/finance";
 
 // Formato europeu compacto usado nas mensagens: "300€" para inteiros,
 // "100,50€" quando há cêntimos. Difere de formatEUR (que dá "300,00€").
@@ -304,28 +305,18 @@ export function renderOrderTemplate(template: MessageTemplate, ctx: RenderOrderC
   const parcela40 = total !== null ? Math.round(total * 0.4 * 100) / 100 : null;
   const parcela30 = total !== null ? Math.round(total * 0.3 * 100) / 100 : null;
 
-  // Acerto de pagamento: euros já pagos + o que falta para o próximo marco.
-  // Usa o orçamento no momento do 1º pagamento (budget_at_first_payment)
-  // como base do que foi realmente pago — relevante quando o tamanho da
-  // moldura foi decidido depois do sinal e o orçamento subiu. Sem âncora
-  // (encomenda normal), assume que o pago corresponde ao orçamento actual.
-  const paidFrac: Record<Order["payment_status"], number> = {
-    "100_por_pagar": 0,
-    "30_pago": 0.3,
-    "70_pago": 0.7,
-    "100_pago": 1,
-  };
-  const frac = paidFrac[order.payment_status] ?? 0;
-  const baseParaPago = order.budget_at_first_payment ?? total;
-  const sinalPago =
-    frac > 0 && baseParaPago !== null
-      ? Math.round(frac * baseParaPago * 100) / 100
-      : null;
-  const proxFrac = frac < 0.3 ? 0.3 : frac < 0.7 ? 0.7 : 1;
+  // Acerto de pagamento: euros já pagos + o que falta pedir nesta fase.
+  // Desde a mig 114 os euros pagos saem do livro de pagamentos
+  // (orders.amount_paid), e já não de uma percentagem aplicada ao
+  // orçamento — era isso que mentia quando a cliente pagava uma quantia
+  // diferente do marco, ou quando o orçamento subia depois do sinal.
+  const pagoAteAgora = Number(order.amount_paid ?? 0);
+  const sinalPago = pagoAteAgora > 0 ? Math.round(pagoAteAgora * 100) / 100 : null;
+  // O que falta para fechar a fase em que a encomenda está. Quando o
+  // orçamento subiu, a diferença aparece aqui sozinha; e o que ficou em
+  // atraso numa fase anterior arrasta-se para esta.
   const valorEmFalta =
-    total !== null && sinalPago !== null
-      ? Math.round((proxFrac * total - sinalPago) * 100) / 100
-      : null;
+    total !== null ? dueAtPhase(total, order.payment_status, pagoAteAgora) : null;
 
   // Valor do quadro base (sem extras) — útil para mensagens de pré-reserva
   // onde só queremos mostrar o preço da moldura escolhida. Se o orçamento

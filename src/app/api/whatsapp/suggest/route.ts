@@ -33,6 +33,7 @@ import {
   pendenciasBlock,
   type MensagemFbr,
 } from "@/lib/whatsapp/pendencias";
+import { dueAtPhase } from "@/lib/finance";
 import { fetchThreadsWithContact } from "@/lib/google/gmail";
 import { splitQuotedEmail } from "@/lib/email-quotes";
 import {
@@ -131,6 +132,9 @@ type LinkedOrder = {
   frame_delivery_method: FrameDeliveryMethod | null;
   budget: number | null;
   budget_at_first_payment: number | null;
+  // Soma do livro de pagamentos (mig 114) — base de {sinal_pago} e
+  // {valor_em_falta} nos templates.
+  amount_paid: number;
   payment_status: PaymentStatus;
   cash_on_delivery: boolean;
   pickup_address: string | null;
@@ -170,7 +174,7 @@ type ConvRow = {
 };
 
 const LINKED_ORDER_COLUMNS =
-  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, email, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, additional_main_frames, pricing_snapshot";
+  "order_id, client_name, status, contacted, event_date, event_type, event_location, couple_names, frame_size, frame_background, flower_delivery_method, frame_delivery_method, budget, budget_at_first_payment, amount_paid, payment_status, cash_on_delivery, pickup_address, pickup_date, gift_voucher_code, additional_notes, form_language, estimated_delivery_date, phone, email, flower_type, extras_in_frame, christmas_ornaments, christmas_ornaments_qty, necklace_pendants, necklace_pendants_qty, extra_small_frames, extra_small_frames_qty, additional_main_frames, pricing_snapshot";
 
 // ─── Histórico de email ───────────────────────────────────────
 // O WhatsApp não é a história toda: muita coisa combina-se por email
@@ -284,9 +288,15 @@ function orderToBlock(o: LinkedOrder): string {
   if (o.cash_on_delivery) {
     lines.push("  Pagamento combinado em DINHEIRO na entrega das flores");
   }
-  if (o.budget_at_first_payment !== null) {
+  // Euros realmente recebidos e o que falta nesta fase (mig 114). Antes
+  // disto o prompt dava só o orçamento no 1.º pagamento e o modelo tinha
+  // de adivinhar a conta — agora recebe os dois valores feitos.
+  const pago = Number(o.amount_paid ?? 0);
+  if (pago > 0) {
+    const falta = dueAtPhase(o.budget, o.payment_status, pago);
     lines.push(
-      `  Sinal pago sobre orçamento de ${o.budget_at_first_payment}€ (tamanho decidido depois → pode haver acerto de valores)`,
+      `  Já pagou ${pago}€ de ${o.budget ?? "?"}€` +
+        (falta > 0 ? ` — faltam ${falta}€ para fechar esta fase` : " — esta fase está fechada"),
     );
   }
   if (o.pickup_address) {

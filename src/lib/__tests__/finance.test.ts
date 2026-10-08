@@ -18,7 +18,6 @@ import {
   aggregateExpensesByAccountingType,
   expenseAmountInPeriod,
   expensesTotalInPeriod,
-  revenueTranches,
   revenueInPeriod,
   commissionInPeriod,
   cogsInPeriod,
@@ -203,6 +202,7 @@ describe("orderPnL", () => {
   const pnlOrder = {
     ...baseOrder,
     budget: 300,
+    amount_paid: 300,
     partner_commission: 30,
     partner_commission_status: "a_aguardar" as const,
   };
@@ -219,7 +219,7 @@ describe("orderPnL", () => {
   });
 
   it("a 30% pago reconhece receita/comissão proporcionais e COGS 0", () => {
-    const p = orderPnL({ ...pnlOrder, payment_status: "30_pago" });
+    const p = orderPnL({ ...pnlOrder, payment_status: "30_pago", amount_paid: 90 });
     expect(p.revenue_recognized).toBeCloseTo(90);
     expect(p.cogs_recognized).toBe(0);
     expect(p.commission_recognized).toBeCloseTo(9);
@@ -263,19 +263,18 @@ describe("receita por data de pagamento", () => {
     partner_commission_status: "a_aguardar" as const,
   };
 
-  it("o sinal conta no mês em que entrou, não no mês do evento", () => {
-    const o = { ...base, payment_status: "30_pago" as const, deposit_paid_at: "2026-09-10T10:00:00Z" };
+  const pag = (amount: number, paid_at: string) => ({ amount, paid_at });
+
+  it("o pagamento conta no mês em que entrou, não no mês do evento", () => {
+    const o = { ...base, payments: [pag(120, "2026-09-10")] };
     expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
     expect(revenueInPeriod(o, dez.start, dez.end)).toBe(0);
   });
 
-  it("as 3 parcelas (30/40/30) caem cada uma na sua data e somam o orçamento", () => {
+  it("cada pagamento cai na sua data e a soma é o que entrou ao todo", () => {
     const o = {
       ...base,
-      payment_status: "100_pago" as const,
-      deposit_paid_at: "2026-09-10T10:00:00Z",
-      second_paid_at: "2026-11-02T10:00:00Z",
-      fully_paid_at: "2026-12-20T10:00:00Z",
+      payments: [pag(120, "2026-09-10"), pag(160, "2026-11-02"), pag(120, "2026-12-20")],
     };
     expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
     expect(revenueInPeriod(o, nov.start, nov.end)).toBe(160);
@@ -284,32 +283,39 @@ describe("receita por data de pagamento", () => {
     expect(revenueInPeriod(o, ano.start, ano.end)).toBe(400);
   });
 
-  it("sem carimbos cai na data do evento (encomendas antigas), como antes", () => {
-    const o = { ...base, payment_status: "70_pago" as const };
-    expect(revenueTranches(o).every((t) => !t.stamped && t.at === "2026-12-12")).toBe(true);
-    expect(revenueInPeriod(o, dez.start, dez.end)).toBe(280);
+  it("uma quantia fora dos marcos conta pelo valor real (era o bug de origem)", () => {
+    // A cliente devia 230,50€ e transferiu 230€: conta 230€, e não 30%
+    // ou 70% de um orçamento qualquer.
+    const o = { ...base, payments: [pag(230, "2026-09-10")] };
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(230);
+  });
+
+  it("sem pagamentos registados não há receita nenhuma", () => {
+    // Antes da mig 114 atribuía-se receita na data do evento a partir da
+    // percentagem; agora, sem registo de dinheiro, não há receita.
+    expect(revenueInPeriod({ ...base, payments: [] }, dez.start, dez.end)).toBe(0);
+    expect(revenueInPeriod({ ...base }, dez.start, dez.end)).toBe(0);
+  });
+
+  it("devolução entra como valor negativo no mês em que foi feita", () => {
+    const o = { ...base, payments: [pag(120, "2026-09-10"), pag(-120, "2026-11-05")] };
+    expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
+    expect(revenueInPeriod(o, nov.start, nov.end)).toBe(-120);
+  });
+
+  it("cancelada não conta, mesmo com pagamentos no livro", () => {
+    const o = { ...base, status: "cancelado" as const, payments: [pag(120, "2026-09-10")] };
     expect(revenueInPeriod(o, set.start, set.end)).toBe(0);
   });
 
-  it("carimbo em falta numa só parcela cai na data do evento só nessa", () => {
-    const o = { ...base, payment_status: "70_pago" as const, deposit_paid_at: "2026-09-10T10:00:00Z" };
-    expect(revenueInPeriod(o, set.start, set.end)).toBe(120);
-    expect(revenueInPeriod(o, dez.start, dez.end)).toBe(160);
-  });
-
-  it("cancelada e por pagar não contam", () => {
-    expect(revenueInPeriod({ ...base, payment_status: "100_pago", status: "cancelado", fully_paid_at: "2026-09-10T10:00:00Z" }, set.start, set.end)).toBe(0);
-    expect(revenueInPeriod({ ...base, payment_status: "100_por_pagar" }, dez.start, dez.end)).toBe(0);
-    expect(revenueTranches({ payment_status: "100_por_pagar" })).toEqual([]);
-  });
-
-  it("a comissão segue as parcelas pagas no período", () => {
-    const o = { ...base, payment_status: "30_pago" as const, deposit_paid_at: "2026-09-10T10:00:00Z" };
+  it("a comissão é proporcional ao dinheiro que entrou no período", () => {
+    // 40€ de comissão sobre 400€ de orçamento: 120€ pagos → 12€.
+    const o = { ...base, payments: [pag(120, "2026-09-10")] };
     expect(commissionInPeriod(o, set.start, set.end)).toBe(12);
     expect(commissionInPeriod({ ...o, partner_commission_status: "nao_aceita" }, set.start, set.end)).toBe(0);
   });
 
-  it("o custo de produção conta na data dos 100%", () => {
+  it("o custo de produção conta na data em que a cobrança fechou", () => {
     const o = {
       ...base,
       payment_status: "100_pago" as const,
@@ -330,16 +336,19 @@ describe("receita por data de pagamento", () => {
     expect(cogsInPeriod({ ...o, payment_status: "70_pago" }, nov.start, nov.end)).toBe(0);
   });
 
-  it("confirmada = sinal pago; pré-reserva sem sinal não é cliente", () => {
-    expect(isConfirmedOrder({ payment_status: "30_pago" })).toBe(true);
-    expect(isConfirmedOrder({ payment_status: "100_pago" })).toBe(true);
+  it("confirmada = entrou dinheiro; a fase serve de alternativa", () => {
+    expect(isConfirmedOrder({ payment_status: "100_por_pagar", amount_paid: 50 })).toBe(true);
+    expect(isConfirmedOrder({ payment_status: "30_pago", amount_paid: 0 })).toBe(true);
+    expect(isConfirmedOrder({ payment_status: "100_por_pagar", amount_paid: 0 })).toBe(false);
     expect(isConfirmedOrder({ payment_status: "100_por_pagar" })).toBe(false);
   });
 
-  it("por receber = orçamento × (1 − % pago), 0 em canceladas", () => {
-    expect(outstandingFromOrder({ budget: 400, payment_status: "30_pago", status: "entrega_agendada" })).toBe(280);
-    expect(outstandingFromOrder({ budget: 400, payment_status: "100_pago", status: "quadro_recebido" })).toBe(0);
-    expect(outstandingFromOrder({ budget: 400, payment_status: "100_por_pagar", status: "cancelado" })).toBe(0);
+  it("por receber = orçamento menos o que entrou, 0 em canceladas", () => {
+    expect(outstandingFromOrder({ budget: 400, amount_paid: 120, status: "entrega_agendada" })).toBe(280);
+    expect(outstandingFromOrder({ budget: 400, amount_paid: 400, status: "quadro_recebido" })).toBe(0);
+    expect(outstandingFromOrder({ budget: 400, amount_paid: 120, status: "cancelado" })).toBe(0);
+    // os 50 cêntimos que ficaram para a parcela seguinte continuam a ver-se
+    expect(outstandingFromOrder({ budget: 400, amount_paid: 399.5, status: "entrega_agendada" })).toBe(0.5);
   });
 });
 
